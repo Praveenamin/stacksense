@@ -1361,6 +1361,60 @@ def create_admin_user_api(request):
         if User.objects.filter(username=username).exists():
             return JsonResponse({"success": False, "error": "Username already exists."}, status=400)
         user = User.objects.create_user(username=username, email=email, password=password, is_staff=True, is_superuser=is_superuser)
+        _log_user_action(request, "CREATE_ADMIN_USER", f"Created user: {username} (superuser: {is_superuser})")
         return JsonResponse({"success": True, "message": f"User {username} created successfully."})
     except Exception as e:
+        _log_user_action(request, "CREATE_ADMIN_USER", f"Failed: {str(e)}")
+        error_logger.error(f"CREATE_ADMIN_USER error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def alert_history_api(request):
+    """API endpoint to fetch alert history"""
+    try:
+        # Get query parameters
+        limit = int(request.GET.get('limit', 100))
+        server_id = request.GET.get('server_id')
+        alert_type = request.GET.get('alert_type')
+        status = request.GET.get('status')
+        
+        # Build query
+        query = AlertHistory.objects.all()
+        
+        if server_id:
+            query = query.filter(server_id=server_id)
+        if alert_type:
+            query = query.filter(alert_type=alert_type)
+        if status:
+            query = query.filter(status=status)
+        
+        # Get alerts ordered by most recent first
+        alerts = query.order_by('-sent_at')[:limit]
+        
+        # Serialize alerts
+        alerts_data = []
+        for alert in alerts:
+            alerts_data.append({
+                'id': alert.id,
+                'server_name': alert.server.name,
+                'server_ip': alert.server.ip_address,
+                'alert_type': alert.alert_type,
+                'status': alert.status,
+                'value': alert.value,
+                'threshold': alert.threshold,
+                'message': alert.message,
+                'recipients': alert.recipients,
+                'sent_at': alert.sent_at.isoformat(),
+                'resolved_at': alert.resolved_at.isoformat() if alert.resolved_at else None,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'alerts': alerts_data,
+            'count': len(alerts_data)
+        })
+    except Exception as e:
+        error_logger.error(f"ALERT_HISTORY_API error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
