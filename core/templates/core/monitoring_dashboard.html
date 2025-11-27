@@ -1,0 +1,2140 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Server Monitor{% endblock %}
+
+{% block extrahead %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    :root {
+        --primary-color: #c9a961;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --bg-light: #0f172a;
+        --bg-dark: #1e293b;
+        --card-bg: #1e293b;
+        --card-bg-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --border-color: #334155;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    html, body {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        min-height: 100vh;
+    }
+
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    }
+
+    #content, .content-wrapper, .wrapper, .main-content, .content {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+    }
+
+    /* Force dark theme on all containers */
+    div, section, article, aside, main {
+        color: inherit;
+    }
+
+    /* Hide all admin UI - but NOT our custom sidebar */
+    .main-sidebar, aside:not(.sidebar), nav[aria-label="Main navigation"],
+    #sidebar:not(.sidebar), .content-wrapper > aside:not(.sidebar), aside.main-sidebar,
+    .main-header, .navbar, .navbar-nav, .navbar-header,
+    header.main-header, nav.navbar, footer, .main-footer,
+    complementary, [role="complementary"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Ensure our custom sidebar is visible */
+    .sidebar {
+        display: block !important;
+        visibility: visible !important;
+    }
+
+    #content, .content-wrapper {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+
+    .wrapper {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+
+    .content {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Sidebar */
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        background: var(--card-bg);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 1000;
+        transition: width 0.3s ease;
+        overflow: hidden;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar.collapsed {
+        width: 60px;
+    }
+
+    .sidebar.expanded {
+        width: 240px;
+    }
+
+    .sidebar:hover {
+        width: 240px;
+    }
+
+    .sidebar-content {
+        padding: 1rem 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        color: rgba(255, 255, 255, 0.7);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        gap: 0.75rem;
+        white-space: nowrap;
+        border-left: 3px solid transparent;
+        text-decoration: none;
+    }
+
+    .sidebar-item a {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        text-decoration: none;
+        color: inherit;
+        gap: 0.75rem;
+    }
+
+    .sidebar-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        border-left-color: var(--primary-color);
+    }
+
+    .sidebar-item-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .sidebar-item-icon svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+    }
+
+    .sidebar-item-text {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .sidebar:hover .sidebar-item-text,
+    .sidebar.expanded .sidebar-item-text {
+        opacity: 1;
+    }
+
+    .sidebar-divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 0.5rem 1rem;
+    }
+
+    .sidebar-item.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger-color);
+        border-left-color: var(--danger-color);
+    }
+
+    /* Logout button at bottom */
+    .sidebar-footer {
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar-item.logout {
+        background: rgba(239, 68, 68, 0.15) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+        border-left: 3px solid rgba(239, 68, 68, 0.5) !important;
+        margin: 0.5rem;
+        border-radius: 8px;
+        box-shadow: 
+            0 2px 8px 0 rgba(239, 68, 68, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        font-family: inherit;
+        font-size: inherit;
+    }
+
+    .sidebar-item.logout:hover {
+        background: rgba(239, 68, 68, 0.25) !important;
+        border-color: rgba(239, 68, 68, 0.5) !important;
+        border-left-color: var(--danger-color) !important;
+        color: var(--danger-color) !important;
+        transform: translateX(2px);
+        box-shadow: 
+            0 4px 12px 0 rgba(239, 68, 68, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-item.logout:focus {
+        outline: none;
+        border-color: rgba(239, 68, 68, 0.5) !important;
+    }
+
+    /* Main Container */
+    .dashboard-container {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        margin-left: 60px; /* Space for collapsed sidebar */
+        padding: 1.5rem 1.25rem;
+        min-height: 100vh;
+        box-sizing: border-box;
+        transition: margin-left 0.3s ease;
+    }
+
+    .sidebar:hover ~ .dashboard-container,
+    .sidebar.expanded ~ .dashboard-container {
+        margin-left: 240px;
+    }
+
+
+    /* Header */
+    .dashboard-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+
+    .header-icon {
+        width: 56px;
+        height: 56px;
+        background: rgba(201, 169, 97, 0.2);
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(201, 169, 97, 0.3);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 
+            0 4px 16px 0 rgba(201, 169, 97, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        padding: 8px;
+    }
+
+    .header-icon svg {
+        width: 40px;
+        height: 40px;
+    }
+
+    .header-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .header-text h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 0.25rem;
+    }
+
+    .header-text p {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .header-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .add-server-btn {
+        display: none; /* Hidden - moved to sidebar */
+    }
+
+    .status-summary {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+    }
+
+    .status-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .status-dot.online { background: var(--success-color); }
+    .status-dot.warning { background: var(--warning-color); }
+    .status-dot.offline { background: var(--danger-color); }
+
+
+    /* Tabs */
+    .dashboard-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .tab-btn {
+        padding: 0.75rem 1.5rem;
+        background: rgba(30, 41, 59, 0.3) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        color: var(--text-secondary);
+        font-size: 0.9375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 
+            0 2px 8px 0 rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .tab-btn:hover {
+        border-color: rgba(201, 169, 97, 0.5);
+        color: var(--text-primary);
+        background: rgba(30, 41, 59, 0.5) !important;
+        transform: translateY(-1px);
+    }
+
+    .tab-btn.active {
+        background: rgba(201, 169, 97, 0.25) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border-color: rgba(201, 169, 97, 0.6);
+        color: #c9a961;
+        box-shadow: 
+            0 4px 16px 0 rgba(201, 169, 97, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    /* Server Cards Grid */
+    .servers-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    /* Global card styling - no border-bottom on headings for all cards */
+    .server-card h2,
+    .server-card h3,
+    [class*="card"] h2,
+    [class*="card"] h3,
+    [class*="section"] h2 {
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+        margin-top: 0;
+    }
+
+    .server-card {
+        cursor: pointer;
+        background: rgba(30, 41, 59, 0.4) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        padding: 0.75rem;
+        margin-bottom: 0;
+        margin-top: 0;
+        transition: all 0.3s ease;
+        box-shadow: 
+            0 8px 32px 0 rgba(0, 0, 0, 0.37),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .server-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, 
+            transparent, 
+            rgba(255, 255, 255, 0.3) 50%, 
+            transparent
+        );
+        pointer-events: none;
+    }
+
+    .server-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(201, 169, 97, 0.4);
+        box-shadow: 
+            0 12px 40px 0 rgba(0, 0, 0, 0.5),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+            0 0 20px rgba(201, 169, 97, 0.2);
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .server-info {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .server-icon {
+        width: 28px;
+        height: 28px;
+        background: rgba(201, 169, 97, 0.2);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .server-icon svg {
+        width: 16px;
+        height: 16px;
+        fill: var(--primary-color);
+    }
+
+    .server-name {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .status-pill {
+        padding: 0.2rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.625rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .status-pill.online {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        border: 1px solid var(--success-color);
+    }
+
+    .status-pill.warning {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warning-color);
+        border: 1px solid var(--warning-color);
+    }
+
+    .status-pill.offline {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger-color);
+        border: 1px solid var(--danger-color);
+    }
+
+    .uptime {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 0.75rem;
+    }
+
+    .metric-bar {
+        margin-bottom: 0.5rem;
+    }
+
+    .metric-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .metric-name {
+        color: rgba(255, 255, 255, 0.7);
+        font-weight: 500;
+    }
+
+    .metric-value {
+        color: white;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .progress-bar-container {
+        width: 100%;
+        height: 5px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 8px;
+        transition: width 0.5s ease, background-color 0.3s ease;
+    }
+
+    .progress-bar-fill.normal {
+        background: var(--success-color);
+    }
+
+    .progress-bar-fill.warning {
+        background: var(--warning-color);
+    }
+
+    .progress-bar-fill.critical {
+        background: var(--danger-color);
+    }
+
+    .progress-bar-fill.inactive {
+        background: rgba(148, 163, 184, 0.3);
+    }
+
+    .network-info {
+        display: flex;
+        gap: 1rem;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.75rem;
+    }
+
+    .network-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .network-arrow {
+        font-size: 1rem;
+        font-weight: bold;
+    }
+
+    .network-arrow.down {
+        color: var(--success-color);
+    }
+
+    .network-arrow.up {
+        color: var(--primary-color);
+    }
+
+    /* Modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: rgba(30, 41, 59, 0.5) !important;
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 2rem;
+        width: 100%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 
+            0 20px 60px 0 rgba(0, 0, 0, 0.5),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+        display: flex;
+        flex-direction: column;
+        transform: scale(0.9);
+        transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal-content {
+        transform: scale(1);
+    }
+    
+    .modal-content form {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+
+    .modal-header h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: rgba(30, 41, 59, 0.4) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: var(--text-secondary);
+        font-size: 28px;
+        cursor: pointer;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+        box-shadow: 
+            0 2px 8px 0 rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-close:hover {
+        background: rgba(30, 41, 59, 0.6) !important;
+        border-color: rgba(255, 255, 255, 0.3);
+        color: var(--text-primary);
+        transform: scale(1.1);
+        box-shadow: 
+            0 4px 12px 0 rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 0.875rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+        transition: all 0.3s;
+    }
+
+    .form-group input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.1);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .btn-primary, .btn-secondary {
+        flex: 1;
+        padding: 0.875rem 1.5rem;
+        border-radius: 12px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        box-shadow: 
+            0 4px 16px 0 rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary {
+        background: rgba(201, 169, 97, 0.3) !important;
+        color: white;
+        border: 1px solid rgba(201, 169, 97, 0.4);
+    }
+
+    .btn-primary:hover {
+        background: rgba(184, 134, 11, 0.4) !important;
+        border-color: rgba(201, 169, 97, 0.6);
+        transform: translateY(-2px);
+        box-shadow: 
+            0 6px 20px 0 rgba(201, 169, 97, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-secondary {
+        background: rgba(30, 41, 59, 0.4) !important;
+        color: var(--text-primary);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(30, 41, 59, 0.6) !important;
+        border-color: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 
+            0 6px 20px 0 rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .form-message {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        display: none;
+    }
+
+    .form-message.error {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger-color);
+        border: 1px solid var(--danger-color);
+        display: block;
+    }
+
+    .form-message.success {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success-color);
+        border: 1px solid var(--success-color);
+        display: block;
+    }
+
+    /* Responsive */
+    @media (max-width: 1400px) {
+        .servers-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 1000px) {
+        .servers-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .servers-grid {
+            grid-template-columns: 1fr;
+        }
+        .dashboard-header {
+            flex-wrap: wrap;
+        }
+        .header-actions {
+            width: 100%;
+            margin-top: 1rem;
+        }
+    }
+
+    /* Ensure no extra space on parent containers */
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .wrapper,
+    .content-wrapper,
+    #content,
+    .container-fluid,
+    .container,
+    .main-content,
+    .dashboard-content {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+    }
+
+    .container-fluid,
+    .row,
+    section.content,
+    .content {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Sidebar -->
+<div class="sidebar collapsed">
+    <div class="sidebar-content">
+        <div class="sidebar-logo">
+            <svg viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality">
+                <defs>
+                    <!-- Blue gradient for top and middle bars -->
+                    <linearGradient id="sidebarBlueGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#4a90e2;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#357abd;stop-opacity:1" />
+                    </linearGradient>
+                    <!-- Cyan gradient for bottom bar -->
+                    <linearGradient id="sidebarCyanGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#5bc0de;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#4a9bc8;stop-opacity:1" />
+                    </linearGradient>
+                    <filter id="sidebarGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <!-- Top bar (medium blue with green dot) -->
+                <rect x="20" y="10" width="120" height="26" rx="13" fill="url(#sidebarBlueGradient)" opacity="0.95"/>
+                <circle cx="35" cy="23" r="5.5" fill="#10b981" filter="url(#sidebarGlow)"/>
+                <!-- Middle bar (medium blue with yellow dot) -->
+                <rect x="20" y="45" width="120" height="26" rx="13" fill="url(#sidebarBlueGradient)" opacity="0.95"/>
+                <circle cx="35" cy="58" r="5.5" fill="#f59e0b" filter="url(#sidebarGlow)"/>
+                <!-- Bottom bar (lighter blue/cyan with red dot) -->
+                <rect x="20" y="80" width="120" height="26" rx="13" fill="url(#sidebarCyanGradient)" opacity="0.95"/>
+                <circle cx="35" cy="93" r="5.5" fill="#ef4444" filter="url(#sidebarGlow)"/>
+                <!-- Glass shine effect on bars -->
+                <rect x="20" y="10" width="120" height="3" rx="1.5" fill="rgba(255,255,255,0.4)" opacity="0.6"/>
+                <rect x="20" y="45" width="120" height="3" rx="1.5" fill="rgba(255,255,255,0.4)" opacity="0.6"/>
+                <rect x="20" y="80" width="120" height="3" rx="1.5" fill="rgba(255,255,255,0.4)" opacity="0.6"/>
+            </svg>
+        </div>
+        <div class="sidebar-item" onclick="openAddServerModal()" title="Add Server">
+            <div class="sidebar-item-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+            </div>
+            <span class="sidebar-item-text">Add Server</span>
+        </div>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-item danger" onclick="openRemoveServerModal()" title="Remove Server">
+            <div class="sidebar-item-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+            </div>
+            <span class="sidebar-item-text">Remove Server</span>
+        </div>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-item" onclick="openAlertConfigModal()" title="Alert Configurator">
+            <div class="sidebar-item-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+            </div>
+            <span class="sidebar-item-text">Alert Configurator</span>
+        </div>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-item" onclick="openAdminUsersModal()" title="Admin Users">
+            <div class="sidebar-item-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M16 7c0-2.21-1.79-4-4-4S8 4.79 8 7s1.79 4 4 4 4-1.79 4-4zm-4 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/>
+                </svg>
+            </div>
+            <span class="sidebar-item-text">Admin Users</span>
+        </div>
+        <div class="sidebar-footer">
+            <div class="sidebar-divider"></div>
+            <form action="/admin/logout/" method="post" style="margin: 0; padding: 0; display: contents;">
+                {% csrf_token %}
+                <button type="submit" class="sidebar-item logout" title="Logout" style="background: none; border: none; width: 100%; cursor: pointer; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; color: rgba(255, 255, 255, 0.7);">
+                    <div class="sidebar-item-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                        </svg>
+                    </div>
+                    <span class="sidebar-item-text">Logout</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="header-icon">
+            <svg width="40" height="30" viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality">
+                <defs>
+                    <!-- Blue gradient for top and middle bars -->
+                    <linearGradient id="headerBlueGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#4a90e2;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#357abd;stop-opacity:1" />
+                    </linearGradient>
+                    <!-- Cyan gradient for bottom bar -->
+                    <linearGradient id="headerCyanGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#5bc0de;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#4a9bc8;stop-opacity:1" />
+                    </linearGradient>
+                    <filter id="headerGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <!-- Top bar (medium blue with green dot) -->
+                <rect x="20" y="10" width="120" height="26" rx="13" fill="url(#headerBlueGradient)" opacity="0.95"/>
+                <circle cx="35" cy="23" r="5.5" fill="#10b981" filter="url(#headerGlow)"/>
+                <!-- Middle bar (medium blue with yellow dot) -->
+                <rect x="20" y="45" width="120" height="26" rx="13" fill="url(#headerBlueGradient)" opacity="0.95"/>
+                <circle cx="35" cy="58" r="5.5" fill="#f59e0b" filter="url(#headerGlow)"/>
+                <!-- Bottom bar (lighter blue/cyan with red dot) -->
+                <rect x="20" y="80" width="120" height="26" rx="13" fill="url(#headerCyanGradient)" opacity="0.95"/>
+                <circle cx="35" cy="93" r="5.5" fill="#ef4444" filter="url(#headerGlow)"/>
+                <!-- Glass shine effect on bars -->
+                <rect x="20" y="10" width="120" height="3" rx="1.5" fill="rgba(255,255,255,0.4)" opacity="0.6"/>
+                <rect x="20" y="45" width="120" height="3" rx="1.5" fill="rgba(255,255,255,0.4)" opacity="0.6"/>
+                <rect x="20" y="80" width="120" height="3" rx="1.5" fill="rgba(255,255,255,0.4)" opacity="0.6"/>
+            </svg>
+        </div>
+        <div class="header-text">
+            <h1>Server Monitor</h1>
+            <p>Real-time infrastructure monitoring</p>
+        </div>
+        <div class="header-actions">
+            <div class="status-summary">
+                <div class="status-item">
+                    <span class="status-dot online"></span>
+                    <span>{{ online_count }} Online</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot warning"></span>
+                    <span>{{ warning_count }} Warning</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot offline"></span>
+                    <span>{{ offline_count }} Offline</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="dashboard-tabs">
+        <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab-btn" onclick="switchTab('server-details')">Server Details</button>
+        <button class="tab-btn" onclick="switchTab('alerts')">Alerts ({{ alert_count }})</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="overview-tab" class="tab-content active">
+        <div class="servers-grid">
+            {% for server_data in servers_data %}
+            <div class="server-card" data-server-id="{{ server_data.server.id }}">
+                <div class="card-header">
+                    <div class="server-info">
+                        <div class="server-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/>
+                            </svg>
+                        </div>
+                        <div class="server-name">{{ server_data.server.name }}</div>
+                    </div>
+                    <div class="status-pill {{ server_data.status }}">{{ server_data.status }}</div>
+                </div>
+
+                <div class="uptime">{{ server_data.uptime_days }}d {{ server_data.uptime_hours }}h {{ server_data.uptime_minutes }}m</div>
+
+                {% if server_data.latest_metric %}
+                    {% with cpu=server_data.latest_metric.cpu_percent|default:0 %}
+                    <div class="metric-bar">
+                        <div class="metric-label">
+                            <span class="metric-name">CPU</span>
+                            <span class="metric-value">{{ cpu|floatformat:1 }}%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill {% if server_data.status == 'offline' %}inactive{% elif cpu < 50 %}normal{% elif cpu < 80 %}warning{% else %}critical{% endif %}" 
+                                 style="width: {{ cpu }}%"></div>
+                        </div>
+                    </div>
+                    {% endwith %}
+
+                    {% with memory=server_data.latest_metric.memory_percent|default:0 %}
+                    <div class="metric-bar">
+                        <div class="metric-label">
+                            <span class="metric-name">Memory</span>
+                            <span class="metric-value">{{ memory|floatformat:1 }}%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill {% if server_data.status == 'offline' %}inactive{% elif memory < 50 %}normal{% elif memory < 80 %}warning{% else %}critical{% endif %}" 
+                                 style="width: {{ memory }}%"></div>
+                        </div>
+                    </div>
+                    {% endwith %}
+
+                    {% with disk=server_data.disk_percent|default:0 %}
+                    <div class="metric-bar">
+                        <div class="metric-label">
+                            <span class="metric-name">Disk</span>
+                            <span class="metric-value">{{ disk|floatformat:1 }}%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill {% if server_data.status == 'offline' and disk == 0 %}inactive{% elif disk < 50 %}normal{% elif disk < 80 %}warning{% else %}critical{% endif %}" 
+                                 style="width: {{ disk }}%"></div>
+                        </div>
+                    </div>
+                    {% endwith %}
+
+                    {% if server_data.network_download > 0 or server_data.network_upload > 0 %}
+                    <div class="network-info">
+                        <div class="network-item">
+                            <span class="network-arrow down">↓</span>
+                            <span>{{ server_data.network_download }} MB/s</span>
+                        </div>
+                        <div class="network-item">
+                            <span class="network-arrow up">↑</span>
+                            <span>{{ server_data.network_upload }} MB/s</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <!-- No metrics - show empty bars -->
+                    <div class="metric-bar">
+                        <div class="metric-label">
+                            <span class="metric-name">CPU</span>
+                            <span class="metric-value">0.0%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill inactive" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="metric-bar">
+                        <div class="metric-label">
+                            <span class="metric-name">Memory</span>
+                            <span class="metric-value">0.0%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill inactive" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="metric-bar">
+                        <div class="metric-label">
+                            <span class="metric-name">Disk</span>
+                            <span class="metric-value">0.0%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill inactive" style="width: 0%"></div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Server Details Tab -->
+    <div id="server-details-tab" class="tab-content">
+        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+            <p>Server Details - Select a server to view detailed metrics</p>
+        </div>
+    </div>
+
+    <!-- Alerts Tab -->
+    <div id="alerts-tab" class="tab-content">
+        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+            {% if alert_count == 0 %}
+            <p>No active alerts. All systems operational.</p>
+            {% else %}
+            <p>{{ alert_count }} active alerts</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Server Modal -->
+<div id="addServerModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>Add New Server</h2>
+            <button class="modal-close" onclick="closeAddServerModal()">&times;</button>
+        </div>
+        <form id="addServerForm" onsubmit="submitAddServer(event)">
+            <div class="form-group">
+                <label for="server_name">Server Name *</label>
+                <input type="text" id="server_name" name="name" required placeholder="e.g., Web Server 01">
+            </div>
+            <div class="form-group">
+                <label for="server_ip">SSH Server IP *</label>
+                <input type="text" id="server_ip" name="ip_address" required placeholder="192.168.1.100">
+            </div>
+            <div class="form-group">
+                <label for="server_port">Port *</label>
+                <input type="number" id="server_port" name="port" required value="22" min="1" max="65535">
+            </div>
+            <div class="form-group">
+                <label for="server_username">Username *</label>
+                <input type="text" id="server_username" name="username" required value="root" placeholder="root">
+            </div>
+            <div class="form-group">
+                <label for="server_password">Root Password *</label>
+                <input type="password" id="server_password" name="password" required placeholder="Enter password for SSH key deployment">
+                <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 0.25rem; display: block;">Password is used only once to deploy SSH key. It will not be stored.</small>
+            </div>
+            <div id="formMessage" class="form-message"></div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeAddServerModal()">Cancel</button>
+                <button type="submit" class="btn-primary" id="submitBtn">Add Server</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Alert Configurator Modal -->
+<div id="alertConfigModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2>Alert Configurator</h2>
+            <button class="modal-close" onclick="closeAlertConfigModal()">&times;</button>
+        </div>
+        <form id="alertConfigForm" onsubmit="submitAlertConfig(event)">
+            <div class="form-group">
+                <label for="email_provider">Email Provider</label>
+                <select id="email_provider" name="provider" onchange="updateSMTPSettings()">
+                    <option value="custom">Custom SMTP</option>
+                    <option value="gmail">Gmail</option>
+                    <option value="outlook">Outlook / Office 365</option>
+                    <option value="yahoo">Yahoo Mail</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="smtp_host">SMTP Host *</label>
+                <input type="text" id="smtp_host" name="smtp_host" required placeholder="smtp.gmail.com">
+            </div>
+            <div class="form-group">
+                <label for="smtp_port">SMTP Port (SSL) *</label>
+                <input type="number" id="smtp_port" name="smtp_port" required placeholder="465" min="1" max="65535">
+                <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 0.25rem; display: block;">SSL/TLS port (typically 465 for SSL, 587 for TLS)</small>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="use_tls" name="use_tls" value="true" style="width: auto; margin-right: 0.5rem;">
+                    Use TLS instead of SSL (port 587)
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="smtp_username">Email Address (Username) *</label>
+                <input type="email" id="smtp_username" name="smtp_username" required placeholder="your.email@gmail.com">
+            </div>
+            <div class="form-group">
+                <label for="smtp_password">Email Password / App Password *</label>
+                <input type="password" id="smtp_password" name="smtp_password" required placeholder="Enter password or app password">
+                <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 0.25rem; display: block;">
+                    For Gmail/Outlook, use an App Password (not your regular password). 
+                    <a href="https://support.google.com/accounts/answer/185833" target="_blank" style="color: var(--primary-color);">Learn more</a>
+                </small>
+            </div>
+            <div class="form-group">
+                <label for="from_email">From Email Address *</label>
+                <input type="email" id="from_email" name="from_email" required placeholder="alerts@yourdomain.com">
+                <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 0.25rem; display: block;">Email address that will appear as sender</small>
+            </div>
+            <div class="form-group">
+                <label for="alert_recipients">Alert Recipients (comma-separated) *</label>
+                <input type="text" id="alert_recipients" name="alert_recipients" required placeholder="admin@example.com, team@example.com">
+                <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 0.25rem; display: block;">Email addresses that will receive alerts</small>
+            </div>
+            <div id="alertConfigMessage" class="form-message"></div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="testEmailConnection()">Test Connection</button>
+                <button type="button" class="btn-secondary" onclick="closeAlertConfigModal()">Cancel</button>
+                <button type="submit" class="btn-primary" id="alertConfigSubmitBtn">Save Configuration</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Admin Users Modal -->
+<div id="adminUsersModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 700px; width: 90%;">
+        <div class="modal-header">
+            <h2>Manage Admin Users</h2>
+            <button class="modal-close" onclick="closeAdminUsersModal()">&times;</button>
+        </div>
+        <div id="adminUsersContent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <button class="btn-primary glass-button" onclick="openAddUserModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    Add User
+                </button>
+            </div>
+            <div id="adminUsersMessage" class="form-message" style="display: none;"></div>
+            <div id="adminUsersTableContainer" style="overflow-x: auto;">
+                <table id="adminUsersTable" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminUsersTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                Loading users...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit User Modal -->
+<div id="addEditUserModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2 id="addEditUserModalTitle">Add Admin User</h2>
+            <button class="modal-close" onclick="closeAddEditUserModal()">&times;</button>
+        </div>
+        <form id="addEditUserForm" onsubmit="submitUserForm(event)">
+            <input type="hidden" id="editUserId" name="user_id" value="">
+            <div class="form-group">
+                <label for="user_username">Username *</label>
+                <input type="text" id="user_username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="user_email">Email</label>
+                <input type="email" id="user_email" name="email">
+            </div>
+            <div class="form-group">
+                <label for="user_password">Password <span id="passwordRequired" style="color: var(--text-secondary);">*</span></label>
+                <input type="password" id="user_password" name="password" placeholder="Leave blank to keep current password">
+                <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 0.25rem; display: block;" id="passwordHelp">Required for new users</small>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="user_is_superuser" name="is_superuser">
+                    Superuser (full admin access)
+                </label>
+            </div>
+            <div class="form-group" id="userActiveGroup" style="display: none;">
+                <label>
+                    <input type="checkbox" id="user_is_active" name="is_active" checked>
+                    Active (user can log in)
+                </label>
+            </div>
+            <div id="addEditUserMessage" class="form-message" style="display: none;"></div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary glass-button" onclick="closeAddEditUserModal()">Cancel</button>
+                <button type="submit" class="btn-primary glass-button" id="submitUserBtn">Add User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Remove Server Modal -->
+<div id="removeServerModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>Remove Server</h2>
+            <button class="modal-close" onclick="closeRemoveServerModal()">&times;</button>
+        </div>
+        <form id="removeServerForm" onsubmit="submitRemoveServer(event)">
+            <div class="form-group">
+                <label for="server_to_remove">Select Server to Remove *</label>
+                <select id="server_to_remove" name="server_id" required>
+                    <option value="">-- Select a server --</option>
+                    {% for server_data in servers_data %}
+                    <option value="{{ server_data.server.id }}">{{ server_data.server.name }} ({{ server_data.server.ip_address }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <div style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger-color); border-radius: 8px; color: var(--danger-color); font-size: 0.875rem;">
+                    <strong>Warning:</strong> This action cannot be undone. All metrics and monitoring data for this server will be permanently deleted.
+                </div>
+            </div>
+            <div id="removeFormMessage" class="form-message"></div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeRemoveServerModal()">Cancel</button>
+                <button type="submit" class="btn-primary" id="removeSubmitBtn" style="background: var(--danger-color);">Remove Server</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function switchTab(tabName) {
+    document.querySelectorAll(".tab-content").forEach(tab => tab.classList.remove("active"));
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+    
+    document.getElementById(tabName + "-tab").classList.add("active");
+    event.target.classList.add("active");
+}
+
+function openAddServerModal() {
+    document.getElementById("addServerModal").classList.add("active");
+    document.body.style.overflow = "hidden";
+}
+
+function closeAddServerModal() {
+    document.getElementById("addServerModal").classList.remove("active");
+    document.body.style.overflow = "";
+    document.getElementById("addServerForm").reset();
+    const msg = document.getElementById("formMessage");
+    msg.className = "form-message";
+    msg.style.display = "none";
+}
+
+function closeModalOnOverlay(event) {
+    if (event.target.classList.contains("modal-overlay")) {
+        if (document.getElementById("addServerModal").classList.contains("active")) {
+            closeAddServerModal();
+        }
+        if (document.getElementById("removeServerModal").classList.contains("active")) {
+            closeRemoveServerModal();
+        }
+        if (document.getElementById("alertConfigModal").classList.contains("active")) {
+            closeAlertConfigModal();
+        }
+        if (document.getElementById("adminUsersModal").classList.contains("active")) {
+            closeAdminUsersModal();
+        }
+        if (document.getElementById("addEditUserModal").classList.contains("active")) {
+            closeAddEditUserModal();
+        }
+    }
+}
+
+document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+        if (document.getElementById("addServerModal").classList.contains("active")) {
+            closeAddServerModal();
+        }
+        if (document.getElementById("removeServerModal").classList.contains("active")) {
+            closeRemoveServerModal();
+        }
+        if (document.getElementById("alertConfigModal").classList.contains("active")) {
+            closeAlertConfigModal();
+        }
+        if (document.getElementById("adminUsersModal").classList.contains("active")) {
+            closeAdminUsersModal();
+        }
+        if (document.getElementById("addEditUserModal").classList.contains("active")) {
+            closeAddEditUserModal();
+        }
+    }
+});
+
+function openAlertConfigModal() {
+    document.getElementById("alertConfigModal").classList.add("active");
+    document.body.style.overflow = "hidden";
+    loadAlertConfig();
+}
+
+function closeAlertConfigModal() {
+    document.getElementById("alertConfigModal").classList.remove("active");
+    document.body.style.overflow = "";
+    document.getElementById("alertConfigForm").reset();
+    const msg = document.getElementById("alertConfigMessage");
+    msg.className = "form-message";
+    msg.style.display = "none";
+}
+
+function updateSMTPSettings() {
+    const provider = document.getElementById("email_provider").value;
+    const hostInput = document.getElementById("smtp_host");
+    const portInput = document.getElementById("smtp_port");
+    const tlsCheckbox = document.getElementById("use_tls");
+    
+    const providers = {
+        'gmail': { host: 'smtp.gmail.com', port: 465, tls: false },
+        'outlook': { host: 'smtp-mail.outlook.com', port: 587, tls: true },
+        'yahoo': { host: 'smtp.mail.yahoo.com', port: 465, tls: false },
+        'custom': { host: '', port: 465, tls: false }
+    };
+    
+    if (providers[provider]) {
+        hostInput.value = providers[provider].host;
+        portInput.value = providers[provider].port;
+        tlsCheckbox.checked = providers[provider].tls;
+    }
+}
+
+async function loadAlertConfig() {
+    try {
+        const response = await fetch("/api/alert-config/", {
+            method: "GET",
+            headers: {
+                "X-CSRFToken": getCookie("csrftoken")
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.config) {
+                const config = data.config;
+                document.getElementById("email_provider").value = config.provider || "custom";
+                document.getElementById("smtp_host").value = config.smtp_host || "";
+                document.getElementById("smtp_port").value = config.smtp_port || 465;
+                document.getElementById("use_tls").checked = config.use_tls || false;
+                document.getElementById("smtp_username").value = config.smtp_username || "";
+                document.getElementById("from_email").value = config.from_email || "";
+                document.getElementById("alert_recipients").value = config.alert_recipients || "";
+            }
+        }
+    } catch (error) {
+        console.error("Failed to load alert config:", error);
+    }
+}
+
+async function submitAlertConfig(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const submitBtn = document.getElementById("alertConfigSubmitBtn");
+    const messageDiv = document.getElementById("alertConfigMessage");
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Saving...";
+    messageDiv.className = "form-message";
+    messageDiv.style.display = "none";
+    
+    try {
+        const csrftoken = getCookie("csrftoken");
+        if (!csrftoken) {
+            throw new Error("CSRF token not found. Please refresh the page.");
+        }
+
+        const configData = {
+            provider: formData.get("provider"),
+            smtp_host: formData.get("smtp_host"),
+            smtp_port: parseInt(formData.get("smtp_port")),
+            use_tls: formData.get("use_tls") === "true",
+            smtp_username: formData.get("smtp_username"),
+            smtp_password: formData.get("smtp_password"),
+            from_email: formData.get("from_email"),
+            alert_recipients: formData.get("alert_recipients")
+        };
+
+        const response = await fetch("/api/alert-config/", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(configData)
+        });
+        
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            throw new Error("Invalid response from server. Please try again.");
+        }
+        
+        if (response.ok && data.success === true) {
+            messageDiv.className = "form-message success";
+            messageDiv.textContent = data.message || "Alert configuration saved successfully!";
+            messageDiv.style.display = "block";
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Save Configuration";
+        } else {
+            messageDiv.className = "form-message error";
+            messageDiv.textContent = data.error || data.message || "Failed to save alert configuration. Please try again.";
+            messageDiv.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Save Configuration";
+        }
+    } catch (error) {
+        messageDiv.className = "form-message error";
+        messageDiv.textContent = error.message || "An error occurred. Please try again.";
+        messageDiv.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Save Configuration";
+        console.error("Alert config error:", error);
+    }
+}
+
+async function testEmailConnection() {
+    const form = document.getElementById("alertConfigForm");
+    const formData = new FormData(form);
+    const messageDiv = document.getElementById("alertConfigMessage");
+    
+    messageDiv.className = "form-message";
+    messageDiv.textContent = "Testing email connection...";
+    messageDiv.style.display = "block";
+    
+    try {
+        const csrftoken = getCookie("csrftoken");
+        const configData = {
+            provider: formData.get("provider"),
+            smtp_host: formData.get("smtp_host"),
+            smtp_port: parseInt(formData.get("smtp_port")),
+            use_tls: formData.get("use_tls") === "true",
+            smtp_username: formData.get("smtp_username"),
+            smtp_password: formData.get("smtp_password"),
+            from_email: formData.get("from_email"),
+            alert_recipients: formData.get("alert_recipients")
+        };
+
+        const response = await fetch("/api/alert-config/test/", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(configData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success === true) {
+            messageDiv.className = "form-message success";
+            messageDiv.textContent = data.message || "Email connection test successful!";
+        } else {
+            messageDiv.className = "form-message error";
+            messageDiv.textContent = data.error || data.message || "Email connection test failed.";
+        }
+    } catch (error) {
+        messageDiv.className = "form-message error";
+        messageDiv.textContent = "Failed to test email connection: " + error.message;
+        console.error("Test email error:", error);
+    }
+}
+
+async function submitAddServer(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const submitBtn = document.getElementById("submitBtn");
+    const messageDiv = document.getElementById("formMessage");
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Adding Server...";
+    messageDiv.className = "form-message";
+    messageDiv.style.display = "none";
+    
+    try {
+        const csrftoken = getCookie("csrftoken");
+        if (!csrftoken) {
+            throw new Error("CSRF token not found. Please refresh the page.");
+        }
+
+        const response = await fetch("/add-server/", {
+            method: "POST",
+            body: formData,
+            headers: {
+                "X-CSRFToken": csrftoken
+            }
+        });
+        
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            throw new Error("Invalid response from server. Please try again.");
+        }
+        
+        if (response.ok && data.success === true) {
+            messageDiv.className = "form-message success";
+            let message = data.message || "Server added successfully!";
+            
+            // Add psutil status information
+            if (data.psutil_status) {
+                if (data.psutil_status.installed) {
+                    message += `<br><small style="color: var(--success-color); margin-top: 0.5rem; display: block;">✓ ${data.psutil_status.message}</small>`;
+                } else {
+                    message += `<br><small style="color: var(--warning-color); margin-top: 0.5rem; display: block;">⚠ ${data.psutil_status.message}</small>`;
+                    if (data.psutil_status.manual_install) {
+                        message += `<br><small style="color: var(--text-secondary); margin-top: 0.25rem; display: block; font-family: monospace;">${data.psutil_status.manual_install}</small>`;
+                    }
+                }
+            }
+            
+            messageDiv.innerHTML = message;  // Use innerHTML to support HTML formatting
+            messageDiv.style.display = "block";
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);  // Increased to 3 seconds to read the message
+        } else {
+            messageDiv.className = "form-message error";
+            messageDiv.textContent = data.error || data.message || "Failed to add server. Please try again.";
+            messageDiv.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Add Server";
+        }
+    } catch (error) {
+        messageDiv.className = "form-message error";
+        messageDiv.textContent = error.message || "An error occurred. Please try again.";
+        messageDiv.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Add Server";
+        console.error("Add server error:", error);
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function openRemoveServerModal() {
+    document.getElementById("removeServerModal").classList.add("active");
+    document.body.style.overflow = "hidden";
+}
+
+function closeRemoveServerModal() {
+    document.getElementById("removeServerModal").classList.remove("active");
+    document.body.style.overflow = "";
+    document.getElementById("removeServerForm").reset();
+    const msg = document.getElementById("removeFormMessage");
+    msg.className = "form-message";
+    msg.style.display = "none";
+}
+
+async function submitRemoveServer(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const submitBtn = document.getElementById("removeSubmitBtn");
+    const messageDiv = document.getElementById("removeFormMessage");
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Removing Server...";
+    messageDiv.className = "form-message";
+    messageDiv.style.display = "none";
+    
+    try {
+        const csrftoken = getCookie("csrftoken");
+        if (!csrftoken) {
+            throw new Error("CSRF token not found. Please refresh the page.");
+        }
+
+        const serverId = formData.get("server_id");
+        const response = await fetch(`/remove-server/${serverId}/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/json"
+            }
+        });
+        
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            throw new Error("Invalid response from server. Please try again.");
+        }
+        
+        if (response.ok && data.success === true) {
+            messageDiv.className = "form-message success";
+            messageDiv.textContent = data.message || "Server removed successfully!";
+            messageDiv.style.display = "block";
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            messageDiv.className = "form-message error";
+            messageDiv.textContent = data.error || data.message || "Failed to remove server. Please try again.";
+            messageDiv.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Remove Server";
+        }
+    } catch (error) {
+        messageDiv.className = "form-message error";
+        messageDiv.textContent = error.message || "An error occurred. Please try again.";
+        messageDiv.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Remove Server";
+        console.error("Remove server error:", error);
+    }
+}
+
+// Live metrics polling
+let metricsPollInterval = null;
+let isTabVisible = true;
+
+// Page Visibility API - pause polling when tab is inactive
+document.addEventListener("visibilitychange", function() {
+    isTabVisible = !document.hidden;
+    if (isTabVisible) {
+        startLivePolling();
+    } else {
+        stopLivePolling();
+    }
+});
+
+function startLivePolling() {
+    if (metricsPollInterval) return;
+    
+    // Poll immediately on start
+    updateLiveMetrics();
+    
+    // Then poll every 10 seconds
+    metricsPollInterval = setInterval(updateLiveMetrics, 10000);
+}
+
+function stopLivePolling() {
+    if (metricsPollInterval) {
+        clearInterval(metricsPollInterval);
+        metricsPollInterval = null;
+    }
+}
+
+async function updateLiveMetrics() {
+    if (!isTabVisible) return;
+    
+    try {
+        const response = await fetch("/api/live-metrics/", {
+            method: "GET",
+            headers: {
+                "X-CSRFToken": getCookie("csrftoken")
+            }
+        });
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (data.metrics && Array.isArray(data.metrics)) {
+            updateMetricsDisplay(data.metrics);
+        }
+    } catch (error) {
+        // Silently fail - don't spam console
+        console.debug("Live metrics update failed:", error);
+    }
+}
+
+function updateMetricsDisplay(metrics) {
+    // Batch DOM updates
+    metrics.forEach(metric => {
+        const serverCard = document.querySelector(`[data-server-id="${metric.server_id}"]`);
+        if (!serverCard) return;
+        
+        // Find metric bars by their metric-name text content (more reliable)
+        const metricBars = serverCard.querySelectorAll(".metric-bar");
+        
+        metricBars.forEach(bar => {
+            const metricName = bar.querySelector(".metric-name");
+            if (!metricName) return;
+            
+            const metricValue = bar.querySelector(".metric-value");
+            const progressBar = bar.querySelector(".progress-bar-fill");
+            
+            if (!metricValue || !progressBar) return;
+            
+            let percent = 0;
+            let shouldUpdate = false;
+            
+            if (metricName.textContent.trim() === "CPU") {
+                percent = parseFloat(metric.cpu_percent) || 0;
+                shouldUpdate = true;
+            } else if (metricName.textContent.trim() === "Memory") {
+                percent = parseFloat(metric.memory_percent) || 0;
+                shouldUpdate = true;
+            } else if (metricName.textContent.trim() === "Disk") {
+                percent = parseFloat(metric.disk_percent) || 0;
+                shouldUpdate = true;
+            }
+            
+            if (shouldUpdate) {
+                metricValue.textContent = percent.toFixed(1) + "%";
+                progressBar.style.width = percent + "%";
+                // Update color class
+                progressBar.className = "progress-bar-fill " + (
+                    percent < 50 ? "normal" : percent < 80 ? "warning" : "critical"
+                );
+            }
+        });
+    });
+}
+
+
+// Handle server card clicks
+document.addEventListener("DOMContentLoaded", function() {
+    const serverCards = document.querySelectorAll(".server-card");
+    serverCards.forEach(card => {
+        card.style.cursor = "pointer";
+        card.addEventListener("click", function(e) {
+            // Don't navigate if clicking on a button or link
+            if (e.target.tagName === "BUTTON" || e.target.tagName === "A" || e.target.closest("button") || e.target.closest("a")) {
+                return;
+            }
+            // Don't navigate if clicking on SVG or its children
+            if (e.target.closest("svg")) {
+                return;
+            }
+            const serverId = this.getAttribute("data-server-id");
+            if (serverId) {
+                // Use absolute path to ensure it works from any location
+                window.location.href = "/server/" + serverId + "/";
+            } else {
+                console.error("Server card missing data-server-id attribute");
+            }
+        });
+    });
+});
+
+// Start polling when page loads
+document.addEventListener("DOMContentLoaded", function() {
+    startLivePolling();
+});
+
+// Stop polling when page unloads
+window.addEventListener("beforeunload", function() {
+    stopLivePolling();
+});
+
+// ============================================
+// Admin Users Modal Functions
+// ============================================
+
+function openAdminUsersModal() {
+    const modal = document.getElementById("adminUsersModal");
+    modal.classList.add("active");
+    document.body.style.overflow = "hidden";
+    loadAdminUsers();
+}
+
+function closeAdminUsersModal() {
+    const modal = document.getElementById("adminUsersModal");
+    modal.classList.remove("active");
+    document.body.style.overflow = "";
+}
+
+async function loadAdminUsers() {
+    const tbody = document.getElementById("adminUsersTableBody");
+    const messageDiv = document.getElementById("adminUsersMessage");
+    
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading users...</td></tr>';
+    
+    try {
+        const response = await fetch("/api/admin-users/", {
+            method: "GET",
+            headers: {
+                "X-CSRFToken": getCookie("csrftoken"),
+                "Content-Type": "application/json"
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            const users = data.users;
+            tbody.innerHTML = "";
+            
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No admin users found.</td></tr>';
+                return;
+            }
+            
+            users.forEach(user => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${escapeHtml(user.username)}</td>
+                    <td>${escapeHtml(user.email || "—")}</td>
+                    <td>
+                        ${user.is_superuser 
+                            ? '<span class="badge badge-success">Superuser</span>' 
+                            : '<span class="badge badge-warning">Staff</span>'}
+                    </td>
+                    <td>
+                        ${user.is_active 
+                            ? '<span class="badge badge-success">Active</span>' 
+                            : '<span class="badge badge-danger">Inactive</span>'}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-edit glass-button" onclick="editUser(${user.id})" style="margin-right: 0.5rem;">Edit</button>
+                        ${user.id !== parseInt(document.body.getAttribute('data-user-id') || '0') 
+                            ? `<button class="btn btn-sm btn-delete glass-button" onclick="deleteUser(${user.id}, '${escapeHtml(user.username)}')">Delete</button>`
+                            : '<span style="color: var(--text-muted); font-size: 0.875rem;">Current user</span>'}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            messageDiv.style.display = "none";
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--danger-color);">Error loading users: ' + (data.error || "Unknown error") + '</td></tr>';
+        }
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--danger-color);">Failed to load users: ' + error.message + '</td></tr>';
+        console.error("Load users error:", error);
+    }
+}
+
+function openAddUserModal() {
+    document.getElementById("addEditUserModalTitle").textContent = "Add Admin User";
+    document.getElementById("addEditUserForm").reset();
+    document.getElementById("editUserId").value = "";
+    document.getElementById("userActiveGroup").style.display = "none";
+    document.getElementById("passwordRequired").textContent = "*";
+    document.getElementById("user_password").required = true;
+    document.getElementById("passwordHelp").textContent = "Required for new users";
+    document.getElementById("submitUserBtn").textContent = "Add User";
+    document.getElementById("addEditUserMessage").style.display = "none";
+    const modal = document.getElementById("addEditUserModal");
+    modal.classList.add("active");
+}
+
+function editUser(userId) {
+    fetch(`/api/admin-users/${userId}/`, {
+        method: "GET",
+        headers: {
+            "X-CSRFToken": getCookie("csrftoken"),
+            "Content-Type": "application/json"
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const user = data.user;
+            document.getElementById("addEditUserModalTitle").textContent = "Edit Admin User";
+            document.getElementById("editUserId").value = user.id;
+            document.getElementById("user_username").value = user.username;
+            document.getElementById("user_email").value = user.email || "";
+            document.getElementById("user_is_superuser").checked = user.is_superuser;
+            document.getElementById("user_is_active").checked = user.is_active;
+            document.getElementById("user_password").value = "";
+            document.getElementById("user_password").required = false;
+            document.getElementById("passwordRequired").textContent = "";
+            document.getElementById("passwordHelp").textContent = "Leave blank to keep current password";
+            document.getElementById("userActiveGroup").style.display = "block";
+            document.getElementById("submitUserBtn").textContent = "Save Changes";
+            document.getElementById("addEditUserMessage").style.display = "none";
+            const modal = document.getElementById("addEditUserModal");
+            modal.classList.add("active");
+        } else {
+            alert("Error loading user: " + (data.error || "Unknown error"));
+        }
+    })
+    .catch(error => {
+        alert("Failed to load user: " + error.message);
+        console.error("Load user error:", error);
+    });
+}
+
+function closeAddEditUserModal() {
+    const modal = document.getElementById("addEditUserModal");
+    modal.classList.remove("active");
+}
+
+async function submitUserForm(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const messageDiv = document.getElementById("addEditUserMessage");
+    const submitBtn = document.getElementById("submitUserBtn");
+    const userId = document.getElementById("editUserId").value;
+    const isEdit = userId !== "";
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = isEdit ? "Saving..." : "Adding...";
+    messageDiv.style.display = "none";
+    
+    try {
+        const csrftoken = getCookie("csrftoken");
+        const userData = {
+            username: formData.get("username"),
+            email: formData.get("email"),
+            password: formData.get("password"),
+            is_superuser: formData.get("is_superuser") === "on",
+            is_active: formData.get("is_active") === "on"
+        };
+        
+        if (!userData.password) {
+            delete userData.password;
+        }
+        
+        const url = isEdit ? `/api/admin-users/${userId}/` : "/api/admin-users/create/";
+        const method = isEdit ? "PUT" : "POST";
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(userData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            messageDiv.className = "form-message success";
+            messageDiv.textContent = data.message || (isEdit ? "User updated successfully!" : "User created successfully!");
+            messageDiv.style.display = "block";
+            
+            setTimeout(() => {
+                closeAddEditUserModal();
+                loadAdminUsers();
+            }, 1000);
+        } else {
+            messageDiv.className = "form-message error";
+            messageDiv.textContent = data.error || data.message || "Failed to save user. Please try again.";
+            messageDiv.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.textContent = isEdit ? "Save Changes" : "Add User";
+        }
+    } catch (error) {
+        messageDiv.className = "form-message error";
+        messageDiv.textContent = "An error occurred: " + error.message;
+        messageDiv.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = isEdit ? "Save Changes" : "Add User";
+        console.error("Submit user error:", error);
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+        return;
+    }
+    
+    const messageDiv = document.getElementById("adminUsersMessage");
+    messageDiv.style.display = "none";
+    
+    try {
+        const csrftoken = getCookie("csrftoken");
+        const response = await fetch(`/api/admin-users/${userId}/`, {
+            method: "DELETE",
+            headers: {
+                "X-CSRFToken": csrftoken,
+                "Content-Type": "application/json"
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            messageDiv.className = "form-message success";
+            messageDiv.textContent = data.message || "User deleted successfully!";
+            messageDiv.style.display = "block";
+            loadAdminUsers();
+        } else {
+            messageDiv.className = "form-message error";
+            messageDiv.textContent = data.error || data.message || "Failed to delete user.";
+            messageDiv.style.display = "block";
+        }
+    } catch (error) {
+        messageDiv.className = "form-message error";
+        messageDiv.textContent = "Failed to delete user: " + error.message;
+        messageDiv.style.display = "block";
+        console.error("Delete user error:", error);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+</script>
+{% endblock %}

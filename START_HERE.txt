@@ -1,0 +1,40 @@
+╔══════════════════════════════════════════════════════════════╗
+║     Dockerized Server Monitoring System - Ready to Deploy    ║
+╚══════════════════════════════════════════════════════════════╝
+
+AFTER YOU LOG BACK IN, FOLLOW THESE STEPS:
+
+1. Verify Docker (no sudo needed):
+   docker --version
+   docker compose version
+
+2. Generate SSH keys:
+   cd /home/praveen/container_proj
+   ssh-keygen -t rsa -b 4096 -f ssh_keys/id_rsa -N ""
+
+3. Start the application:
+   docker compose up -d --build
+
+4. Initialize database:
+   docker compose exec web python manage.py migrate
+   docker compose exec web python manage.py createsuperuser
+
+5. Access the application:
+   - Web UI: http://localhost:8000
+   - Admin: http://localhost:8000/admin
+
+═══════════════════════════════════════════════════════════════
+
+📚 Documentation Files:
+   - AFTER_LOGIN.md - Step-by-step checklist
+   - QUICKSTART.md - Quick start guide
+   - DEPLOYMENT.md - Full deployment guide
+   - INSTALL_DOCKER.md - Docker installation info
+
+═══════════════════════════════════════════════════════════════
+
+Project Location: /home/praveen/container_proj
+
+Everything is ready! Just log out and log back in, then follow
+the steps above.
+

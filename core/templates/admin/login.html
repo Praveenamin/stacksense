@@ -1,0 +1,184 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}Login - StackSense{% endblock %}
+
+{% block extrastyle %}
+<style>
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background: #0f172a !important;
+        color: #f1f5f9 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        overflow: hidden !important;
+    }
+
+    #header, .main-header, .navbar, .main-sidebar, footer, .main-footer, .content-wrapper {
+        display: none !important;
+    }
+
+    #content {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #0f172a !important;
+    }
+
+    .content, section.content, .container-fluid, .row, .login {
+        width: 100vw !important;
+        height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .login-container {
+        width: 450px !important;
+        min-width: 350px !important;
+        min-height: 400px !important;
+        background: rgba(30, 41, 59, 0.4) !important;
+        backdrop-filter: blur(10px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        border-radius: 16px !important;
+        padding: 2.5rem !important;
+        margin: 0 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37) !important;
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 99999 !important;
+        box-sizing: border-box !important;
+    }
+
+    .login-container h1 {
+        color: #c9a961 !important;
+        text-align: center !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .login-container p {
+        color: #cbd5e1 !important;
+        text-align: center !important;
+        margin-bottom: 2rem !important;
+    }
+
+    .form-row {
+        margin-bottom: 1.5rem !important;
+    }
+
+    .form-row label {
+        color: #f1f5f9 !important;
+        display: block !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .form-row input {
+        width: 100% !important;
+        padding: 0.875rem !important;
+        background: rgba(15, 23, 42, 0.8) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 8px !important;
+        color: #f1f5f9 !important;
+        font-size: 0.9375rem !important;
+        min-height: 44px !important;
+        box-sizing: border-box !important;
+    }
+
+    .submit-row input {
+        background: rgba(201, 169, 97, 0.3) !important;
+        border: 1px solid rgba(201, 169, 97, 0.4) !important;
+        color: white !important;
+        padding: 0.875rem 2rem !important;
+        border-radius: 12px !important;
+        width: 100% !important;
+        cursor: pointer !important;
+        min-height: 44px !important;
+    }
+
+    .forgot-password {
+        text-align: center !important;
+        margin-top: 1.5rem !important;
+        padding-top: 1.5rem !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+
+    .forgot-password a {
+        color: #c9a961 !important;
+        text-decoration: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login">
+    <div class="login-container">
+        <div class="login-logo" style="text-align: center; margin-bottom: 2rem;">
+            <svg width="64" height="48" viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#4a90e2;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#357abd;stop-opacity:1" />
+                    </linearGradient>
+                    <linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#5bc0de;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#4a9bc8;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect x="20" y="10" width="120" height="26" rx="13" fill="url(#lg1)" opacity="0.95"/>
+                <circle cx="35" cy="23" r="5.5" fill="#10b981"/>
+                <rect x="20" y="45" width="120" height="26" rx="13" fill="url(#lg1)" opacity="0.95"/>
+                <circle cx="35" cy="58" r="5.5" fill="#f59e0b"/>
+                <rect x="20" y="80" width="120" height="26" rx="13" fill="url(#lg2)" opacity="0.95"/>
+                <circle cx="35" cy="93" r="5.5" fill="#ef4444"/>
+            </svg>
+        </div>
+        <h1>StackSense</h1>
+        <p>Welcome to StackSense</p>
+        
+        {% if form.errors %}
+            <p style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; padding: 0.75rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                Please correct the error{% if form.errors.items|length > 1 %}s{% endif %} below.
+            </p>
+        {% endif %}
+
+        <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
+            <div class="form-row">
+                <label for="id_username">Username:</label>
+                <input type="text" name="username" id="id_username" required autofocus>
+            </div>
+            <div class="form-row">
+                <label for="id_password">Password:</label>
+                <input type="password" name="password" id="id_password" required>
+            </div>
+            <input type="hidden" name="next" value="{{ next|default:"/monitoring/" }}">
+            <div class="submit-row">
+                <input type="submit" value="Log in">
+            </div>
+        </form>
+        
+        <div class="forgot-password">
+            <a href="/password-reset/">Forgot password?</a>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){'use strict';function fixLogin(){try{var c=document.querySelector('.login-container');if(!c)return;var r=c.getBoundingClientRect();var b=c.parentElement===document.body;var v=r.width>0&&r.height>0;if(!b||!v){var o=c;var n=o.cloneNode(true);var s='position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;width:450px!important;min-width:350px!important;min-height:400px!important;height:auto!important;background:rgba(30,41,59,0.4)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.18)!important;border-radius:16px!important;padding:2.5rem!important;box-shadow:0 8px 32px rgba(0,0,0,0.37)!important;display:block!important;visibility:visible!important;opacity:1!important;z-index:99999!important;box-sizing:border-box!important;';n.style.cssText=s;o.remove();document.body.appendChild(n);document.body.style.cssText='position:relative!important;width:100vw!important;height:100vh!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#0f172a!important;';}}catch(e){console.error('Login fix error:',e);}}fixLogin();if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',fixLogin);}setTimeout(fixLogin,50);setTimeout(fixLogin,200);setTimeout(fixLogin,500);setTimeout(fixLogin,1000);window.addEventListener('load',fixLogin);if(window.MutationObserver){var obs=new MutationObserver(function(){fixLogin();});obs.observe(document.body,{childList:true,subtree:true});}})();
+</script>
+{% endblock %}

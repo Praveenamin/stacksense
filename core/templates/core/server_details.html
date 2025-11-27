@@ -1,0 +1,983 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% load static %}
+
+{% block title %}Server Details - {{ server.name }}{% endblock %}
+
+{% block content %}
+<div class="details-container">
+    <div class="header-section">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="/monitoring/" class="back-button" style="background: #c9a961 !important; background-color: #c9a961 !important; color: #FFFFFF !important; text-decoration: none !important; border: none !important;">
+                ← Back
+            </a>
+            <div class="server-title">
+                <h1>{{ server.name }}</h1>
+            </div>
+        </div>
+        <div>
+            {% if server_status %}
+                <span class="status-badge {{ server_status }}">{{ server_status }}</span>
+            {% elif latest_metric %}
+                <span class="status-badge online">Online</span>
+            {% else %}
+                <span class="status-badge offline">Offline</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if latest_metric %}
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <h2>CPU</h2>
+            <div class="metric-item">
+                <span class="metric-label">Usage</span>
+                <span class="metric-value">{{ latest_metric.cpu_percent|floatformat:1 }}%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill {% if latest_metric.cpu_percent < 50 %}normal{% elif latest_metric.cpu_percent < 80 %}warning{% else %}critical{% endif %}" 
+                     style="width: {{ latest_metric.cpu_percent }}%"></div>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Physical Cores</span>
+                <span class="metric-value">{{ latest_metric.physical_cpu_count|default:"N/A" }}</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Logical Cores</span>
+                <span class="metric-value">{{ latest_metric.cpu_count|default:"N/A" }}</span>
+            </div>
+            {% if latest_metric.cpu_load_avg_1m %}
+            <div class="metric-item">
+                <span class="metric-label">Load Average (1m)</span>
+                <span class="metric-value">{{ latest_metric.cpu_load_avg_1m|floatformat:2 }}</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Load Average (5m)</span>
+                <span class="metric-value">{{ latest_metric.cpu_load_avg_5m|floatformat:2 }}</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Load Average (15m)</span>
+                <span class="metric-value">{{ latest_metric.cpu_load_avg_15m|floatformat:2 }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="metric-card">
+            <h2>Memory (RAM)</h2>
+            <div class="metric-item">
+                <span class="metric-label">Usage</span>
+                <span class="metric-value">{{ latest_metric.memory_percent|floatformat:1 }}%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill {% if latest_metric.memory_percent < 50 %}normal{% elif latest_metric.memory_percent < 80 %}warning{% else %}critical{% endif %}" 
+                     style="width: {{ latest_metric.memory_percent }}%"></div>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Total</span>
+                <span class="metric-value">{{ latest_metric.memory_total|default:0|filesizeformat }}</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Used</span>
+                <span class="metric-value">{{ latest_metric.memory_used|default:0|filesizeformat }}</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-label">Available</span>
+                <span class="metric-value">{{ latest_metric.memory_available|default:0|filesizeformat }}</span>
+            </div>
+            {% if latest_metric.memory_buffers %}
+            <div class="metric-item">
+                <span class="metric-label">Buffers</span>
+                <span class="metric-value">{{ latest_metric.memory_buffers|default:0|filesizeformat }}</span>
+            </div>
+            {% endif %}
+            {% if latest_metric.memory_cached %}
+            <div class="metric-item">
+                <span class="metric-label">Cached</span>
+                <span class="metric-value">{{ latest_metric.memory_cached|default:0|filesizeformat }}</span>
+            </div>
+            {% endif %}
+            {% if latest_metric.memory_shared %}
+            <div class="metric-item">
+                <span class="metric-label">Shared</span>
+                <span class="metric-value">{{ latest_metric.memory_shared|default:0|filesizeformat }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="metric-card">
+            <h2>Disk Storage</h2>
+            <div class="metric-item">
+                <span class="metric-label">Total Disks</span>
+                <span class="metric-value">{{ disk_summary.total_disks }}</span>
+            </div>
+            {% if disk_summary.ssd_count > 0 %}
+            <div class="metric-item">
+                <span class="metric-label">SSD</span>
+                <span class="metric-value">{{ disk_summary.ssd_count }}</span>
+            </div>
+            {% endif %}
+            {% if disk_summary.hdd_count > 0 %}
+            <div class="metric-item">
+                <span class="metric-label">HDD</span>
+                <span class="metric-value">{{ disk_summary.hdd_count }}</span>
+            </div>
+            {% endif %}
+            {% if disk_summary.nvme_count > 0 %}
+            <div class="metric-item">
+                <span class="metric-label">NVMe</span>
+                <span class="metric-value">{{ disk_summary.nvme_count }}</span>
+            </div>
+            {% endif %}
+            {% if disk_summary.raid_count > 0 %}
+            <div class="metric-item">
+                <span class="metric-label">RAID Arrays</span>
+                <span class="metric-value">{{ disk_summary.raid_count }}</span>
+            </div>
+            {% endif %}
+            
+            <h3 style="margin-top: 20px; margin-bottom: 12px; font-size: 16px; color: var(--text-secondary);">Partitions</h3>
+            <div class="disk-partitions-container">
+            {% for disk_name, disk_info in disk_summary.physical_disks.items %}
+                {% for partition in disk_info.partitions %}
+                <div class="disk-partition">
+                    <div class="disk-partition-header">
+                        <span class="metric-label">{{ partition.mount }}</span>
+                        <span class="disk-type-badge {{ disk_info.type|lower }}">{{ disk_info.type }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Usage</span>
+                        <span class="metric-value">{{ partition.percent|floatformat:1 }}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill {% if partition.percent < 50 %}normal{% elif partition.percent < 80 %}warning{% else %}critical{% endif %}" 
+                             style="width: {{ partition.percent }}%"></div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Used / Total</span>
+                        <span class="metric-value">{{ partition.used|default:0|filesizeformat }} / {{ partition.total|default:0|filesizeformat }}</span>
+                    </div>
+                    {% if disk_info.raid != "none" %}
+                    <div class="metric-item">
+                        <span class="metric-label">RAID</span>
+                        <span class="metric-value">{{ disk_info.raid }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h2>Performance Trends</h2>
+        <canvas id="metricsChart" height="80"></canvas>
+    </div>
+
+    <div class="services-section">
+        <h2>Active Services ({{ active_services.count }})</h2>
+        {% if active_services %}
+            {% for service in active_services %}
+            <div class="service-item">
+                <span class="service-name">{{ service.name }}</span>
+                <span class="service-status running">{{ service.status }}</span>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-data">No active services detected</div>
+        {% endif %}
+    </div>
+
+    <div class="anomalies-section">
+        <h2>Detected Anomalies ({{ recent_anomalies.count }})</h2>
+        {% if recent_anomalies %}
+            {% for anomaly in recent_anomalies %}
+            <div class="anomaly-item {{ anomaly.severity|lower }}">
+                <div class="anomaly-header">
+                    <span class="anomaly-metric">{{ anomaly.metric_type|upper }}: {{ anomaly.metric_name }} = {{ anomaly.metric_value|floatformat:2 }}</span>
+                    <span class="anomaly-severity {{ anomaly.severity|lower }}">{{ anomaly.severity }}</span>
+                </div>
+                <div style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">
+                    {{ anomaly.timestamp|date:"Y-m-d H:i:s" }}
+                </div>
+                {% if anomaly.explanation %}
+                <div style="margin-top: 8px; color: var(--text-primary);">
+                    {{ anomaly.explanation }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-data">No anomalies detected</div>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <div class="no-data">
+        <h2>No metrics available for this server</h2>
+        <p>Metrics will appear here once collection starts.</p>
+    </div>
+    {% endif %}
+
+    <!-- Alert Thresholds Section -->
+    <div class="thresholds-section">
+        <h2>Alert Thresholds</h2>
+        <form id="thresholdForm" class="threshold-form">
+            <div class="form-group">
+                <label for="cpu_threshold">CPU Threshold (%):</label>
+                <input type="number" id="cpu_threshold" name="cpu_threshold" 
+                       value="{{ server.monitoring_config.cpu_threshold }}" 
+                       min="0" max="100" step="0.1" required>
+            </div>
+            <div class="form-group">
+                <label for="memory_threshold">Memory Threshold (%):</label>
+                <input type="number" id="memory_threshold" name="memory_threshold" 
+                       value="{{ server.monitoring_config.memory_threshold }}" 
+                       min="0" max="100" step="0.1" required>
+            </div>
+            <div class="form-group">
+                <label for="disk_threshold">Disk Threshold (%):</label>
+                <input type="number" id="disk_threshold" name="disk_threshold" 
+                       value="{{ server.monitoring_config.disk_threshold }}" 
+                       min="0" max="100" step="0.1" required>
+            </div>
+            <button type="submit" class="btn-save-thresholds">Save Thresholds</button>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    {% if latest_metric and chart_data %}
+    const chartData = JSON.parse('{{ chart_data|escapejs }}');
+    
+    const ctx = document.getElementById("metricsChart");
+    if (ctx) {
+        new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: chartData.timestamps.map(function(t) { return new Date(t).toLocaleTimeString(); }),
+                datasets: [
+                    {
+                        label: "CPU %",
+                        data: chartData.cpu,
+                        borderColor: "rgb(75, 192, 192)",
+                        backgroundColor: "rgba(75, 192, 192, 0.2)",
+                        tension: 0.1
+                    },
+                    {
+                        label: "Memory %",
+                        data: chartData.memory,
+                        borderColor: "rgb(255, 99, 132)",
+                        backgroundColor: "rgba(255, 99, 132, 0.2)",
+                        tension: 0.1
+                    },
+                    {
+                        label: "Disk %",
+                        data: chartData.disk,
+                        borderColor: "rgb(255, 206, 86)",
+                        backgroundColor: "rgba(255, 206, 86, 0.2)",
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // Threshold form submission
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    document.getElementById('thresholdForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const serverId = {{ server.id }};
+        
+        try {
+            const response = await fetch(`/api/server/${serverId}/thresholds/`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Thresholds updated successfully!');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to update thresholds'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    });
+</script>
+{% endblock %}
+
+{% block extrastyle %}
+<style>
+    :root {
+        --primary-color: #c9a961;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --bg-light: #0f172a;
+        --bg-dark: #1e293b;
+        --card-bg: #1e293b;
+        --card-bg-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --border-color: #334155;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Override any admin CSS for back button - MUST be after * selector */
+    a.back-button,
+    a.back-button:link,
+    a.back-button:visited,
+    a.back-button:hover,
+    a.back-button:active,
+    a.back-button:focus {
+        color: #FFFFFF !important;
+        background: rgba(201, 169, 97, 0.3) !important;
+        background-color: rgba(201, 169, 97, 0.3) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(201, 169, 97, 0.4) !important;
+        text-decoration: none !important;
+        box-shadow: 
+            0 4px 16px 0 rgba(201, 169, 97, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2) !important;
+    }
+
+    /* Override any #007bff blue color from Django admin or browser defaults */
+    a.back-button,
+    a.back-button:link,
+    a.back-button:visited,
+    a.back-button:hover,
+    a.back-button:active,
+    a.back-button:focus,
+    a.back-button[style*="007bff"],
+    a.back-button[style*="#007bff"],
+    a[href*="/monitoring/"].back-button {
+        color: #FFFFFF !important;
+    }
+
+    /* Global override for any link with #007bff color */
+    a.back-button[style*="color"],
+    a.back-button[style*="007bff"] {
+        color: #FFFFFF !important;
+    }
+
+    html, body {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        min-height: 100vh;
+    }
+
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    }
+
+    #content, .content-wrapper, .wrapper, .main-content, .content {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+    }
+
+    /* Force dark theme on all containers */
+    div, section, article, aside, main {
+        color: inherit;
+    }
+
+    /* Hide all admin UI */
+    .main-sidebar, .sidebar, aside, nav[aria-label="Main navigation"],
+    #sidebar, .content-wrapper > aside, aside.main-sidebar,
+    .main-header, .navbar, .navbar-nav, .navbar-header,
+    header.main-header, nav.navbar, footer, .main-footer,
+    complementary, [role="complementary"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    #content, .content-wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 0 !important;
+    }
+
+    .wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+
+    .details-container {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 2rem 1.5rem;
+        min-height: 100vh;
+        box-sizing: border-box;
+    }
+
+    /* Header Section */
+    .header-section {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        margin-top: 0;
+        padding: 1.5rem;
+        background: var(--card-bg);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Force back button styles - highest specificity to override Django admin */
+    div.header-section a.back-button,
+    div.header-section a.back-button:link,
+    div.header-section a.back-button:visited,
+    div.header-section a.back-button:hover,
+    div.header-section a.back-button:active,
+    div.header-section a.back-button:focus,
+    .details-container .header-section a.back-button,
+    .details-container .header-section a.back-button:link,
+    .details-container .header-section a.back-button:visited,
+    .details-container .header-section a.back-button:hover,
+    .details-container .header-section a.back-button:active,
+    .details-container .header-section a.back-button:focus {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        padding: 0.625rem 1.25rem !important;
+        background: #c9a961 !important;
+        background-color: #c9a961 !important;
+        color: #FFFFFF !important;
+        text-decoration: none !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        font-size: 0.9375rem !important;
+        transition: all 0.3s ease !important;
+        border: none !important;
+        cursor: pointer !important;
+    }
+
+    div.header-section a.back-button:hover,
+    .details-container .header-section a.back-button:hover {
+        background: rgba(184, 134, 11, 0.4) !important;
+        background-color: rgba(184, 134, 11, 0.4) !important;
+        border-color: rgba(201, 169, 97, 0.6) !important;
+        color: #FFFFFF !important;
+        transform: translateX(-2px) !important;
+        box-shadow: 
+            0 6px 20px 0 rgba(201, 169, 97, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
+    }
+
+    .server-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .server-title h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin: 0;
+    }
+
+    .status-badge {
+        padding: 0.375rem 0.875rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-badge.online {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        border: 1px solid var(--success-color);
+    }
+
+    .status-badge.warning {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warning-color);
+        border: 1px solid var(--warning-color);
+    }
+
+    .status-badge.offline {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger-color);
+        border: 1px solid var(--danger-color);
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        margin-top: 0;
+    }
+
+    /* Global card styling - Glassmorphism effect for all cards */
+    .metric-card,
+    .card,
+    [class*="card"],
+    [class*="section"] {
+        background: rgba(30, 41, 59, 0.4) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        margin-top: 0;
+        box-shadow: 
+            0 8px 32px 0 rgba(0, 0, 0, 0.37),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Glassmorphism shine effect */
+    .metric-card::before,
+    .card::before,
+    [class*="card"]::before,
+    [class*="section"]::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, 
+            transparent, 
+            rgba(255, 255, 255, 0.3) 50%, 
+            transparent
+        );
+        pointer-events: none;
+    }
+
+    /* Remove all border-bottom from card headings */
+    .metric-card h2,
+    .card h2,
+    [class*="card"] h2,
+    [class*="section"] h2,
+    .chart-container h2,
+    .services-section h2,
+    .anomalies-section h2,
+    .thresholds-section h2 {
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+        margin-top: 0;
+    }
+
+    .metric-card {
+        padding: 1rem;
+        background: rgba(30, 41, 59, 0.35) !important;
+    }
+
+    .metric-card h2 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        margin-top: 0;
+        color: white;
+        padding-bottom: 0;
+    }
+
+    .metric-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        margin: 0;
+    }
+
+    .metric-label {
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.875rem;
+    }
+
+    .metric-value {
+        font-weight: 600;
+        color: white;
+        font-size: 0.9375rem;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-top: 0.375rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-fill {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.5s ease, background-color 0.3s ease;
+    }
+
+    .progress-fill.normal {
+        background: var(--success-color);
+    }
+
+    .progress-fill.warning {
+        background: var(--warning-color);
+    }
+
+    .progress-fill.critical {
+        background: var(--danger-color);
+    }
+
+    /* Chart Container */
+    .chart-container {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        margin-top: 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .chart-container h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        margin-top: 0;
+        color: white;
+        padding-bottom: 0;
+    }
+
+    /* Services and Anomalies Sections */
+    .services-section, .anomalies-section {
+        background: rgba(30, 41, 59, 0.4) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        margin-top: 0;
+        box-shadow: 
+            0 8px 32px 0 rgba(0, 0, 0, 0.37),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .services-section h2, .anomalies-section h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        margin-top: 0;
+        color: white;
+        padding-bottom: 0;
+    }
+
+    .service-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+
+    .service-name {
+        font-weight: 500;
+        color: white;
+        font-size: 0.9375rem;
+    }
+
+    .service-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .service-status.running {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        border: 1px solid var(--success-color);
+    }
+
+    .anomaly-item {
+        padding: 1rem;
+        border-left: 4px solid var(--danger-color);
+        background: rgba(239, 68, 68, 0.1);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+    }
+
+    .anomaly-item.medium {
+        border-left-color: var(--warning-color);
+        background: rgba(245, 158, 11, 0.1);
+    }
+
+    .anomaly-item.low {
+        border-left-color: var(--primary-color);
+        background: rgba(201, 169, 97, 0.1);
+    }
+
+    .anomaly-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .anomaly-metric {
+        font-weight: 600;
+        color: white;
+        font-size: 0.9375rem;
+    }
+
+    .anomaly-severity {
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+
+    .anomaly-severity.critical {
+        background: var(--danger-color);
+        color: white;
+    }
+
+    .anomaly-severity.high {
+        background: #fd7e14;
+        color: white;
+    }
+
+    .anomaly-severity.medium {
+        background: var(--warning-color);
+        color: var(--text-primary);
+    }
+
+    .anomaly-severity.low {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .disk-partitions-container {
+        max-height: 300px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding-right: 0.5rem;
+        margin-top: 0.5rem;
+        position: relative;
+        /* Always show scrollbar track for better UX */
+        scrollbar-gutter: stable;
+    }
+
+    /* Custom scrollbar for dark theme - Chrome/Edge/Safari */
+    .disk-partitions-container::-webkit-scrollbar {
+        width: 12px !important;
+    }
+
+    .disk-partitions-container::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-radius: 6px !important;
+        margin: 4px 0;
+    }
+
+    .disk-partitions-container::-webkit-scrollbar-thumb {
+        background: #c9a961 !important;
+        border-radius: 6px !important;
+        border: 2px solid rgba(0, 0, 0, 0.2);
+    }
+
+    .disk-partitions-container::-webkit-scrollbar-thumb:hover {
+        background: #b8860b !important;
+    }
+
+    /* Firefox scrollbar */
+    .disk-partitions-container {
+        scrollbar-width: thin !important;
+        scrollbar-color: #c9a961 rgba(0, 0, 0, 0.3) !important;
+    }
+
+    .disk-partition {
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+    }
+
+    .disk-partition-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .disk-type-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+
+    .disk-type-badge.ssd {
+        background: rgba(201, 169, 97, 0.2);
+        color: var(--primary-color);
+        border: 1px solid var(--primary-color);
+    }
+
+    .disk-type-badge.hdd {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        border: 1px solid var(--success-color);
+    }
+
+    .disk-type-badge.nvme {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warning-color);
+        border: 1px solid var(--warning-color);
+    }
+
+    .no-data {
+        text-align: center;
+        padding: 2.5rem;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.9375rem;
+    }
+
+    /* Thresholds Section */
+    .thresholds-section {
+        background: rgba(30, 41, 59, 0.4) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0;
+        box-shadow: 
+            0 8px 32px 0 rgba(0, 0, 0, 0.37),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .thresholds-section h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }
+
+    .threshold-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-group label {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+    }
+
+    .form-group input {
+        padding: 0.625rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 1rem;
+        color: var(--text-primary);
+        transition: border-color 0.3s ease;
+    }
+
+    .form-group input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.1);
+    }
+
+    .btn-save-thresholds {
+        grid-column: 1 / -1;
+        padding: 0.75rem 1.5rem;
+        background: rgba(201, 169, 97, 0.3) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(201, 169, 97, 0.4);
+        color: white;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-top: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 
+            0 4px 16px 0 rgba(201, 169, 97, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-save-thresholds:hover {
+        background: rgba(184, 134, 11, 0.4) !important;
+        border-color: rgba(201, 169, 97, 0.6);
+        transform: translateY(-2px);
+        box-shadow: 
+            0 6px 20px 0 rgba(201, 169, 97, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-save-thresholds:active {
+        transform: translateY(0);
+    }
+</style>
+{% endblock %}
