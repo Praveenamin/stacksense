@@ -644,7 +644,7 @@
 
     /* Modal */
     .modal-overlay {
-        display: none;
+        display: none !important;
         position: fixed;
         top: 0;
         left: 0;
@@ -656,10 +656,15 @@
         align-items: center;
         justify-content: center;
         padding: 1rem;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
     }
 
     .modal-overlay.active {
-        display: flex;
+        display: flex !important;
+        opacity: 1;
+        pointer-events: auto;
     }
 
     /* Ensure any sidebar logo fragments stay hidden */
@@ -1123,7 +1128,7 @@
     <!-- Tabs -->
     <div class="dashboard-tabs">
         <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
-        <button class="tab-btn" onclick="switchTab('alerts')">Alerts ({{ alert_count }})</button>
+        <button class="tab-btn" onclick="openAlertHistoryModal()">Alerts</button>
     </div>
 
     <!-- Overview Tab -->
@@ -1243,19 +1248,25 @@
         </div>
     </div>
 
-    <!-- Alerts Tab -->
-    <div id="alerts-tab" class="tab-content">
-        <div style="padding: 1.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h2 style="margin: 0; color: var(--text-primary);">Alert History</h2>
-                <div style="display: flex; gap: 0.5rem;">
-                    <select id="alertFilterType" style="padding: 0.5rem; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: var(--text-primary);">
+</div>
+
+<!-- Alert History Modal -->
+<div id="alertHistoryModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 1200px; width: 95%; max-height: 90vh;">
+        <div class="modal-header">
+            <h2>Alert History</h2>
+            <button class="modal-close" onclick="closeAlertHistoryModal()">&times;</button>
+        </div>
+        <div style="padding: 1.5rem; overflow-y: auto; max-height: calc(90vh - 100px);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <select id="alertFilterType" style="padding: 0.5rem; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: var(--text-primary); min-width: 120px;">
                         <option value="">All Types</option>
                         <option value="CPU">CPU</option>
                         <option value="Memory">Memory</option>
                         <option value="Disk">Disk</option>
                     </select>
-                    <select id="alertFilterStatus" style="padding: 0.5rem; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: var(--text-primary);">
+                    <select id="alertFilterStatus" style="padding: 0.5rem; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: var(--text-primary); min-width: 120px;">
                         <option value="">All Status</option>
                         <option value="triggered">Triggered</option>
                         <option value="resolved">Resolved</option>
@@ -1288,6 +1299,7 @@
         </div>
     </div>
 </div>
+
 
 <!-- Add Server Modal -->
 <div id="addServerModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
@@ -1513,11 +1525,17 @@ function switchTab(tabName) {
     
     document.getElementById(tabName + "-tab").classList.add("active");
     event.target.classList.add("active");
-    
-    // Load alert history when Alerts tab is opened
-    if (tabName === 'alerts') {
-        loadAlertHistory();
-    }
+}
+
+function openAlertHistoryModal() {
+    document.getElementById("alertHistoryModal").classList.add("active");
+    document.body.style.overflow = "hidden";
+    loadAlertHistory();
+}
+
+function closeAlertHistoryModal() {
+    document.getElementById("alertHistoryModal").classList.remove("active");
+    document.body.style.overflow = "";
 }
 
 async function loadAlertHistory() {
@@ -1566,14 +1584,8 @@ async function loadAlertHistory() {
     }
 }
 
-// Load alert history on page load if Alerts tab is active
+// Add event listeners to filters when modal opens
 document.addEventListener('DOMContentLoaded', function() {
-    const alertsTab = document.getElementById('alerts-tab');
-    if (alertsTab && alertsTab.classList.contains('active')) {
-        loadAlertHistory();
-    }
-    
-    // Add event listeners to filters
     const filterType = document.getElementById('alertFilterType');
     const filterStatus = document.getElementById('alertFilterStatus');
     if (filterType) filterType.addEventListener('change', loadAlertHistory);
