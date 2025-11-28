@@ -222,6 +222,10 @@ class MonitoringConfig(models.Model):
     retention_period_days = models.IntegerField(default=30, help_text="Days to keep raw metrics before deletion")
     aggregation_enabled = models.BooleanField(default=True, help_text="Enable metric aggregation")
     
+    # Alert and monitoring control
+    alert_suppressed = models.BooleanField(default=False, help_text="Suppress alerts for this server")
+    monitoring_suspended = models.BooleanField(default=False, help_text="Suspend monitoring for this server")
+    
     class Meta:
         verbose_name = "Monitoring Configuration"
         verbose_name_plural = "Monitoring Configurations"
@@ -284,6 +288,7 @@ class AlertHistory(models.Model):
         CPU = "CPU", "CPU"
         MEMORY = "Memory", "Memory"
         DISK = "Disk", "Disk"
+        CONNECTION = "CONNECTION", "Connection"
     
     class AlertStatus(models.TextChoices):
         TRIGGERED = "triggered", "Triggered"

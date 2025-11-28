@@ -22,6 +22,11 @@ class Command(BaseCommand):
             try:
                 config = server.monitoring_config
                 
+                # CRITICAL: Skip collection if monitoring is suspended
+                if config.monitoring_suspended:
+                    self.stdout.write(f"Skipping {server.name} - monitoring is suspended")
+                    continue
+                
                 # Adaptive collection logic
                 collection_interval = self._get_collection_interval(server, config)
                 

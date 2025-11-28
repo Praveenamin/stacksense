@@ -254,30 +254,162 @@ def monitoring_dashboard(request):
         
         try:
             monitoring_enabled = server.monitoring_config.enabled
+            alert_suppressed = server.monitoring_config.alert_suppressed
+            monitoring_suspended = server.monitoring_config.monitoring_suspended
         except:
             monitoring_enabled = False
+            alert_suppressed = False
+            monitoring_suspended = False
         
-        # Calculate status
-        # Consider server online if metrics are within last 15 minutes (3x typical collection interval)
-        status = "offline"
-        if latest_metric:
-            # Check if metric is recent (within last 15 minutes)
-            time_diff = timezone.now() - latest_metric.timestamp
-            if time_diff < timedelta(minutes=15):
-                # Determine status based on metrics
-                cpu = latest_metric.cpu_percent or 0
-                memory = latest_metric.memory_percent or 0
-                
-                if cpu > 80 or memory > 85:
-                    status = "warning"
-                    warning_count += 1
-                else:
-                    status = "online"
-                    online_count += 1
-            else:
-                offline_count += 1
+        # Calculate status with 30-second offline detection
+        # CRITICAL: If monitoring is disabled or suspended, skip all checks
+        status = "offline"  # Default fallback
+        previous_connection_state = None
+        
+        # Check if monitoring is enabled first
+        if not monitoring_enabled:
+            # Monitoring disabled - skip all checks, show as disabled
+            status = "disabled"
+            # Don't count in any category
+            # Don't update connection state
+            # Don't send any alerts
+        elif monitoring_suspended:
+            # Monitoring suspended - skip checks, show as suspended
+            # CRITICAL: Don't update connection state or send alerts when suspended
+            status = "suspended"
+            # Don't count in any category
+            # Don't update connection state cache
+            # Don't send any alerts
+            # CRITICAL: Clear connection state cache to prevent any alerts
+            connection_state_key = f"connection_state:{server.id}"
+            cache.delete(connection_state_key)
+            # Keep the last known status visually, but don't process it
         else:
-            offline_count += 1
+            # Monitoring is active - proceed with status checks
+            # Get previous connection state from cache
+            connection_state_key = f"connection_state:{server.id}"
+            previous_connection_state = cache.get(connection_state_key, None)
+            
+            # CRITICAL: Only check status if we have metrics
+            # If no metrics exist, server is offline (can't collect = offline)
+            if latest_metric:
+                # Calculate time difference
+                time_diff = timezone.now() - latest_metric.timestamp
+                time_diff_seconds = time_diff.total_seconds()
+                
+                # Offline detection threshold
+                # Use 2x the collection interval, with minimum of 60 seconds
+                # This prevents false positives when collection interval is longer
+                try:
+                    collection_interval = server.monitoring_config.collection_interval_seconds or 30
+                    # Use 2x collection interval, but at least 60 seconds
+                    OFFLINE_THRESHOLD_SECONDS = max(collection_interval * 2, 60)
+                except:
+                    # Fallback to 60 seconds if config not available
+                    OFFLINE_THRESHOLD_SECONDS = 60
+                
+                if time_diff_seconds <= OFFLINE_THRESHOLD_SECONDS:
+                    # Server is online - metrics are recent (within 30 seconds)
+                    cpu = latest_metric.cpu_percent or 0
+                    memory = latest_metric.memory_percent or 0
+                    
+                    # Determine status based on resource usage
+                    if cpu > 80 or memory > 85:
+                        status = "warning"
+                        warning_count += 1
+                    else:
+                        status = "online"
+                        online_count += 1
+                    
+                    # Update connection state cache ONLY if state changed
+                    # This prevents unnecessary cache writes
+                    current_connection_state = "online"
+                    if previous_connection_state != "online":
+                        cache.set(connection_state_key, current_connection_state, timeout=3600)
+                    
+                    # Check if state changed from offline to online
+                    # Only send alert if we had a previous offline state
+                    # DOUBLE CHECK: Verify monitoring is still active before sending alert
+                    if previous_connection_state == "offline":
+                        # Check if we just resumed monitoring (within last 60 seconds)
+                        resume_timestamp_key = f"resume_timestamp:{server.id}"
+                        resume_timestamp = cache.get(resume_timestamp_key)
+                        if resume_timestamp:
+                            # Just resumed - skip alert to prevent false positives
+                            print(f"[STATUS] Skipping online alert for {server.name} - monitoring just resumed")
+                        else:
+                            # Refresh server config to ensure monitoring is still active
+                            server.refresh_from_db()
+                            if (server.monitoring_config.enabled and 
+                                not server.monitoring_config.monitoring_suspended):
+                                # Server came back online - send resolved alert
+                                print(f"[STATUS] Server {server.name} came back online, sending alert")
+                                _send_connection_alert(server, "online")
+                    
+                else:
+                    # Metrics are older than 30 seconds - server is offline
+                    # This means the server is not responding to metric collection
+                    status = "offline"
+                    offline_count += 1
+                    
+                    # Update connection state cache ONLY if state changed
+                    current_connection_state = "offline"
+                    if previous_connection_state != "offline":
+                        cache.set(connection_state_key, current_connection_state, timeout=3600)
+                    
+                    # Check if state changed from online to offline
+                    # CRITICAL: Only send alert if state actually changed from "online" to "offline"
+                    # Don't send alert if previous state was None (first check) or "offline" (already offline)
+                    # DOUBLE CHECK: Verify monitoring is still active before sending alert
+                    if previous_connection_state == "online":
+                        # Check if we just suspended or resumed monitoring (within last 60 seconds)
+                        suspend_timestamp_key = f"suspend_timestamp:{server.id}"
+                        resume_timestamp_key = f"resume_timestamp:{server.id}"
+                        suspend_timestamp = cache.get(suspend_timestamp_key)
+                        resume_timestamp = cache.get(resume_timestamp_key)
+                        if suspend_timestamp or resume_timestamp:
+                            # Just suspended or resumed - skip alert to prevent false positives
+                            print(f"[STATUS] Skipping offline alert for {server.name} - monitoring just suspended/resumed")
+                        else:
+                            # Refresh server config to ensure monitoring is still active
+                            server.refresh_from_db()
+                            if (server.monitoring_config.enabled and 
+                                not server.monitoring_config.monitoring_suspended):
+                                # Server went offline - send alert
+                                print(f"[STATUS] Server {server.name} went offline, sending alert")
+                                _send_connection_alert(server, "offline")
+            else:
+                # No metrics at all - server is offline
+                # This means metric collection has never succeeded or has stopped
+                status = "offline"
+                offline_count += 1
+                
+                # Update connection state cache ONLY if state changed
+                current_connection_state = "offline"
+                if previous_connection_state != "offline":
+                    cache.set(connection_state_key, current_connection_state, timeout=3600)
+                
+                # Check if state changed from online to offline
+                # CRITICAL: Only send alert if state actually changed from "online" to "offline"
+                # Don't send alert if previous state was None (first check) or "offline" (already offline)
+                # DOUBLE CHECK: Verify monitoring is still active before sending alert
+                if previous_connection_state == "online":
+                    # Check if we just suspended or resumed monitoring (within last 60 seconds)
+                    suspend_timestamp_key = f"suspend_timestamp:{server.id}"
+                    resume_timestamp_key = f"resume_timestamp:{server.id}"
+                    suspend_timestamp = cache.get(suspend_timestamp_key)
+                    resume_timestamp = cache.get(resume_timestamp_key)
+                    if suspend_timestamp or resume_timestamp:
+                        # Just suspended or resumed - skip alert to prevent false positives
+                        print(f"[STATUS] Skipping offline alert for {server.name} - monitoring just suspended/resumed")
+                    else:
+                        # Refresh server config to ensure monitoring is still active
+                        server.refresh_from_db()
+                        if (server.monitoring_config.enabled and 
+                            not server.monitoring_config.monitoring_suspended):
+                            # Server went offline - send alert
+                            print(f"[STATUS] Server {server.name} went offline (no metrics), sending alert")
+                            _send_connection_alert(server, "offline")
         
         # Calculate uptime (time since first metric or server creation)
         uptime_days = 0
@@ -351,6 +483,8 @@ def monitoring_dashboard(request):
             "active_anomalies_list": list(active_anomalies[:10]),
             "monitoring_enabled": monitoring_enabled,
             "disk_percent": disk_percent,
+            "alert_suppressed": alert_suppressed,
+            "monitoring_suspended": monitoring_suspended,
         })
     
 
@@ -707,6 +841,19 @@ def _collect_metrics_for_server(server):
     import sys
     from io import StringIO
     
+    # CRITICAL: Check if monitoring is suspended or disabled before collecting
+    try:
+        monitoring_config = server.monitoring_config
+        if not monitoring_config.enabled:
+            print(f"[METRICS] Skipping metric collection for {server.name} - monitoring disabled")
+            return False
+        if monitoring_config.monitoring_suspended:
+            print(f"[METRICS] Skipping metric collection for {server.name} - monitoring suspended")
+            return False
+    except:
+        # If no config exists, allow collection (for new servers)
+        pass
+    
     # Use the management command to collect metrics
     # This ensures we use the same logic as the scheduled collection
     try:
@@ -941,6 +1088,11 @@ def _check_and_send_alerts(server, metric):
         server.refresh_from_db()
         config = server.monitoring_config
         
+        # Check if alerts are suppressed for this server
+        if config.alert_suppressed:
+            print(f"[ALERT] Alerts suppressed for {server.name}, skipping alert checks")
+            return
+        
         email_config = EmailAlertConfig.objects.filter(enabled=True).first()
         
         if not email_config:
@@ -1143,6 +1295,113 @@ The resource usage has returned to normal levels.
         error_msg = f"[ALERT] ✗ Error sending resolved alert email for {server.name}: {e}"
         print(error_msg)
         raise Exception(error_msg)
+
+
+def _send_connection_alert(server, state):
+    """Send alert when server connection state changes (online/offline)"""
+    try:
+        # Refresh server to get latest monitoring_config
+        server.refresh_from_db()
+        config = server.monitoring_config
+        
+        # CRITICAL: Don't send alerts if monitoring is disabled or suspended
+        if not config.enabled:
+            print(f"[CONNECTION_ALERT] Monitoring disabled for {server.name}, skipping connection alert")
+            return
+        
+        if config.monitoring_suspended:
+            print(f"[CONNECTION_ALERT] Monitoring suspended for {server.name}, skipping connection alert")
+            return
+        
+        # Check if alerts are suppressed
+        if config.alert_suppressed:
+            print(f"[CONNECTION_ALERT] Alerts suppressed for {server.name}, skipping connection alert")
+            return
+        
+        email_config = EmailAlertConfig.objects.filter(enabled=True).first()
+        
+        if not email_config:
+            print(f"[CONNECTION_ALERT] No email config found for {server.name}")
+            return
+        
+        recipients = [email.strip() for email in email_config.alert_recipients.split(',')]
+        
+        if state == "offline":
+            subject = f"🔴 Server Offline: {server.name}"
+            body = f"""
+Server Connection Alert
+
+⚠️ ALERT: Server is now OFFLINE
+
+Server: {server.name}
+IP Address: {server.ip_address}
+Status: OFFLINE
+Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+The server is not responding to metric collection requests.
+This may indicate:
+- Network connectivity issues
+- Server is down or unreachable
+- SSH/exporter connection failure
+
+Please investigate immediately.
+            """
+        else:  # online
+            subject = f"✅ Server Online: {server.name}"
+            body = f"""
+Server Connection Alert - RESOLVED
+
+✅ RESOLVED: Server is now ONLINE
+
+Server: {server.name}
+IP Address: {server.ip_address}
+Status: ONLINE
+Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+The server connection has been restored and is responding normally.
+            """
+        
+        print(f"[CONNECTION_ALERT] Attempting to send {state} alert email to {recipients}")
+        
+        # Send email
+        try:
+            if email_config.use_tls:
+                server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                server_smtp.starttls()
+                server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            else:
+                server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+                server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            
+            msg = MIMEMultipart()
+            msg['From'] = email_config.from_email
+            msg['To'] = ', '.join(recipients)
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'plain'))
+            
+            server_smtp.send_message(msg)
+            server_smtp.quit()
+            
+            print(f"[CONNECTION_ALERT] ✓ {state.upper()} alert email sent successfully for {server.name}")
+            
+            # Log to alert history
+            AlertHistory.objects.create(
+                server=server,
+                alert_type="CONNECTION",
+                status="triggered" if state == "offline" else "resolved",
+                value=0.0,
+                threshold=30.0,
+                message=f"Server is {state.upper()}" if state == "offline" else f"Server connection restored",
+                recipients=', '.join(recipients)
+            )
+            
+        except Exception as e:
+            error_msg = f"[CONNECTION_ALERT] ✗ Failed to send {state} alert for {server.name}: {e}"
+            print(error_msg)
+            error_logger.error(error_msg)
+            
+    except Exception as e:
+        error_logger.error(f"CONNECTION_ALERT error for {server.name}: {str(e)}")
 
 
 def _send_alert_email(email_config, server, alerts):
@@ -1417,4 +1676,175 @@ def alert_history_api(request):
         })
     except Exception as e:
         error_logger.error(f"ALERT_HISTORY_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@ensure_csrf_cookie
+@require_http_methods(["POST"])
+def toggle_alert_suppression(request, server_id, action):
+    """API endpoint to suppress or resume alerts for a server"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        monitoring_config, created = MonitoringConfig.objects.get_or_create(server=server)
+        
+        # Validate action
+        if action not in ["suppress", "resume"]:
+            return JsonResponse({"success": False, "error": "Invalid action. Use 'suppress' or 'resume'."}, status=400)
+        
+        # Update the state based on action
+        if action == "suppress":
+            monitoring_config.alert_suppressed = True
+            action_text = "suppressed"
+        else:  # resume
+            monitoring_config.alert_suppressed = False
+            action_text = "resumed"
+        
+        monitoring_config.save()
+        _log_user_action(request, f"ALERT_{action.upper()}", f"Server: {server.name} (ID: {server_id})")
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Alert suppression {action_text} for {server.name}",
+            "alert_suppressed": monitoring_config.alert_suppressed
+        })
+    except Exception as e:
+        error_logger.error(f"TOGGLE_ALERT_SUPPRESSION error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@ensure_csrf_cookie
+@require_http_methods(["POST"])
+def toggle_monitoring(request, server_id, action):
+    """API endpoint to suspend or resume monitoring for a server"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        monitoring_config, created = MonitoringConfig.objects.get_or_create(server=server)
+        
+        # Validate action
+        if action not in ["suspend", "resume"]:
+            return JsonResponse({"success": False, "error": "Invalid action. Use 'suspend' or 'resume'."}, status=400)
+        
+        # Update the state based on action
+        if action == "suspend":
+            monitoring_config.monitoring_suspended = True
+            action_text = "suspended"
+            # CRITICAL: Clear connection state cache when suspending to prevent false offline alerts
+            connection_state_key = f"connection_state:{server_id}"
+            cache.delete(connection_state_key)
+            # Set a flag to prevent alerts for the next 60 seconds after suspend
+            suspend_timestamp_key = f"suspend_timestamp:{server_id}"
+            cache.set(suspend_timestamp_key, timezone.now().isoformat(), timeout=60)
+        else:  # resume
+            monitoring_config.monitoring_suspended = False
+            action_text = "resumed"
+            # CRITICAL: When resuming, clear cache to prevent false alerts on first check after resume
+            # This ensures we don't send alerts based on stale state from before suspension
+            connection_state_key = f"connection_state:{server_id}"
+            cache.delete(connection_state_key)
+            # Set a flag to prevent alerts for the next 60 seconds after resume
+            resume_timestamp_key = f"resume_timestamp:{server_id}"
+            cache.set(resume_timestamp_key, timezone.now().isoformat(), timeout=60)
+        
+        monitoring_config.save()
+        _log_user_action(request, f"MONITORING_{action.upper()}", f"Server: {server.name} (ID: {server_id})")
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Monitoring {action_text} for {server.name}",
+            "monitoring_suspended": monitoring_config.monitoring_suspended
+        })
+    except Exception as e:
+        error_logger.error(f"TOGGLE_MONITORING error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def get_top_cpu_processes(request, server_id):
+    """API endpoint to get top 3 CPU consuming processes from a server"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        
+        # SSH connection to get top processes
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            # Connect using SSH key
+            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
+            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+            
+            ssh.connect(
+                hostname=server.ip_address,
+                port=server.port,
+                username=server.username,
+                pkey=private_key,
+                timeout=10
+            )
+            
+            # Get top 3 CPU processes using ps command
+            # Using ps with custom format: pid, cpu%, command
+            command = "ps aux --sort=-%cpu | head -4 | tail -3 | awk '{print $2\"|\"$3\"|\"$11\" \"$12\" \"$13\" \"$14\" \"$15\" \"$16\" \"$17\" \"$18\" \"$19\" \"$20}'"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            
+            processes = []
+            output = stdout.read().decode('utf-8').strip()
+            errors = stderr.read().decode('utf-8').strip()
+            
+            if errors:
+                return JsonResponse({
+                    "success": False,
+                    "error": f"Error executing command: {errors}"
+                }, status=500)
+            
+            # Parse output: PID|CPU%|COMMAND
+            for line in output.split('\n'):
+                if line.strip():
+                    parts = line.split('|')
+                    if len(parts) >= 3:
+                        try:
+                            pid = parts[0].strip()
+                            cpu_percent = float(parts[1].strip())
+                            command = '|'.join(parts[2:]).strip()[:50]  # Limit command length
+                            
+                            processes.append({
+                                'pid': pid,
+                                'cpu_percent': round(cpu_percent, 1),
+                                'command': command
+                            })
+                        except (ValueError, IndexError):
+                            continue
+            
+            ssh.close()
+            
+            # Sort by CPU and take top 3
+            processes.sort(key=lambda x: x['cpu_percent'], reverse=True)
+            top_processes = processes[:3]
+            
+            return JsonResponse({
+                "success": True,
+                "processes": top_processes,
+                "server_id": server_id
+            })
+            
+        except paramiko.AuthenticationException:
+            return JsonResponse({
+                "success": False,
+                "error": "SSH authentication failed"
+            }, status=401)
+        except paramiko.SSHException as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"SSH connection error: {str(e)}"
+            }, status=500)
+        except Exception as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"Error connecting to server: {str(e)}"
+            }, status=500)
+            
+    except Exception as e:
+        error_logger.error(f"GET_TOP_CPU_PROCESSES error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)

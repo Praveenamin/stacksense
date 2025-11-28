@@ -104,6 +104,7 @@
         z-index: 1000;
         transition: width 0.3s ease;
         overflow: hidden;
+        overflow-y: auto;
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
     }
 
@@ -121,9 +122,11 @@
 
     .sidebar-content {
         padding: 1rem 0;
+        min-height: 100%;
         height: 100%;
         display: flex;
         flex-direction: column;
+        box-sizing: border-box;
     }
 
     .sidebar-item {
@@ -196,7 +199,7 @@
     /* Logout button at bottom */
     .sidebar-footer {
         margin-top: auto;
-        padding-top: 1rem;
+        padding: 1rem 0.5rem 0.5rem 0.5rem;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
@@ -206,13 +209,15 @@
         -webkit-backdrop-filter: blur(10px) saturate(180%);
         border: 1px solid rgba(239, 68, 68, 0.3) !important;
         border-left: 3px solid rgba(239, 68, 68, 0.5) !important;
-        margin: 0.5rem;
+        margin: 0 !important;
         border-radius: 8px;
         box-shadow: 
             0 2px 8px 0 rgba(239, 68, 68, 0.2),
             inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
         font-family: inherit;
         font-size: inherit;
+        width: 100% !important;
+        box-sizing: border-box;
     }
 
     .sidebar-item.logout:hover {
@@ -220,7 +225,7 @@
         border-color: rgba(239, 68, 68, 0.5) !important;
         border-left-color: var(--danger-color) !important;
         color: var(--danger-color) !important;
-        transform: translateX(2px);
+        transform: none;
         box-shadow: 
             0 4px 12px 0 rgba(239, 68, 68, 0.3),
             inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
@@ -442,53 +447,192 @@
     }
 
     .server-card-actions {
-        display: flex;
-        gap: 0.75rem;
-        margin-top: 1.25rem;
+        display: none; /* Buttons moved to header */
+    }
+
+    /* Disabled/Suspended Server Cards */
+    .server-card.server-disabled {
+        opacity: 0.5;
+        filter: grayscale(100%);
+        pointer-events: none;
+        cursor: not-allowed;
+        position: relative;
+    }
+
+    .server-card.server-disabled::before {
+        content: 'Monitoring Disabled';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: rgba(255, 255, 255, 0.9);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        z-index: 10;
+        pointer-events: none;
+    }
+
+    .server-card.server-suspended {
+        opacity: 0.6;
+        filter: grayscale(50%);
+        border: 2px dashed rgba(245, 158, 11, 0.5);
+        pointer-events: none;
+        cursor: not-allowed;
+    }
+
+    .server-card.server-suspended::after {
+        content: 'Monitoring Halted';
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: rgba(245, 158, 11, 0.9);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        z-index: 10;
+    }
+
+    /* Re-enable only the Halt Monitoring button when suspended */
+    .server-card.server-suspended .monitor-toggle {
+        pointer-events: auto;
+        cursor: pointer;
+    }
+
+    /* Disable all other buttons when suspended */
+    .server-card.server-suspended .alert-toggle {
+        pointer-events: none;
+        cursor: not-allowed;
+        opacity: 0.5;
     }
 
     .card-toggle-btn {
-        flex: 1;
+        flex: 0 0 auto;
         border: 1px solid rgba(255, 255, 255, 0.18);
-        border-radius: 999px;
-        padding: 0.65rem 1rem;
+        border-radius: 8px;
+        padding: 0.4rem 0.5rem;
         background: rgba(15, 23, 42, 0.75);
         color: var(--text-secondary);
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
+        justify-content: center;
+        gap: 0.5rem;
         cursor: pointer;
-        transition: background 0.25s ease, border 0.25s ease, color 0.25s ease, transform 0.25s ease;
+        transition: all 0.25s ease;
+        position: relative;
+        min-width: 36px;
+        height: 36px;
+    }
+
+    /* Mute Alerts button - Orange color */
+    .card-toggle-btn.alert-toggle {
+        color: rgba(251, 146, 60, 0.9);
+        border-color: rgba(251, 146, 60, 0.3);
+    }
+
+    .card-toggle-btn.alert-toggle:hover {
+        border-color: rgba(251, 146, 60, 0.6);
+        color: rgb(251, 146, 60);
+        background: rgba(251, 146, 60, 0.1);
+        transform: translateY(-2px);
+        padding: 0.4rem 0.75rem;
+        min-width: auto;
+    }
+
+    .card-toggle-btn.alert-toggle.active {
+        background: rgba(251, 146, 60, 0.35);
+        border-color: rgb(251, 146, 60);
+        border-width: 2px;
+        color: rgb(255, 255, 255);
+        box-shadow: 
+            0 0 12px rgba(251, 146, 60, 0.6),
+            0 0 24px rgba(251, 146, 60, 0.4),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+        animation: pulse-orange 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-orange {
+        0%, 100% {
+            box-shadow: 
+                0 0 12px rgba(251, 146, 60, 0.6),
+                0 0 24px rgba(251, 146, 60, 0.4),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+        }
+        50% {
+            box-shadow: 
+                0 0 16px rgba(251, 146, 60, 0.8),
+                0 0 32px rgba(251, 146, 60, 0.6),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+        }
+    }
+
+    /* Halt Monitoring button - Red color */
+    .card-toggle-btn.monitor-toggle {
+        color: rgba(239, 68, 68, 0.9);
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .card-toggle-btn.monitor-toggle:hover {
+        border-color: rgba(239, 68, 68, 0.6);
+        color: rgb(239, 68, 68);
+        background: rgba(239, 68, 68, 0.1);
+        transform: translateY(-2px);
+        padding: 0.4rem 0.75rem;
+        min-width: auto;
+    }
+
+    .card-toggle-btn.monitor-toggle.active {
+        background: rgba(239, 68, 68, 0.18);
+        border-color: rgba(239, 68, 68, 0.85);
+        color: rgb(239, 68, 68);
+        box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.25);
     }
 
     .card-toggle-btn:hover {
-        border-color: rgba(201, 169, 97, 0.6);
-        color: var(--text-primary);
         transform: translateY(-2px);
+        padding: 0.4rem 0.75rem;
+        min-width: auto;
     }
 
-    .card-toggle-btn.active {
-        background: rgba(201, 169, 97, 0.18);
-        border-color: rgba(201, 169, 97, 0.85);
-        color: var(--text-primary);
-        box-shadow: inset 0 0 0 1px rgba(201, 169, 97, 0.25);
+    .card-toggle-btn .toggle-icon {
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin: 0 auto;
+    }
+
+    .card-toggle-btn .toggle-icon svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+        display: block;
+        margin: 0 auto;
     }
 
     .card-toggle-btn .toggle-title {
-        font-size: 0.9rem;
+        font-size: 0.75rem;
         font-weight: 600;
+        white-space: nowrap;
+        opacity: 0;
+        width: 0;
+        overflow: hidden;
+        transition: opacity 0.25s ease, width 0.25s ease;
+    }
+
+    .card-toggle-btn:hover .toggle-title {
+        opacity: 1;
+        width: auto;
     }
 
     .card-toggle-btn .toggle-state {
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-muted);
-    }
-
-    .card-toggle-btn.active .toggle-state {
-        color: var(--primary-color);
+        display: none; /* Hide state text, show only icon */
     }
 
     .card-header {
@@ -496,6 +640,20 @@
         align-items: center;
         justify-content: space-between;
         margin-bottom: 0.5rem;
+        gap: 0.5rem;
+    }
+
+    .header-status-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .header-toggle-buttons {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
     }
 
     .server-info {
@@ -1051,7 +1209,7 @@
             <div class="sidebar-divider"></div>
             <form action="/admin/logout/" method="post" style="margin: 0; padding: 0; display: contents;">
                 {% csrf_token %}
-                <button type="submit" class="sidebar-item logout" title="Logout" style="background: none; border: none; width: 100%; cursor: pointer; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; color: rgba(255, 255, 255, 0.7);">
+                <button type="submit" class="sidebar-item logout" title="Logout" style="background: none; border: none; width: 100%; cursor: pointer; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; color: rgba(255, 255, 255, 0.7); box-sizing: border-box;">
                     <div class="sidebar-item-icon">
                         <svg viewBox="0 0 24 24">
                             <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
@@ -1128,14 +1286,14 @@
     <!-- Tabs -->
     <div class="dashboard-tabs">
         <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
-        <button class="tab-btn" onclick="openAlertHistoryModal()">Alerts</button>
+        <button class="tab-btn" onclick="openAlertHistoryModal()">Alert History</button>
     </div>
 
     <!-- Overview Tab -->
     <div id="overview-tab" class="tab-content active">
         <div class="servers-grid">
             {% for server_data in servers_data %}
-            <div class="server-card" data-server-id="{{ server_data.server.id }}">
+            <div class="server-card {% if not server_data.monitoring_enabled %}server-disabled{% endif %} {% if server_data.monitoring_suspended %}server-suspended{% endif %}" data-server-id="{{ server_data.server.id }}">
                 <div class="card-header">
                     <div class="server-info">
                         <div class="server-icon">
@@ -1145,7 +1303,29 @@
                         </div>
                         <div class="server-name">{{ server_data.server.name }}</div>
                     </div>
-                    <div class="status-pill {{ server_data.status }}">{{ server_data.status }}</div>
+                    <div class="header-status-controls">
+                        <div class="status-pill {{ server_data.status }}">{{ server_data.status }}</div>
+                        <div class="header-toggle-buttons">
+                            <button class="card-toggle-btn alert-toggle" data-active="{% if server_data.alert_suppressed %}true{% else %}false{% endif %}" onclick="toggleAlertSuppression(this, {{ server_data.server.id }})" title="Mute Alerts">
+                                <div class="toggle-icon">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                                    </svg>
+                                </div>
+                                <span class="toggle-title">Mute Alerts</span>
+                                <span class="toggle-state">Off</span>
+                            </button>
+                            <button class="card-toggle-btn monitor-toggle" data-active="{{ server_data.monitoring_suspended|default:'false' }}" onclick="toggleMonitoring(this, {{ server_data.server.id }})" title="Halt Monitoring">
+                                <div class="toggle-icon">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M6 6h12v12H6z"/>
+                                    </svg>
+                                </div>
+                                <span class="toggle-title">Halt Monitoring</span>
+                                <span class="toggle-state">Off</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="uptime">{{ server_data.uptime_days }}d {{ server_data.uptime_hours }}h {{ server_data.uptime_minutes }}m</div>
@@ -1233,16 +1413,6 @@
                     </div>
                 {% endif %}
 
-                <div class="server-card-actions">
-                    <button class="card-toggle-btn alert-toggle" data-active="{{ server_data.alert_suppressed|default:'false' }}" onclick="toggleAlertSuppression(this, {{ server_data.server.id }})">
-                        <span class="toggle-title">Suppress Alerts</span>
-                        <span class="toggle-state">Off</span>
-                    </button>
-                    <button class="card-toggle-btn monitor-toggle" data-active="{{ server_data.monitoring_suspended|default:'false' }}" onclick="toggleMonitoring(this, {{ server_data.server.id }})">
-                        <span class="toggle-title">Suspend Monitoring</span>
-                        <span class="toggle-state">Off</span>
-                    </button>
-                </div>
             </div>
             {% endfor %}
         </div>
@@ -1994,31 +2164,56 @@ function updateToggleButton(button, isActive) {
     if (stateLabel) {
         stateLabel.textContent = isActive ? "On" : "Off";
     }
+    // Update icon based on state and button type
+    const icon = button.querySelector(".toggle-icon svg");
+    if (icon) {
+        if (button.classList.contains("alert-toggle")) {
+            // Mute Alerts button - always show pause icon
+            icon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+        } else if (button.classList.contains("monitor-toggle")) {
+            // Halt Monitoring button - always show stop icon
+            icon.innerHTML = '<path d="M6 6h12v12H6z"/>';
+        }
+    }
 }
 
 async function toggleAlertSuppression(button, serverId) {
     const targetState = button.getAttribute("data-active") !== "true";
+    // Update data-active immediately to persist state
+    button.setAttribute("data-active", targetState.toString());
     updateToggleButton(button, targetState);
     button.disabled = true;
     try {
         const csrftoken = getCookie("csrftoken");
-        const response = await fetch(`/api/servers/${serverId}/alerts/${targetState ? "suppress" : "resume"}/`, {
+        if (!csrftoken) {
+            throw new Error("CSRF token not found. Please refresh the page.");
+        }
+        const url = `/api/servers/${serverId}/alerts/${targetState ? "suppress" : "resume"}/`;
+        const response = await fetch(url, {
             method: "POST",
             headers: {
                 "X-CSRFToken": csrftoken,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ suppress: targetState })
+            body: JSON.stringify({ suppress: targetState }),
+            credentials: "same-origin"
         });
+        
+        const data = await response.json();
+        
         if (!response.ok) {
-            let errorMsg = "Failed to update alert suppression.";
-            try {
-                const data = await response.json();
-                errorMsg = data.error || errorMsg;
-            } catch (jsonError) {
-                // ignore json parse error
-            }
+            let errorMsg = data.error || data.message || "Failed to update alert suppression.";
             throw new Error(errorMsg);
+        }
+        
+        if (data.success) {
+            console.log("Alert suppression updated:", data.message);
+            // Update the button's data-active attribute to reflect the new state
+            button.setAttribute("data-active", targetState.toString());
+            // Ensure button state is properly updated
+            updateToggleButton(button, targetState);
+        } else {
+            throw new Error(data.error || "Failed to update alert suppression.");
         }
     } catch (error) {
         console.error("Alert suppression error:", error);
@@ -2033,29 +2228,60 @@ async function toggleMonitoring(button, serverId) {
     const targetState = button.getAttribute("data-active") !== "true";
     updateToggleButton(button, targetState);
     button.disabled = true;
+    
+    // Find the server card and update visual state immediately
+    const serverCard = button.closest('.server-card');
+    if (serverCard) {
+        if (targetState) {
+            // Monitoring suspended - add suspended class
+            serverCard.classList.add('server-suspended');
+        } else {
+            // Monitoring resumed - remove suspended class
+            serverCard.classList.remove('server-suspended');
+        }
+    }
+    
     try {
         const csrftoken = getCookie("csrftoken");
-        const response = await fetch(`/api/servers/${serverId}/monitoring/${targetState ? "suspend" : "resume"}/`, {
+        if (!csrftoken) {
+            throw new Error("CSRF token not found. Please refresh the page.");
+        }
+        const url = `/api/servers/${serverId}/monitoring/${targetState ? "suspend" : "resume"}/`;
+        const response = await fetch(url, {
             method: "POST",
             headers: {
                 "X-CSRFToken": csrftoken,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ suspended: targetState })
+            body: JSON.stringify({ suspended: targetState }),
+            credentials: "same-origin"
         });
+        
+        const data = await response.json();
+        
         if (!response.ok) {
-            let errorMsg = "Failed to update monitoring state.";
-            try {
-                const data = await response.json();
-                errorMsg = data.error || errorMsg;
-            } catch (jsonError) {
-                // ignore json parse error
-            }
+            let errorMsg = data.error || data.message || "Failed to update monitoring state.";
             throw new Error(errorMsg);
+        }
+        
+        if (data.success) {
+            console.log("Monitoring state updated:", data.message);
+            // Update the button's data-active attribute to reflect the new state
+            button.setAttribute("data-active", targetState.toString());
+        } else {
+            throw new Error(data.error || "Failed to update monitoring state.");
         }
     } catch (error) {
         console.error("Monitoring toggle error:", error);
         updateToggleButton(button, !targetState);
+        // Revert visual state on error
+        if (serverCard) {
+            if (targetState) {
+                serverCard.classList.remove('server-suspended');
+            } else {
+                serverCard.classList.add('server-suspended');
+            }
+        }
         alert(error.message || "Unable to update monitoring state.");
     } finally {
         button.disabled = false;
@@ -2172,6 +2398,10 @@ document.addEventListener("DOMContentLoaded", function() {
     serverCards.forEach(card => {
         card.style.cursor = "pointer";
         card.addEventListener("click", function(e) {
+            // Don't navigate if monitoring is suspended
+            if (this.classList.contains("server-suspended")) {
+                return;
+            }
             // Don't navigate if clicking on a button or link
             if (e.target.tagName === "BUTTON" || e.target.tagName === "A" || e.target.closest("button") || e.target.closest("a")) {
                 return;
