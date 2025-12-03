@@ -1,7 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
 
-{% block title %}Admin Users - StackSense{% endblock %}
+{% block title %}Manage Users - StackSense{% endblock %}
 
 {% block extrahead %}
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,12 +18,66 @@
         --text-primary: #f1f5f9;
         --text-secondary: #cbd5e1;
         --border-color: rgba(255, 255, 255, 0.18);
+        
+        /* Typography System - Consistent across all pages */
+        --font-size-xs: 0.75rem;      /* 12px - Badges, labels */
+        --font-size-sm: 0.875rem;     /* 14px - Body text, descriptions */
+        --font-size-base: 0.9375rem;  /* 15px - Default text */
+        --font-size-md: 1rem;         /* 16px - Buttons, inputs */
+        --font-size-lg: 1.125rem;     /* 18px - Subheadings */
+        --font-size-xl: 1.25rem;      /* 20px - Card titles */
+        --font-size-2xl: 1.5rem;      /* 24px - Section headings */
+        --font-size-3xl: 2rem;        /* 32px - Page titles */
+        
+        /* Font Weights */
+        --font-weight-normal: 400;
+        --font-weight-medium: 500;
+        --font-weight-semibold: 600;
+        --font-weight-bold: 700;
+        
+        /* Spacing - Reduced for compact layout */
+        --spacing-xs: 0.25rem;   /* 4px */
+        --spacing-sm: 0.5rem;    /* 8px */
+        --spacing-md: 0.75rem;    /* 12px */
+        --spacing-lg: 1rem;      /* 16px */
+        --spacing-xl: 1.5rem;    /* 24px */
+        --spacing-2xl: 2rem;     /* 32px */
     }
 
     html, body {
         background: #0f172a !important;
         color: #f1f5f9 !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: var(--font-size-base);
+        scroll-snap-type: y proximity;
+        scroll-padding: 1rem;
+    }
+
+    /* Global Typography Standards */
+    h1 {
+        font-size: var(--font-size-3xl);
+        font-weight: var(--font-weight-bold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.2;
+    }
+
+    h2 {
+        font-size: var(--font-size-2xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.3;
+    }
+
+    h3 {
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-sm) 0;
+        line-height: 1.4;
+    }
+
+    p, span, div, label {
+        font-size: var(--font-size-base);
+        line-height: 1.5;
     }
 
     .main-sidebar, .main-header, .navbar, footer {
@@ -35,38 +89,218 @@
         padding: 0 !important;
     }
 
-    .admin-users-container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 2rem;
-        margin-left: 60px;
-        transition: margin-left 0.3s ease;
+    .content-wrapper > .content {
+        padding: 0 !important;
     }
 
-    .page-header {
+    /* Sidebar - Same as other pages */
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        width: 240px !important;
+        background: var(--card-bg);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 1000;
+        overflow: hidden;
+        overflow-y: auto;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar-content {
+        padding: 1rem 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        color: rgba(255, 255, 255, 0.7);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+
+    .sidebar-item:hover {
+        background: rgba(201, 169, 97, 0.1);
+        color: var(--primary-color);
+    }
+
+    .sidebar-item-icon {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .sidebar-item-icon svg {
+        width: 100%;
+        height: 100%;
+        fill: currentColor;
+    }
+
+    .sidebar-item-text {
+        opacity: 1;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .sidebar-divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 0.5rem 1rem;
+    }
+
+    .sidebar-item.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger-color);
+    }
+
+    .sidebar-footer {
+        margin-top: auto;
+        padding-top: 1rem;
+    }
+
+    .sidebar-item.logout {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .sidebar.collapsed .sidebar-item.logout {
+        justify-content: center;
+        padding: 0.75rem 0;
+    }
+
+    .sidebar.collapsed .sidebar-item.logout svg {
+        margin: 0;
+    }
+
+    .sidebar.expanded .sidebar-item.logout,
+    .sidebar:hover .sidebar-item.logout {
+        width: calc(100% - 1rem);
+        margin: 0 0.5rem;
+    }
+
+    .sidebar.expanded .sidebar-item.logout .sidebar-item-text,
+    .sidebar:hover .sidebar-item.logout .sidebar-item-text {
+        display: block;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        flex-shrink: 1;
+        min-width: 0;
+    }
+
+    /* Z-Pattern Layout Container */
+    .manage-users-container {
+        margin-left: 240px; /* Space for expanded sidebar */
+        padding: var(--spacing-lg) var(--spacing-md);
+        min-height: 100vh;
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .sidebar {
+            width: 60px !important;
+        }
+        .sidebar-item-text {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+        .manage-users-container {
+            margin-left: 60px !important;
+        }
+    }
+
+    /* Z-Pattern Layout */
+    .z-pattern-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto auto;
+        gap: var(--spacing-md);
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    /* Z-Pattern: Top Left (Header + Create Button) */
+    .z-top-left {
+        grid-column: 1 / -1;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 2rem;
+        margin-bottom: 0.5rem;
     }
 
-    .page-header h1 {
+    .z-top-left h1 {
         color: var(--primary-color);
         font-size: 2rem;
         margin: 0;
     }
 
+    /* Z-Pattern: Top Right (Stats/Summary) */
+    .z-top-right {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-card {
+        background: var(--card-bg);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: var(--spacing-md) !important;
+        text-align: center;
+    }
+
+    .stat-card h3 {
+        color: var(--text-secondary);
+        font-size: var(--font-size-xs);
+        margin: 0 0 var(--spacing-xs) 0 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-card .stat-value {
+        color: var(--primary-color);
+        font-size: var(--font-size-2xl);
+        font-weight: var(--font-weight-bold);
+        margin: 0;
+    }
+
+    /* Z-Pattern: Middle Left (Users Table) */
+    .z-middle-left {
+        grid-column: 1 / -1;
+    }
+
+    /* Z-Pattern: Bottom (Additional info if needed) */
+    .z-bottom {
+        grid-column: 1 / -1;
+    }
+
     .btn {
-        padding: 0.75rem 1.5rem;
+        padding: var(--spacing-sm) var(--spacing-lg);
         border-radius: 8px;
         border: none;
         cursor: pointer;
-        font-size: 0.9375rem;
-        font-weight: 500;
+        font-size: var(--font-size-base);
+        font-weight: var(--font-weight-medium);
         text-decoration: none;
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: var(--spacing-sm);
         transition: all 0.2s ease;
     }
 
@@ -99,16 +333,18 @@
 
     .users-table th {
         background: rgba(15, 23, 42, 0.6);
-        padding: 1rem;
+        padding: var(--spacing-sm) var(--spacing-md) !important;
         text-align: left;
         color: var(--primary-color);
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
+        font-size: var(--font-size-sm);
         border-bottom: 1px solid var(--border-color);
     }
 
     .users-table td {
-        padding: 1rem;
+        padding: var(--spacing-sm) var(--spacing-md) !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: var(--font-size-sm);
     }
 
     .users-table tr:hover {
@@ -116,10 +352,10 @@
     }
 
     .badge {
-        padding: 0.25rem 0.75rem;
+        padding: var(--spacing-xs) var(--spacing-sm);
         border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
     }
 
     .badge-success {
@@ -141,7 +377,7 @@
     }
 
     .btn-sm {
-        padding: 0.5rem 1rem;
+        padding: var(--spacing-sm) var(--spacing-md);
         font-size: 0.875rem;
     }
 
@@ -265,17 +501,19 @@
 {% endblock %}
 
 {% block content %}
-<div class="admin-users-container">
-    <div class="page-header">
-        <h1>Admin Users</h1>
-        <button class="btn btn-primary" onclick="openCreateModal()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-            </svg>
-            Create Admin User
-        </button>
-    </div>
+<!-- Top-Right Navigation -->
+<div class="top-right-nav">
+    <span class="username">{{ user.username }}</span>
+    <form action="{% url 'logout' %}" method="post" style="margin: 0; padding: 0; display: inline;">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn">Logout</button>
+    </form>
+</div>
 
+<!-- Sidebar -->
+{% include 'core/sidebar.html' %}
+
+<div class="manage-users-container">
     {% if messages %}
     <div class="messages">
         {% for message in messages %}
@@ -286,106 +524,106 @@
     </div>
     {% endif %}
 
-    <div class="users-table">
-        <table>
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Superuser</th>
-                    <th>Active</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.email|default:"—" }}</td>
-                    <td>
-                        {% if user.is_superuser %}
-                        <span class="badge badge-success">Yes</span>
-                        {% else %}
-                        <span class="badge badge-warning">No</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if user.is_active %}
-                        <span class="badge badge-success">Active</span>
-                        {% else %}
-                        <span class="badge badge-danger">Inactive</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <a href="/admin-users/edit/{{ user.id }}/" class="btn btn-sm btn-edit">Edit</a>
-                        {% if user != request.user %}
-                        <form action="/admin-users/delete/{{ user.id }}/" method="post" style="display: inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-delete" onclick="return confirm('Are you sure you want to delete this user?')">Delete</button>
-                        </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                        No admin users found.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Create User Modal -->
-<div id="createModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Create Admin User</h2>
+    <!-- Z-Pattern Layout -->
+    <div class="z-pattern-layout">
+        <!-- Z-Pattern: Top Left - Header -->
+        <div class="z-top-left">
+            <h1>Manage Users</h1>
+            <a href="/admin-users/create/" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Create User
+            </a>
         </div>
-        <form action="/admin-users/create/" method="post">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="username">Username *</label>
-                <input type="text" id="username" name="username" required>
+
+        <!-- Z-Pattern: Top Right - Stats -->
+        <div class="z-top-right">
+            <div class="stat-card">
+                <h3>Total Users</h3>
+                <p class="stat-value">{{ total_users }}</p>
             </div>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email">
+            <div class="stat-card">
+                <h3>Superusers</h3>
+                <p class="stat-value">{{ superusers_count }}</p>
             </div>
-            <div class="form-group">
-                <label for="password">Password *</label>
-                <input type="password" id="password" name="password" required>
+            <div class="stat-card">
+                <h3>Active Users</h3>
+                <p class="stat-value">{{ active_users_count }}</p>
             </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="is_superuser">
-                    Superuser (full admin access)
-                </label>
+            <div class="stat-card">
+                <h3>Staff Users</h3>
+                <p class="stat-value">{{ staff_users_count }}</p>
             </div>
-            <div class="form-actions">
-                <button type="button" class="btn" onclick="closeCreateModal()" style="background: rgba(255,255,255,0.1);">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create User</button>
+        </div>
+
+        <!-- Z-Pattern: Middle Left - Users Table -->
+        <div class="z-middle-left">
+            <div class="users-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Superuser</th>
+                            <th>Active</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email|default:"—" }}</td>
+                            <td>
+                                {% if user.is_superuser %}
+                                <span class="badge badge-success">Yes</span>
+                                {% else %}
+                                <span class="badge badge-warning">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                <span class="badge badge-success">Active</span>
+                                {% else %}
+                                <span class="badge badge-danger">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="/admin-users/edit/{{ user.id }}/" class="btn btn-sm btn-edit">Edit</a>
+                                {% if user != request.user %}
+                                <form action="/admin-users/delete/{{ user.id }}/" method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-delete" onclick="return confirm('Are you sure you want to delete this user?')">Delete</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                No users found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 
 <script>
-function openCreateModal() {
-    document.getElementById('createModal').classList.add('active');
+// Placeholder functions for sidebar actions (can be implemented later)
+function openRemoveServerModal() {
+    // Redirect to dashboard where this modal exists
+    window.location.href = '/monitoring/';
 }
 
-function closeCreateModal() {
-    document.getElementById('createModal').classList.remove('active');
+function openAlertConfigModal() {
+    // Redirect to dashboard where this modal exists
+    window.location.href = '/monitoring/';
 }
-
-// Close modal on outside click
-document.getElementById('createModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeCreateModal();
-    }
-});
 </script>
 {% endblock %}
+

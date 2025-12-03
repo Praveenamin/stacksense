@@ -4,7 +4,7 @@ import os
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.conf import settings
-from core.models import Server, SystemMetric, MonitoringConfig, Anomaly
+from core.models import Server, SystemMetric, MonitoringConfig, Anomaly, Service
 from datetime import timedelta
 
 
@@ -50,6 +50,29 @@ class Command(BaseCommand):
                         _check_and_send_alerts(server, metric_obj)
                     except Exception as alert_error:
                         self.stderr.write(self.style.WARNING(f"Alert check failed for {server.name}: {alert_error}"))
+                
+                # Check monitored services (every minute)
+                # IMPORTANT: Services are server-specific. Only checks services for THIS server.
+                # Enabling a service on one server does NOT affect other servers.
+                # Check ALL services with monitoring enabled, regardless of current status
+                # This allows detection of failed services and recovery of previously failed services
+                try:
+                    from core.views import _check_service_status
+                    # Only get services for THIS specific server with monitoring enabled
+                    # Don't filter by status - we need to check failed/stopped services too
+                    monitored_services = Service.objects.filter(
+                        server=server,  # Server-specific filter
+                        monitoring_enabled=True
+                        # Removed status="running" filter to check ALL monitored services
+                        # This allows detection of failed services and recovery detection
+                    )
+                    for service in monitored_services:
+                        try:
+                            _check_service_status(server, service)
+                        except Exception as service_error:
+                            self.stderr.write(self.style.WARNING(f"Service check failed for {service.name} on {server.name}: {service_error}"))
+                except Exception as service_check_error:
+                    self.stderr.write(self.style.WARNING(f"Service monitoring check failed for {server.name}: {service_check_error}"))
             except Exception as e:
                 self.stderr.write(self.style.ERROR(f"✗ Failed to collect from {server.name}: {e}"))
 

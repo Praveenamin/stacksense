@@ -19,6 +19,30 @@
         --text-secondary: #cbd5e1;
         --text-muted: #94a3b8;
         --border-color: #334155;
+        
+        /* Typography System - Consistent across all pages */
+        --font-size-xs: 0.75rem;      /* 12px - Badges, labels */
+        --font-size-sm: 0.875rem;     /* 14px - Body text, descriptions */
+        --font-size-base: 0.9375rem;  /* 15px - Default text */
+        --font-size-md: 1rem;         /* 16px - Buttons, inputs */
+        --font-size-lg: 1.125rem;     /* 18px - Subheadings */
+        --font-size-xl: 1.25rem;      /* 20px - Card titles */
+        --font-size-2xl: 1.5rem;      /* 24px - Section headings */
+        --font-size-3xl: 2rem;        /* 32px - Page titles */
+        
+        /* Font Weights */
+        --font-weight-normal: 400;
+        --font-weight-medium: 500;
+        --font-weight-semibold: 600;
+        --font-weight-bold: 700;
+        
+        /* Spacing - Reduced for compact layout */
+        --spacing-xs: 0.25rem;   /* 4px */
+        --spacing-sm: 0.5rem;    /* 8px */
+        --spacing-md: 0.75rem;    /* 12px */
+        --spacing-lg: 1rem;      /* 16px */
+        --spacing-xl: 1.5rem;    /* 24px */
+        --spacing-2xl: 2rem;     /* 32px */
     }
 
     * {
@@ -32,7 +56,38 @@
         background-color: #0f172a !important;
         color: #f1f5f9 !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-size: var(--font-size-base);
         min-height: 100vh;
+        /* Scroll snap for main page scrollbar */
+        scroll-snap-type: y proximity;
+        scroll-padding: 1rem;
+    }
+
+    /* Global Typography Standards */
+    h1 {
+        font-size: var(--font-size-3xl);
+        font-weight: var(--font-weight-bold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.2;
+    }
+
+    h2 {
+        font-size: var(--font-size-2xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.3;
+    }
+
+    h3 {
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-sm) 0;
+        line-height: 1.4;
+    }
+
+    p, span, div, label {
+        font-size: var(--font-size-base);
+        line-height: 1.5;
     }
 
     * {
@@ -76,6 +131,11 @@
         padding: 0 !important;
     }
 
+    /* Remove padding from content-wrapper > content */
+    .content-wrapper > .content {
+        padding: 0 !important;
+    }
+
     .wrapper {
         margin-left: 0 !important;
         margin-right: 0 !important;
@@ -93,31 +153,65 @@
         max-width: 100% !important;
     }
 
-    /* Sidebar */
+    /* Top-Right Navigation */
+    .top-right-nav {
+        position: fixed;
+        top: 0;
+        right: 1rem;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(10px);
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .top-right-nav .username {
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+    }
+
+    .logout-btn {
+        padding: 6px 12px;
+        background: #e63946;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .logout-btn:hover {
+        background: #d62839;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(230, 57, 70, 0.3);
+    }
+
+    .logout-btn:active {
+        transform: translateY(0);
+    }
+
+    /* Sidebar - Always Expanded */
     .sidebar {
         position: fixed;
         left: 0;
         top: 0;
         height: 100vh;
+        width: 240px !important;
         background: var(--card-bg);
         border-right: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 1000;
-        transition: width 0.3s ease;
         overflow: hidden;
         overflow-y: auto;
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .sidebar.collapsed {
-        width: 60px;
-    }
-
-    .sidebar.expanded {
-        width: 240px;
-    }
-
-    .sidebar:hover {
-        width: 240px;
     }
 
     .sidebar-content {
@@ -173,15 +267,9 @@
     }
 
     .sidebar-item-text {
-        opacity: 0;
-        transition: opacity 0.2s ease;
+        opacity: 1;
         font-size: 0.875rem;
         font-weight: 500;
-    }
-
-    .sidebar:hover .sidebar-item-text,
-    .sidebar.expanded .sidebar-item-text {
-        opacity: 1;
     }
 
     .sidebar-divider {
@@ -203,21 +291,35 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    .sidebar-item.logout {
-        background: rgba(239, 68, 68, 0.15) !important;
-        backdrop-filter: blur(10px) saturate(180%);
-        -webkit-backdrop-filter: blur(10px) saturate(180%);
-        border: 1px solid rgba(239, 68, 68, 0.3) !important;
-        border-left: 3px solid rgba(239, 68, 68, 0.5) !important;
-        margin: 0 !important;
-        border-radius: 8px;
-        box-shadow: 
-            0 2px 8px 0 rgba(239, 68, 68, 0.2),
-            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-        font-family: inherit;
-        font-size: inherit;
-        width: 100% !important;
-        box-sizing: border-box;
+    /* Sidebar Groups */
+    .sidebar-group {
+        margin-bottom: 0.5rem;
+    }
+
+    .sidebar-group-header {
+        padding: 0.5rem 1rem;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        opacity: 1;
+    }
+
+    .sidebar-group-items {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-group-items .sidebar-item {
+        padding-left: 2rem;
+        font-size: var(--font-size-sm);
+    }
+
+
+    .sidebar.expanded .sidebar-footer,
+    .sidebar:hover .sidebar-footer {
+        padding: 1rem 0.75rem 0.5rem 0.75rem !important;
     }
 
     .sidebar-item.logout:hover {
@@ -246,8 +348,11 @@
         width: 100%;
         max-width: 100%;
         margin: 0;
-        margin-left: 60px; /* Space for collapsed sidebar */
-        padding: 1.5rem 1.25rem;
+        margin-left: 240px; /* Space for expanded sidebar */
+        padding: var(--spacing-lg) var(--spacing-md);
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
         min-height: 100vh;
         box-sizing: border-box;
         transition: margin-left 0.3s ease;
@@ -258,14 +363,59 @@
         margin-left: 240px;
     }
 
+    /* Z-Pattern Layout - Standardized across all pages */
+    .z-pattern-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        gap: var(--spacing-md);
+        max-width: 100%;
+    }
 
-    /* Header */
+    /* Z-Pattern: Top Left (Header/Title) */
+    .z-top-left {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .z-top-left h1 {
+        color: var(--primary-color);
+        font-size: 2rem;
+        margin: 0;
+    }
+
+    /* Z-Pattern: Top Right (Stats/Summary Cards) */
+    .z-top-right {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Z-Pattern: Middle Left (Main Content) */
+    .z-middle-left {
+        grid-column: 1 / -1;
+    }
+
+    /* Z-Pattern: Bottom (Additional Content) */
+    .z-bottom {
+        grid-column: 1 / -1;
+    }
+
+    /* Header - Now part of Z-pattern */
     .dashboard-header {
         display: flex;
         align-items: center;
         gap: 1rem;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
+        margin-bottom: 0;
+        padding-bottom: 0;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
     }
 
     .header-icon {
@@ -352,15 +502,15 @@
     }
 
     .tab-btn {
-        padding: 0.75rem 1.5rem;
+        padding: var(--spacing-sm) var(--spacing-lg);
         background: rgba(30, 41, 59, 0.3) !important;
         backdrop-filter: blur(10px) saturate(180%);
         -webkit-backdrop-filter: blur(10px) saturate(180%);
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 12px;
         color: var(--text-secondary);
-        font-size: 0.9375rem;
-        font-weight: 500;
+        font-size: var(--font-size-base);
+        font-weight: var(--font-weight-medium);
         cursor: pointer;
         transition: all 0.3s ease;
         box-shadow: 
@@ -390,7 +540,10 @@
     .servers-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 1rem;
+        gap: var(--spacing-md);
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
     }
 
     /* Global card styling - no border-bottom on headings for all cards */
@@ -402,6 +555,8 @@
         border-bottom: none !important;
         padding-bottom: 0 !important;
         margin-top: 0;
+        font-size: var(--font-size-lg);
+        margin-bottom: var(--spacing-sm) !important;
     }
 
     .server-card {
@@ -411,7 +566,7 @@
         -webkit-backdrop-filter: blur(10px) saturate(180%);
         border: 1px solid rgba(255, 255, 255, 0.18);
         border-radius: 16px;
-        padding: 0.75rem;
+        padding: var(--spacing-md);
         margin-bottom: 0;
         margin-top: 0;
         transition: all 0.3s ease;
@@ -478,29 +633,109 @@
     .server-card.server-suspended {
         opacity: 0.6;
         filter: grayscale(50%);
-        border: 2px dashed rgba(245, 158, 11, 0.5);
+        border: 2px dashed rgba(239, 68, 68, 0.5);
         pointer-events: none;
         cursor: not-allowed;
+        position: relative;
+    }
+
+    /* Centered overlay when monitoring is halted */
+    .server-card.server-suspended::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        border-radius: 12px;
     }
 
     .server-card.server-suspended::after {
         content: 'Monitoring Halted';
         position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        background: rgba(245, 158, 11, 0.9);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(239, 68, 68, 0.95);
         color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-size: 1rem;
         font-weight: 600;
-        z-index: 10;
+        z-index: 101;
+        white-space: nowrap;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
     }
 
-    /* Re-enable only the Halt Monitoring button when suspended */
+    /* Resume Monitoring button - top right corner with play icon */
     .server-card.server-suspended .monitor-toggle {
-        pointer-events: auto;
-        cursor: pointer;
+        position: absolute !important;
+        top: 0.5rem !important;
+        right: 0.5rem !important;
+        z-index: 103 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        background: rgba(239, 68, 68, 0.9) !important;
+        border: 2px solid rgb(239, 68, 68) !important;
+        color: white !important;
+        padding: 0.4rem 0.5rem !important;
+        border-radius: 6px !important;
+        font-size: 0.8125rem !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0 !important;
+        min-width: auto !important;
+        width: auto !important;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.6), 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+        transition: all 0.3s ease !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+    
+    .server-card.server-suspended .monitor-toggle:disabled {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        background: rgba(239, 68, 68, 0.9) !important;
+    }
+
+    .server-card.server-suspended .monitor-toggle:hover {
+        background: rgb(239, 68, 68) !important;
+        border-color: rgb(220, 38, 38) !important;
+        color: white !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.8), 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
+    }
+
+    .server-card.server-suspended .monitor-toggle:active {
+        transform: translateY(0);
+    }
+
+    .server-card.server-suspended .monitor-toggle .toggle-icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .server-card.server-suspended .monitor-toggle .toggle-title {
+        display: none !important;
+    }
+
+    .server-card.server-suspended .monitor-toggle .toggle-state {
+        display: none;
+    }
+
+    /* Hide the monitor-toggle button in header when suspended */
+    .server-card.server-suspended .header-toggle-buttons .monitor-toggle {
+        display: none;
     }
 
     /* Disable all other buttons when suspended */
@@ -508,6 +743,15 @@
         pointer-events: none;
         cursor: not-allowed;
         opacity: 0.5;
+    }
+
+    /* Hide card content when suspended */
+    .server-card.server-suspended .card-header,
+    .server-card.server-suspended .uptime,
+    .server-card.server-suspended .metric-bar,
+    .server-card.server-suspended .network-info,
+    .server-card.server-suspended .services-info {
+        opacity: 0.3;
     }
 
     .card-toggle-btn {
@@ -648,6 +892,84 @@
         align-items: center;
         gap: 0.5rem;
         flex-shrink: 0;
+    }
+
+    /* Anomaly Status Widget */
+    .anomaly-status {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: 12px;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .anomaly-status-label {
+        white-space: nowrap;
+    }
+
+    /* Severity-based styling */
+    .anomaly-status.anomaly-ok {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .anomaly-status.anomaly-low {
+        background: rgba(251, 191, 36, 0.15);
+        color: #fbbf24;
+        border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+
+    .anomaly-status.anomaly-medium {
+        background: rgba(251, 146, 60, 0.15);
+        color: #fb923c;
+        border: 1px solid rgba(251, 146, 60, 0.3);
+    }
+
+    .anomaly-status.anomaly-high {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .anomaly-status.anomaly-critical {
+        background: rgba(185, 28, 28, 0.2);
+        color: #dc2626;
+        border: 1px solid rgba(185, 28, 28, 0.4);
+        font-weight: var(--font-weight-bold);
+    }
+
+    .anomaly-status.anomaly-unknown {
+        background: rgba(148, 163, 184, 0.15);
+        color: #94a3b8;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
+    /* Active indicator - pulsing dot */
+    .anomaly-status.has-active::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        display: inline-block;
+        margin-right: var(--spacing-xs);
+        animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.6;
+            transform: scale(1.2);
+        }
     }
 
     .header-toggle-buttons {
@@ -844,6 +1166,9 @@
         scrollbar-width: thin !important;
         scrollbar-color: #c9a961 rgba(0, 0, 0, 0.3) !important;
         scrollbar-gutter: stable;
+        /* Scroll snap for smooth snapping */
+        scroll-snap-type: y proximity;
+        scroll-padding: 1rem;
         box-shadow: 
             0 20px 60px 0 rgba(0, 0, 0, 0.5),
             inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
@@ -1129,6 +1454,21 @@
             width: 100%;
             margin-top: 1rem;
         }
+        /* Mobile: Collapse sidebar */
+        .sidebar {
+            width: 60px !important;
+        }
+        .sidebar-item-text {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+        .sidebar-group-header {
+            opacity: 0;
+        }
+        .dashboard-container {
+            margin-left: 60px !important;
+        }
     }
 
     /* Ensure no extra space on parent containers */
@@ -1167,64 +1507,24 @@
 {% endblock %}
 
 {% block content %}
-<!-- Sidebar -->
-<div class="sidebar collapsed">
-    <div class="sidebar-content">
-        <div class="sidebar-item" onclick="openAddServerModal()" title="Add Server">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Add Server</span>
-        </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-item danger" onclick="openRemoveServerModal()" title="Remove Server">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Remove Server</span>
-        </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-item" onclick="openAlertConfigModal()" title="Alert Configurator">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Alert Configurator</span>
-        </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-item" onclick="openAdminUsersModal()" title="Admin Users">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M16 7c0-2.21-1.79-4-4-4S8 4.79 8 7s1.79 4 4 4 4-1.79 4-4zm-4 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Admin Users</span>
-        </div>
-        <div class="sidebar-footer">
-            <div class="sidebar-divider"></div>
-            <form action="/admin/logout/" method="post" style="margin: 0; padding: 0; display: contents;">
-                {% csrf_token %}
-                <button type="submit" class="sidebar-item logout" title="Logout" style="background: none; border: none; width: 100%; cursor: pointer; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; color: rgba(255, 255, 255, 0.7); box-sizing: border-box;">
-                    <div class="sidebar-item-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-                        </svg>
-                    </div>
-                    <span class="sidebar-item-text">Logout</span>
-                </button>
-            </form>
-        </div>
-    </div>
+<!-- Top-Right Navigation -->
+<div class="top-right-nav">
+    <span class="username">{{ user.username }}</span>
+    <form action="{% url 'logout' %}" method="post" style="margin: 0; padding: 0; display: inline;">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn">Logout</button>
+    </form>
 </div>
 
+<!-- Sidebar -->
+{% include 'core/sidebar.html' %}
+
 <div class="dashboard-container">
-    <!-- Header -->
-    <div class="dashboard-header">
+    <!-- Z-Pattern Layout -->
+    <div class="z-pattern-layout">
+        <!-- Z-Pattern: Top Left - Header -->
+        <div class="z-top-left">
+            <div class="dashboard-header">
         <div class="header-icon">
             <svg width="40" height="30" viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality">
                 <defs>
@@ -1280,9 +1580,12 @@
                     <span>{{ offline_count }} Offline</span>
                 </div>
             </div>
+            </div>
         </div>
-    </div>
+        </div>
 
+        <!-- Z-Pattern: Middle Left - Servers Grid -->
+        <div class="z-middle-left">
     <!-- Tabs -->
     <div class="dashboard-tabs">
         <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
@@ -1304,6 +1607,9 @@
                         <div class="server-name">{{ server_data.server.name }}</div>
                     </div>
                     <div class="header-status-controls">
+                        <div class="anomaly-status anomaly-unknown" data-server-id="{{ server_data.server.id }}" data-initial-severity="unknown">
+                            <span class="anomaly-status-label">Anomaly: loading...</span>
+                        </div>
                         <div class="status-pill {{ server_data.status }}">{{ server_data.status }}</div>
                         <div class="header-toggle-buttons">
                             <button class="card-toggle-btn alert-toggle" data-active="{% if server_data.alert_suppressed %}true{% else %}false{% endif %}" onclick="toggleAlertSuppression(this, {{ server_data.server.id }})" title="Mute Alerts">
@@ -1315,7 +1621,7 @@
                                 <span class="toggle-title">Mute Alerts</span>
                                 <span class="toggle-state">Off</span>
                             </button>
-                            <button class="card-toggle-btn monitor-toggle" data-active="{{ server_data.monitoring_suspended|default:'false' }}" onclick="toggleMonitoring(this, {{ server_data.server.id }})" title="Halt Monitoring">
+                            <button class="card-toggle-btn monitor-toggle" data-active="{{ server_data.monitoring_suspended|default:'false' }}" onclick="event.stopPropagation(); toggleMonitoring(this, {{ server_data.server.id }});" title="Halt Monitoring">
                                 <div class="toggle-icon">
                                     <svg viewBox="0 0 24 24">
                                         <path d="M6 6h12v12H6z"/>
@@ -1415,6 +1721,8 @@
 
             </div>
             {% endfor %}
+        </div>
+    </div>
         </div>
     </div>
 
@@ -2164,6 +2472,12 @@ function updateToggleButton(button, isActive) {
     if (stateLabel) {
         stateLabel.textContent = isActive ? "On" : "Off";
     }
+    // Update title text for monitor-toggle button
+    const titleLabel = button.querySelector(".toggle-title");
+    if (titleLabel && button.classList.contains("monitor-toggle")) {
+        titleLabel.textContent = isActive ? "Resume Monitoring" : "Halt Monitoring";
+        button.setAttribute("title", isActive ? "Resume Monitoring" : "Halt Monitoring");
+    }
     // Update icon based on state and button type
     const icon = button.querySelector(".toggle-icon svg");
     if (icon) {
@@ -2171,8 +2485,14 @@ function updateToggleButton(button, isActive) {
             // Mute Alerts button - always show pause icon
             icon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
         } else if (button.classList.contains("monitor-toggle")) {
-            // Halt Monitoring button - always show stop icon
-            icon.innerHTML = '<path d="M6 6h12v12H6z"/>';
+            // Halt Monitoring button - show play icon when active (to resume), stop icon when inactive
+            if (isActive) {
+                // Show play icon for resume
+                icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+            } else {
+                // Show stop icon for halt
+                icon.innerHTML = '<path d="M6 6h12v12H6z"/>';
+            }
         }
     }
 }
@@ -2268,6 +2588,8 @@ async function toggleMonitoring(button, serverId) {
             console.log("Monitoring state updated:", data.message);
             // Update the button's data-active attribute to reflect the new state
             button.setAttribute("data-active", targetState.toString());
+            // Ensure button state is properly updated
+            updateToggleButton(button, targetState);
         } else {
             throw new Error(data.error || "Failed to update monitoring state.");
         }
@@ -2285,6 +2607,14 @@ async function toggleMonitoring(button, serverId) {
         alert(error.message || "Unable to update monitoring state.");
     } finally {
         button.disabled = false;
+        // If card is suspended, ensure button remains enabled and visible
+        const serverCard = button.closest('.server-card');
+        if (serverCard && serverCard.classList.contains('server-suspended')) {
+            button.disabled = false;
+            button.style.pointerEvents = 'auto';
+            button.style.opacity = '1';
+            button.style.visibility = 'visible';
+        }
     }
 }
 
@@ -2392,6 +2722,14 @@ document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll(".card-toggle-btn").forEach(button => {
         const isActive = button.getAttribute("data-active") === "true";
         updateToggleButton(button, isActive);
+    });
+    
+    // Ensure resume monitoring button is enabled when card is suspended
+    document.querySelectorAll(".server-card.server-suspended .monitor-toggle").forEach(button => {
+        button.disabled = false;
+        button.style.pointerEvents = 'auto';
+        button.style.opacity = '1';
+        button.style.visibility = 'visible';
     });
 
     const serverCards = document.querySelectorAll(".server-card");
@@ -2678,4 +3016,5 @@ function escapeHtml(text) {
 }
 
 </script>
+<script src="{% static 'core/js/anomaly_status.js' %}"></script>
 {% endblock %}

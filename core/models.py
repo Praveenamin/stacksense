@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 
 class Server(models.Model):
@@ -178,6 +179,7 @@ class Service(models.Model):
     port = models.IntegerField(null=True, blank=True)
     process_id = models.CharField(max_length=50, null=True, blank=True)
     last_checked = models.DateTimeField(default=timezone.now)
+    monitoring_enabled = models.BooleanField(default=False, help_text="Whether monitoring is enabled for this service")
     
     class Meta:
         unique_together = [["server", "name"]]
@@ -289,6 +291,7 @@ class AlertHistory(models.Model):
         MEMORY = "Memory", "Memory"
         DISK = "Disk", "Disk"
         CONNECTION = "CONNECTION", "Connection"
+        SERVICE = "SERVICE", "Service"
     
     class AlertStatus(models.TextChoices):
         TRIGGERED = "triggered", "Triggered"
@@ -315,3 +318,44 @@ class AlertHistory(models.Model):
     
     def __str__(self):
         return f"{self.server.name} - {self.alert_type} {self.status} at {self.sent_at}"
+
+
+class UserACL(models.Model):
+    """Access Control List for Staff Users - defines permissions for non-superuser staff"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='acl')
+    
+    # Dashboard permissions
+    can_view_dashboard = models.BooleanField(default=True, help_text="Can view servers/alerts in dashboard")
+    
+    # Threshold permissions
+    can_edit_thresholds = models.BooleanField(default=False, help_text="Can edit alert thresholds")
+    
+    # Monitoring control permissions
+    can_halt_monitoring = models.BooleanField(default=False, help_text="Can halt/resume monitoring")
+    can_mute_notifications = models.BooleanField(default=False, help_text="Can mute/unmute notifications")
+    
+    # Server management permissions
+    can_add_server = models.BooleanField(default=False, help_text="Can add new servers")
+    can_edit_server = models.BooleanField(default=False, help_text="Can edit existing servers")
+    can_delete_server = models.BooleanField(default=False, help_text="Can delete servers")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "User ACL"
+        verbose_name_plural = "User ACLs"
+        ordering = ['user__username']
+    
+    def __str__(self):
+        return f"ACL for {self.user.username}"
+    
+    @classmethod
+    def get_or_create_for_user(cls, user):
+        """Get or create ACL for a user, defaulting all permissions to False for staff users"""
+        acl, created = cls.objects.get_or_create(user=user)
+        if created and not user.is_superuser:
+            # For new staff users, set defaults (only view dashboard enabled by default)
+            acl.can_view_dashboard = True
+            acl.save()
+        return acl

@@ -1,10 +1,12 @@
 from django.contrib.admin.views.decorators import staff_member_required
-from django.shortcuts import render, get_object_or_404
-from django.contrib import admin
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import admin, messages
+from django.contrib.auth.models import User
+from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory
-from django.http import JsonResponse
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory, UserACL
+from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 import paramiko
@@ -96,6 +98,218 @@ def get_live_metrics(request):
     return JsonResponse({"metrics": metrics_data})
 
 
+@require_http_methods(["GET"])
+def metric_history_api(request, server_id):
+    """
+    API endpoint for retrieving metric history with anomaly overlays.
+    
+    Returns time-series data for CPU, memory, disk, and network metrics
+    along with anomaly events for visualization in charts.
+    
+    Args:
+        request: Django HTTP request
+        server_id: Integer server ID
+    
+    Query Parameters:
+        hours: Number of hours of history to retrieve (default: 6, max: 24)
+    
+    Returns:
+        JsonResponse: Metric history data with anomalies
+        
+    Example Response:
+        {
+            "timestamps": ["2024-01-01T12:00:00Z", ...],
+            "cpu": [45.2, 47.8, ...],
+            "memory": [62.1, 63.5, ...],
+            "disk": [78.3, 78.5, ...],
+            "anomalies": [
+                {
+                    "timestamp": "2024-01-01T12:05:00Z",
+                    "metric_name": "cpu_percent",
+                    "metric_type": "cpu",
+                    "severity": "HIGH",
+                    "metric_value": 85.3
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        # Get server or return 404
+        try:
+            server = Server.objects.get(id=server_id)
+        except Server.DoesNotExist:
+            return JsonResponse(
+                {"error": "Server not found"},
+                status=404
+            )
+        
+        # Parse time range from query parameter
+        hours = request.GET.get('hours', '6')
+        try:
+            hours = int(hours)
+        except (ValueError, TypeError):
+            hours = 6
+        
+        # Cap at 24 hours for performance
+        hours = min(max(hours, 1), 24)
+        
+        # Calculate time range
+        since = timezone.now() - timedelta(hours=hours)
+        
+        # Query SystemMetric for this server in the time range
+        metrics_qs = (
+            SystemMetric.objects
+            .filter(server=server, timestamp__gte=since)
+            .order_by("timestamp")
+            .only("timestamp", "cpu_percent", "memory_percent", "disk_usage")
+        )
+        
+        # Convert to list for processing
+        metrics_list = list(metrics_qs)
+        
+        # Down-sample if too many points (cap at ~500)
+        if len(metrics_list) > 500:
+            # Keep every Nth row
+            step = len(metrics_list) // 500
+            metrics_list = metrics_list[::step]
+        
+        # Extract arrays
+        timestamps = []
+        cpu_values = []
+        memory_values = []
+        disk_values = []
+        
+        for metric in metrics_list:
+            timestamps.append(metric.timestamp.isoformat())
+            cpu_values.append(float(metric.cpu_percent) if metric.cpu_percent is not None else None)
+            memory_values.append(float(metric.memory_percent) if metric.memory_percent is not None else None)
+            
+            # Extract max disk percent from disk_usage JSONField
+            max_disk = None
+            if metric.disk_usage:
+                try:
+                    if isinstance(metric.disk_usage, str):
+                        disk_data = json.loads(metric.disk_usage)
+                    else:
+                        disk_data = metric.disk_usage
+                    
+                    max_disk = 0.0
+                    for mount, usage in disk_data.items():
+                        if isinstance(usage, dict):
+                            percent = usage.get("percent", 0.0)
+                        else:
+                            percent = float(usage) if isinstance(usage, (int, float)) else 0.0
+                        max_disk = max(max_disk, float(percent))
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    max_disk = None
+            
+            disk_values.append(float(max_disk) if max_disk is not None else None)
+        
+        # Query anomalies for this server in the same time range
+        anomalies_qs = Anomaly.objects.filter(
+            server=server,
+            timestamp__gte=since
+        ).order_by("timestamp").only(
+            "timestamp", "metric_name", "metric_type", "severity", "metric_value"
+        )
+        
+        # Extract anomaly points
+        anomaly_points = []
+        for anomaly in anomalies_qs:
+            anomaly_points.append({
+                "timestamp": anomaly.timestamp.isoformat(),
+                "metric_name": anomaly.metric_name,
+                "metric_type": anomaly.metric_type,
+                "severity": anomaly.severity,
+                "metric_value": float(anomaly.metric_value) if anomaly.metric_value is not None else 0.0,
+            })
+        
+        # Build response
+        response_data = {
+            "timestamps": timestamps,
+            "cpu": cpu_values,
+            "memory": memory_values,
+            "disk": disk_values,
+            "anomalies": anomaly_points
+        }
+        
+        return JsonResponse(response_data, safe=False)
+        
+    except Exception as e:
+        # Log error and return error response
+        app_logger.error(f"Error in metric_history_api for server {server_id}: {e}")
+        return JsonResponse(
+            {"error": "Internal server error", "message": str(e)},
+            status=500
+        )
+
+
+@require_http_methods(["GET"])
+def anomaly_status_api(request, server_id):
+    """
+    API endpoint for retrieving anomaly status for a server.
+    
+    This endpoint:
+    1. Tries to load cached status from Redis
+    2. If cache miss, computes fresh summary and caches it
+    3. Returns JSON response with anomaly status
+    
+    Args:
+        request: Django HTTP request
+        server_id: Integer server ID
+    
+    Returns:
+        JsonResponse: Anomaly status summary or error response
+    
+    Example Response:
+        {
+            "active": 2,
+            "highest_severity": "HIGH",
+            "timestamp": "2024-01-01T12:00:00Z",
+            "details": {
+                "cpu": "anomaly",
+                "memory": "normal",
+                "disk": "anomaly",
+                "network": "normal"
+            }
+        }
+    """
+    try:
+        # Import here to avoid circular imports
+        from .anomaly_cache import AnomalyCache
+        from .anomaly_status_service import AnomalyStatusService
+        
+        # Get server or return 404
+        try:
+            server = Server.objects.get(id=server_id)
+        except Server.DoesNotExist:
+            return JsonResponse(
+                {"error": "Server not found"},
+                status=404
+            )
+        
+        # Try to load from Redis cache first
+        cached_summary = AnomalyCache.load_status(server_id)
+        
+        if cached_summary is not None:
+            # Cache hit - return cached data
+            return JsonResponse(cached_summary)
+        
+        # Cache miss - compute fresh summary
+        summary = AnomalyStatusService.refresh_and_cache(server)
+        
+        # Return the summary
+        return JsonResponse(summary)
+        
+    except Exception as e:
+        # Log error and return error response
+        app_logger.error(f"Error in anomaly_status_api for server {server_id}: {e}")
+        return JsonResponse(
+            {"error": "Internal server error", "message": str(e)},
+            status=500
+        )
+
 
 @staff_member_required
 def server_details(request, server_id):
@@ -112,8 +326,13 @@ def server_details(request, server_id):
     # Get recent metrics for graphs (last 100)
     recent_metrics = SystemMetric.objects.filter(server=server).order_by("-timestamp")[:100]
     
-    # Get active services
-    active_services = Service.objects.filter(server=server, status="running").order_by("name")
+    # Get all services (running and stopped) - ensure monitoring_enabled defaults to False
+    all_services = Service.objects.filter(server=server).order_by("name")
+    # Ensure all services have monitoring_enabled set (default to False if None)
+    for service in all_services:
+        if service.monitoring_enabled is None:
+            service.monitoring_enabled = False
+            service.save()
     
     # Get recent anomalies (last 50)
     recent_anomalies = Anomaly.objects.filter(server=server).select_related("metric").order_by("-timestamp")[:50]
@@ -223,15 +442,37 @@ def server_details(request, server_id):
                 server_status = "online"
         else:
             server_status = "offline"
+    # Get recent alerts for this server (last 50, only triggered ones)
+    # Use the string value to match what's stored in the database
+    recent_alerts = AlertHistory.objects.filter(
+        server=server,
+        status="triggered"  # Using string value to match database storage
+    ).order_by("-sent_at")[:50]
+    
+    # Get all alerts for this server only (both triggered and resolved)
+    all_alerts = AlertHistory.objects.filter(
+        server=server
+    ).select_related('server').order_by("-sent_at")[:100]
+    
+    # Get all alert types
+    alert_types = AlertHistory.AlertType.choices
+    
+    # Get all alert statuses
+    alert_statuses = AlertHistory.AlertStatus.choices
+    
     context = {
         "server": server,
         "server_status": server_status,
         "latest_metric": latest_metric,
         "recent_metrics": recent_metrics,
-        "active_services": active_services,
+        "all_services": all_services,
         "recent_anomalies": recent_anomalies,
         "disk_summary": disk_summary,
         "chart_data": chart_data_json,
+        "recent_alerts": recent_alerts,
+        "all_alerts": all_alerts,
+        "alert_types": alert_types,
+        "alert_statuses": alert_statuses,
     }
     
     return render(request, "core/server_details.html", context)
@@ -516,9 +757,15 @@ def monitoring_dashboard(request):
 
 
 @staff_member_required
-@require_http_methods(["POST"])
 def add_server(request):
     """Add a new server with SSH key deployment"""
+    if request.method == "GET":
+        # Render the add server page
+        context = {}
+        context.update(admin.site.each_context(request))
+        return render(request, "core/add_server.html", context)
+    
+    # Handle POST request
     _log_user_action(request, "ADD_SERVER", f"Attempting to add server")
     try:
         name = request.POST.get('name', '').strip()
@@ -1404,6 +1651,218 @@ The server connection has been restored and is responding normally.
         error_logger.error(f"CONNECTION_ALERT error for {server.name}: {str(e)}")
 
 
+def _check_service_status(server, service):
+    """
+    Check if a monitored service is running and track consecutive failures.
+    
+    IMPORTANT: This function checks the service on the specific server only.
+    Services are server-specific - each server has its own Service records.
+    """
+    try:
+        # SSH connection to check service status
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
+        private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+        
+        ssh.connect(
+            hostname=server.ip_address,
+            port=server.port,
+            username=server.username,
+            pkey=private_key,
+            timeout=10
+        )
+        
+        # Check service status using systemctl
+        command = f"systemctl is-active {service.name} 2>/dev/null"
+        stdin, stdout, stderr = ssh.exec_command(command)
+        output = stdout.read().decode('utf-8').strip()
+        errors = stderr.read().decode('utf-8').strip()
+        
+        ssh.close()
+        
+        # Service is active if output is "active"
+        is_active = output == "active"
+        is_failed = False  # Initialize variable
+        
+        # Cache key for tracking consecutive failures
+        failure_count_key = f"service_failures:{server.id}:{service.id}"
+        last_status_key = f"service_last_status:{server.id}:{service.id}"
+        alert_sent_key = f"service_alert_sent:{server.id}:{service.id}"
+        
+        if is_active:
+            # Service is running - reset failure count
+            cache.delete(failure_count_key)
+            last_status = cache.get(last_status_key)
+            cache.set(last_status_key, "active", 300)  # 5 min TTL
+            
+            # Check if we need to send a resolved alert
+            if last_status == "inactive" or last_status == "failed":
+                # Service came back online - send resolved alert
+                _send_service_alert(server, service, "resolved")
+                cache.delete(alert_sent_key)
+        else:
+            # Service is down - check if it's in failed state immediately
+            # First, check if service is in failed state
+            try:
+                ssh_failed = paramiko.SSHClient()
+                ssh_failed.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
+                private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+                ssh_failed.connect(
+                    hostname=server.ip_address,
+                    port=server.port,
+                    username=server.username,
+                    pkey=private_key,
+                    timeout=10
+                )
+                # Check if service is failed
+                command_failed = f"systemctl is-failed {service.name} 2>/dev/null"
+                stdin_failed, stdout_failed, stderr_failed = ssh_failed.exec_command(command_failed)
+                output_failed = stdout_failed.read().decode('utf-8').strip()
+                ssh_failed.close()
+                
+                is_failed = output_failed == "failed"
+            except:
+                is_failed = False
+            
+            # Increment failure count
+            failure_count = cache.get(failure_count_key, 0)
+            failure_count += 1
+            cache.set(failure_count_key, failure_count, 300)  # 5 min TTL
+            cache.set(last_status_key, "failed" if is_failed else "inactive", 300)
+            
+            # Send alert if:
+            # 1. Service is in failed state (immediate alert)
+            # 2. OR service has been down for 2 consecutive checks
+            should_alert = False
+            if is_failed:
+                # Service is in failed state - send alert immediately
+                should_alert = True
+                print(f"[SERVICE_ALERT] Service {service.name} on {server.name} is in FAILED state")
+            elif failure_count >= 2:
+                # Service has been down for 2 consecutive checks
+                should_alert = True
+                print(f"[SERVICE_ALERT] Service {service.name} on {server.name} is down (2 consecutive failures)")
+            
+            if should_alert:
+                # Check if we already sent an alert for this failure
+                alert_sent = cache.get(alert_sent_key, False)
+                if not alert_sent:
+                    # Send alert
+                    _send_service_alert(server, service, "triggered")
+                    cache.set(alert_sent_key, True, 300)  # Prevent duplicate alerts
+        
+        # Update service status in database
+        # Use the is_failed status we already checked above
+        if is_active:
+            service.status = "running"
+        else:
+            # Use the is_failed status from the check above
+            if is_failed:
+                service.status = "failed"
+            else:
+                service.status = "stopped"
+        
+        service.last_checked = timezone.now()
+        service.save()
+        
+        return is_active
+        
+    except Exception as e:
+        error_logger.error(f"SERVICE_CHECK error for {service.name} on {server.name}: {str(e)}")
+        return None
+
+
+def _send_service_alert(server, service, status):
+    """Send alert when service status changes (down/up)"""
+    try:
+        # Refresh server to get latest monitoring_config
+        server.refresh_from_db()
+        config = server.monitoring_config
+        
+        # Don't send alerts if monitoring is disabled or suspended
+        if not config.enabled or config.monitoring_suspended:
+            return
+        
+        # Get email config
+        email_config = EmailAlertConfig.objects.filter(enabled=True).first()
+        if not email_config:
+            print(f"[SERVICE_ALERT] No email config found, skipping alert for {service.name} on {server.name}")
+            return
+        
+        recipients = [email.strip() for email in email_config.alert_recipients.split(',')]
+        
+        if status == "triggered":
+            subject = f"🚨 Service Alert: {service.name} is DOWN on {server.name}"
+            body = f"""
+Service Monitoring Alert
+
+Service: {service.name}
+Server: {server.name} ({server.ip_address})
+Status: DOWN
+Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+The service has been down for 2 consecutive checks (2 minutes).
+
+Please investigate and restore the service.
+"""
+        else:  # resolved
+            subject = f"✅ Service Resolved: {service.name} is UP on {server.name}"
+            body = f"""
+Service Monitoring Alert - Resolved
+
+Service: {service.name}
+Server: {server.name} ({server.ip_address})
+Status: UP
+Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+The service has been restored and is now running.
+"""
+        
+        # Create email
+        msg = MIMEMultipart()
+        msg['From'] = email_config.from_email
+        msg['To'] = ', '.join(recipients)
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Send email
+        try:
+            if email_config.use_tls:
+                server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                server_smtp.starttls()
+            else:
+                server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+            
+            server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            server_smtp.send_message(msg)
+            server_smtp.quit()
+            
+            print(f"[SERVICE_ALERT] ✓ Sent {status} alert for {service.name} on {server.name} to {recipients}")
+            
+            # Log to AlertHistory
+            AlertHistory.objects.create(
+                server=server,
+                alert_type="SERVICE",
+                status=status,
+                value=0.0,
+                threshold=2.0,
+                message=f"Service {service.name} is {'DOWN' if status == 'triggered' else 'UP'}",
+                recipients=email_config.alert_recipients
+            )
+            
+        except Exception as e:
+            error_msg = f"[SERVICE_ALERT] ✗ Failed to send {status} alert for {service.name} on {server.name}: {e}"
+            print(error_msg)
+            error_logger.error(error_msg)
+            
+    except Exception as e:
+        error_logger.error(f"SERVICE_ALERT error for {service.name} on {server.name}: {str(e)}")
+        return
+
+
 def _send_alert_email(email_config, server, alerts):
     """Send alert email using configured SMTP settings"""
     try:
@@ -1499,11 +1958,29 @@ def update_thresholds(request, server_id):
 
 @staff_member_required
 def admin_users(request):
-    users = User.objects.filter(is_staff=True).order_by("username")
-    return render(request, "core/admin_users.html", {"users": users})
+    from .models import UserACL
+    users = User.objects.filter(is_staff=True).select_related('acl').order_by("username")
+    # Ensure all users have ACL records
+    for user in users:
+        UserACL.get_or_create_for_user(user)
+    
+    # Calculate stats
+    total_users = users.count()
+    superusers_count = users.filter(is_superuser=True).count()
+    active_users_count = users.filter(is_active=True).count()
+    staff_users_count = total_users
+    
+    return render(request, "core/admin_users.html", {
+        "users": users,
+        "total_users": total_users,
+        "superusers_count": superusers_count,
+        "active_users_count": active_users_count,
+        "staff_users_count": staff_users_count,
+    })
 
 @staff_member_required
 def create_admin_user(request):
+    from .models import UserACL
     if request.method == "POST":
         username = request.POST.get("username")
         email = request.POST.get("email")
@@ -1513,13 +1990,30 @@ def create_admin_user(request):
             messages.error(request, "Username already exists.")
             return redirect("admin_users")
         user = User.objects.create_user(username=username, email=email, password=password, is_staff=True, is_superuser=is_superuser)
-        messages.success(request, f"Admin user {username} created successfully.")
+        
+        # Create ACL for non-superuser staff
+        if not is_superuser:
+            acl = UserACL.get_or_create_for_user(user)
+            # Set ACL permissions from form
+            acl.can_view_dashboard = request.POST.get("can_view_dashboard") == "on"
+            acl.can_edit_thresholds = request.POST.get("can_edit_thresholds") == "on"
+            acl.can_halt_monitoring = request.POST.get("can_halt_monitoring") == "on"
+            acl.can_mute_notifications = request.POST.get("can_mute_notifications") == "on"
+            acl.can_add_server = request.POST.get("can_add_server") == "on"
+            acl.can_edit_server = request.POST.get("can_edit_server") == "on"
+            acl.can_delete_server = request.POST.get("can_delete_server") == "on"
+            acl.save()
+        
+        messages.success(request, f"User {username} created successfully.")
         return redirect("admin_users")
     return redirect("admin_users")
 
 @staff_member_required
 def edit_admin_user(request, user_id):
+    from .models import UserACL
     user = get_object_or_404(User, id=user_id, is_staff=True)
+    acl = UserACL.get_or_create_for_user(user)
+    
     # Prevent staff users from editing superusers
     if not request.user.is_superuser and user.is_superuser:
         messages.error(request, "Staff users cannot edit superuser accounts.")
@@ -1540,9 +2034,25 @@ def edit_admin_user(request, user_id):
         user.is_superuser = is_superuser
         user.is_active = is_active
         user.save()
-        messages.success(request, f"Admin user {username} updated successfully.")
+        
+        # Update ACL for non-superuser staff
+        if not is_superuser:
+            acl.can_view_dashboard = request.POST.get("can_view_dashboard") == "on"
+            acl.can_edit_thresholds = request.POST.get("can_edit_thresholds") == "on"
+            acl.can_halt_monitoring = request.POST.get("can_halt_monitoring") == "on"
+            acl.can_mute_notifications = request.POST.get("can_mute_notifications") == "on"
+            acl.can_add_server = request.POST.get("can_add_server") == "on"
+            acl.can_edit_server = request.POST.get("can_edit_server") == "on"
+            acl.can_delete_server = request.POST.get("can_delete_server") == "on"
+            acl.save()
+        else:
+            # Delete ACL if user becomes superuser
+            if acl.pk:
+                acl.delete()
+        
+        messages.success(request, f"User {username} updated successfully.")
         return redirect("admin_users")
-    return render(request, "core/edit_admin_user.html", {"user": user, "user_id": user_id})
+    return render(request, "core/edit_admin_user.html", {"user": user, "user_id": user_id, "acl": acl})
 
 @staff_member_required
 def delete_admin_user(request, user_id):
@@ -1848,3 +2358,377 @@ def get_top_cpu_processes(request, server_id):
     except Exception as e:
         error_logger.error(f"GET_TOP_CPU_PROCESSES error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def get_top_ram_processes(request, server_id):
+    """API endpoint to get top 3 RAM consuming processes from a server"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        
+        # SSH connection to get top processes
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            # Connect using SSH key
+            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
+            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+            
+            ssh.connect(
+                hostname=server.ip_address,
+                port=server.port,
+                username=server.username,
+                pkey=private_key,
+                timeout=10
+            )
+            
+            # Get top 3 RAM processes using ps command
+            # Using ps with custom format: pid, mem%, command
+            # %mem is column 4 in ps aux output
+            command = "ps aux --sort=-%mem | head -4 | tail -3 | awk '{print $2\"|\"$4\"|\"$11\" \"$12\" \"$13\" \"$14\" \"$15\" \"$16\" \"$17\" \"$18\" \"$19\" \"$20}'"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            
+            processes = []
+            output = stdout.read().decode('utf-8').strip()
+            errors = stderr.read().decode('utf-8').strip()
+            
+            if errors:
+                return JsonResponse({
+                    "success": False,
+                    "error": f"Error executing command: {errors}"
+                }, status=500)
+            
+            # Parse output: PID|MEM%|COMMAND
+            for line in output.split('\n'):
+                if line.strip():
+                    parts = line.split('|')
+                    if len(parts) >= 3:
+                        try:
+                            pid = parts[0].strip()
+                            mem_percent = float(parts[1].strip())
+                            command = '|'.join(parts[2:]).strip()[:50]  # Limit command length
+                            
+                            processes.append({
+                                'pid': pid,
+                                'mem_percent': round(mem_percent, 1),
+                                'command': command
+                            })
+                        except (ValueError, IndexError):
+                            continue
+            
+            ssh.close()
+            
+            # Sort by RAM and take top 3
+            processes.sort(key=lambda x: x['mem_percent'], reverse=True)
+            top_processes = processes[:3]
+            
+            return JsonResponse({
+                "success": True,
+                "processes": top_processes,
+                "server_id": server_id
+            })
+            
+        except paramiko.AuthenticationException:
+            return JsonResponse({
+                "success": False,
+                "error": "SSH authentication failed"
+            }, status=401)
+        except paramiko.SSHException as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"SSH connection error: {str(e)}"
+            }, status=500)
+        except Exception as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"Error connecting to server: {str(e)}"
+            }, status=500)
+            
+    except Exception as e:
+        error_logger.error(f"GET_TOP_RAM_PROCESSES error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def get_active_services(request, server_id):
+    """API endpoint to get all active services from systemctl"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        
+        # SSH connection to get active services
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            # Connect using SSH key
+            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
+            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+            
+            ssh.connect(
+                hostname=server.ip_address,
+                port=server.port,
+                username=server.username,
+                pkey=private_key,
+                timeout=10
+            )
+            
+            # Get ALL services (running, stopped, failed, etc.) using systemctl
+            # Format: UNIT LOAD ACTIVE SUB DESCRIPTION
+            command = "systemctl list-units --type=service --all --no-pager --no-legend 2>/dev/null"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            
+            services = []
+            output = stdout.read().decode('utf-8').strip()
+            errors = stderr.read().decode('utf-8').strip()
+            
+            if errors and "No such file" not in errors and "command not found" not in errors.lower():
+                return JsonResponse({
+                    "success": False,
+                    "error": f"Error executing command: {errors}"
+                }, status=500)
+            
+            # Parse output: Format is typically:
+            # service-name.service loaded active running Description
+            for line in output.split('\n'):
+                if line.strip() and '.service' in line:
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            service_name = parts[0].replace('.service', '').strip()
+                            loaded = parts[1].strip() if len(parts) > 1 else 'unknown'
+                            active = parts[2].strip() if len(parts) > 2 else 'unknown'
+                            sub = parts[3].strip() if len(parts) > 3 else 'unknown'
+                            
+                            # Include all services regardless of status
+                            # Determine status based on active and sub states
+                            if active == 'active' and sub == 'running':
+                                service_status = 'running'
+                            elif active == 'active' and sub in ['exited', 'dead']:
+                                service_status = 'stopped'
+                            elif active == 'inactive':
+                                service_status = 'stopped'
+                            elif active == 'failed':
+                                service_status = 'failed'
+                            else:
+                                service_status = 'unknown'
+                                
+                            # Get service uptime if running
+                            uptime_hours = None
+                            if service_status == 'running':
+                                try:
+                                    # Use systemctl show to get active timestamp
+                                    uptime_cmd = f"systemctl show {service_name} --property=ActiveEnterTimestamp --value 2>/dev/null"
+                                    stdin_uptime, stdout_uptime, stderr_uptime = ssh.exec_command(uptime_cmd)
+                                    uptime_output = stdout_uptime.read().decode('utf-8').strip()
+                                    if uptime_output:
+                                        # Parse timestamp and calculate uptime
+                                        from datetime import datetime
+                                        try:
+                                            # systemctl returns format: Mon 2024-01-01 12:00:00 UTC or similar
+                                            # Try to parse the timestamp
+                                            uptime_str = uptime_output.split('.')[0] if '.' in uptime_output else uptime_output
+                                            # Remove day name if present (e.g., "Mon ")
+                                            if len(uptime_str.split()) > 3:
+                                                uptime_str = ' '.join(uptime_str.split()[1:])
+                                            
+                                            # Try different formats
+                                            try:
+                                                uptime_dt = datetime.strptime(uptime_str, '%Y-%m-%d %H:%M:%S')
+                                            except:
+                                                try:
+                                                    uptime_dt = datetime.strptime(uptime_str, '%Y-%m-%d %H:%M:%S %Z')
+                                                except:
+                                                    uptime_dt = None
+                                            
+                                            if uptime_dt:
+                                                # Make timezone-aware (assume UTC)
+                                                from django.utils import timezone as tz_utils
+                                                if uptime_dt.tzinfo is None:
+                                                    import pytz
+                                                    uptime_dt = pytz.UTC.localize(uptime_dt)
+                                                
+                                                uptime_delta = timezone.now() - uptime_dt
+                                                uptime_hours = round(uptime_delta.total_seconds() / 3600, 1)
+                                        except Exception as e:
+                                            # If parsing fails, skip uptime
+                                            pass
+                                except:
+                                    pass
+                            
+                            # Categorize service as critical or other
+                            is_critical = False
+                            service_name_lower = service_name.lower()
+                            
+                            # Critical service patterns
+                            critical_patterns = [
+                                'apache', 'httpd', 'nginx', 'web', 'www',
+                                'mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb', 'redis', 'db',
+                                'mail', 'postfix', 'sendmail', 'dovecot', 'exim', 'smtp', 'imap', 'pop',
+                                'php', 'python', 'node', 'java', 'tomcat', 'jetty', 'gunicorn',
+                                'cpanel', 'whm', 'lsws', 'openlitespeed',
+                                'docker', 'containerd', 'kube',
+                                'elasticsearch', 'kibana', 'logstash',
+                                'rabbitmq', 'activemq', 'kafka'
+                            ]
+                            
+                            for pattern in critical_patterns:
+                                if pattern in service_name_lower:
+                                    is_critical = True
+                                    break
+                            
+                            services.append({
+                                'name': service_name,
+                                'status': service_status,
+                                'loaded': loaded,
+                                'active': active,
+                                'sub': sub,
+                                'uptime_hours': uptime_hours,
+                                'is_critical': is_critical
+                            })
+                        except (ValueError, IndexError):
+                            continue
+            
+            ssh.close()
+            
+            # Sort services by name
+            services.sort(key=lambda x: x['name'].lower())
+            
+            # Update or create Service records in database
+            from .models import Service
+            current_time = timezone.now()
+            existing_services = {s.name: s for s in Service.objects.filter(server=server)}
+            service_names_in_response = {s['name'] for s in services}
+            
+            # Update existing services or create new ones (monitoring disabled by default)
+            for service_data in services:
+                service_name = service_data['name']
+                if service_name in existing_services:
+                    # Update existing service
+                    service = existing_services[service_name]
+                    service.status = service_data['status']  # Use the status from systemctl
+                    service.last_checked = current_time
+                    # Ensure monitoring_enabled defaults to False if not set
+                    if service.monitoring_enabled is None:
+                        service.monitoring_enabled = False
+                    service.save()
+                    # Add monitoring_enabled to response (default to False if None)
+                    service_data['monitoring_enabled'] = service.monitoring_enabled if service.monitoring_enabled is not None else False
+                    service_data['id'] = service.id
+                else:
+                    # Create new service with monitoring disabled by default
+                    new_service = Service.objects.create(
+                        server=server,
+                        name=service_name,
+                        status=service_data['status'],  # Use the status from systemctl
+                        service_type='systemd',
+                        last_checked=current_time,
+                        monitoring_enabled=False  # Disabled by default
+                    )
+                    service_data['monitoring_enabled'] = False
+                    service_data['id'] = new_service.id
+            
+            # Mark services that are no longer running as stopped
+            for service_name, service in existing_services.items():
+                if service_name not in service_names_in_response:
+                    service.status = 'stopped'
+                    service.last_checked = current_time
+                    service.save()
+            
+            # Add monitoring_enabled and id to all services in response (ensure False by default)
+            for service_data in services:
+                if 'monitoring_enabled' not in service_data:
+                    # Get from database if not already set
+                    service = existing_services.get(service_data['name'])
+                    if service:
+                        # Default to False if None
+                        service_data['monitoring_enabled'] = service.monitoring_enabled if service.monitoring_enabled is not None else False
+                        service_data['id'] = service.id
+                    else:
+                        service_data['monitoring_enabled'] = False
+                # Ensure it's explicitly False, not None
+                if service_data.get('monitoring_enabled') is None:
+                    service_data['monitoring_enabled'] = False
+            
+            return JsonResponse({
+                "success": True,
+                "services": services,
+                "count": len(services),
+                "server_id": server_id,
+                "timestamp": current_time.isoformat()
+            })
+            
+        except paramiko.AuthenticationException:
+            return JsonResponse({
+                "success": False,
+                "error": "SSH authentication failed"
+            }, status=401)
+        except paramiko.SSHException as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"SSH connection error: {str(e)}"
+            }, status=500)
+        except Exception as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"Error connecting to server: {str(e)}"
+            }, status=500)
+            
+    except Exception as e:
+        error_logger.error(f"GET_ACTIVE_SERVICES error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def toggle_service_monitoring(request, server_id, service_id):
+    """
+    API endpoint to toggle monitoring for a service.
+    
+    IMPORTANT: Services are server-specific. Enabling monitoring for a service
+    on one server (e.g., cpanel-test) will ONLY affect that service on that server.
+    It will NOT enable monitoring for the same service name on other servers.
+    Each server has its own separate Service records.
+    """
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        from .models import Service
+        # CRITICAL: This ensures the service belongs to the specific server
+        # Services are server-specific - enabling on one server does NOT affect others
+        service = get_object_or_404(Service, id=service_id, server=server)
+        
+        # Toggle monitoring_enabled
+        service.monitoring_enabled = not service.monitoring_enabled
+        service.save()
+        
+        _log_user_action(request, "TOGGLE_SERVICE_MONITORING", 
+                        f"Service: {service.name} on {server.name} - Monitoring {'enabled' if service.monitoring_enabled else 'disabled'}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Monitoring {'enabled' if service.monitoring_enabled else 'disabled'} for {service.name}",
+            "monitoring_enabled": service.monitoring_enabled
+        })
+        
+    except Exception as e:
+        error_logger.error(f"TOGGLE_SERVICE_MONITORING error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+def help_docs(request):
+    """
+    Help documentation page.
+    Provides non-technical feature descriptions and usage guides.
+    """
+    return render(request, 'core/help_docs.html')
+
+
+def custom_logout(request):
+    """
+    Custom logout view that redirects to login page.
+    """
+    auth_logout(request)
+    return HttpResponseRedirect('/admin/login/')

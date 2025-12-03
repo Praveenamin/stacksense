@@ -26,5 +26,15 @@ urlpatterns = [
     path("api/admin-users/create/", views.create_admin_user_api, name="create_admin_user_api"),
     path("api/admin-users/<int:user_id>/", views.admin_user_api, name="admin_user_api"),
     path("api/alert-history/", views.alert_history_api, name="alert_history_api"),
+    path("api/servers/<int:server_id>/alerts/<str:action>/", views.toggle_alert_suppression, name="toggle_alert_suppression"),
+    path("api/servers/<int:server_id>/monitoring/<str:action>/", views.toggle_monitoring, name="toggle_monitoring"),
+    path("api/server/<int:server_id>/top-processes/", views.get_top_cpu_processes, name="top_cpu_processes"),
+    path("api/server/<int:server_id>/top-ram-processes/", views.get_top_ram_processes, name="top_ram_processes"),
+    path("api/server/<int:server_id>/active-services/", views.get_active_services, name="active_services"),
+    path("api/server/<int:server_id>/service/<int:service_id>/toggle-monitoring/", views.toggle_service_monitoring, name="toggle_service_monitoring"),
+    path("api/server/<int:server_id>/anomaly-status/", views.anomaly_status_api, name="anomaly_status_api"),
+    path("api/server/<int:server_id>/metric-history/", views.metric_history_api, name="metric_history_api"),
+    path("help/", views.help_docs, name="help_docs"),
+    path("logout/", views.custom_logout, name="logout"),
 ]
 

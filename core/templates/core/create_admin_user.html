@@ -1,7 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
 
-{% block title %}Edit User - StackSense{% endblock %}
+{% block title %}Create User - StackSense{% endblock %}
 
 {% block extrahead %}
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,8 +10,10 @@
     :root {
         --primary-color: #c9a961;
         --success-color: #10b981;
+        --warning-color: #f59e0b;
         --danger-color: #ef4444;
         --bg-light: #0f172a;
+        --bg-dark: #1e293b;
         --card-bg: rgba(30, 41, 59, 0.4);
         --text-primary: #f1f5f9;
         --text-secondary: #cbd5e1;
@@ -197,7 +199,7 @@
     }
 
     /* Z-Pattern Layout Container */
-    .edit-user-container {
+    .create-user-container {
         margin-left: 240px; /* Space for expanded sidebar */
         padding: var(--spacing-lg) var(--spacing-md);
         min-height: 100vh;
@@ -215,7 +217,7 @@
             width: 0;
             overflow: hidden;
         }
-        .edit-user-container {
+        .create-user-container {
             margin-left: 60px !important;
         }
     }
@@ -375,7 +377,7 @@
 <!-- Sidebar -->
 {% include 'core/sidebar.html' %}
 
-<div class="edit-user-container">
+<div class="create-user-container">
     {% if messages %}
     <div class="messages">
         {% for message in messages %}
@@ -390,90 +392,83 @@
     <div class="z-pattern-layout">
         <!-- Z-Pattern: Top Left - Header -->
         <div class="z-top-left">
-            <h1>Edit User</h1>
+            <h1>Create User</h1>
             <a href="/admin-users/" class="btn btn-secondary">← Back to Manage Users</a>
         </div>
 
         <!-- Z-Pattern: Form Card -->
         <div class="z-form-card">
             <div class="card">
-                <form action="/admin-users/edit/{{ user.id }}/" method="post">
+                <form action="/admin-users/create/" method="post">
                     {% csrf_token %}
                     <div class="form-group">
                         <label for="username">Username *</label>
-                        <input type="text" id="username" name="username" value="{{ user.username }}" required>
+                        <input type="text" id="username" name="username" required>
                     </div>
                     <div class="form-group">
                         <label for="email">Email</label>
-                        <input type="email" id="email" name="email" value="{{ user.email|default:"" }}">
+                        <input type="email" id="email" name="email">
                     </div>
                     <div class="form-group">
-                        <label for="password">New Password</label>
-                        <input type="password" id="password" name="password" placeholder="Leave blank to keep current password">
-                        <div class="help-text">Leave blank if you don't want to change the password</div>
+                        <label for="password">Password *</label>
+                        <input type="password" id="password" name="password" required>
                     </div>
                     <div class="form-group">
                         <label>
-                            <input type="checkbox" name="is_superuser" id="is_superuser" {% if user.is_superuser %}checked{% endif %} onchange="toggleACLOptions()">
+                            <input type="checkbox" name="is_superuser" id="is_superuser" onchange="toggleACLOptions()">
                             Superuser (full admin access - all privileges)
-                        </label>
-                    </div>
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" name="is_active" {% if user.is_active %}checked{% endif %}>
-                            Active (user can log in)
                         </label>
                     </div>
                     
                     <!-- ACL Options (only for non-superuser staff) -->
-                    <div id="aclOptions" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-top: 1.5rem; {% if user.is_superuser %}display: none;{% endif %}">
+                    <div id="aclOptions" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-top: 1.5rem;">
                         <h3 style="color: var(--primary-color); font-size: 1rem; margin-bottom: 1rem;">Access Control (Staff Users)</h3>
                         
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" name="can_view_dashboard" {% if acl.can_view_dashboard %}checked{% endif %}>
+                                <input type="checkbox" name="can_view_dashboard" checked>
                                 View Servers/Alerts in Dashboard
                             </label>
                         </div>
                         
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" name="can_edit_thresholds" {% if acl.can_edit_thresholds %}checked{% endif %}>
+                                <input type="checkbox" name="can_edit_thresholds">
                                 Edit Thresholds (Allow/Deny)
                             </label>
                         </div>
                         
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" name="can_halt_monitoring" {% if acl.can_halt_monitoring %}checked{% endif %}>
+                                <input type="checkbox" name="can_halt_monitoring">
                                 Halt/Resume Monitoring
                             </label>
                         </div>
                         
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" name="can_mute_notifications" {% if acl.can_mute_notifications %}checked{% endif %}>
+                                <input type="checkbox" name="can_mute_notifications">
                                 Mute/Unmute Notifications
                             </label>
                         </div>
                         
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" name="can_add_server" {% if acl.can_add_server %}checked{% endif %}>
+                                <input type="checkbox" name="can_add_server">
                                 Add Server
                             </label>
                         </div>
                         
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" name="can_edit_server" {% if acl.can_edit_server %}checked{% endif %}>
+                                <input type="checkbox" name="can_edit_server">
                                 Edit Server
                             </label>
                         </div>
                         
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" name="can_delete_server" {% if acl.can_delete_server %}checked{% endif %}>
+                                <input type="checkbox" name="can_delete_server">
                                 Delete Server
                             </label>
                         </div>
@@ -481,7 +476,7 @@
                     
                     <div class="form-actions">
                         <a href="/admin-users/" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <button type="submit" class="btn btn-primary">Create User</button>
                     </div>
                 </form>
             </div>
@@ -510,3 +505,6 @@ function openAlertConfigModal() {
 }
 </script>
 {% endblock %}
+
+
+

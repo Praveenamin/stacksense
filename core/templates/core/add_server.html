@@ -1,0 +1,724 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Add Server - StackSense{% endblock %}
+
+{% block extrahead %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    :root {
+        --primary-color: #c9a961;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --bg-light: #0f172a;
+        --bg-dark: #1e293b;
+        --card-bg: #1e293b;
+        --card-bg-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --border-color: #334155;
+        
+        /* Typography System - Consistent across all pages */
+        --font-size-xs: 0.75rem;      /* 12px - Badges, labels */
+        --font-size-sm: 0.875rem;     /* 14px - Body text, descriptions */
+        --font-size-base: 0.9375rem;  /* 15px - Default text */
+        --font-size-md: 1rem;         /* 16px - Buttons, inputs */
+        --font-size-lg: 1.125rem;     /* 18px - Subheadings */
+        --font-size-xl: 1.25rem;      /* 20px - Card titles */
+        --font-size-2xl: 1.5rem;      /* 24px - Section headings */
+        --font-size-3xl: 2rem;        /* 32px - Page titles */
+        
+        /* Font Weights */
+        --font-weight-normal: 400;
+        --font-weight-medium: 500;
+        --font-weight-semibold: 600;
+        --font-weight-bold: 700;
+        
+        /* Spacing - Reduced for compact layout */
+        --spacing-xs: 0.25rem;   /* 4px */
+        --spacing-sm: 0.5rem;    /* 8px */
+        --spacing-md: 0.75rem;    /* 12px */
+        --spacing-lg: 1rem;      /* 16px */
+        --spacing-xl: 1.5rem;    /* 24px */
+        --spacing-2xl: 2rem;     /* 32px */
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    html, body {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-size: var(--font-size-base);
+        min-height: 100vh;
+        /* Scroll snap for main page scrollbar */
+        scroll-snap-type: y proximity;
+        scroll-padding: 1rem;
+    }
+
+    /* Global Typography Standards */
+    h1 {
+        font-size: var(--font-size-3xl);
+        font-weight: var(--font-weight-bold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.2;
+    }
+
+    h2 {
+        font-size: var(--font-size-2xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.3;
+    }
+
+    h3 {
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-sm) 0;
+        line-height: 1.4;
+    }
+
+    p, span, div, label {
+        font-size: var(--font-size-base);
+        line-height: 1.5;
+    }
+
+    #content, .content-wrapper, .wrapper, .main-content, .content {
+        background: #0f172a !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+    }
+
+    /* Hide all admin UI - but NOT our custom sidebar */
+    .main-sidebar, aside:not(.sidebar), nav[aria-label="Main navigation"],
+    #sidebar:not(.sidebar), .content-wrapper > aside:not(.sidebar), aside.main-sidebar,
+    .main-header, .navbar, .navbar-nav, .navbar-header,
+    header.main-header, nav.navbar, footer, .main-footer,
+    complementary, [role="complementary"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Ensure our custom sidebar is visible */
+    .sidebar {
+        display: block !important;
+        visibility: visible !important;
+    }
+
+    #content, .content-wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 0 !important;
+    }
+
+    /* Remove padding from content-wrapper > content */
+    .content-wrapper > .content {
+        padding: 0 !important;
+    }
+
+    .wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+
+    /* Top-Right Navigation */
+    .top-right-nav {
+        position: fixed;
+        top: 0;
+        right: 1rem;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(10px);
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .top-right-nav .username {
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+    }
+
+    .logout-btn {
+        padding: 6px 12px;
+        background: #e63946;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .logout-btn:hover {
+        background: #d62839;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(230, 57, 70, 0.3);
+    }
+
+    .logout-btn:active {
+        transform: translateY(0);
+    }
+
+    /* Sidebar - Always Expanded */
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        width: 240px !important;
+        background: var(--card-bg);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 1000;
+        overflow: hidden;
+        overflow-y: auto;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Sidebar Groups */
+    .sidebar-group {
+        margin-bottom: 0.5rem;
+    }
+
+    .sidebar-group-header {
+        padding: 0.5rem 1rem;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        opacity: 1;
+    }
+
+    .sidebar-group-items {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-group-items .sidebar-item {
+        padding-left: 2rem;
+        font-size: var(--font-size-sm);
+    }
+
+
+    .sidebar-content {
+        padding: 1rem 0;
+        min-height: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    .sidebar-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        color: rgba(255, 255, 255, 0.7);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        gap: 0.75rem;
+        white-space: nowrap;
+        border-left: 3px solid transparent;
+        text-decoration: none;
+    }
+
+    .sidebar-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        border-left-color: var(--primary-color);
+    }
+
+    .sidebar-item-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .sidebar-item-icon svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+    }
+
+    .sidebar-item-text {
+        opacity: 1;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .sidebar-divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 0.5rem 1rem;
+    }
+
+    .sidebar-item.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger-color);
+        border-left-color: var(--danger-color);
+    }
+
+    .sidebar-footer {
+        margin-top: auto;
+        padding: 1rem 0.5rem 0.5rem 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar-item.logout {
+        background: rgba(239, 68, 68, 0.15) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+        border-left: 3px solid rgba(239, 68, 68, 0.5) !important;
+        margin: 0 !important;
+        border-radius: 8px;
+        box-shadow: 
+            0 2px 8px 0 rgba(239, 68, 68, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        font-family: inherit;
+        font-size: inherit;
+        box-sizing: border-box;
+        overflow: hidden !important;
+        white-space: nowrap !important;
+        transition: all 0.3s ease !important;
+    }
+
+        margin: 0 !important;
+        border-radius: 8px;
+        box-shadow: 
+            0 2px 8px 0 rgba(239, 68, 68, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        font-family: inherit;
+        font-size: inherit;
+        box-sizing: border-box;
+    }
+
+    .sidebar-item.logout:hover {
+        background: rgba(239, 68, 68, 0.25) !important;
+        border-color: rgba(239, 68, 68, 0.5) !important;
+        border-left-color: var(--danger-color) !important;
+        color: var(--danger-color) !important;
+        transform: none;
+        box-shadow: 
+            0 4px 12px 0 rgba(239, 68, 68, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .page-container {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        margin-left: 240px; /* Space for expanded sidebar */
+        padding: var(--spacing-lg) var(--spacing-md);
+        min-height: 100vh;
+        box-sizing: border-box;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .sidebar {
+            width: 60px !important;
+        }
+        .sidebar-item-text {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+        .sidebar-group-header {
+            opacity: 0;
+        }
+        .page-container {
+            margin-left: 60px !important;
+        }
+    }
+
+    /* Z-Pattern Layout - Standardized across all pages */
+    .z-pattern-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        gap: var(--spacing-md);
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    /* Z-Pattern: Top Left (Header/Title) */
+    .z-top-left {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .z-top-left h1 {
+        color: var(--primary-color);
+        font-size: var(--font-size-3xl);
+        margin: 0;
+    }
+
+    /* Z-Pattern: Top Right (Stats/Summary Cards) */
+    .z-top-right {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Z-Pattern: Middle Left (Main Content) */
+    .z-middle-left {
+        grid-column: 1 / -1;
+    }
+
+    /* Z-Pattern: Bottom (Additional Content) */
+    .z-bottom {
+        grid-column: 1 / -1;
+    }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0;
+        padding: 0;
+        background: transparent;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .page-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-title h1 {
+        font-size: var(--font-size-3xl);
+        font-weight: var(--font-weight-bold);
+        color: var(--primary-color);
+        margin: 0;
+    }
+
+    .back-button {
+        background: rgba(201, 169, 97, 0.3) !important;
+        background-color: rgba(201, 169, 97, 0.3) !important;
+        color: #FFFFFF !important;
+        text-decoration: none !important;
+        border: none !important;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .back-button:hover {
+        background: rgba(201, 169, 97, 0.5) !important;
+        transform: translateY(-2px);
+    }
+
+    .form-container {
+        background: var(--card-bg);
+        border-radius: 16px;
+        padding: var(--spacing-lg) !important;
+        box-shadow: 
+            0 8px 32px 0 rgba(0, 0, 0, 0.37),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        max-width: 700px;
+        margin: 0 auto;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
+    }
+
+    .form-group {
+        margin-bottom: var(--spacing-md) !important;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: var(--spacing-xs) !important;
+        color: var(--text-primary);
+        font-weight: var(--font-weight-medium);
+        font-size: var(--font-size-sm);
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group input[type="password"],
+    .form-group input[type="email"] {
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: var(--font-size-base);
+        transition: all 0.2s ease;
+    }
+
+    .form-group input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.1);
+    }
+
+    .form-group small {
+        display: block;
+        margin-top: var(--spacing-xs);
+        color: var(--text-secondary);
+        font-size: var(--font-size-xs);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+        justify-content: flex-end;
+    }
+
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+        background: rgba(201, 169, 97, 0.9);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(201, 169, 97, 0.3);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .form-message {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: none;
+    }
+
+    .form-message.success {
+        background: rgba(16, 185, 129, 0.2);
+        border: 1px solid var(--success-color);
+        color: var(--success-color);
+    }
+
+    .form-message.error {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid var(--danger-color);
+        color: var(--danger-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Top-Right Navigation -->
+<div class="top-right-nav">
+    <span class="username">{{ user.username }}</span>
+    <form action="{% url 'logout' %}" method="post" style="margin: 0; padding: 0; display: inline;">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn">Logout</button>
+    </form>
+</div>
+
+<!-- Sidebar -->
+{% include 'core/sidebar.html' %}
+
+<div class="page-container">
+    <!-- Z-Pattern Layout -->
+    <div class="z-pattern-layout">
+        <!-- Z-Pattern: Top Left - Header -->
+        <div class="z-top-left">
+            <div class="page-header">
+                <div class="page-title">
+                    <a href="/monitoring/" class="back-button">← Back</a>
+                    <h1>Add New Server</h1>
+                </div>
+            </div>
+        </div>
+
+        <!-- Z-Pattern: Middle Left - Form -->
+        <div class="z-middle-left">
+            <div class="form-container">
+        <form id="addServerForm" onsubmit="submitAddServer(event)">
+            <div class="form-group">
+                <label for="server_name">Server Name *</label>
+                <input type="text" id="server_name" name="name" required placeholder="e.g., Web Server 01">
+            </div>
+            <div class="form-group">
+                <label for="server_ip">SSH Server IP *</label>
+                <input type="text" id="server_ip" name="ip_address" required placeholder="192.168.1.100">
+            </div>
+            <div class="form-group">
+                <label for="server_port">Port *</label>
+                <input type="number" id="server_port" name="port" required value="22" min="1" max="65535">
+            </div>
+            <div class="form-group">
+                <label for="server_username">Username *</label>
+                <input type="text" id="server_username" name="username" required value="root" placeholder="root">
+            </div>
+            <div class="form-group">
+                <label for="server_password">Root Password *</label>
+                <input type="password" id="server_password" name="password" required placeholder="Enter password for SSH key deployment">
+                <small>Password is used only once to deploy SSH key. It will not be stored.</small>
+            </div>
+            <div id="formMessage" class="form-message"></div>
+            <div class="form-actions">
+                <a href="/monitoring/" class="btn-secondary">Cancel</a>
+                <button type="submit" class="btn-primary" id="submitBtn">Add Server</button>
+            </div>
+        </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+async function submitAddServer(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const submitBtn = document.getElementById("submitBtn");
+    const messageDiv = document.getElementById("formMessage");
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Adding Server...";
+    messageDiv.className = "form-message";
+    messageDiv.style.display = "none";
+    
+    try {
+        const csrftoken = getCookie("csrftoken");
+        if (!csrftoken) {
+            throw new Error("CSRF token not found. Please refresh the page.");
+        }
+
+        const response = await fetch("/add-server/", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrftoken
+            },
+            body: formData,
+            credentials: "same-origin"
+        });
+        
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            throw new Error("Invalid response from server. Please try again.");
+        }
+        
+        if (response.ok && data.success === true) {
+            messageDiv.className = "form-message success";
+            let message = data.message || "Server added successfully!";
+            
+            // Add psutil status information
+            if (data.psutil_status) {
+                if (data.psutil_status.installed) {
+                    message += `<br><small style="color: var(--success-color); margin-top: 0.5rem; display: block;">✓ ${data.psutil_status.message}</small>`;
+                } else {
+                    message += `<br><small style="color: var(--warning-color); margin-top: 0.5rem; display: block;">⚠ ${data.psutil_status.message}</small>`;
+                    if (data.psutil_status.manual_install) {
+                        message += `<br><small style="color: var(--text-secondary); margin-top: 0.25rem; display: block; font-family: monospace;">${data.psutil_status.manual_install}</small>`;
+                    }
+                }
+            }
+            
+            messageDiv.innerHTML = message;
+            messageDiv.style.display = "block";
+            
+            setTimeout(() => {
+                window.location.href = "/monitoring/";
+            }, 3000);
+        } else {
+            messageDiv.className = "form-message error";
+            messageDiv.textContent = data.error || data.message || "Failed to add server. Please try again.";
+            messageDiv.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Add Server";
+        }
+    } catch (error) {
+        messageDiv.className = "form-message error";
+        messageDiv.textContent = error.message || "An error occurred. Please try again.";
+        messageDiv.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Add Server";
+        console.error("Add server error:", error);
+    }
+}
+</script>
+{% endblock %}
+
+
+

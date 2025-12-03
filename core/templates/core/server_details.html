@@ -4,93 +4,81 @@
 {% block title %}Server Details - {{ server.name }}{% endblock %}
 
 {% block content %}
-<!-- Sidebar -->
-<div class="sidebar collapsed">
-    <div class="sidebar-content">
-        <div class="sidebar-item" onclick="window.location.href='/monitoring/'" title="Dashboard">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Dashboard</span>
-        </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-item" onclick="window.location.href='/monitoring/'; setTimeout(() => { if (typeof openAddServerModal === 'function') openAddServerModal(); }, 100);" title="Add Server">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Add Server</span>
-        </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-item danger" onclick="window.location.href='/monitoring/'; setTimeout(() => { if (typeof openRemoveServerModal === 'function') openRemoveServerModal(); }, 100);" title="Remove Server">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Remove Server</span>
-        </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-item" onclick="window.location.href='/monitoring/'; setTimeout(() => { if (typeof openAlertConfigModal === 'function') openAlertConfigModal(); }, 100);" title="Alert Configurator">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Alert Configurator</span>
-        </div>
-        <div class="sidebar-divider"></div>
-        <div class="sidebar-item" onclick="window.location.href='/monitoring/'; setTimeout(() => { if (typeof openAdminUsersModal === 'function') openAdminUsersModal(); }, 100);" title="Admin Users">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M16 7c0-2.21-1.79-4-4-4S8 4.79 8 7s1.79 4 4 4 4-1.79 4-4zm-4 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/>
-                </svg>
-            </div>
-            <span class="sidebar-item-text">Admin Users</span>
-        </div>
-        <div class="sidebar-footer">
-            <div class="sidebar-divider"></div>
-            <form action="/admin/logout/" method="post" style="margin: 0; padding: 0; display: contents;">
-                {% csrf_token %}
-                <button type="submit" class="sidebar-item logout" title="Logout" style="background: none; border: none; width: 100%; cursor: pointer; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; color: rgba(255, 255, 255, 0.7); box-sizing: border-box;">
-                    <div class="sidebar-item-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-                        </svg>
-                    </div>
-                    <span class="sidebar-item-text">Logout</span>
-                </button>
-            </form>
-        </div>
-    </div>
+<!-- Top-Right Navigation -->
+<div class="top-right-nav">
+    <span class="username">{{ user.username }}</span>
+    <form action="{% url 'logout' %}" method="post" style="margin: 0; padding: 0; display: inline;">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn">Logout</button>
+    </form>
 </div>
 
+<!-- Sidebar -->
+{% include 'core/sidebar.html' %}
+
 <div class="details-container">
-    <div class="header-section">
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <a href="/monitoring/" class="back-button" style="background: #c9a961 !important; background-color: #c9a961 !important; color: #FFFFFF !important; text-decoration: none !important; border: none !important;">
-                ← Back
-            </a>
+    <!-- Z-Pattern Layout -->
+    <div class="z-pattern-layout">
+        <!-- Z-Pattern: Top Left - Header -->
+        <div class="z-top-left">
+            <div class="header-section">
+        <div class="header-left">
+            <a href="/monitoring/" class="back-button">← Back</a>
             <div class="server-title">
                 <h1>{{ server.name }}</h1>
             </div>
+            <div class="status-indicator">
+                {% if server_status %}
+                    <span class="status-dot {{ server_status }}"></span>
+                    <span class="status-text">{{ server_status|capfirst }}</span>
+                {% elif latest_metric %}
+                    <span class="status-dot online"></span>
+                    <span class="status-text">Online</span>
+                {% else %}
+                    <span class="status-dot offline"></span>
+                    <span class="status-text">Offline</span>
+                {% endif %}
+            </div>
         </div>
-        <div>
-            {% if server_status %}
-                <span class="status-badge {{ server_status }}">{{ server_status }}</span>
-            {% elif latest_metric %}
-                <span class="status-badge online">Online</span>
-            {% else %}
-                <span class="status-badge offline">Offline</span>
-            {% endif %}
+        {% if recent_alerts|length > 0 %}
+        <div class="header-alerts" onclick="openAlertsModal()">
+            <span class="alert-icon">⚠️</span>
+            <span class="alert-count">{{ recent_alerts|length }}</span>
         </div>
-    </div>
+        {% endif %}
+            </div>
+        </div>
 
+        <!-- Anomaly Summary Panel -->
+        <section id="anomaly-summary" class="anomaly-summary" data-server-id="{{ server.id }}">
+            <h3>Anomaly Summary</h3>
+            <div class="anomaly-summary-main">
+                <span class="anomaly-summary-severity anomaly-unknown">Anomaly: loading...</span>
+                <span class="anomaly-summary-count"></span>
+            </div>
+            <div class="anomaly-summary-metrics">
+                <span class="metric-chip metric-cpu metric-ok">CPU: -</span>
+                <span class="metric-chip metric-memory metric-ok">Memory: -</span>
+                <span class="metric-chip metric-disk metric-ok">Disk: -</span>
+                <span class="metric-chip metric-network metric-ok">Network: -</span>
+            </div>
+        </section>
+
+        <!-- Metrics History Chart Section -->
+        <section class="metrics-history-section">
+            <h3>Metrics & Anomaly History</h3>
+            <div class="metrics-history-chart-container">
+                <canvas id="metricsAnomalyHistoryChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Z-Pattern: Middle Left - Main Content -->
+        <div class="z-middle-left">
     {% if latest_metric %}
-    <div class="metrics-grid">
+    <!-- F-Pattern Metrics Section -->
+    <div class="f-pattern-section">
+        <!-- Top Row: CPU and RAM (F-top) -->
+        <div class="f-pattern-top-row">
         <div class="metric-card">
             <h2>CPU</h2>
             <div class="metric-item">
@@ -125,8 +113,8 @@
             {% endif %}
             
             <!-- Top CPU Processes Section -->
-            <div class="cpu-processes-section" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-                <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem; color: rgba(255, 255, 255, 0.9);">Top CPU Processes</h3>
+            <div class="cpu-processes-section" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <h3 style="font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.5rem; color: rgba(255, 255, 255, 0.9);">Top CPU Processes</h3>
                 <div id="topCpuProcesses" class="processes-list">
                     <div class="process-loading" style="text-align: center; padding: 1rem; color: rgba(255, 255, 255, 0.5);">
                         Loading processes...
@@ -175,40 +163,55 @@
                 <span class="metric-value">{{ latest_metric.memory_shared|default:0|filesizeformat }}</span>
             </div>
             {% endif %}
+            
+            <!-- Top RAM Processes Section -->
+            <div class="ram-processes-section" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <h3 style="font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.5rem; color: rgba(255, 255, 255, 0.9);">Top RAM Processes</h3>
+                <div id="topRamProcesses" class="processes-list">
+                    <div class="process-loading" style="text-align: center; padding: 1rem; color: rgba(255, 255, 255, 0.5);">
+                        Loading processes...
+                    </div>
+                </div>
+            </div>
+            </div>
         </div>
 
+        <!-- Bottom Row: Disk Storage and Performance Trends (F-middle) -->
+        <div class="f-pattern-bottom-row">
         <div class="metric-card">
             <h2>Disk Storage</h2>
-            <div class="metric-item">
+            <div class="disk-summary-grid">
+                <div class="disk-summary-item">
                 <span class="metric-label">Total Disks</span>
                 <span class="metric-value">{{ disk_summary.total_disks }}</span>
             </div>
             {% if disk_summary.ssd_count > 0 %}
-            <div class="metric-item">
+                <div class="disk-summary-item">
                 <span class="metric-label">SSD</span>
                 <span class="metric-value">{{ disk_summary.ssd_count }}</span>
             </div>
             {% endif %}
             {% if disk_summary.hdd_count > 0 %}
-            <div class="metric-item">
+                <div class="disk-summary-item">
                 <span class="metric-label">HDD</span>
                 <span class="metric-value">{{ disk_summary.hdd_count }}</span>
             </div>
             {% endif %}
             {% if disk_summary.nvme_count > 0 %}
-            <div class="metric-item">
+                <div class="disk-summary-item">
                 <span class="metric-label">NVMe</span>
                 <span class="metric-value">{{ disk_summary.nvme_count }}</span>
             </div>
             {% endif %}
             {% if disk_summary.raid_count > 0 %}
-            <div class="metric-item">
+                <div class="disk-summary-item">
                 <span class="metric-label">RAID Arrays</span>
                 <span class="metric-value">{{ disk_summary.raid_count }}</span>
             </div>
             {% endif %}
+            </div>
             
-            <h3 style="margin-top: 20px; margin-bottom: 12px; font-size: 16px; color: var(--text-secondary);">Partitions</h3>
+            <h3 style="margin-top: 0.75rem; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">Partitions</h3>
             <div class="disk-partitions-container">
             {% for disk_name, disk_info in disk_summary.physical_disks.items %}
                 {% for partition in disk_info.partitions %}
@@ -238,74 +241,78 @@
                 </div>
                 {% endfor %}
             {% endfor %}
-            </div>
         </div>
     </div>
 
     <div class="chart-container">
-        <div class="chart-header">
-            <div class="chart-title-section">
-                <h2>Performance Trends</h2>
-                <p class="chart-description">Showing CPU, Memory, and Disk usage over time</p>
+                <div class="chart-header">
+                    <div class="chart-title-section">
+        <h2>Performance Trends</h2>
+                        <p class="chart-description">Showing CPU, Memory, and Disk usage over time</p>
+                    </div>
+                    <select id="timeRangeSelect" class="time-range-select">
+                        <option value="90d">Last 3 months</option>
+                        <option value="30d">Last 30 days</option>
+                        <option value="7d">Last 7 days</option>
+                        <option value="1h" selected>Last hour</option>
+                    </select>
+                </div>
+                <div style="position: relative; height: 400px; width: 100%;">
+                    <canvas id="metricsChart"></canvas>
+                </div>
             </div>
-            <select id="timeRangeSelect" class="time-range-select">
-                <option value="90d">Last 3 months</option>
-                <option value="30d">Last 30 days</option>
-                <option value="7d">Last 7 days</option>
-                <option value="1h" selected>Last hour</option>
-            </select>
-        </div>
-        <div style="position: relative; height: 350px; width: 100%;">
-            <canvas id="metricsChart"></canvas>
-        </div>
     </div>
 
+        <!-- Third Row: All Services (F-side) -->
+        <div class="f-pattern-third-row">
     <div class="services-section">
-        <h2>Active Services ({{ active_services.count }})</h2>
-        {% if active_services %}
-            {% for service in active_services %}
-            <div class="service-item">
-                <span class="service-name">{{ service.name }}</span>
-                <span class="service-status running">{{ service.status }}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h2 id="servicesHeading" style="margin: 0;">Services and Monitoring (Enable/Disable)</h2>
+                <p id="servicesSubheading" style="font-size: 0.875rem; color: rgba(255, 255, 255, 0.6); margin-top: 0.5rem; margin-bottom: 0;">All Services (<span id="servicesCount">{{ all_services.count }}</span>)</p>
             </div>
+            <div class="services-filter">
+                <button class="filter-btn" data-filter="enabled" onclick="filterServices('enabled')">
+                    Enabled (<span id="enabledCount">0</span>)
+                </button>
+                <button class="filter-btn active" data-filter="all" onclick="filterServices('all')">
+                    All
+                </button>
+            </div>
+            <div class="services-category-filter" id="categoryFilter" style="display: none; margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="category-filter-btn active" data-category="all" onclick="filterByCategory('all')">All</button>
+                <button class="category-filter-btn" data-category="running" onclick="filterByCategory('running')">Running</button>
+                <button class="category-filter-btn" data-category="stopped" onclick="filterByCategory('stopped')">Stopped</button>
+                <button class="category-filter-btn" data-category="critical" onclick="filterByCategory('critical')">Critical</button>
+                <button class="category-filter-btn" data-category="other" onclick="filterByCategory('other')">Other</button>
+            </div>
+        </div>
+        <div id="activeServicesList">
+            {% if all_services %}
+                {% for service in all_services %}
+                <div class="service-item" data-service-id="{{ service.id }}" data-monitoring-enabled="{% if service.monitoring_enabled %}true{% else %}false{% endif %}" data-service-status="{{ service.status }}">
+                    <div class="service-info">
+                        <span class="service-name">{{ service.name }}</span>
+                        <span class="service-status {% if service.status == 'running' %}running{% elif service.status == 'stopped' %}stopped{% elif service.status == 'failed' %}failed{% else %}unknown{% endif %}">
+                            {% if service.status == 'running' %}Running{% elif service.status == 'stopped' %}Stopped{% elif service.status == 'failed' %}Failed{% else %}Unknown{% endif %}
+                        </span>
+                    </div>
+                    <button class="service-monitor-toggle {% if service.monitoring_enabled %}enabled{% else %}disabled{% endif %}" 
+                            onclick="toggleServiceMonitoring({{ server.id }}, {{ service.id }}, this)"
+                            data-monitoring-enabled="{% if service.monitoring_enabled %}true{% else %}false{% endif %}">
+                        <span class="toggle-text">{% if service.monitoring_enabled %}Disable{% else %}Enable{% endif %}</span>
+                    </button>
+                </div>
             {% endfor %}
         {% else %}
-            <div class="no-data">No active services detected</div>
+                <div class="no-data">No services detected</div>
         {% endif %}
     </div>
-
-    <div class="anomalies-section">
-        <h2>Detected Anomalies ({{ recent_anomalies.count }})</h2>
-        {% if recent_anomalies %}
-            {% for anomaly in recent_anomalies %}
-            <div class="anomaly-item {{ anomaly.severity|lower }}">
-                <div class="anomaly-header">
-                    <span class="anomaly-metric">{{ anomaly.metric_type|upper }}: {{ anomaly.metric_name }} = {{ anomaly.metric_value|floatformat:2 }}</span>
-                    <span class="anomaly-severity {{ anomaly.severity|lower }}">{{ anomaly.severity }}</span>
-                </div>
-                <div style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">
-                    {{ anomaly.timestamp|date:"Y-m-d H:i:s" }}
-                </div>
-                {% if anomaly.explanation %}
-                <div style="margin-top: 8px; color: var(--text-primary);">
-                    {{ anomaly.explanation }}
-                </div>
-                {% endif %}
             </div>
-            {% endfor %}
-        {% else %}
-            <div class="no-data">No anomalies detected</div>
-        {% endif %}
     </div>
 
-    {% else %}
-    <div class="no-data">
-        <h2>No metrics available for this server</h2>
-        <p>Metrics will appear here once collection starts.</p>
-    </div>
-    {% endif %}
-
-    <!-- Alert Thresholds Section -->
+        <!-- Fourth Row: Alert Thresholds -->
+        <div class="f-pattern-fourth-row">
     <div class="thresholds-section">
         <h2>Alert Thresholds</h2>
         <form id="thresholdForm" class="threshold-form">
@@ -329,6 +336,84 @@
             </div>
             <button type="submit" class="btn-save-thresholds">Save Thresholds</button>
         </form>
+    </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="no-data">
+        <h2>No metrics available for this server</h2>
+        <p>Metrics will appear here once collection starts.</p>
+    </div>
+    {% endif %}
+
+<!-- Alerts Modal -->
+<div id="alertsModal" class="modal-overlay" onclick="closeAlertsModal(event)">
+    <div class="modal-content alerts-modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>Alert History (<span id="alertsCount">{{ all_alerts|length }}</span>)</h2>
+            <button class="modal-close" onclick="closeAlertsModal()">&times;</button>
+        </div>
+        <div class="alerts-filters">
+            <div class="filter-group">
+                <label for="alertTypeFilter">Alert Type:</label>
+                <select id="alertTypeFilter" class="filter-select" onchange="filterAlerts()">
+                    <option value="all">All Types</option>
+                    {% for type_value, type_label in alert_types %}
+                    <option value="{{ type_value }}">{{ type_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="statusFilter">Status:</label>
+                <select id="statusFilter" class="filter-select" onchange="filterAlerts()">
+                    <option value="all">All Status</option>
+                    {% for status_value, status_label in alert_statuses %}
+                    <option value="{{ status_value }}">{{ status_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="alerts-modal-body">
+            {% if all_alerts|length > 0 %}
+            <div class="alerts-list" id="alertsList">
+                {% for alert in all_alerts %}
+                <div class="alert-modal-item" data-alert-type="{{ alert.alert_type }}" data-alert-status="{{ alert.status }}">
+                    <div class="alert-modal-header">
+                        <div class="alert-header-left">
+                            <span class="alert-modal-type alert-type-{{ alert.alert_type|lower }}">{{ alert.alert_type }}</span>
+                            <span class="alert-status-badge alert-status-{{ alert.status }}">{{ alert.status|capfirst }}</span>
+                        </div>
+                        <span class="alert-modal-time">{{ alert.sent_at|date:"M d, Y H:i:s" }}</span>
+                    </div>
+                    <div class="alert-modal-message">{{ alert.message }}</div>
+                    <div class="alert-modal-details">
+                        {% if alert.value %}
+                        <span class="alert-detail">Value: <strong>{{ alert.value|floatformat:2 }}</strong></span>
+                        {% endif %}
+                        {% if alert.threshold %}
+                        <span class="alert-detail">Threshold: <strong>{{ alert.threshold|floatformat:2 }}</strong></span>
+                        {% endif %}
+                        <span class="alert-detail">Time: <strong>{{ alert.sent_at|timesince }} ago</strong></span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div id="noAlertsMessage" class="no-alerts-message" style="display: none;">
+                <div class="no-alerts-icon">🔍</div>
+                <h3>No Alerts Found</h3>
+                <p>No alerts match the selected filters.</p>
+            </div>
+            {% else %}
+            <div class="no-alerts-message">
+                <div class="no-alerts-icon">✓</div>
+                <h3>No Active Alerts</h3>
+                <p>All systems are operating normally.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+        </div>
     </div>
 </div>
 
@@ -382,8 +467,8 @@
     
     function updateChart() {
         const filteredData = filterDataByTimeRange(processedData, currentTimeRange);
-        
-        const ctx = document.getElementById("metricsChart");
+    
+    const ctx = document.getElementById("metricsChart");
         if (!ctx) return;
         
         const chartCtx = ctx.getContext('2d');
@@ -639,7 +724,738 @@
     if (backButton) {
         backButton.addEventListener('click', function() {
             stopCpuProcessesPolling();
+            stopRamProcessesPolling();
+            stopActiveServicesPolling();
         });
+    }
+
+    // RAM Processes Polling
+    let ramProcessesInterval = null;
+
+    function updateTopRamProcesses() {
+        const processesContainer = document.getElementById('topRamProcesses');
+        if (!processesContainer) return;
+
+        fetch(`/api/server/${serverId}/top-ram-processes/`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.processes) {
+                if (data.processes.length === 0) {
+                    processesContainer.innerHTML = '<div class="process-error">No processes found</div>';
+                    return;
+                }
+
+                let html = '';
+                data.processes.forEach((process, index) => {
+                    html += `
+                        <div class="process-item">
+                            <div class="process-info">
+                                <div class="process-name" title="${process.command}">${process.command}</div>
+                                <div class="process-pid">PID: ${process.pid}</div>
+                            </div>
+                            <div class="process-mem">${process.mem_percent}%</div>
+                        </div>
+                    `;
+                });
+                processesContainer.innerHTML = html;
+            } else {
+                processesContainer.innerHTML = `<div class="process-error">${data.error || 'Failed to load processes'}</div>`;
+            }
+        })
+        .catch(error => {
+            const processesContainer = document.getElementById('topRamProcesses');
+            if (processesContainer) {
+                processesContainer.innerHTML = `<div class="process-error">Error: ${error.message}</div>`;
+            }
+            console.error('Error fetching RAM processes:', error);
+        });
+    }
+
+    // Start polling when page loads
+    function startRamProcessesPolling() {
+        // Initial load
+        updateTopRamProcesses();
+        
+        // Poll every 5 seconds
+        ramProcessesInterval = setInterval(updateTopRamProcesses, 5000);
+    }
+
+    // Stop polling when leaving page
+    function stopRamProcessesPolling() {
+        if (ramProcessesInterval) {
+            clearInterval(ramProcessesInterval);
+            ramProcessesInterval = null;
+        }
+    }
+
+    // Start polling when page is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        startRamProcessesPolling();
+    });
+
+    // Stop polling when page is unloaded (Back button, close tab, etc.)
+    window.addEventListener('beforeunload', function() {
+        stopRamProcessesPolling();
+    });
+
+    // Also stop when visibility changes (tab becomes hidden)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopRamProcessesPolling();
+        } else {
+            startRamProcessesPolling();
+        }
+    });
+
+    // Stop polling when Back button is clicked (if using history API)
+    window.addEventListener('popstate', function() {
+        stopRamProcessesPolling();
+    });
+
+    // Active Services Polling (every 1 minute)
+    let activeServicesInterval = null;
+
+    function updateActiveServices() {
+        const servicesContainer = document.getElementById('activeServicesList');
+        const countElement = document.getElementById('servicesCount');
+        if (!servicesContainer) return;
+
+        fetch(`/api/server/${serverId}/active-services/`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.services) {
+                // Update count
+                if (countElement) {
+                    countElement.textContent = data.count || data.services.length;
+                }
+
+                if (data.services.length === 0) {
+                    servicesContainer.innerHTML = '<div class="no-data">No active services detected</div>';
+                    return;
+                }
+
+                let html = '';
+                data.services.forEach((service) => {
+                    const monitoringEnabled = service.monitoring_enabled || false;
+                    const serviceId = service.id || service.name;
+                    const status = service.status || 'unknown';
+                    
+                    // Determine status class and text
+                    let statusClass = 'unknown';
+                    let statusText = 'Unknown';
+                    if (status === 'running') {
+                        statusClass = 'running';
+                        statusText = 'Running';
+                    } else if (status === 'stopped') {
+                        statusClass = 'stopped';
+                        statusText = 'Stopped';
+                    } else if (status === 'failed') {
+                        statusClass = 'failed';
+                        statusText = 'Failed';
+                    }
+                    
+                    const uptimeHours = service.uptime_hours !== null && service.uptime_hours !== undefined 
+                        ? parseFloat(service.uptime_hours).toFixed(1) 
+                        : (status === 'running' ? 'N/A' : '-');
+                    
+                    const isCritical = service.is_critical || false;
+                    
+                    html += `
+                        <div class="service-item" data-service-id="${serviceId}" data-monitoring-enabled="${monitoringEnabled}" data-uptime-hours="${uptimeHours}" data-service-status="${status}" data-is-critical="${isCritical}">
+                            <div class="service-info">
+                                <span class="service-name">${service.name}</span>
+                                ${isCritical ? '<span class="service-critical-badge">Critical</span>' : ''}
+                                <span class="service-status ${statusClass}">${statusText}</span>
+                            </div>
+                            <button class="service-monitor-toggle ${monitoringEnabled ? 'enabled' : 'disabled'}" 
+                                    onclick="toggleServiceMonitoring(${serverId}, ${serviceId}, this)"
+                                    data-monitoring-enabled="${monitoringEnabled}">
+                                <span class="toggle-text">${monitoringEnabled ? 'Disable' : 'Enable'}</span>
+                            </button>
+                        </div>
+                    `;
+                });
+                servicesContainer.innerHTML = html;
+                
+                // Update enabled count and apply current filter
+                updateEnabledCount();
+                applyCurrentFilter();
+            } else {
+                if (servicesContainer) {
+                    servicesContainer.innerHTML = `<div class="no-data">Error: ${data.error || 'Failed to load services'}</div>`;
+                }
+            }
+        })
+        .catch(error => {
+            const servicesContainer = document.getElementById('activeServicesList');
+            if (servicesContainer) {
+                servicesContainer.innerHTML = `<div class="no-data">Error: ${error.message}</div>`;
+            }
+            console.error('Error fetching active services:', error);
+        });
+    }
+
+    // Start polling when page loads
+    function startActiveServicesPolling() {
+        // Initial load
+        updateActiveServices();
+        
+        // Poll every 1 minute (60000 milliseconds)
+        activeServicesInterval = setInterval(updateActiveServices, 60000);
+    }
+
+    // Stop polling when leaving page
+    function stopActiveServicesPolling() {
+        if (activeServicesInterval) {
+            clearInterval(activeServicesInterval);
+            activeServicesInterval = null;
+        }
+    }
+
+    // Start polling when page is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        startActiveServicesPolling();
+    });
+
+    // Stop polling when page is unloaded (Back button, close tab, etc.)
+    window.addEventListener('beforeunload', function() {
+        stopActiveServicesPolling();
+    });
+
+    // Also stop when visibility changes (tab becomes hidden)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopActiveServicesPolling();
+        } else {
+            startActiveServicesPolling();
+        }
+    });
+
+    // Stop polling when Back button is clicked (if using history API)
+    window.addEventListener('popstate', function() {
+        stopActiveServicesPolling();
+    });
+
+    // Handle Back button click
+    if (backButton) {
+        backButton.addEventListener('click', function() {
+            stopActiveServicesPolling();
+        });
+    }
+
+    // Filter services
+    let currentFilter = 'all'; // Default to 'all'
+    let currentCategoryFilter = 'all'; // Default category filter
+
+    function filterServices(filter) {
+        currentFilter = filter;
+        
+        // Update button states
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-filter') === filter) {
+                btn.classList.add('active');
+            }
+        });
+        
+        // Show/hide category filter based on current filter
+        const categoryFilter = document.getElementById('categoryFilter');
+        if (categoryFilter) {
+            if (filter === 'all') {
+                categoryFilter.style.display = 'flex';
+            } else {
+                categoryFilter.style.display = 'none';
+                // Reset category filter when switching away from 'all'
+                currentCategoryFilter = 'all';
+                document.querySelectorAll('.category-filter-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.getAttribute('data-category') === 'all') {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+        }
+        
+        // Update heading based on filter
+        const heading = document.getElementById('servicesHeading');
+        const subheading = document.getElementById('servicesSubheading');
+        if (heading && subheading) {
+            if (filter === 'enabled') {
+                heading.textContent = 'Services';
+                subheading.style.display = 'none';
+            } else {
+                heading.textContent = 'Services and Monitoring (Enable/Disable)';
+                subheading.style.display = 'block';
+            }
+        }
+        
+        applyCurrentFilter();
+    }
+
+    function filterByCategory(category) {
+        currentCategoryFilter = category;
+        
+        // Update button states
+        document.querySelectorAll('.category-filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-category') === category) {
+                btn.classList.add('active');
+            }
+        });
+        
+        // Only apply category filter if we're in 'all' view
+        if (currentFilter === 'all') {
+            const servicesContainer = document.getElementById('activeServicesList');
+            if (servicesContainer) {
+                const serviceItems = servicesContainer.querySelectorAll('.service-item');
+                renderAllServicesList(servicesContainer, serviceItems);
+            }
+        }
+    }
+
+    function isServiceCritical(serviceName) {
+        if (!serviceName) return false;
+        const name = serviceName.toLowerCase();
+        
+        // Critical service patterns
+        const criticalPatterns = [
+            // Web servers
+            /^(apache|httpd|nginx|web|www)/,
+            // Database services
+            /^(mysql|mariadb|postgresql|postgres|mongodb|redis|db)/,
+            // Mail services
+            /^(mail|postfix|sendmail|dovecot|exim|smtp|imap|pop)/,
+            // Application services
+            /^(php|python|node|java|tomcat|jetty|gunicorn)/,
+            // Control panels
+            /^(cpanel|whm|lsws|openlitespeed)/,
+            // Container services
+            /^(docker|containerd|kube)/,
+            // Search/Logging
+            /^(elasticsearch|kibana|logstash)/,
+            // Message queues
+            /^(rabbitmq|activemq|kafka)/
+        ];
+        
+        return criticalPatterns.some(pattern => pattern.test(name));
+    }
+
+    function applyCurrentFilter() {
+        const servicesContainer = document.getElementById('activeServicesList');
+        if (!servicesContainer) return;
+        
+        // Check if we need to render table or list
+        const serviceItems = servicesContainer.querySelectorAll('.service-item');
+        let enabledCount = 0;
+        const enabledServices = [];
+        
+        serviceItems.forEach(item => {
+            const isEnabled = item.getAttribute('data-monitoring-enabled') === 'true';
+            if (isEnabled) {
+                enabledCount++;
+                enabledServices.push(item);
+            }
+        });
+        
+        // Update enabled count
+        const enabledCountElement = document.getElementById('enabledCount');
+        if (enabledCountElement) {
+            enabledCountElement.textContent = enabledCount;
+        }
+        
+        if (currentFilter === 'enabled') {
+            // Render as table for enabled services
+            renderEnabledServicesTable(servicesContainer, enabledServices);
+        } else {
+            // Render as simple list for all services
+            renderAllServicesList(servicesContainer, serviceItems);
+        }
+        
+        // Show dialog if no enabled services and filter is 'enabled'
+        if (currentFilter === 'enabled' && enabledCount === 0) {
+            showNoEnabledServicesDialog();
+        } else {
+            hideNoEnabledServicesDialog();
+        }
+    }
+
+    function renderAllServicesList(container, serviceItems) {
+        // Remove table wrapper if exists
+        const tableWrapper = container.querySelector('.services-table-wrapper');
+        if (tableWrapper) {
+            container.removeChild(tableWrapper);
+        }
+        
+        // Show/hide items based on category filter
+        let visibleCount = 0;
+        serviceItems.forEach(item => {
+            const serviceName = item.querySelector('.service-name')?.textContent || '';
+            const serviceStatus = item.getAttribute('data-service-status') || 'unknown';
+            
+            // Get isCritical from data attribute (set by API), fallback to calculation
+            let isCriticalAttr = item.getAttribute('data-is-critical');
+            let isCritical = false;
+            if (isCriticalAttr !== null) {
+                isCritical = isCriticalAttr === 'true';
+            } else {
+                // Fallback: calculate if not set
+                isCritical = isServiceCritical(serviceName);
+                item.setAttribute('data-is-critical', isCritical.toString());
+            }
+            
+            // Update critical badge
+            let criticalBadge = item.querySelector('.service-critical-badge');
+            if (isCritical && !criticalBadge) {
+                const serviceInfo = item.querySelector('.service-info');
+                if (serviceInfo) {
+                    criticalBadge = document.createElement('span');
+                    criticalBadge.className = 'service-critical-badge';
+                    criticalBadge.textContent = 'Critical';
+                    const serviceNameEl = serviceInfo.querySelector('.service-name');
+                    if (serviceNameEl && serviceNameEl.nextSibling) {
+                        serviceInfo.insertBefore(criticalBadge, serviceNameEl.nextSibling);
+                    } else {
+                        serviceInfo.appendChild(criticalBadge);
+                    }
+                }
+            } else if (!isCritical && criticalBadge) {
+                criticalBadge.remove();
+            }
+            
+            // Apply category filter
+            let shouldShow = true;
+            if (currentCategoryFilter === 'all') {
+                shouldShow = true;
+            } else if (currentCategoryFilter === 'running') {
+                shouldShow = serviceStatus === 'running';
+            } else if (currentCategoryFilter === 'stopped') {
+                shouldShow = serviceStatus === 'stopped' || serviceStatus === 'failed';
+            } else if (currentCategoryFilter === 'critical') {
+                shouldShow = isCritical === true;
+            } else if (currentCategoryFilter === 'other') {
+                shouldShow = isCritical === false;
+            }
+            
+            if (shouldShow) {
+                item.style.display = 'flex';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+            
+            // Remove table classes if any
+            item.classList.remove('service-table-row');
+        });
+    }
+
+    function renderEnabledServicesTable(container, enabledServiceItems) {
+        if (enabledServiceItems.length === 0) {
+            // Show dialog if no enabled services
+            showNoEnabledServicesDialog();
+            return;
+        }
+        
+        hideNoEnabledServicesDialog();
+        
+        // Create table structure for enabled services
+        let tableHTML = '<div class="services-table-wrapper"><table class="services-table"><thead><tr><th>Services</th><th>Status</th><th>Uptime (hours)</th><th>Monitoring</th></tr></thead><tbody>';
+        
+        enabledServiceItems.forEach(item => {
+            const serviceId = item.getAttribute('data-service-id');
+            const serviceName = item.querySelector('.service-name')?.textContent || 'Unknown';
+            const statusBadge = item.querySelector('.service-status');
+            const statusClass = statusBadge?.className.match(/running|stopped|failed|unknown/)?.[0] || 'unknown';
+            const statusText = statusBadge?.textContent?.trim() || 'Unknown';
+            const isEnabled = item.getAttribute('data-monitoring-enabled') === 'true';
+            
+            // Get uptime from data attribute
+            const uptimeHours = item.getAttribute('data-uptime-hours') || '-';
+            
+            tableHTML += `
+                <tr class="service-table-row" data-service-id="${serviceId}">
+                    <td>${serviceName}</td>
+                    <td><span class="service-status ${statusClass}">${statusText}</span></td>
+                    <td>${uptimeHours}</td>
+                    <td>
+                        <button class="service-monitor-toggle enabled" 
+                                onclick="toggleServiceMonitoring(${serverId}, ${serviceId}, this)"
+                                data-monitoring-enabled="true">
+                            <span class="toggle-text">Disable</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        tableHTML += '</tbody></table></div>';
+        
+        // Hide all original items
+        container.querySelectorAll('.service-item').forEach(item => {
+            item.style.display = 'none';
+        });
+        
+        // Remove existing table if any
+        const existingTable = container.querySelector('.services-table-wrapper');
+        if (existingTable) {
+            container.removeChild(existingTable);
+        }
+        
+        // Add new table
+        container.insertAdjacentHTML('beforeend', tableHTML);
+    }
+
+    function updateEnabledCount() {
+        const servicesContainer = document.getElementById('activeServicesList');
+        if (!servicesContainer) return;
+        
+        const serviceItems = servicesContainer.querySelectorAll('.service-item');
+        let enabledCount = 0;
+        
+        serviceItems.forEach(item => {
+            if (item.getAttribute('data-monitoring-enabled') === 'true') {
+                enabledCount++;
+            }
+        });
+        
+        const enabledCountElement = document.getElementById('enabledCount');
+        if (enabledCountElement) {
+            enabledCountElement.textContent = enabledCount;
+        }
+        
+        // Show/hide dialog based on enabled count
+        if (currentFilter === 'enabled' && enabledCount === 0) {
+            showNoEnabledServicesDialog();
+        } else {
+            hideNoEnabledServicesDialog();
+        }
+    }
+
+    function showNoEnabledServicesDialog() {
+        let dialog = document.getElementById('noEnabledServicesDialog');
+        if (!dialog) {
+            dialog = document.createElement('div');
+            dialog.id = 'noEnabledServicesDialog';
+            dialog.className = 'no-enabled-services-dialog';
+            dialog.innerHTML = `
+                <div class="dialog-content">
+                    <div class="dialog-icon">📋</div>
+                    <h3>No Services Enabled</h3>
+                    <p>You haven't enabled monitoring for any services yet.</p>
+                    <p>To enable monitoring for a service:</p>
+                    <ol>
+                        <li>Switch to the <strong>"All"</strong> view using the filter above</li>
+                        <li>Find the service you want to monitor</li>
+                        <li>Click the <strong>"Enable"</strong> button next to the service</li>
+                    </ol>
+                    <button class="dialog-close-btn" onclick="filterServices('all')">View All Services</button>
+                </div>
+            `;
+            const servicesContainer = document.getElementById('activeServicesList');
+            if (servicesContainer) {
+                servicesContainer.appendChild(dialog);
+            }
+        }
+        dialog.style.display = 'flex';
+    }
+
+    function hideNoEnabledServicesDialog() {
+        const dialog = document.getElementById('noEnabledServicesDialog');
+        if (dialog) {
+            dialog.style.display = 'none';
+        }
+    }
+
+    // Alerts Modal Functions
+    function openAlertsModal() {
+        const modal = document.getElementById('alertsModal');
+        if (modal) {
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function closeAlertsModal(event) {
+        // If event is provided and target is not the overlay, don't close
+        if (event && event.target !== event.currentTarget) {
+            return;
+        }
+        const modal = document.getElementById('alertsModal');
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            const modal = document.getElementById('alertsModal');
+            if (modal && modal.classList.contains('active')) {
+                closeAlertsModal();
+            }
+        }
+    });
+
+    // Filter alerts by type and status
+    function filterAlerts() {
+        const typeFilter = document.getElementById('alertTypeFilter').value;
+        const statusFilter = document.getElementById('statusFilter').value;
+        const alertsList = document.getElementById('alertsList');
+        const noAlertsMessage = document.getElementById('noAlertsMessage');
+        const alertsCount = document.getElementById('alertsCount');
+        
+        if (!alertsList) return;
+        
+        const alertItems = alertsList.querySelectorAll('.alert-modal-item');
+        let visibleCount = 0;
+        
+        alertItems.forEach(item => {
+            const alertType = item.getAttribute('data-alert-type');
+            const alertStatus = item.getAttribute('data-alert-status');
+            
+            let shouldShow = true;
+            
+            // Filter by type
+            if (typeFilter !== 'all' && alertType !== typeFilter) {
+                shouldShow = false;
+            }
+            
+            // Filter by status
+            if (statusFilter !== 'all' && alertStatus !== statusFilter) {
+                shouldShow = false;
+            }
+            
+            if (shouldShow) {
+                item.style.display = 'block';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Update count
+        if (alertsCount) {
+            alertsCount.textContent = visibleCount;
+        }
+        
+        // Show/hide no alerts message
+        if (noAlertsMessage) {
+            if (visibleCount === 0 && alertItems.length > 0) {
+                noAlertsMessage.style.display = 'block';
+                alertsList.style.display = 'none';
+            } else {
+                noAlertsMessage.style.display = 'none';
+                alertsList.style.display = 'block';
+            }
+        }
+    }
+
+    // Initialize filter on page load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show category filter for 'all' view
+            const categoryFilter = document.getElementById('categoryFilter');
+            if (categoryFilter) {
+                categoryFilter.style.display = 'flex';
+            }
+            updateEnabledCount();
+            applyCurrentFilter();
+        });
+    } else {
+        // DOM already loaded
+        const categoryFilter = document.getElementById('categoryFilter');
+        if (categoryFilter) {
+            categoryFilter.style.display = 'flex';
+        }
+        updateEnabledCount();
+        applyCurrentFilter();
+    }
+
+    // Toggle service monitoring
+    async function toggleServiceMonitoring(serverId, serviceId, button) {
+        const currentState = button.getAttribute('data-monitoring-enabled') === 'true';
+        const serviceItem = button.closest('.service-item');
+        
+        // Disable button during request
+        button.disabled = true;
+        
+        try {
+            const csrftoken = getCookie('csrftoken');
+            const response = await fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update button state
+                const newState = data.monitoring_enabled;
+                button.setAttribute('data-monitoring-enabled', newState.toString());
+                
+                // Update status badge
+                const statusBadge = serviceItem.querySelector('.service-status');
+                
+                // Update data attribute
+                serviceItem.setAttribute('data-monitoring-enabled', newState.toString());
+                
+                if (newState) {
+                    button.classList.remove('disabled');
+                    button.classList.add('enabled');
+                    button.querySelector('.toggle-text').textContent = 'Disable';
+                } else {
+                    button.classList.remove('enabled');
+                    button.classList.add('disabled');
+                    button.querySelector('.toggle-text').textContent = 'Enable';
+                }
+                
+                // Update enabled count and re-render based on current filter
+                updateEnabledCount();
+                
+                // Re-render the view based on current filter
+                const servicesContainer = document.getElementById('activeServicesList');
+                if (servicesContainer) {
+                    const serviceItems = servicesContainer.querySelectorAll('.service-item');
+                    if (currentFilter === 'enabled') {
+                        const enabledItems = Array.from(serviceItems).filter(item => 
+                            item.getAttribute('data-monitoring-enabled') === 'true'
+                        );
+                        renderEnabledServicesTable(servicesContainer, enabledItems);
+                    } else {
+                        renderAllServicesList(servicesContainer, serviceItems);
+                    }
+                }
+                
+                // Visual feedback
+                serviceItem.style.background = newState ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0, 0, 0, 0.2)';
+                setTimeout(() => {
+                    serviceItem.style.background = '';
+                }, 500);
+            } else {
+                alert(data.error || 'Failed to toggle monitoring');
+            }
+        } catch (error) {
+            console.error('Error toggling service monitoring:', error);
+            alert('Error: ' + error.message);
+        } finally {
+            button.disabled = false;
+        }
     }
 
     // Threshold form submission
@@ -702,12 +1518,63 @@
         --text-secondary: #cbd5e1;
         --text-muted: #94a3b8;
         --border-color: #334155;
+        
+        /* Typography System - Consistent across all pages */
+        --font-size-xs: 0.75rem;      /* 12px - Badges, labels */
+        --font-size-sm: 0.875rem;     /* 14px - Body text, descriptions */
+        --font-size-base: 0.9375rem;  /* 15px - Default text */
+        --font-size-md: 1rem;         /* 16px - Buttons, inputs */
+        --font-size-lg: 1.125rem;     /* 18px - Subheadings */
+        --font-size-xl: 1.25rem;      /* 20px - Card titles */
+        --font-size-2xl: 1.5rem;      /* 24px - Section headings */
+        --font-size-3xl: 2rem;        /* 32px - Page titles */
+        
+        /* Font Weights */
+        --font-weight-normal: 400;
+        --font-weight-medium: 500;
+        --font-weight-semibold: 600;
+        --font-weight-bold: 700;
+        
+        /* Spacing - Reduced for compact layout */
+        --spacing-xs: 0.25rem;   /* 4px */
+        --spacing-sm: 0.5rem;    /* 8px */
+        --spacing-md: 0.75rem;    /* 12px */
+        --spacing-lg: 1rem;      /* 16px */
+        --spacing-xl: 1.5rem;    /* 24px */
+        --spacing-2xl: 2rem;     /* 32px */
     }
 
     * {
         box-sizing: border-box;
         margin: 0;
         padding: 0;
+    }
+
+    /* Global Typography Standards */
+    h1 {
+        font-size: var(--font-size-3xl);
+        font-weight: var(--font-weight-bold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.2;
+    }
+
+    h2 {
+        font-size: var(--font-size-2xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-md) 0;
+        line-height: 1.3;
+    }
+
+    h3 {
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--spacing-sm) 0;
+        line-height: 1.4;
+    }
+
+    p, span, div, label {
+        font-size: var(--font-size-base);
+        line-height: 1.5;
     }
 
     /* Override any admin CSS for back button - MUST be after * selector */
@@ -754,6 +1621,9 @@
         color: #f1f5f9 !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
         min-height: 100vh;
+        /* Scroll snap for main page scrollbar */
+        scroll-snap-type: y proximity;
+        scroll-padding: 1rem;
     }
 
     * {
@@ -793,36 +1663,30 @@
         padding: 0 !important;
     }
 
+    /* Remove padding from content-wrapper > content */
+    .content-wrapper > .content {
+        padding: 0 !important;
+    }
+
     .wrapper {
         margin-left: 0 !important;
         width: 100% !important;
     }
 
     /* Sidebar */
+    /* Sidebar - Always Expanded */
     .sidebar {
         position: fixed;
         left: 0;
         top: 0;
         height: 100vh;
+        width: 240px !important;
         background: var(--card-bg);
         border-right: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 1000;
-        transition: width 0.3s ease;
         overflow: hidden;
         overflow-y: auto;
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .sidebar.collapsed {
-        width: 60px;
-    }
-
-    .sidebar.expanded {
-        width: 240px;
-    }
-
-    .sidebar:hover {
-        width: 240px;
     }
 
     .sidebar-content {
@@ -869,15 +1733,9 @@
     }
 
     .sidebar-item-text {
-        opacity: 0;
-        transition: opacity 0.2s ease;
+        opacity: 1;
         font-size: 0.875rem;
         font-weight: 500;
-    }
-
-    .sidebar:hover .sidebar-item-text,
-    .sidebar.expanded .sidebar-item-text {
-        opacity: 1;
     }
 
     .sidebar-divider {
@@ -912,6 +1770,19 @@
             inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
         font-family: inherit;
         font-size: inherit;
+        box-sizing: border-box;
+        overflow: hidden !important;
+        white-space: nowrap !important;
+        transition: all 0.3s ease !important;
+    }
+
+        margin: 0 !important;
+        border-radius: 8px;
+        box-shadow: 
+            0 2px 8px 0 rgba(239, 68, 68, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        font-family: inherit;
+        font-size: inherit;
         width: 100% !important;
         box-sizing: border-box;
     }
@@ -931,121 +1802,600 @@
         position: relative;
         z-index: 1;
         width: 100%;
+        margin-left: 240px; /* Space for expanded sidebar */
         max-width: 100%;
         margin: 0;
         margin-left: 60px; /* Space for collapsed sidebar */
-        padding: 2rem 1.5rem;
+        padding: var(--spacing-lg) var(--spacing-md);
         min-height: 100vh;
         box-sizing: border-box;
         transition: margin-left 0.3s ease;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
     }
 
-    .sidebar:hover ~ .details-container,
-    .sidebar.expanded ~ .details-container {
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .sidebar {
+            width: 60px !important;
+        }
+        .sidebar-item-text {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+        .sidebar-group-header {
+            opacity: 0;
+        }
+        .details-container {
+            margin-left: 60px !important;
+        }
+    }
         margin-left: 240px;
     }
 
-    /* Header Section */
+    /* Z-Pattern Layout - Standardized across all pages */
+    .z-pattern-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        gap: var(--spacing-sm);
+        max-width: 100%;
+    }
+
+    /* Z-Pattern: Top Left (Header) - Compact */
+    .z-top-left {
+        grid-column: 1 / -1;
+        margin-bottom: var(--spacing-xs) !important;
+    }
+
+    /* Z-Pattern: Middle Left (Main Content) - Start immediately */
+    .z-middle-left {
+        grid-column: 1 / -1;
+        margin-top: 0 !important;
+    }
+
+    /* Header Section - Compact, no wasted space */
     .header-section {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 1.5rem;
+        margin-bottom: 0 !important;
         margin-top: 0;
-        padding: 1.5rem;
-        background: var(--card-bg);
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        padding: var(--spacing-xs) 0 !important;
+        /* No background, border, or box-shadow */
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
     }
 
-    /* Force back button styles - highest specificity to override Django admin */
-    div.header-section a.back-button,
-    div.header-section a.back-button:link,
-    div.header-section a.back-button:visited,
-    div.header-section a.back-button:hover,
-    div.header-section a.back-button:active,
-    div.header-section a.back-button:focus,
-    .details-container .header-section a.back-button,
-    .details-container .header-section a.back-button:link,
-    .details-container .header-section a.back-button:visited,
-    .details-container .header-section a.back-button:hover,
-    .details-container .header-section a.back-button:active,
-    .details-container .header-section a.back-button:focus {
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 0.5rem !important;
-        padding: 0.625rem 1.25rem !important;
-        background: #c9a961 !important;
-        background-color: #c9a961 !important;
-        color: #FFFFFF !important;
-        text-decoration: none !important;
-        border-radius: 8px !important;
-        font-weight: 500 !important;
-        font-size: 0.9375rem !important;
-        transition: all 0.3s ease !important;
-        border: none !important;
-        cursor: pointer !important;
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        flex: 1;
     }
 
-    div.header-section a.back-button:hover,
-    .details-container .header-section a.back-button:hover {
-        background: rgba(184, 134, 11, 0.4) !important;
-        background-color: rgba(184, 134, 11, 0.4) !important;
-        border-color: rgba(201, 169, 97, 0.6) !important;
-        color: #FFFFFF !important;
-        transform: translateX(-2px) !important;
-        box-shadow: 
-            0 6px 20px 0 rgba(201, 169, 97, 0.3),
-            inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
+    /* Back button - smaller and neater */
+    .header-section a.back-button,
+    .header-section a.back-button:link,
+    .header-section a.back-button:visited {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 0.75rem;
+        background: #c9a961;
+        color: #FFFFFF;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .header-section a.back-button:hover {
+        background: rgba(201, 169, 97, 0.85);
+        transform: translateX(-2px);
     }
 
     .server-title {
         display: flex;
         align-items: center;
-        gap: 1rem;
     }
 
     .server-title h1 {
-        font-size: 2rem;
-        font-weight: 700;
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
         color: var(--primary-color);
         margin: 0;
     }
 
-    .status-badge {
-        padding: 0.375rem 0.875rem;
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        margin-left: var(--spacing-sm);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-dot.online {
+        background: var(--success-color);
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+    }
+
+    .status-dot.warning {
+        background: var(--warning-color);
+        box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+    }
+
+    .status-dot.offline {
+        background: var(--danger-color);
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+    }
+
+    .status-text {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+
+    .header-alerts {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        background: rgba(239, 68, 68, 0.1);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .header-alerts:hover {
+        background: rgba(239, 68, 68, 0.15);
+        transform: scale(1.05);
+    }
+
+    .alert-icon {
+        font-size: 1rem;
+    }
+
+    .alert-count {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--danger-color);
+    }
+
+    /* Alerts Modal - Matching overview page style */
+    .modal-overlay {
+        display: none !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.active {
+        display: flex !important;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .alerts-modal-content {
+        background: rgba(30, 41, 59, 0.5) !important;
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 20px;
+        padding: 2rem;
+        width: 100%;
+        max-width: 700px;
+        max-height: 90vh;
+        overflow-y: auto;
+        scrollbar-width: thin !important;
+        scrollbar-color: #c9a961 rgba(0, 0, 0, 0.3) !important;
+        scrollbar-gutter: stable;
+        scroll-snap-type: y proximity;
+        scroll-padding: 1rem;
+        box-shadow: 
+            0 20px 60px 0 rgba(0, 0, 0, 0.5),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+        display: flex;
+        flex-direction: column;
+        transform: scale(0.9);
+        transition: transform 0.3s ease;
+    }
+
+    .alerts-modal-content::-webkit-scrollbar {
+        width: 12px !important;
+    }
+
+    .alerts-modal-content::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-radius: 6px !important;
+        margin: 4px 0;
+    }
+
+    .alerts-modal-content::-webkit-scrollbar-thumb {
+        background: #c9a961 !important;
+        border-radius: 6px !important;
+        border: 2px solid rgba(0, 0, 0, 0.2);
+    }
+
+    .alerts-modal-content::-webkit-scrollbar-thumb:hover {
+        background: #b8860b !important;
+    }
+
+    .modal-overlay.active .alerts-modal-content {
+        transform: scale(1);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+
+    .modal-header h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    /* Alerts Filters */
+    .alerts-filters {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        flex: 1;
+        min-width: 150px;
+    }
+
+    .filter-group label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .filter-select {
+        padding: 0.625rem 0.875rem;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .filter-select:hover {
+        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.4);
+    }
+
+    .filter-select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.1);
+    }
+
+    .modal-close {
+        background: rgba(30, 41, 59, 0.4) !important;
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: var(--text-secondary);
+        font-size: 28px;
+        cursor: pointer;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+        box-shadow: 
+            0 2px 8px 0 rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-close:hover {
+        background: rgba(30, 41, 59, 0.6) !important;
+        border-color: rgba(255, 255, 255, 0.3);
+        color: var(--text-primary);
+        transform: scale(1.1);
+        box-shadow: 
+            0 4px 12px 0 rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .alerts-modal-body {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+        scrollbar-width: thin !important;
+        scrollbar-color: #c9a961 rgba(0, 0, 0, 0.3) !important;
+    }
+
+    .alerts-modal-body::-webkit-scrollbar {
+        width: 12px !important;
+    }
+
+    .alerts-modal-body::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-radius: 6px !important;
+        margin: 4px 0;
+    }
+
+    .alerts-modal-body::-webkit-scrollbar-thumb {
+        background: #c9a961 !important;
+        border-radius: 6px !important;
+        border: 2px solid rgba(0, 0, 0, 0.2);
+    }
+
+    .alerts-modal-body::-webkit-scrollbar-thumb:hover {
+        background: #b8860b !important;
+    }
+
+    .alerts-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .alert-modal-item {
+        display: block;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        padding: 1rem;
+        border-left: 4px solid var(--danger-color);
+        transition: all 0.2s ease;
+    }
+
+    .alert-modal-item:hover {
+        background: rgba(0, 0, 0, 0.3);
+        transform: translateX(4px);
+    }
+
+    .alert-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .alert-header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .alert-status-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-transform: capitalize;
+    }
+
+    .alert-status-triggered {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger-color);
+        border: 1px solid var(--danger-color);
+    }
+
+    .alert-status-resolved {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        border: 1px solid var(--success-color);
+    }
+
+    .alert-modal-type {
+        padding: 0.375rem 0.75rem;
+        border-radius: 6px;
         font-size: 0.75rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
 
-    .status-badge.online {
-        background: rgba(16, 185, 129, 0.2);
-        color: var(--success-color);
-        border: 1px solid var(--success-color);
-    }
-
-    .status-badge.warning {
+    .alert-type-cpu {
         background: rgba(245, 158, 11, 0.2);
         color: var(--warning-color);
         border: 1px solid var(--warning-color);
     }
 
-    .status-badge.offline {
+    .alert-type-memory {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+        border: 1px solid #3b82f6;
+    }
+
+    .alert-type-disk {
+        background: rgba(139, 92, 246, 0.2);
+        color: #8b5cf6;
+        border: 1px solid #8b5cf6;
+    }
+
+    .alert-type-connection {
         background: rgba(239, 68, 68, 0.2);
         color: var(--danger-color);
         border: 1px solid var(--danger-color);
     }
 
-    /* Metrics Grid */
-    .metrics-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    .alert-type-service {
+        background: rgba(236, 72, 153, 0.2);
+        color: #ec4899;
+        border: 1px solid #ec4899;
+    }
+
+    .alert-modal-time {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .alert-modal-message {
+        font-size: 1rem;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        line-height: 1.5;
+    }
+
+    .alert-modal-details {
+        display: flex;
+        flex-wrap: wrap;
         gap: 1rem;
-        margin-bottom: 1.5rem;
-        margin-top: 0;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .alert-detail {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .alert-detail strong {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .no-alerts-message {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: var(--text-secondary);
+    }
+
+    .no-alerts-icon {
+        font-size: 4rem;
+        color: var(--success-color);
+        margin-bottom: 1rem;
+    }
+
+    .no-alerts-message h3 {
+        font-size: 1.5rem;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .no-alerts-message p {
+        font-size: 1rem;
+        color: var(--text-secondary);
+    }
+
+    /* F-Pattern Section - Single Screen Layout - Start immediately */
+    .f-pattern-section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+        margin-top: 0 !important;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Top Row: CPU and RAM (F-top) */
+    .f-pattern-top-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-md);
+        width: 100%;
+    }
+
+    /* Bottom Row: Disk Storage and Performance Trends (F-middle) */
+    .f-pattern-bottom-row {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr;
+        gap: var(--spacing-md);
+        width: 100%;
+        align-items: start;
+    }
+
+    /* Ensure Disk Storage card can expand */
+    .f-pattern-bottom-row .metric-card:first-child {
+        min-height: auto;
+    }
+
+    /* Third Row: All Services (F-side) */
+    .f-pattern-third-row {
+        width: 100%;
+    }
+
+    /* Fourth Row: Alert Thresholds */
+    .f-pattern-fourth-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+        width: 100%;
+        align-items: start;
+    }
+
+    /* Responsive adjustments for F-pattern */
+    @media (max-width: 1400px) {
+        .f-pattern-bottom-row {
+            grid-template-columns: 1fr 1.3fr;
+        }
+    }
+
+    @media (max-width: 1200px) {
+        .f-pattern-top-row {
+            grid-template-columns: 1fr;
+        }
+        
+        .f-pattern-bottom-row {
+            grid-template-columns: 1fr;
+        }
+
+        .f-pattern-fourth-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .f-pattern-section {
+            gap: 0.75rem;
+        }
+        
+        .f-pattern-top-row,
+        .f-pattern-bottom-row {
+            gap: 0.75rem;
+        }
     }
 
     /* Global card styling - Glassmorphism effect for all cards */
@@ -1058,8 +2408,8 @@
         -webkit-backdrop-filter: blur(10px) saturate(180%);
         border: 1px solid rgba(255, 255, 255, 0.18);
         border-radius: 16px;
-        padding: 1.25rem;
-        margin-bottom: 1.5rem;
+        padding: var(--spacing-md) !important;
+        margin-bottom: var(--spacing-md) !important;
         margin-top: 0;
         box-shadow: 
             0 8px 32px 0 rgba(0, 0, 0, 0.37),
@@ -1094,22 +2444,135 @@
     [class*="section"] h2,
     .chart-container h2,
     .services-section h2,
-    .anomalies-section h2,
     .thresholds-section h2 {
         border-bottom: none !important;
+    }
+
+    /* Anomaly Summary Panel */
+    .anomaly-summary {
+        grid-column: 1 / -1;
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .anomaly-summary h3 {
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-semibold);
+        margin-bottom: var(--spacing-sm);
+        color: var(--text-primary);
+    }
+
+    .anomaly-summary-main {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        margin-bottom: var(--spacing-sm);
+        flex-wrap: wrap;
+    }
+
+    .anomaly-summary-severity {
+        display: inline-flex;
+        align-items: center;
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: 8px;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        transition: all 0.2s ease;
+    }
+
+    .anomaly-summary-severity.anomaly-ok {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .anomaly-summary-severity.anomaly-low {
+        background: rgba(251, 191, 36, 0.15);
+        color: #fbbf24;
+        border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+
+    .anomaly-summary-severity.anomaly-medium {
+        background: rgba(251, 146, 60, 0.15);
+        color: #fb923c;
+        border: 1px solid rgba(251, 146, 60, 0.3);
+    }
+
+    .anomaly-summary-severity.anomaly-high {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .anomaly-summary-severity.anomaly-critical {
+        background: rgba(185, 28, 28, 0.2);
+        color: #dc2626;
+        border: 1px solid rgba(185, 28, 28, 0.4);
+        font-weight: var(--font-weight-bold);
+    }
+
+    .anomaly-summary-severity.anomaly-unknown {
+        background: rgba(148, 163, 184, 0.15);
+        color: #94a3b8;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
+    .anomaly-summary-count {
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+        font-weight: var(--font-weight-medium);
+    }
+
+    .anomaly-summary-metrics {
+        display: flex;
+        gap: var(--spacing-sm);
+        flex-wrap: wrap;
+    }
+
+    .metric-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: 8px;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+        transition: all 0.2s ease;
+    }
+
+    .metric-chip.metric-ok {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .metric-chip.metric-anomaly {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        font-weight: var(--font-weight-semibold);
+    }
         padding-bottom: 0 !important;
         margin-top: 0;
     }
 
     .metric-card {
-        padding: 1rem;
+        padding: var(--spacing-md) !important;
         background: rgba(30, 41, 59, 0.35) !important;
+        margin-bottom: 0 !important;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
 
     .metric-card h2 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin-bottom: 0.75rem;
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin-bottom: var(--spacing-sm) !important;
         margin-top: 0;
         color: white;
         padding-bottom: 0;
@@ -1119,30 +2582,30 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.5rem 0;
+        padding: var(--spacing-xs) 0 !important;
         margin: 0;
     }
 
     .metric-label {
-        font-weight: 500;
+        font-weight: var(--font-weight-medium);
         color: rgba(255, 255, 255, 0.7);
-        font-size: 0.875rem;
+        font-size: var(--font-size-sm);
     }
 
     .metric-value {
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         color: white;
-        font-size: 0.9375rem;
+        font-size: var(--font-size-base);
     }
 
     .progress-bar {
         width: 100%;
-        height: 8px;
+        height: 6px;
         background: rgba(0, 0, 0, 0.3);
-        border-radius: 10px;
+        border-radius: 8px;
         overflow: hidden;
-        margin-top: 0.375rem;
-        margin-bottom: 0.5rem;
+        margin-top: var(--spacing-xs) !important;
+        margin-bottom: var(--spacing-sm) !important;
     }
 
     .progress-fill {
@@ -1168,22 +2631,36 @@
         background: var(--card-bg);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
+        padding: var(--spacing-md) !important;
+        margin-bottom: 0 !important;
         margin-top: 0;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         position: relative;
         min-height: 450px;
         overflow: visible;
+        display: flex;
+        flex-direction: column;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
+    }
+
+    .chart-container .chart-header {
+        flex-shrink: 0;
+    }
+
+    .chart-container > div[style*="position: relative"] {
+        flex: 1;
+        min-height: 400px;
     }
 
     .chart-header {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        margin-bottom: 1.5rem;
+        margin-bottom: var(--spacing-sm);
         flex-wrap: wrap;
-        gap: 1rem;
+        gap: var(--spacing-sm);
     }
 
     .chart-title-section {
@@ -1191,9 +2668,9 @@
     }
 
     .chart-container h2 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin-bottom: 0.25rem;
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin-bottom: var(--spacing-xs) !important;
         margin-top: 0;
         color: white;
         padding-bottom: 0;
@@ -1230,9 +2707,10 @@
     }
 
     #metricsChart {
-        height: 350px !important;
-        max-height: 350px !important;
+        height: 400px !important;
+        max-height: 400px !important;
         width: 100% !important;
+        flex: 1;
     }
     
     .chart-container canvas {
@@ -1246,45 +2724,262 @@
         backdrop-filter: blur(10px) saturate(180%);
         -webkit-backdrop-filter: blur(10px) saturate(180%);
         border: 1px solid rgba(255, 255, 255, 0.18);
-        border-radius: 16px;
-        padding: 1.25rem;
-        margin-bottom: 1.5rem;
+        border-radius: 12px;
+        padding: var(--spacing-md) !important;
+        margin-bottom: 0 !important;
         margin-top: 0;
         box-shadow: 
             0 8px 32px 0 rgba(0, 0, 0, 0.37),
             inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
 
-    .services-section h2, .anomalies-section h2 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin-bottom: 1rem;
+    .services-section h2 {
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin-bottom: var(--spacing-sm) !important;
         margin-top: 0;
         color: white;
         padding-bottom: 0;
+    }
+
+    /* Services Filter Buttons */
+    .services-filter {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .filter-btn {
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-radius: 8px;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(30, 41, 59, 0.5);
+        color: rgba(255, 255, 255, 0.7);
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .filter-btn:hover {
+        background: rgba(30, 41, 59, 0.7);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .filter-btn.active {
+        background: rgba(201, 169, 97, 0.3);
+        border-color: rgba(201, 169, 97, 0.5);
+        color: #c9a961;
+        box-shadow: 0 2px 8px rgba(201, 169, 97, 0.2);
+    }
+
+    .filter-btn.active:hover {
+        background: rgba(201, 169, 97, 0.4);
+        border-color: rgba(201, 169, 97, 0.6);
+    }
+
+    /* Category Filter Buttons */
+    .category-filter-btn {
+        padding: 0.375rem 0.875rem;
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(30, 41, 59, 0.5);
+        color: rgba(255, 255, 255, 0.7);
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .category-filter-btn:hover {
+        background: rgba(30, 41, 59, 0.7);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .category-filter-btn.active {
+        background: rgba(201, 169, 97, 0.3);
+        border-color: rgba(201, 169, 97, 0.5);
+        color: #c9a961;
+        box-shadow: 0 2px 8px rgba(201, 169, 97, 0.2);
+    }
+
+    .category-filter-btn.active:hover {
+        background: rgba(201, 169, 97, 0.4);
+        border-color: rgba(201, 169, 97, 0.6);
+    }
+
+    /* No Enabled Services Dialog */
+    .no-enabled-services-dialog {
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 10;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+    }
+
+    .no-enabled-services-dialog .dialog-content {
+        background: rgba(30, 41, 59, 0.95);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .no-enabled-services-dialog .dialog-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .no-enabled-services-dialog h3 {
+        color: #c9a961;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    .no-enabled-services-dialog p {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.9375rem;
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+
+    .no-enabled-services-dialog ol {
+        text-align: left;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.9375rem;
+        margin: 1rem 0;
+        padding-left: 1.5rem;
+        line-height: 1.8;
+    }
+
+    .no-enabled-services-dialog ol li {
+        margin-bottom: 0.5rem;
+    }
+
+    .no-enabled-services-dialog ol li strong {
+        color: #c9a961;
+    }
+
+    .dialog-close-btn {
+        margin-top: 1.5rem;
+        padding: 0.75rem 1.5rem;
+        background: rgba(201, 169, 97, 0.3);
+        border: 1px solid rgba(201, 169, 97, 0.5);
+        color: #c9a961;
+        border-radius: 8px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .dialog-close-btn:hover {
+        background: rgba(201, 169, 97, 0.4);
+        border-color: rgba(201, 169, 97, 0.6);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(201, 169, 97, 0.3);
+    }
+
+    /* Scrollable services list - shows ~10 services at a time */
+    #activeServicesList {
+        max-height: 500px; /* Shows approximately 10 services (each ~50px height) */
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 0.5rem;
+        margin-top: 0.5rem;
+        position: relative;
+        /* Scroll snap for smooth snapping */
+        scroll-snap-type: y proximity;
+        scroll-padding: 0.5rem;
+    }
+
+    /* Custom scrollbar styling */
+    #activeServicesList::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    #activeServicesList::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+    }
+
+    #activeServicesList::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
+    }
+
+    #activeServicesList::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.5);
     }
 
     .service-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.75rem;
+        gap: 0.75rem;
+        padding: 0.5rem 0.625rem;
         background: rgba(0, 0, 0, 0.2);
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
+        border-radius: 6px;
+        margin-bottom: 0.375rem;
+        transition: all 0.2s ease;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 0.5rem;
+    }
+
+    .service-item:hover {
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .service-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+        min-width: 0;
     }
 
     .service-name {
         font-weight: 500;
         color: white;
-        font-size: 0.9375rem;
+        font-size: 0.875rem;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .service-status {
-        padding: 0.25rem 0.75rem;
+        padding: 0.2rem 0.5rem;
         border-radius: 4px;
-        font-size: 0.75rem;
+        font-size: 0.6875rem;
         font-weight: 500;
+        flex-shrink: 0;
     }
 
     .service-status.running {
@@ -1293,30 +2988,172 @@
         border: 1px solid var(--success-color);
     }
 
-    .anomaly-item {
-        padding: 1rem;
-        border-left: 4px solid var(--danger-color);
-        background: rgba(239, 68, 68, 0.1);
+    .service-status.stopped {
+        background: rgba(100, 116, 139, 0.2);
+        color: rgba(148, 163, 184, 1);
+        border: 1px solid rgba(148, 163, 184, 0.5);
+    }
+
+    .service-status.failed {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger-color);
+        border: 1px solid var(--danger-color);
+    }
+
+    .service-status.unknown {
+        background: rgba(251, 191, 36, 0.2);
+        color: rgba(251, 191, 36, 1);
+        border: 1px solid rgba(251, 191, 36, 0.5);
+    }
+
+    .service-critical-badge {
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger-color);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        margin-left: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .service-monitor-toggle {
+        padding: 0.375rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .service-monitor-toggle.disabled {
+        background: rgba(30, 41, 59, 0.5);
+        color: rgba(255, 255, 255, 0.7);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .service-monitor-toggle.disabled:hover {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        border-color: var(--success-color);
+    }
+
+    .service-monitor-toggle.enabled {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        border-color: var(--success-color);
+    }
+
+    .service-monitor-toggle.enabled:hover {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger-color);
+        border-color: var(--danger-color);
+    }
+
+    /* Services Table for Enabled View */
+    .services-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        margin-top: 0.5rem;
+    }
+
+    .services-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: transparent;
         border-radius: 8px;
-        margin-bottom: 0.75rem;
+        overflow: hidden;
+        table-layout: fixed;
     }
 
-    .anomaly-item.medium {
-        border-left-color: var(--warning-color);
-        background: rgba(245, 158, 11, 0.1);
+    .services-table thead {
+        background: rgba(0, 0, 0, 0.3);
+        position: sticky;
+        top: 0;
+        z-index: 1;
     }
 
-    .anomaly-item.low {
-        border-left-color: var(--primary-color);
-        background: rgba(201, 169, 97, 0.1);
+    .services-table th {
+        padding: 0.875rem 1rem;
+        text-align: left;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+        border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+        white-space: nowrap;
     }
 
-    .anomaly-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
+    .services-table th:first-child {
+        width: 40%;
     }
+
+    .services-table th:nth-child(2) {
+        width: 20%;
+    }
+
+    .services-table th:nth-child(3) {
+        width: 20%;
+        text-align: center;
+    }
+
+    .services-table th:last-child {
+        width: 20%;
+        text-align: center;
+    }
+
+    .services-table td {
+        padding: 0.875rem 1rem;
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.9);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        vertical-align: middle;
+    }
+
+    .services-table td:first-child {
+        font-weight: 500;
+        color: white;
+    }
+
+    .services-table td:nth-child(3) {
+        text-align: center;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    .services-table td:last-child {
+        text-align: center;
+    }
+
+    .services-table tbody tr {
+        transition: background-color 0.2s ease;
+    }
+
+    .services-table tbody tr:hover {
+        background: rgba(0, 0, 0, 0.25);
+    }
+
+    .services-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .services-table .service-status {
+        padding: 0.25rem 0.625rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-block;
+        white-space: nowrap;
+    }
+
+    .services-table .service-monitor-toggle {
+        margin: 0 auto;
+    }
+
 
     .anomaly-metric {
         font-weight: 600;
@@ -1352,15 +3189,57 @@
         color: white;
     }
 
+    .disk-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+    }
+
+    .disk-summary-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0.375rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+        text-align: center;
+        transition: all 0.2s ease;
+    }
+
+    .disk-summary-item:hover {
+        background: rgba(0, 0, 0, 0.3);
+        transform: translateY(-2px);
+    }
+
+    .disk-summary-item .metric-label {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 0.25rem;
+    }
+
+    .disk-summary-item .metric-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.95);
+    }
+
     .disk-partitions-container {
-        max-height: 300px !important;
+        max-height: 250px !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         padding-right: 0.5rem;
-        margin-top: 0.5rem;
+        margin-top: 0.375rem;
         position: relative;
         /* Always show scrollbar track for better UX */
         scrollbar-gutter: stable;
+        /* Scroll snap for smooth snapping */
+        scroll-snap-type: y proximity;
+        scroll-padding: 0.5rem;
     }
 
     /* Custom scrollbar for dark theme - Chrome/Edge/Safari */
@@ -1391,10 +3270,13 @@
     }
 
     .disk-partition {
-        padding: 0.75rem;
+        padding: 0.5rem;
         background: rgba(0, 0, 0, 0.2);
-        border-radius: 8px;
-        margin-bottom: 0.75rem;
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 0.5rem;
     }
 
     .disk-partition-header {
@@ -1444,12 +3326,18 @@
         -webkit-backdrop-filter: blur(10px) saturate(180%);
         border: 1px solid rgba(255, 255, 255, 0.18);
         border-radius: 16px;
-        padding: 1.25rem;
-        margin-top: 1.5rem;
+        padding: var(--spacing-md) !important;
+        margin-top: 0 !important;
         margin-bottom: 0;
         box-shadow: 
             0 8px 32px 0 rgba(0, 0, 0, 0.37),
             inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: 1rem;
     }
 
     .thresholds-section h2 {
@@ -1479,11 +3367,11 @@
     }
 
     .form-group input {
-        padding: 0.625rem;
+        padding: var(--spacing-sm) var(--spacing-md);
         background: var(--bg-dark);
         border: 1px solid var(--border-color);
         border-radius: 8px;
-        font-size: 1rem;
+        font-size: var(--font-size-base);
         color: var(--text-primary);
         transition: border-color 0.3s ease;
     }
@@ -1496,7 +3384,7 @@
 
     .btn-save-thresholds {
         grid-column: 1 / -1;
-        padding: 0.75rem 1.5rem;
+        padding: var(--spacing-sm) var(--spacing-lg);
         background: rgba(201, 169, 97, 0.3) !important;
         backdrop-filter: blur(10px) saturate(180%);
         -webkit-backdrop-filter: blur(10px) saturate(180%);
@@ -1504,9 +3392,9 @@
         color: white;
         border-radius: 12px;
         cursor: pointer;
-        font-size: 1rem;
-        font-weight: 600;
-        margin-top: 1rem;
+        font-size: var(--font-size-base);
+        font-weight: var(--font-weight-semibold);
+        margin-top: var(--spacing-md);
         transition: all 0.3s ease;
         box-shadow: 
             0 4px 16px 0 rgba(201, 169, 97, 0.2),
@@ -1528,26 +3416,35 @@
 
     /* CPU Processes Styles */
     .cpu-processes-section {
-        margin-top: 1rem;
-        padding-top: 1rem;
+        margin-top: var(--spacing-md);
+        padding-top: var(--spacing-md);
         border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .processes-list {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
+        gap: var(--spacing-xs);
+        /* Scroll snap for smooth snapping if list becomes scrollable */
+        scroll-snap-type: y proximity;
+        scroll-padding: var(--spacing-sm);
+        max-height: 150px !important;
+        overflow-y: auto;
     }
 
     .process-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.5rem 0.75rem;
+        padding: var(--spacing-xs) var(--spacing-sm) !important;
         background: rgba(0, 0, 0, 0.2);
-        border-radius: 6px;
+        border-radius: 4px;
         border-left: 3px solid rgb(96, 165, 250);
         transition: all 0.2s ease;
+        font-size: var(--font-size-xs);
+        /* Scroll snap alignment */
+        scroll-snap-align: start;
+        scroll-margin: var(--spacing-sm);
     }
 
     .process-item:hover {
@@ -1561,13 +3458,13 @@
     }
 
     .process-name {
-        font-size: 0.8125rem;
-        font-weight: 500;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
         color: rgba(255, 255, 255, 0.9);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        margin-bottom: 0.125rem;
+        margin-bottom: var(--spacing-xs);
     }
 
     .process-pid {
@@ -1575,10 +3472,34 @@
         color: rgba(255, 255, 255, 0.5);
     }
 
+    .ram-processes-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
     .process-cpu {
         font-size: 0.875rem;
         font-weight: 600;
         color: rgb(96, 165, 250);
+    }
+
+    .process-mem {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: rgb(239, 68, 68);
+        margin-left: 0.75rem;
+        white-space: nowrap;
+    }
+
+    /* RAM process items with red border */
+    #topRamProcesses .process-item {
+        border-left-color: rgb(239, 68, 68);
+    }
+
+    #topRamProcesses .process-item:hover {
+        border-left-color: rgb(248, 113, 113);
+    }
         margin-left: 0.75rem;
         white-space: nowrap;
     }
@@ -1594,5 +3515,40 @@
     .process-error {
         color: rgba(239, 68, 68, 0.8);
     }
+
+    /* Metrics History Chart Section */
+    .metrics-history-section {
+        grid-column: 1 / -1;
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        padding: var(--spacing-md);
+        margin-top: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .metrics-history-section h3 {
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-semibold);
+        margin-bottom: var(--spacing-sm);
+        color: var(--text-primary);
+    }
+
+    .metrics-history-chart-container {
+        position: relative;
+        width: 100%;
+        min-height: 260px;
+        max-height: 380px;
+    }
+
+    #metricsAnomalyHistoryChart {
+        width: 100% !important;
+        height: 100% !important;
+    }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{% static 'core/js/anomaly_status.js' %}"></script>
+<script src="{% static 'core/js/anomaly_history.js' %}"></script>
 {% endblock %}
