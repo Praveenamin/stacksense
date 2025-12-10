@@ -5,7 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-change-this-in-production")
 DEBUG = os.environ.get("DEBUG", "False") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0").split(",")
 
 INSTALLED_APPS = [
     "jazzmin",
@@ -46,6 +46,9 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
             ],
+            "libraries": {
+                "rbac_tags": "core.templatetags.rbac_tags",
+            },
         },
     },
 ]
@@ -55,12 +58,8 @@ WSGI_APPLICATION = "log_analyzer.wsgi.application"
 # Database
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "monitoring_db"),
-        "USER": os.environ.get("POSTGRES_USER", "monitoring_user"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "monitoring_pass"),
-        "HOST": os.environ.get("POSTGRES_HOST", "db"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 

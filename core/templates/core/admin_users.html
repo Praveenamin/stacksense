@@ -6,624 +6,140 @@
 {% block extrahead %}
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
-<style>
-    :root {
-        --primary-color: #c9a961;
-        --success-color: #10b981;
-        --warning-color: #f59e0b;
-        --danger-color: #ef4444;
-        --bg-light: #0f172a;
-        --bg-dark: #1e293b;
-        --card-bg: rgba(30, 41, 59, 0.4);
-        --text-primary: #f1f5f9;
-        --text-secondary: #cbd5e1;
-        --border-color: rgba(255, 255, 255, 0.18);
-        
-        /* Typography System - Consistent across all pages */
-        --font-size-xs: 0.75rem;      /* 12px - Badges, labels */
-        --font-size-sm: 0.875rem;     /* 14px - Body text, descriptions */
-        --font-size-base: 0.9375rem;  /* 15px - Default text */
-        --font-size-md: 1rem;         /* 16px - Buttons, inputs */
-        --font-size-lg: 1.125rem;     /* 18px - Subheadings */
-        --font-size-xl: 1.25rem;      /* 20px - Card titles */
-        --font-size-2xl: 1.5rem;      /* 24px - Section headings */
-        --font-size-3xl: 2rem;        /* 32px - Page titles */
-        
-        /* Font Weights */
-        --font-weight-normal: 400;
-        --font-weight-medium: 500;
-        --font-weight-semibold: 600;
-        --font-weight-bold: 700;
-        
-        /* Spacing - Reduced for compact layout */
-        --spacing-xs: 0.25rem;   /* 4px */
-        --spacing-sm: 0.5rem;    /* 8px */
-        --spacing-md: 0.75rem;    /* 12px */
-        --spacing-lg: 1rem;      /* 16px */
-        --spacing-xl: 1.5rem;    /* 24px */
-        --spacing-2xl: 2rem;     /* 32px */
-    }
-
-    html, body {
-        background: #0f172a !important;
-        color: #f1f5f9 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-        font-size: var(--font-size-base);
-        scroll-snap-type: y proximity;
-        scroll-padding: 1rem;
-    }
-
-    /* Global Typography Standards */
-    h1 {
-        font-size: var(--font-size-3xl);
-        font-weight: var(--font-weight-bold);
-        margin: 0 0 var(--spacing-md) 0;
-        line-height: 1.2;
-    }
-
-    h2 {
-        font-size: var(--font-size-2xl);
-        font-weight: var(--font-weight-semibold);
-        margin: 0 0 var(--spacing-md) 0;
-        line-height: 1.3;
-    }
-
-    h3 {
-        font-size: var(--font-size-xl);
-        font-weight: var(--font-weight-semibold);
-        margin: 0 0 var(--spacing-sm) 0;
-        line-height: 1.4;
-    }
-
-    p, span, div, label {
-        font-size: var(--font-size-base);
-        line-height: 1.5;
-    }
-
-    .main-sidebar, .main-header, .navbar, footer {
-        display: none !important;
-    }
-
-    .content-wrapper {
-        margin-left: 0 !important;
-        padding: 0 !important;
-    }
-
-    .content-wrapper > .content {
-        padding: 0 !important;
-    }
-
-    /* Sidebar - Same as other pages */
-    .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        height: 100vh;
-        width: 240px !important;
-        background: var(--card-bg);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-        z-index: 1000;
-        overflow: hidden;
-        overflow-y: auto;
-        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .sidebar-content {
-        padding: 1rem 0;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .sidebar-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        color: rgba(255, 255, 255, 0.7);
-        cursor: pointer;
-        transition: all 0.2s ease;
-        text-decoration: none;
-    }
-
-    .sidebar-item:hover {
-        background: rgba(201, 169, 97, 0.1);
-        color: var(--primary-color);
-    }
-
-    .sidebar-item-icon {
-        width: 20px;
-        height: 20px;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .sidebar-item-icon svg {
-        width: 100%;
-        height: 100%;
-        fill: currentColor;
-    }
-
-    .sidebar-item-text {
-        opacity: 1;
-        font-size: 0.875rem;
-        font-weight: 500;
-    }
-
-    .sidebar-divider {
-        height: 1px;
-        background: rgba(255, 255, 255, 0.1);
-        margin: 0.5rem 1rem;
-    }
-
-    .sidebar-item.danger:hover {
-        background: rgba(239, 68, 68, 0.1);
-        color: var(--danger-color);
-    }
-
-    .sidebar-footer {
-        margin-top: auto;
-        padding-top: 1rem;
-    }
-
-    .sidebar-item.logout {
-        width: 100%;
-        justify-content: flex-start;
-    }
-
-    .sidebar.collapsed .sidebar-item.logout {
-        justify-content: center;
-        padding: 0.75rem 0;
-    }
-
-    .sidebar.collapsed .sidebar-item.logout svg {
-        margin: 0;
-    }
-
-    .sidebar.expanded .sidebar-item.logout,
-    .sidebar:hover .sidebar-item.logout {
-        width: calc(100% - 1rem);
-        margin: 0 0.5rem;
-    }
-
-    .sidebar.expanded .sidebar-item.logout .sidebar-item-text,
-    .sidebar:hover .sidebar-item.logout .sidebar-item-text {
-        display: block;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        flex-shrink: 1;
-        min-width: 0;
-    }
-
-    /* Z-Pattern Layout Container */
-    .manage-users-container {
-        margin-left: 240px; /* Space for expanded sidebar */
-        padding: var(--spacing-lg) var(--spacing-md);
-        min-height: 100vh;
-        scroll-snap-align: start;
-        scroll-margin: 1rem;
-    }
-
-    /* Mobile responsiveness */
-    @media (max-width: 768px) {
-        .sidebar {
-            width: 60px !important;
-        }
-        .sidebar-item-text {
-            opacity: 0;
-            width: 0;
-            overflow: hidden;
-        }
-        .manage-users-container {
-            margin-left: 60px !important;
-        }
-    }
-
-    /* Z-Pattern Layout */
-    .z-pattern-layout {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: auto auto auto;
-        gap: var(--spacing-md);
-        max-width: 1400px;
-        margin: 0 auto;
-    }
-
-    /* Z-Pattern: Top Left (Header + Create Button) */
-    .z-top-left {
-        grid-column: 1 / -1;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
-    }
-
-    .z-top-left h1 {
-        color: var(--primary-color);
-        font-size: 2rem;
-        margin: 0;
-    }
-
-    /* Z-Pattern: Top Right (Stats/Summary) */
-    .z-top-right {
-        grid-column: 1 / -1;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-
-    .stat-card {
-        background: var(--card-bg);
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: var(--spacing-md) !important;
-        text-align: center;
-    }
-
-    .stat-card h3 {
-        color: var(--text-secondary);
-        font-size: var(--font-size-xs);
-        margin: 0 0 var(--spacing-xs) 0 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .stat-card .stat-value {
-        color: var(--primary-color);
-        font-size: var(--font-size-2xl);
-        font-weight: var(--font-weight-bold);
-        margin: 0;
-    }
-
-    /* Z-Pattern: Middle Left (Users Table) */
-    .z-middle-left {
-        grid-column: 1 / -1;
-    }
-
-    /* Z-Pattern: Bottom (Additional info if needed) */
-    .z-bottom {
-        grid-column: 1 / -1;
-    }
-
-    .btn {
-        padding: var(--spacing-sm) var(--spacing-lg);
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        font-size: var(--font-size-base);
-        font-weight: var(--font-weight-medium);
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-        transition: all 0.2s ease;
-    }
-
-    .btn-primary {
-        background: rgba(201, 169, 97, 0.3);
-        border: 1px solid rgba(201, 169, 97, 0.4);
-        color: white;
-        backdrop-filter: blur(10px);
-    }
-
-    .btn-primary:hover {
-        background: rgba(201, 169, 97, 0.4);
-        transform: translateY(-1px);
-    }
-
-    .users-table {
-        width: 100%;
-        background: var(--card-bg);
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
-    }
-
-    .users-table table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .users-table th {
-        background: rgba(15, 23, 42, 0.6);
-        padding: var(--spacing-sm) var(--spacing-md) !important;
-        text-align: left;
-        color: var(--primary-color);
-        font-weight: var(--font-weight-semibold);
-        font-size: var(--font-size-sm);
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .users-table td {
-        padding: var(--spacing-sm) var(--spacing-md) !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        font-size: var(--font-size-sm);
-    }
-
-    .users-table tr:hover {
-        background: rgba(255, 255, 255, 0.02);
-    }
-
-    .badge {
-        padding: var(--spacing-xs) var(--spacing-sm);
-        border-radius: 12px;
-        font-size: var(--font-size-xs);
-        font-weight: var(--font-weight-semibold);
-    }
-
-    .badge-success {
-        background: rgba(16, 185, 129, 0.2);
-        color: var(--success-color);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-
-    .badge-danger {
-        background: rgba(239, 68, 68, 0.2);
-        color: var(--danger-color);
-        border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-
-    .badge-warning {
-        background: rgba(245, 158, 11, 0.2);
-        color: var(--warning-color);
-        border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-
-    .btn-sm {
-        padding: var(--spacing-sm) var(--spacing-md);
-        font-size: 0.875rem;
-    }
-
-    .btn-edit {
-        background: rgba(59, 130, 246, 0.2);
-        border: 1px solid rgba(59, 130, 246, 0.3);
-        color: #60a5fa;
-    }
-
-    .btn-edit:hover {
-        background: rgba(59, 130, 246, 0.3);
-    }
-
-    .btn-delete {
-        background: rgba(239, 68, 68, 0.2);
-        border: 1px solid rgba(239, 68, 68, 0.3);
-        color: var(--danger-color);
-    }
-
-    .btn-delete:hover {
-        background: rgba(239, 68, 68, 0.3);
-    }
-
-    .modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        backdrop-filter: blur(4px);
-        z-index: 10000;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .modal.active {
-        display: flex;
-    }
-
-    .modal-content {
-        background: var(--card-bg);
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--border-color);
-        border-radius: 16px;
-        padding: 2rem;
-        max-width: 500px;
-        width: 90%;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
-    }
-
-    .modal-header {
-        margin-bottom: 1.5rem;
-    }
-
-    .modal-header h2 {
-        color: var(--primary-color);
-        margin: 0;
-    }
-
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .form-group label {
-        display: block;
-        color: var(--text-secondary);
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-    }
-
-    .form-group input[type="text"],
-    .form-group input[type="email"],
-    .form-group input[type="password"],
-    .form-group input[type="checkbox"] {
-        width: 100%;
-        padding: 0.875rem;
-        background: rgba(15, 23, 42, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 8px;
-        color: #f1f5f9;
-        font-size: 0.9375rem;
-        box-sizing: border-box;
-    }
-
-    .form-group input[type="checkbox"] {
-        width: auto;
-        margin-right: 0.5rem;
-    }
-
-    .form-actions {
-        display: flex;
-        gap: 1rem;
-        justify-content: flex-end;
-        margin-top: 2rem;
-    }
-
-    .messages {
-        margin-bottom: 1.5rem;
-    }
-
-    .message {
-        padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-    }
-
-    .message.success {
-        background: rgba(16, 185, 129, 0.2);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        color: var(--success-color);
-    }
-
-    .message.error {
-        background: rgba(239, 68, 68, 0.2);
-        border: 1px solid rgba(239, 68, 68, 0.3);
-        color: var(--danger-color);
-    }
-</style>
 {% endblock %}
 
 {% block content %}
-<!-- Top-Right Navigation -->
-<div class="top-right-nav">
-    <span class="username">{{ user.username }}</span>
-    <form action="{% url 'logout' %}" method="post" style="margin: 0; padding: 0; display: inline;">
-        {% csrf_token %}
-        <button type="submit" class="logout-btn">Logout</button>
-    </form>
-</div>
+<div class="page-wrapper">
+    <!-- Sidebar -->
+    {% include 'core/sidebar.html' %}
 
-<!-- Sidebar -->
-{% include 'core/sidebar.html' %}
-
-<div class="manage-users-container">
-    {% if messages %}
-    <div class="messages">
-        {% for message in messages %}
-        <div class="message {{ message.tags }}">
-            {{ message }}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Z-Pattern Layout -->
-    <div class="z-pattern-layout">
-        <!-- Z-Pattern: Top Left - Header -->
-        <div class="z-top-left">
-            <h1>Manage Users</h1>
-            <a href="/admin-users/create/" class="btn btn-primary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-                Create User
-            </a>
-        </div>
-
-        <!-- Z-Pattern: Top Right - Stats -->
-        <div class="z-top-right">
-            <div class="stat-card">
-                <h3>Total Users</h3>
-                <p class="stat-value">{{ total_users }}</p>
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <!-- Header -->
+            <div class="mb-8">
+                <div class="flex items-center gap-4 mb-4">
+                    <a href="/monitoring/" class="btn btn-ghost">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                        </svg>
+                        Back to Dashboard
+                    </a>
+                </div>
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-3xl font-bold text-secondary-900">Manage Users</h1>
+                        <p class="text-secondary-600 mt-2">Manage user accounts and permissions</p>
+                    </div>
+                    <a href="/admin-users/create/" class="btn btn-primary">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                        Create User
+                    </a>
+                </div>
             </div>
-            <div class="stat-card">
-                <h3>Superusers</h3>
-                <p class="stat-value">{{ superusers_count }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>Active Users</h3>
-                <p class="stat-value">{{ active_users_count }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>Staff Users</h3>
-                <p class="stat-value">{{ staff_users_count }}</p>
-            </div>
-        </div>
 
-        <!-- Z-Pattern: Middle Left - Users Table -->
-        <div class="z-middle-left">
-            <div class="users-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Superuser</th>
-                            <th>Active</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in users %}
-                        <tr>
-                            <td>{{ user.username }}</td>
-                            <td>{{ user.email|default:"—" }}</td>
-                            <td>
-                                {% if user.is_superuser %}
-                                <span class="badge badge-success">Yes</span>
-                                {% else %}
-                                <span class="badge badge-warning">No</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if user.is_active %}
-                                <span class="badge badge-success">Active</span>
-                                {% else %}
-                                <span class="badge badge-danger">Inactive</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <a href="/admin-users/edit/{{ user.id }}/" class="btn btn-sm btn-edit">Edit</a>
-                                {% if user != request.user %}
-                                <form action="/admin-users/delete/{{ user.id }}/" method="post" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-delete" onclick="return confirm('Are you sure you want to delete this user?')">Delete</button>
-                                </form>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                                No users found.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <!-- Messages -->
+            {% if messages %}
+            <div class="mb-6">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
             </div>
-        </div>
-    </div>
-</div>
+            {% endif %}
 
-<script>
-// Placeholder functions for sidebar actions (can be implemented later)
-function openRemoveServerModal() {
-    // Redirect to dashboard where this modal exists
-    window.location.href = '/monitoring/';
-}
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="card">
+                    <div class="card-content text-center">
+                        <div class="text-3xl font-bold text-primary-600 mb-1">{{ total_users }}</div>
+                        <div class="text-sm text-secondary-600">Total Users</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-content text-center">
+                        <div class="text-3xl font-bold text-success-600 mb-1">{{ superusers_count }}</div>
+                        <div class="text-sm text-secondary-600">Superusers</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-content text-center">
+                        <div class="text-3xl font-bold text-warning-600 mb-1">{{ active_users_count }}</div>
+                        <div class="text-sm text-secondary-600">Active Users</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-content text-center">
+                        <div class="text-3xl font-bold text-secondary-600 mb-1">{{ staff_users_count }}</div>
+                        <div class="text-sm text-secondary-600">Staff Users</div>
+                    </div>
+                </div>
+            </div>
 
-function openAlertConfigModal() {
-    // Redirect to dashboard where this modal exists
-    window.location.href = '/monitoring/';
-}
-</script>
+            <!-- Users Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">User Accounts</h2>
+                </div>
+                <div class="card-content">
+                    {% if users %}
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-secondary-200">
+                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Username</th>
+                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Email</th>
+                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Role</th>
+                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Status</th>
+                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr class="border-b border-secondary-100 hover:bg-secondary-50">
+                                    <td class="py-3 px-4">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                                                <span class="text-sm font-medium text-primary-700">{{ user.username|first|upper }}</span>
+                                            </div>
+                                            <div>
+                                                <div class="font-medium text-secondary-900">{{ user.username }}</div>
+                                                {% if user.is_superuser %}
+                                                <div class="text-xs text-danger-600">Superuser</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-4 text-secondary-700">{{ user.email|default:"—" }}</td>
+                                    <td class="py-3 px-4">
+                                        {% if user.acl.role %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary-100 text-secondary-800">
+                                            {{ user.acl.role.name }}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-secondary-500 text-sm">No Role</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        {% if user.is_active %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800">
+                                            Active
+                                        </span>
+                                        {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary-100 text-secondary-800">
+                                            Inactive
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        <div class="flex gap-2">
+                                            <a href="/admin-users/edit/{{ user.id }}/" class="btn btn-sm btn-outline">Edit</a>
+                                            {% if not user.is_superuser %}
+                                            <form action="/admin-users/delete/{{ user.id }}/" method="post" class="inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-danger"
+                                                        onclick="return confirm('Are you sure you want to delete this user?')">Delete</button>
 {% endblock %}
-

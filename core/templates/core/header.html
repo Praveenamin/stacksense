@@ -1,0 +1,31 @@
+{% comment %}
+IBM Carbon UI Shell Header Component
+Based on design.json uiShellHeader specifications
+{% endcomment %}
+
+<header class="ui-shell-header">
+    <div class="ui-shell-header-content">
+        <!-- Brand/Logo Area -->
+        <div class="ui-shell-header-brand">
+            <span class="brand-text">StackWatch</span>
+        </div>
+
+        <!-- Navigation/Utility Area (can be extended later) -->
+        <nav class="ui-shell-header-nav">
+            <!-- Future: Global navigation items -->
+        </nav>
+
+        <!-- User Menu Area -->
+        <div class="ui-shell-header-user">
+            {% if user.is_authenticated %}
+                <span class="user-name">{{ user.username }}</span>
+                <form action="/logout/" method="post" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+                </form>
+            {% else %}
+                <a href="/admin/login/" class="btn btn-primary btn-sm">Login</a>
+            {% endif %}
+        </div>
+    </div>
+</header>

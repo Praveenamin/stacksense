@@ -15,12 +15,12 @@
     /**
      * Fetch metric history from API
      * @param {number} serverId - Server ID
-     * @param {number} hours - Number of hours of history (default: 6)
+     * @param {string} range - Time range (1h, 7d, 1m, 3m)
      * @returns {Promise<Object|null>} - History data or null on error
      */
-    async function fetchMetricHistory(serverId, hours = 6) {
+    async function fetchMetricHistory(serverId, range = '1h') {
         try {
-            const response = await fetch(`/api/server/${serverId}/metric-history/?hours=${hours}`);
+            const response = await fetch(`/api/server/${serverId}/metric-history/?range=${range}`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -301,6 +301,7 @@
                     y: {
                         beginAtZero: true,
                         max: 100,
+                        min: 0,
                         ticks: {
                             color: '#94a3b8',
                             maxTicksLimit: 8,
@@ -313,7 +314,9 @@
                         },
                         grid: {
                             color: 'rgba(255, 255, 255, 0.1)'
-                        }
+                        },
+                        // Ensure we can see values up to 100%
+                        suggestedMax: 100
                     }
                 },
                 animation: {
@@ -321,6 +324,33 @@
                 }
             }
         });
+    }
+
+    /**
+     * Load and render chart with specified time range
+     * @param {number} serverId - Server ID
+     * @param {string} range - Time range (1h, 7d, 1m, 3m)
+     */
+    async function loadChartWithRange(serverId, range = '1h') {
+        const chartCanvas = document.getElementById('metricsAnomalyHistoryChart');
+        if (!chartCanvas) {
+            return;
+        }
+
+        // Show loading state (optional - can add a spinner)
+        chartCanvas.style.opacity = '0.5';
+
+        const data = await fetchMetricHistory(serverId, range);
+        
+        chartCanvas.style.opacity = '1';
+        
+        if (!data) {
+            console.warn('No metric history data available');
+            return;
+        }
+
+        const ctx = chartCanvas.getContext('2d');
+        renderMetricsAnomalyChart(ctx, data);
     }
 
     /**
@@ -341,22 +371,32 @@
             return;
         }
 
-        const serverId = container.getAttribute('data-server-id');
+        const serverId = parseInt(container.getAttribute('data-server-id'), 10);
         if (!serverId) {
             console.warn('Server ID not found in data attribute');
             return;
         }
 
-        // Fetch and render chart
-        fetchMetricHistory(parseInt(serverId, 10), 6).then(data => {
-            if (!data) {
-                console.warn('No metric history data available');
-                return;
-            }
-
-            const ctx = chartCanvas.getContext('2d');
-            renderMetricsAnomalyChart(ctx, data);
+        // Set up time range filter buttons
+        const filterButtons = document.querySelectorAll('.time-range-btn');
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Get range from data attribute
+                const range = this.getAttribute('data-range');
+                
+                // Load chart with new range
+                loadChartWithRange(serverId, range);
+            });
         });
+
+        // Initial load with default range (1h)
+        loadChartWithRange(serverId, '1h');
     }
 
     // Initialize when DOM is ready

@@ -1,0 +1,27 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}StackWatch{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
+    {% block extrahead %}{% endblock %}
+</head>
+<body class="{% block bodyclass %}{% endblock %}">
+    <!-- IBM Carbon UI Shell Header -->
+    {% include 'core/header.html' %}
+
+    <!-- IBM Carbon UI Shell Left Panel -->
+    {% include 'core/sidebar.html' %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    {% block extrajs %}{% endblock %}
+</body>
+</html>

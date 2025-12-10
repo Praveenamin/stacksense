@@ -1,0 +1,92 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% load rbac_tags %}
+
+{% block title %}Role Management - StackSense{% endblock %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% endblock %}
+
+{% block content %}
+<!-- Back Button -->
+<div class="back-button-container">
+    <a href="/monitoring/" class="back-button">
+        ← Back to Dashboard
+    </a>
+</div>
+
+<div class="role-management-container">
+    <div class="page-header">
+        <h1>Role Management</h1>
+        {% if can_manage_roles %}
+        <a href="/roles/create/" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 0.5rem;">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            Create Role
+        </a>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom: 2rem;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" style="padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if roles %}
+        {% for role in roles %}
+        <div class="role-card">
+            <div class="role-header">
+                <div>
+                    <h3 class="role-name">{{ role.name }}</h3>
+                    {% if role.description %}
+                    <p class="role-description">{{ role.description }}</p>
+                    {% endif %}
+                </div>
+                <div class="role-badges">
+                    {% if role.is_protected %}
+                    <span class="badge badge-protected">Protected</span>
+                    {% endif %}
+                    <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--success-color); border: 1px solid rgba(16, 185, 129, 0.3);">
+                        {{ role.role_privileges.count }} privilege{{ role.role_privileges.count|pluralize }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="privilege-tags">
+                {% for role_privilege in role.role_privileges.all %}
+                <span class="privilege-tag">{{ role_privilege.privilege.label }}</span>
+                {% empty %}
+                <span style="color: var(--text-secondary); font-style: italic;">No privileges assigned</span>
+                {% endfor %}
+            </div>
+
+            {% if can_manage_roles and not role.is_protected %}
+            <div class="role-actions">
+                <a href="/roles/edit/{{ role.id }}/" class="btn btn-secondary">Edit</a>
+                <a href="/roles/delete/{{ role.id }}/" class="btn btn-danger"
+                   onclick="return confirm('Are you sure you want to delete the role \"{{ role.name }}\"? This action cannot be undone.')">
+                    Delete
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <h3>No Roles Found</h3>
+            <p>No roles have been created yet. Create your first role to get started.</p>
+            {% if can_manage_roles %}
+            <a href="/roles/create/" class="btn btn-primary" style="margin-top: 1rem;">Create First Role</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

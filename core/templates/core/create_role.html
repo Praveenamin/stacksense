@@ -1,0 +1,146 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Create Role - StackSense{% endblock %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% endblock %}
+
+{% block content %}
+<!-- Back Button -->
+<div class="back-button-container">
+    <a href="{% url 'role_management' %}" class="back-button">
+        ← Back to Roles
+    </a>
+</div>
+
+<div class="create-role-container">
+    <div class="page-header">
+        <h1>Create New Role</h1>
+    </div>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom: 2rem;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" style="padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="form-card">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="name" class="form-label">Role Name *</label>
+                <input type="text" id="name" name="name" class="form-input" required
+                       placeholder="e.g., Operator, Administrator, Analyst">
+            </div>
+
+            <div class="form-group">
+                <label for="description" class="form-label">Description</label>
+                <textarea id="description" name="description" class="form-textarea"
+                          placeholder="Describe the responsibilities and scope of this role"></textarea>
+            </div>
+
+            <div class="privileges-section">
+                <div class="privileges-header">
+                    <h3 style="color: var(--text-primary); margin: 0;">Assign Privileges</h3>
+                    <small style="color: var(--text-secondary);">Select the permissions this role should have</small>
+                </div>
+
+                <div class="privileges-grid">
+                    {% for privilege in privileges %}
+                    <div class="privilege-item">
+                        <input type="checkbox" id="priv_{{ privilege.id }}" name="privileges"
+                               value="{{ privilege.id }}" class="privilege-checkbox">
+                        <label for="priv_{{ privilege.id }}" class="privilege-label">
+                            {{ privilege.label }}
+                            {% if privilege.key == 'view_dashboard' %}
+                            <div class="privilege-description">Access to monitoring dashboard and server status</div>
+                            {% elif privilege.key == 'view_servers' %}
+                            <div class="privilege-description">View server details and configurations</div>
+                            {% elif privilege.key == 'add_server' %}
+                            <div class="privilege-description">Add new servers to monitoring</div>
+                            {% elif privilege.key == 'edit_server' %}
+                            <div class="privilege-description">Modify server settings and configurations</div>
+                            {% elif privilege.key == 'delete_server' %}
+                            <div class="privilege-description">Remove servers from monitoring</div>
+                            {% elif privilege.key == 'view_metrics' %}
+                            <div class="privilege-description">Access to system metrics and performance data</div>
+                            {% elif privilege.key == 'view_anomalies' %}
+                            <div class="privilege-description">View detected anomalies and alerts</div>
+                            {% elif privilege.key == 'resolve_anomalies' %}
+                            <div class="privilege-description">Acknowledge and resolve anomaly alerts</div>
+                            {% elif privilege.key == 'configure_alerts' %}
+                            <div class="privilege-description">Set up email alerts and notifications</div>
+                            {% elif privilege.key == 'manage_users' %}
+                            <div class="privilege-description">Create and manage user accounts</div>
+                            {% elif privilege.key == 'manage_roles' %}
+                            <div class="privilege-description">Create and manage user roles and permissions</div>
+                            {% elif privilege.key == 'suspend_monitoring' %}
+                            <div class="privilege-description">Pause and resume server monitoring</div>
+                            {% elif privilege.key == 'configure_thresholds' %}
+                            <div class="privilege-description">Set alert thresholds and monitoring parameters</div>
+                            {% elif privilege.key == 'view_alert_history' %}
+                            <div class="privilege-description">Access to historical alert and incident data</div>
+                            {% endif %}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Create Role</button>
+                <a href="{% url 'role_management' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Auto-select related privileges for better UX
+document.addEventListener('DOMContentLoaded', function() {
+    const privilegeCheckboxes = document.querySelectorAll('input[name="privileges"]');
+
+    // Define privilege dependencies
+    const dependencies = {
+        'view_servers': [],  // Base privilege
+        'add_server': ['view_servers'],
+        'edit_server': ['view_servers'],
+        'delete_server': ['view_servers'],
+        'view_metrics': [],
+        'view_anomalies': [],
+        'resolve_anomalies': ['view_anomalies'],
+        'configure_alerts': [],
+        'manage_users': [],
+        'manage_roles': ['manage_users'],  // Managing roles implies managing users
+        'suspend_monitoring': [],
+        'configure_thresholds': [],
+        'view_alert_history': []
+    };
+
+    privilegeCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const privilegeKey = this.dataset.key || this.id.replace('priv_', '');
+
+            if (this.checked) {
+                // Auto-select dependencies
+                const deps = dependencies[privilegeKey] || [];
+                deps.forEach(dep => {
+                    const depCheckbox = document.querySelector(`input[name="privileges"][data-key="${dep}"]`);
+                    if (depCheckbox && !depCheckbox.checked) {
+                        depCheckbox.checked = true;
+                    }
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

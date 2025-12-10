@@ -147,7 +147,11 @@ class AnomalyStatusService:
                 metric_flags["network"] = "anomaly"
         
         # Determine highest severity
-        highest_severity = AnomalyStatusService._determine_highest_severity(severities)
+        # If active_count is 0, severity must always be "OK"
+        if active_count == 0:
+            highest_severity = "OK"
+        else:
+            highest_severity = AnomalyStatusService._determine_highest_severity(severities)
         
         # Generate ISO timestamp
         timestamp = timezone.now().isoformat()

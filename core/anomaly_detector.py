@@ -129,18 +129,28 @@ class AnomalyDetector:
             # If pipeline failed or not available, use legacy ThresholdAD detection
             if not any(a.get("metric_type") == "cpu" for a in anomalies):
                 try:
-                    # Legacy ThresholdAD for CPU
-                    cpu_series = pd.Series(cpu_values, index=pd.DatetimeIndex(timestamps))
-            threshold_ad = ThresholdAD(high=self.config.cpu_threshold, low=0)
-            cpu_anomalies = threshold_ad.detect(cpu_series)
-            if not cpu_anomalies.empty and cpu_anomalies.iloc[-1]:
-                anomalies.append({
-                    "metric_type": "cpu",
-                    "metric_name": "cpu_percent",
-                    "metric_value": metric.cpu_percent,
-                    "anomaly_score": 1.0,
-                    "severity": self._calculate_severity(metric.cpu_percent, self.config.cpu_threshold),
-                })
+                    # Check if current metric exceeds threshold directly
+                    if metric.cpu_percent and metric.cpu_percent > self.config.cpu_threshold:
+                        anomalies.append({
+                            "metric_type": "cpu",
+                            "metric_name": "cpu_percent",
+                            "metric_value": metric.cpu_percent,
+                            "anomaly_score": 1.0,
+                            "severity": self._calculate_severity(metric.cpu_percent, self.config.cpu_threshold),
+                        })
+                    else:
+                        # Also try ADTK ThresholdAD for pattern-based detection
+                        cpu_series = pd.Series(cpu_values, index=pd.DatetimeIndex(timestamps))
+                        threshold_ad = ThresholdAD(high=self.config.cpu_threshold, low=0)
+                        cpu_anomalies = threshold_ad.detect(cpu_series)
+                        if not cpu_anomalies.empty and cpu_anomalies.iloc[-1]:
+                            anomalies.append({
+                                "metric_type": "cpu",
+                                "metric_name": "cpu_percent",
+                                "metric_value": metric.cpu_percent,
+                                "anomaly_score": 1.0,
+                                "severity": self._calculate_severity(metric.cpu_percent, self.config.cpu_threshold),
+                            })
                 except Exception as e:
                     logger.warning(f"Legacy CPU threshold detection failed: {e}")
             
@@ -185,17 +195,28 @@ class AnomalyDetector:
             # Legacy Memory threshold detection if pipeline didn't detect
             if not any(a.get("metric_type") == "memory" for a in anomalies):
                 try:
-                    memory_series = pd.Series(memory_values, index=pd.DatetimeIndex(timestamps))
-            threshold_ad = ThresholdAD(high=self.config.memory_threshold, low=0)
-            memory_anomalies = threshold_ad.detect(memory_series)
-            if not memory_anomalies.empty and memory_anomalies.iloc[-1]:
-                anomalies.append({
-                    "metric_type": "memory",
-                    "metric_name": "memory_percent",
-                    "metric_value": metric.memory_percent,
-                    "anomaly_score": 1.0,
-                    "severity": self._calculate_severity(metric.memory_percent, self.config.memory_threshold),
-                })
+                    # Check if current metric exceeds threshold directly
+                    if metric.memory_percent and metric.memory_percent > self.config.memory_threshold:
+                        anomalies.append({
+                            "metric_type": "memory",
+                            "metric_name": "memory_percent",
+                            "metric_value": metric.memory_percent,
+                            "anomaly_score": 1.0,
+                            "severity": self._calculate_severity(metric.memory_percent, self.config.memory_threshold),
+                        })
+                    else:
+                        # Also try ADTK ThresholdAD for pattern-based detection
+                        memory_series = pd.Series(memory_values, index=pd.DatetimeIndex(timestamps))
+                        threshold_ad = ThresholdAD(high=self.config.memory_threshold, low=0)
+                        memory_anomalies = threshold_ad.detect(memory_series)
+                        if not memory_anomalies.empty and memory_anomalies.iloc[-1]:
+                            anomalies.append({
+                                "metric_type": "memory",
+                                "metric_name": "memory_percent",
+                                "metric_value": metric.memory_percent,
+                                "anomaly_score": 1.0,
+                                "severity": self._calculate_severity(metric.memory_percent, self.config.memory_threshold),
+                            })
                 except Exception as e:
                     logger.warning(f"Legacy Memory threshold detection failed: {e}")
             
@@ -217,44 +238,88 @@ class AnomalyDetector:
                             disk_percent = usage if isinstance(usage, (int, float)) else 0
                         
                         if disk_percent > self.config.disk_threshold:
-                        anomalies.append({
-                            "metric_type": "disk",
-                            "metric_name": f"disk_percent_{mount}",
+                            anomalies.append({
+                                "metric_type": "disk",
+                                "metric_name": f"disk_percent_{mount}",
                                 "metric_value": disk_percent,
-                            "anomaly_score": 1.0,
+                                "anomaly_score": 1.0,
                                 "severity": self._calculate_severity(disk_percent, self.config.disk_threshold),
                             })
                 except Exception as e:
                     logger.warning(f"Disk anomaly detection failed: {e}")
             
             # Network I/O anomaly detection (if network_io data is available)
+            # IMPORTANT: psutil.net_io_counters() returns CUMULATIVE counters (total since boot)
+            # We need to calculate the delta between current and previous metric
             if hasattr(metric, 'network_io') and metric.network_io:
                 try:
-                    # Parse network_io if it's a JSON string
-                    if isinstance(metric.network_io, str):
-                        network_data = json.loads(metric.network_io)
-                    else:
-                        network_data = metric.network_io
+                    # Get previous metric to calculate delta
+                    previous_metric = SystemMetric.objects.filter(
+                        server=self.server
+                    ).order_by("-timestamp").exclude(id=metric.id).first()
                     
-                    # Calculate total throughput for each interface
-                    # For now, we'll use a simple threshold-based approach
-                    # Future: could use pipeline for network metrics if we collect historical data
-                    for interface, io_data in network_data.items():
-                        if isinstance(io_data, dict):
-                            bytes_sent = io_data.get("bytes_sent", 0)
-                            bytes_recv = io_data.get("bytes_recv", 0)
-                            total_bytes = bytes_sent + bytes_recv
+                    if not previous_metric or not previous_metric.network_io:
+                        # Skip if no previous metric for delta calculation
+                        logger.debug(f"No previous metric for network delta calculation on {self.server.name}")
+                    else:
+                        # Parse current network_io
+                        if isinstance(metric.network_io, str):
+                            current_network_data = json.loads(metric.network_io)
+                        else:
+                            current_network_data = metric.network_io
+                        
+                        # Parse previous network_io
+                        if isinstance(previous_metric.network_io, str):
+                            previous_network_data = json.loads(previous_metric.network_io)
+                        else:
+                            previous_network_data = previous_metric.network_io
+                        
+                        # Calculate time difference
+                        time_diff_seconds = (metric.timestamp - previous_metric.timestamp).total_seconds()
+                        if time_diff_seconds <= 0:
+                            time_diff_seconds = 60  # Default to 60 seconds if invalid
+                        
+                        # Calculate delta for each interface
+                        for interface, current_io in current_network_data.items():
+                            if interface not in previous_network_data:
+                                continue
                             
-                            # Simple threshold: flag if total throughput > 1GB in collection interval
-                            # This is a placeholder - could be enhanced with historical analysis
-                            if total_bytes > 1073741824:  # 1GB
-                                anomalies.append({
-                                    "metric_type": "network",
-                                    "metric_name": f"network_throughput_{interface}",
-                                    "metric_value": total_bytes / 1073741824.0,  # Convert to GB
-                                    "anomaly_score": 0.7,
-                                    "severity": Anomaly.Severity.MEDIUM,
-                                })
+                            if isinstance(current_io, dict) and isinstance(previous_network_data[interface], dict):
+                                # Calculate bytes transferred in this interval
+                                bytes_sent_delta = current_io.get("bytes_sent", 0) - previous_network_data[interface].get("bytes_sent", 0)
+                                bytes_recv_delta = current_io.get("bytes_recv", 0) - previous_network_data[interface].get("bytes_recv", 0)
+                                total_bytes_delta = bytes_sent_delta + bytes_recv_delta
+                                
+                                # Skip loopback interface (lo) - it's always high
+                                if interface == "lo":
+                                    continue
+                                
+                                # Calculate throughput rate (Mbps)
+                                throughput_mbps = (total_bytes_delta * 8) / (time_diff_seconds * 1024 * 1024) if time_diff_seconds > 0 else 0
+                                
+                                # Threshold: flag if throughput > 100 Mbps (adjustable)
+                                # This is a reasonable threshold for most servers
+                                threshold_mbps = 100.0
+                                
+                                if throughput_mbps > threshold_mbps:
+                                    # Calculate severity based on throughput
+                                    excess_ratio = throughput_mbps / threshold_mbps
+                                    if excess_ratio > 5.0:
+                                        severity = Anomaly.Severity.CRITICAL
+                                    elif excess_ratio > 2.0:
+                                        severity = Anomaly.Severity.HIGH
+                                    elif excess_ratio > 1.5:
+                                        severity = Anomaly.Severity.MEDIUM
+                                    else:
+                                        severity = Anomaly.Severity.LOW
+                                    
+                                    anomalies.append({
+                                        "metric_type": "network",
+                                        "metric_name": f"network_throughput_{interface}",
+                                        "metric_value": throughput_mbps,  # Store as Mbps
+                                        "anomaly_score": min(excess_ratio / 5.0, 1.0),  # Normalize to 0-1
+                                        "severity": severity,
+                                    })
                 except Exception as e:
                     logger.warning(f"Network anomaly detection failed: {e}")
             

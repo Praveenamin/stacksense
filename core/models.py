@@ -320,42 +320,122 @@ class AlertHistory(models.Model):
         return f"{self.server.name} - {self.alert_type} {self.status} at {self.sent_at}"
 
 
-class UserACL(models.Model):
-    """Access Control List for Staff Users - defines permissions for non-superuser staff"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='acl')
-    
-    # Dashboard permissions
-    can_view_dashboard = models.BooleanField(default=True, help_text="Can view servers/alerts in dashboard")
-    
-    # Threshold permissions
-    can_edit_thresholds = models.BooleanField(default=False, help_text="Can edit alert thresholds")
-    
-    # Monitoring control permissions
-    can_halt_monitoring = models.BooleanField(default=False, help_text="Can halt/resume monitoring")
-    can_mute_notifications = models.BooleanField(default=False, help_text="Can mute/unmute notifications")
-    
-    # Server management permissions
-    can_add_server = models.BooleanField(default=False, help_text="Can add new servers")
-    can_edit_server = models.BooleanField(default=False, help_text="Can edit existing servers")
-    can_delete_server = models.BooleanField(default=False, help_text="Can delete servers")
-    
+class Role(models.Model):
+    """RBAC Role - defines a set of permissions that can be assigned to users"""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, help_text="Description of this role's responsibilities")
+    is_protected = models.BooleanField(default=False, help_text="Protected roles cannot be renamed or deleted")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
+    class Meta:
+        verbose_name = "Role"
+        verbose_name_plural = "Roles"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    def get_privileges(self):
+        """Get all privileges for this role"""
+        return self.role_privileges.select_related('privilege')
+
+
+class Privilege(models.Model):
+    """Individual permission that can be assigned to roles"""
+    key = models.CharField(max_length=100, unique=True, help_text="Machine-readable key (e.g., 'view_dashboard')")
+    label = models.CharField(max_length=200, help_text="Human-readable label (e.g., 'View Dashboard')")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Privilege"
+        verbose_name_plural = "Privileges"
+        ordering = ['key']
+
+    def __str__(self):
+        return self.label
+
+
+class RolePrivilege(models.Model):
+    """Many-to-many mapping between roles and privileges"""
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='role_privileges')
+    privilege = models.ForeignKey(Privilege, on_delete=models.CASCADE, related_name='role_privileges')
+
+    class Meta:
+        unique_together = [['role', 'privilege']]
+        verbose_name = "Role Privilege"
+        verbose_name_plural = "Role Privileges"
+
+    def __str__(self):
+        return f"{self.role.name} - {self.privilege.label}"
+
+
+class UserACL(models.Model):
+    """Access Control List for Staff Users - now uses role-based permissions"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='acl')
+    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True,
+                           help_text="Role that defines this user's permissions")
+
+    # DEPRECATED: These boolean flags are kept for backward compatibility
+    # but should be removed after migration to role-based system
+    can_view_dashboard = models.BooleanField(default=True, help_text="[DEPRECATED] Use role privileges")
+    can_edit_thresholds = models.BooleanField(default=False, help_text="[DEPRECATED] Use role privileges")
+    can_halt_monitoring = models.BooleanField(default=False, help_text="[DEPRECATED] Use role privileges")
+    can_mute_notifications = models.BooleanField(default=False, help_text="[DEPRECATED] Use role privileges")
+    can_add_server = models.BooleanField(default=False, help_text="[DEPRECATED] Use role privileges")
+    can_edit_server = models.BooleanField(default=False, help_text="[DEPRECATED] Use role privileges")
+    can_delete_server = models.BooleanField(default=False, help_text="[DEPRECATED] Use role privileges")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         verbose_name = "User ACL"
         verbose_name_plural = "User ACLs"
         ordering = ['user__username']
-    
+
     def __str__(self):
-        return f"ACL for {self.user.username}"
-    
+        role_name = self.role.name if self.role else "No Role"
+        return f"ACL for {self.user.username} ({role_name})"
+
+    def has_privilege(self, privilege_key):
+        """Check if user has a specific privilege"""
+        # Root Admin (superuser) has all privileges
+        if self.user.is_superuser:
+            return True
+
+        # Check role-based privileges
+        if self.role and self.role.role_privileges.filter(privilege__key=privilege_key).exists():
+            return True
+
+        return False
+
+    def get_all_privileges(self):
+        """Get all privilege keys for this user"""
+        if self.user.is_superuser:
+            # Root Admin has all privileges
+            return Privilege.objects.values_list('key', flat=True)
+
+        if self.role:
+            return self.role.role_privileges.values_list('privilege__key', flat=True)
+
+        return []
+
     @classmethod
     def get_or_create_for_user(cls, user):
-        """Get or create ACL for a user, defaulting all permissions to False for staff users"""
+        """Get or create ACL for a user"""
         acl, created = cls.objects.get_or_create(user=user)
         if created and not user.is_superuser:
-            # For new staff users, set defaults (only view dashboard enabled by default)
-            acl.can_view_dashboard = True
-            acl.save()
+            # For new staff users, assign default Viewer role if it exists
+            try:
+                viewer_role = Role.objects.get(name="Viewer")
+                acl.role = viewer_role
+                acl.save()
+            except Role.DoesNotExist:
+                # Fallback to old boolean system if roles not yet set up
+                acl.can_view_dashboard = True
+                acl.save()
         return acl

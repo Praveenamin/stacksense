@@ -34,7 +34,16 @@ urlpatterns = [
     path("api/server/<int:server_id>/service/<int:service_id>/toggle-monitoring/", views.toggle_service_monitoring, name="toggle_service_monitoring"),
     path("api/server/<int:server_id>/anomaly-status/", views.anomaly_status_api, name="anomaly_status_api"),
     path("api/server/<int:server_id>/metric-history/", views.metric_history_api, name="metric_history_api"),
+    path("api/anomalies/<int:anomaly_id>/", views.anomaly_detail_api, name="anomaly_detail_api"),
+    path("api/anomalies/<int:anomaly_id>/resolve/", views.anomaly_resolve_api, name="anomaly_resolve_api"),
+    path("api/anomalies/bulk-resolve/", views.anomaly_bulk_resolve_api, name="anomaly_bulk_resolve_api"),
     path("help/", views.help_docs, name="help_docs"),
     path("logout/", views.custom_logout, name="logout"),
+    # RBAC URLs
+    path("roles/", views.role_management, name="role_management"),
+    path("roles/create/", views.create_role, name="create_role"),
+    path("roles/edit/<int:role_id>/", views.edit_role, name="edit_role"),
+    path("roles/delete/<int:role_id>/", views.delete_role, name="delete_role"),
+    path("demo/", views.demo_dashboard, name="demo_dashboard"),
 ]
 

@@ -145,19 +145,39 @@ def metric_history_api(request, server_id):
             )
         
         # Parse time range from query parameter
-        hours = request.GET.get('hours', '6')
-        try:
-            hours = int(hours)
-        except (ValueError, TypeError):
-            hours = 6
+        # Accept either 'range' (1h, 7d, 1m, 3m) or 'hours' (legacy support)
+        range_param = request.GET.get('range', '1h')
+        hours_param = request.GET.get('hours', None)
         
-        # Cap at 24 hours for performance
-        hours = min(max(hours, 1), 24)
+        # Legacy support: if hours is provided, use it
+        if hours_param:
+            try:
+                hours = int(hours_param)
+                hours = min(max(hours, 1), 24)
+                since = timezone.now() - timedelta(hours=hours)
+            except (ValueError, TypeError):
+                range_param = '1h'  # Fallback to default
         
-        # Calculate time range
-        since = timezone.now() - timedelta(hours=hours)
+        # Parse range parameter
+        if not hours_param:
+            range_param = range_param.lower()
+            if range_param == '1h':
+                hours = 1
+            elif range_param == '7d':
+                hours = 7 * 24  # 7 days
+            elif range_param == '1m':
+                hours = 30 * 24  # 30 days (1 month)
+            elif range_param == '3m':
+                hours = 90 * 24  # 90 days (3 months)
+            else:
+                # Default to 1 hour if invalid range
+                hours = 1
+            
+            # Calculate time range
+            since = timezone.now() - timedelta(hours=hours)
         
         # Query SystemMetric for this server in the time range
+        # Use select_related and ensure we get all fields needed
         metrics_qs = (
             SystemMetric.objects
             .filter(server=server, timestamp__gte=since)
@@ -165,14 +185,49 @@ def metric_history_api(request, server_id):
             .only("timestamp", "cpu_percent", "memory_percent", "disk_usage")
         )
         
+        # Log query for debugging (can be removed in production)
+        metrics_count = metrics_qs.count()
+        if metrics_count == 0:
+            app_logger.warning(f"No metrics found for server {server.name} (ID: {server_id}) in range {range_param} (since: {since})")
+        
         # Convert to list for processing
         metrics_list = list(metrics_qs)
         
         # Down-sample if too many points (cap at ~500)
+        # Use smarter downsampling that preserves peaks and boundaries
         if len(metrics_list) > 500:
-            # Keep every Nth row
-            step = len(metrics_list) // 500
-            metrics_list = metrics_list[::step]
+            # Calculate step size
+            step = max(1, len(metrics_list) // 500)
+            
+            # Smart downsampling: keep first, last, and evenly sample middle
+            # Also preserve points with high CPU/memory values (potential spikes)
+            downsampled = []
+            
+            # Always keep first point
+            if metrics_list:
+                downsampled.append(metrics_list[0])
+            
+            # Sample middle points, but prioritize high values
+            high_value_indices = set()
+            for i, metric in enumerate(metrics_list[1:-1], start=1):
+                # Mark indices with high CPU or memory (>80%)
+                if (metric.cpu_percent and metric.cpu_percent > 80) or \
+                   (metric.memory_percent and metric.memory_percent > 80):
+                    high_value_indices.add(i)
+            
+            # Add evenly sampled points and high-value points
+            for i in range(1, len(metrics_list) - 1):
+                if i % step == 0 or i in high_value_indices:
+                    if metrics_list[i] not in downsampled:
+                        downsampled.append(metrics_list[i])
+            
+            # Always keep last point
+            if len(metrics_list) > 1:
+                if metrics_list[-1] not in downsampled:
+                    downsampled.append(metrics_list[-1])
+            
+            # Sort by timestamp to maintain order
+            metrics_list = sorted(downsampled, key=lambda m: m.timestamp)
         
         # Extract arrays
         timestamps = []
@@ -182,8 +237,11 @@ def metric_history_api(request, server_id):
         
         for metric in metrics_list:
             timestamps.append(metric.timestamp.isoformat())
-            cpu_values.append(float(metric.cpu_percent) if metric.cpu_percent is not None else None)
-            memory_values.append(float(metric.memory_percent) if metric.memory_percent is not None else None)
+            # Ensure we're using the actual values, not None
+            cpu_val = float(metric.cpu_percent) if metric.cpu_percent is not None else 0.0
+            memory_val = float(metric.memory_percent) if metric.memory_percent is not None else 0.0
+            cpu_values.append(cpu_val)
+            memory_values.append(memory_val)
             
             # Extract max disk percent from disk_usage JSONField
             max_disk = None
@@ -252,8 +310,9 @@ def anomaly_status_api(request, server_id):
     
     This endpoint:
     1. Tries to load cached status from Redis
-    2. If cache miss, computes fresh summary and caches it
-    3. Returns JSON response with anomaly status
+    2. Validates cache against database (if cache shows active anomalies, verify they still exist)
+    3. If cache miss or invalid, computes fresh summary and caches it
+    4. Returns JSON response with anomaly status
     
     Args:
         request: Django HTTP request
@@ -279,6 +338,7 @@ def anomaly_status_api(request, server_id):
         # Import here to avoid circular imports
         from .anomaly_cache import AnomalyCache
         from .anomaly_status_service import AnomalyStatusService
+        from .models import Anomaly
         
         # Get server or return 404
         try:
@@ -289,11 +349,35 @@ def anomaly_status_api(request, server_id):
                 status=404
             )
         
-        # Try to load from Redis cache first
+        # ALWAYS check database first to ensure accuracy
+        # This ensures we catch any resolved anomalies immediately
+        actual_active_count = Anomaly.objects.filter(
+            server=server,
+            resolved=False
+        ).count()
+        
+        # Try to load from Redis cache
         cached_summary = AnomalyCache.load_status(server_id)
         
         if cached_summary is not None:
-            # Cache hit - return cached data
+            # Cache hit - validate cache against database
+            cached_active = cached_summary.get('active', 0)
+            cached_severity = cached_summary.get('highest_severity', 'OK')
+            
+            # If DB shows different count, cache is stale - clear and recompute
+            if actual_active_count != cached_active:
+                # Cache is stale - clear it and recompute
+                AnomalyCache.clear(server_id)
+                summary = AnomalyStatusService.refresh_and_cache(server)
+                return JsonResponse(summary)
+            
+            # Additional validation: if DB shows 0 but cache shows non-OK severity, invalidate
+            if actual_active_count == 0 and cached_severity != 'OK':
+                AnomalyCache.clear(server_id)
+                summary = AnomalyStatusService.refresh_and_cache(server)
+                return JsonResponse(summary)
+            
+            # Cache matches DB - return it
             return JsonResponse(cached_summary)
         
         # Cache miss - compute fresh summary
@@ -709,10 +793,25 @@ def monitoring_dashboard(request):
                             disk_percent = first_partition.get("percent", 0) or 0
                 except Exception:
                     disk_percent = 0
-        
+
+        # Calculate server status for this specific server
+        # Consider server online if metrics are within last 15 minutes (3x typical collection interval)
+        calculated_status = "offline"
+        if latest_metric:
+            time_diff = timezone.now() - latest_metric.timestamp
+            if time_diff < timedelta(minutes=15):
+                cpu = latest_metric.cpu_percent or 0
+                memory = latest_metric.memory_percent or 0
+                if cpu > 80 or memory > 85:
+                    calculated_status = "warning"
+                else:
+                    calculated_status = "online"
+            else:
+                calculated_status = "offline"
+
         servers_data.append({
             "server": server,
-        "server_status": status,
+            "server_status": calculated_status,
             "latest_metric": latest_metric,
             "status": status,
             "uptime_days": uptime_days,
@@ -727,22 +826,7 @@ def monitoring_dashboard(request):
             "alert_suppressed": alert_suppressed,
             "monitoring_suspended": monitoring_suspended,
         })
-    
 
-    # Calculate server status
-    # Consider server online if metrics are within last 15 minutes (3x typical collection interval)
-    server_status = "offline"
-    if latest_metric:
-        time_diff = timezone.now() - latest_metric.timestamp
-        if time_diff < timedelta(minutes=15):
-            cpu = latest_metric.cpu_percent or 0
-            memory = latest_metric.memory_percent or 0
-            if cpu > 80 or memory > 85:
-                server_status = "warning"
-            else:
-                server_status = "online"
-        else:
-            server_status = "offline"
     context = {
         "servers_data": servers_data,
         "total_servers": len(servers_data),
@@ -759,6 +843,12 @@ def monitoring_dashboard(request):
 @staff_member_required
 def add_server(request):
     """Add a new server with SSH key deployment"""
+    from .utils import has_privilege
+
+    if not has_privilege(request.user, 'add_server'):
+        messages.error(request, "You don't have permission to add servers.")
+        return redirect('monitoring_dashboard')
+
     if request.method == "GET":
         # Render the add server page
         context = {}
@@ -1959,6 +2049,12 @@ def update_thresholds(request, server_id):
 @staff_member_required
 def admin_users(request):
     from .models import UserACL
+    from .utils import has_privilege
+
+    if not has_privilege(request.user, 'manage_users'):
+        messages.error(request, "You don't have permission to manage users.")
+        return redirect('monitoring_dashboard')
+
     users = User.objects.filter(is_staff=True).select_related('acl').order_by("username")
     # Ensure all users have ACL records
     for user in users:
@@ -1980,33 +2076,59 @@ def admin_users(request):
 
 @staff_member_required
 def create_admin_user(request):
-    from .models import UserACL
+    from .models import UserACL, Role
+    from .utils import has_privilege
+
+    # Check permissions - only users with manage_users privilege can create users
+    if not has_privilege(request.user, 'manage_users'):
+        messages.error(request, "You do not have permission to create users.")
+        return redirect("admin_users")
+
     if request.method == "POST":
         username = request.POST.get("username")
         email = request.POST.get("email")
         password = request.POST.get("password")
         is_superuser = request.POST.get("is_superuser") == "on"
+        role_id = request.POST.get("role")
+
+        if not username or not password:
+            messages.error(request, "Username and password are required.")
+            return redirect("create_admin_user")
+
+        if not is_superuser and not role_id:
+            messages.error(request, "Please select a role for non-superuser accounts.")
+            return redirect("create_admin_user")
+
         if User.objects.filter(username=username).exists():
             messages.error(request, "Username already exists.")
+            return redirect("create_admin_user")
+
+        try:
+            user = User.objects.create_user(username=username, email=email, password=password, is_staff=True, is_superuser=is_superuser)
+
+            # Assign role for non-superuser staff
+            if not is_superuser:
+                try:
+                    role = Role.objects.get(id=role_id)
+                    acl = UserACL.get_or_create_for_user(user)
+                    acl.role = role
+                    acl.save()
+                except Role.DoesNotExist:
+                    messages.error(request, "Selected role does not exist.")
+                    user.delete()  # Clean up the created user
+                    return redirect("create_admin_user")
+
+            messages.success(request, f"User {username} created successfully.")
             return redirect("admin_users")
-        user = User.objects.create_user(username=username, email=email, password=password, is_staff=True, is_superuser=is_superuser)
-        
-        # Create ACL for non-superuser staff
-        if not is_superuser:
-            acl = UserACL.get_or_create_for_user(user)
-            # Set ACL permissions from form
-            acl.can_view_dashboard = request.POST.get("can_view_dashboard") == "on"
-            acl.can_edit_thresholds = request.POST.get("can_edit_thresholds") == "on"
-            acl.can_halt_monitoring = request.POST.get("can_halt_monitoring") == "on"
-            acl.can_mute_notifications = request.POST.get("can_mute_notifications") == "on"
-            acl.can_add_server = request.POST.get("can_add_server") == "on"
-            acl.can_edit_server = request.POST.get("can_edit_server") == "on"
-            acl.can_delete_server = request.POST.get("can_delete_server") == "on"
-            acl.save()
-        
-        messages.success(request, f"User {username} created successfully.")
-        return redirect("admin_users")
-    return redirect("admin_users")
+        except Exception as e:
+            messages.error(request, f"Error creating user: {str(e)}")
+            return redirect("create_admin_user")
+
+    # GET request - render the form with available roles
+    available_roles = Role.objects.all().order_by('name')
+    return render(request, "core/create_admin_user.html", {
+        'available_roles': available_roles
+    })
 
 @staff_member_required
 def edit_admin_user(request, user_id):
@@ -2682,6 +2804,243 @@ def get_active_services(request, server_id):
 
 
 @staff_member_required
+@require_http_methods(["GET"])
+def anomaly_detail_api(request, anomaly_id):
+    """
+    API endpoint for retrieving detailed anomaly information.
+    
+    If explanation is empty and LLM is enabled, generates explanation on-demand.
+    
+    Args:
+        request: Django HTTP request
+        anomaly_id: Integer anomaly ID
+    
+    Returns:
+        JsonResponse: Anomaly details with explanation
+    """
+    try:
+        anomaly = get_object_or_404(Anomaly, id=anomaly_id)
+        
+        # Check if user has permission to view this anomaly
+        # (Anomalies are server-specific, so check server access)
+        if not request.user.is_superuser:
+            # Check ACL if needed - for now, allow all staff members
+            pass
+        
+        # Prepare response data
+        response_data = {
+            "id": anomaly.id,
+            "server": {
+                "id": anomaly.server.id,
+                "name": anomaly.server.name
+            },
+            "timestamp": anomaly.timestamp.isoformat(),
+            "metric_type": anomaly.metric_type,
+            "metric_name": anomaly.metric_name,
+            "metric_value": anomaly.metric_value,
+            "severity": anomaly.severity,
+            "anomaly_score": anomaly.anomaly_score,
+            "explanation": anomaly.explanation or "",
+            "llm_generated": anomaly.llm_generated,
+            "acknowledged": anomaly.acknowledged,
+            "resolved": anomaly.resolved,
+            "resolved_at": anomaly.resolved_at.isoformat() if anomaly.resolved_at else None,
+        }
+        
+        # If explanation is empty and LLM is enabled, generate it
+        if not anomaly.explanation:
+            try:
+                config = anomaly.server.monitoring_config
+                if config and getattr(config, 'use_llm_explanation', True):
+                    from .llm_analyzer import OllamaAnalyzer
+                    analyzer = OllamaAnalyzer()
+                    
+                    if analyzer.enabled:
+                        explanation = analyzer.explain_anomaly(
+                            metric_type=anomaly.metric_type,
+                            metric_name=anomaly.metric_name,
+                            metric_value=anomaly.metric_value,
+                            server_name=anomaly.server.name
+                        )
+                        
+                        if explanation:
+                            anomaly.explanation = explanation
+                            anomaly.llm_generated = True
+                            anomaly.save()
+                            
+                            response_data["explanation"] = explanation
+                            response_data["llm_generated"] = True
+            except Exception as e:
+                app_logger.warning(f"Failed to generate LLM explanation for anomaly {anomaly_id}: {e}")
+        
+        # If still no explanation, generate fallback
+        if not response_data["explanation"]:
+            response_data["explanation"] = _generate_fallback_explanation(anomaly)
+        
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        error_logger.error(f"Error in anomaly_detail_api for anomaly {anomaly_id}: {e}")
+        return JsonResponse(
+            {"error": "Internal server error", "message": str(e)},
+            status=500
+        )
+
+
+def _generate_fallback_explanation(anomaly):
+    """Generate a fallback explanation when LLM is not available."""
+    metric_type = anomaly.metric_type.lower()
+    metric_value = anomaly.metric_value
+    severity = anomaly.severity
+    
+    explanations = {
+        "cpu": f"CPU usage reached {metric_value:.1f}%, which is {severity.lower()} severity. This may indicate high computational load, background processes, or resource-intensive applications running on the server.",
+        "memory": f"Memory usage reached {metric_value:.1f}%, which is {severity.lower()} severity. This suggests the system is using a significant portion of available RAM, potentially causing performance degradation or swap usage.",
+        "disk": f"Disk usage reached {metric_value:.1f}%, which is {severity.lower()} severity. The storage partition is nearly full, which may prevent new files from being written and could cause application failures.",
+        "network": f"Network throughput reached {metric_value:.2f} GB, which is {severity.lower()} severity. This indicates high network activity, which may be due to legitimate traffic, data transfers, or potential network issues."
+    }
+    
+    return explanations.get(metric_type, f"Anomaly detected in {metric_type} metric with value {metric_value:.2f} ({severity} severity). Please investigate the system state and recent changes.")
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def anomaly_resolve_api(request, anomaly_id):
+    """
+    API endpoint for manually resolving an anomaly.
+    
+    Sets acknowledged=True, resolved=True, and resolved_at=now().
+    Does NOT delete the anomaly record.
+    
+    Args:
+        request: Django HTTP request
+        anomaly_id: Integer anomaly ID
+    
+    Returns:
+        JsonResponse: Success status and updated anomaly data
+    """
+    try:
+        anomaly = get_object_or_404(Anomaly, id=anomaly_id)
+        
+        # Check if user has permission to resolve anomalies
+        if not request.user.is_superuser:
+            # Check ACL if needed - for now, allow all staff members
+            pass
+        
+        # Mark as resolved
+        anomaly.acknowledged = True
+        anomaly.resolved = True
+        anomaly.resolved_at = timezone.now()
+        anomaly.save()
+        
+        # Clear anomaly cache for this server to force refresh
+        try:
+            from .anomaly_cache import AnomalyCache
+            AnomalyCache.clear(anomaly.server.id)
+        except Exception as e:
+            app_logger.warning(f"Failed to clear anomaly cache for server {anomaly.server.id}: {e}")
+        
+        _log_user_action(request, "RESOLVE_ANOMALY", 
+                        f"Anomaly ID: {anomaly_id} on server {anomaly.server.name}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Anomaly marked as resolved",
+            "anomaly": {
+                "id": anomaly.id,
+                "resolved": anomaly.resolved,
+                "resolved_at": anomaly.resolved_at.isoformat(),
+                "acknowledged": anomaly.acknowledged
+            }
+        })
+        
+    except Exception as e:
+        error_logger.error(f"Error in anomaly_resolve_api for anomaly {anomaly_id}: {e}")
+        return JsonResponse(
+            {"success": False, "error": "Internal server error", "message": str(e)},
+            status=500
+        )
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def anomaly_bulk_resolve_api(request):
+    """
+    API endpoint for bulk resolving multiple anomalies.
+    
+    Accepts a list of anomaly IDs in the request body and marks them all as resolved.
+    
+    Request Body (JSON):
+        {
+            "anomaly_ids": [1, 2, 3, ...]
+        }
+    
+    Returns:
+        JsonResponse: Success status and count of resolved anomalies
+    """
+    try:
+        import json
+        data = json.loads(request.body)
+        anomaly_ids = data.get('anomaly_ids', [])
+        
+        if not anomaly_ids:
+            return JsonResponse(
+                {"success": False, "error": "No anomaly IDs provided"},
+                status=400
+            )
+        
+        if not isinstance(anomaly_ids, list):
+            return JsonResponse(
+                {"success": False, "error": "anomaly_ids must be a list"},
+                status=400
+            )
+        
+        # Get anomalies and verify they exist
+        anomalies = Anomaly.objects.filter(id__in=anomaly_ids)
+        resolved_count = 0
+        server_ids = set()
+        
+        for anomaly in anomalies:
+            # Mark as resolved
+            anomaly.acknowledged = True
+            anomaly.resolved = True
+            anomaly.resolved_at = timezone.now()
+            anomaly.save()
+            resolved_count += 1
+            server_ids.add(anomaly.server.id)
+        
+        # Clear anomaly cache for affected servers
+        try:
+            from .anomaly_cache import AnomalyCache
+            for server_id in server_ids:
+                AnomalyCache.clear(server_id)
+        except Exception as e:
+            app_logger.warning(f"Failed to clear anomaly cache: {e}")
+        
+        _log_user_action(request, "BULK_RESOLVE_ANOMALIES", 
+                        f"Resolved {resolved_count} anomalies: {anomaly_ids}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Successfully resolved {resolved_count} anomaly/anomalies",
+            "resolved_count": resolved_count,
+            "requested_count": len(anomaly_ids)
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON in request body"},
+            status=400
+        )
+    except Exception as e:
+        error_logger.error(f"Error in anomaly_bulk_resolve_api: {e}")
+        return JsonResponse(
+            {"success": False, "error": "Internal server error", "message": str(e)},
+            status=500
+        )
+
+
+@staff_member_required
 @require_http_methods(["POST"])
 def toggle_service_monitoring(request, server_id, service_id):
     """
@@ -2732,3 +3091,197 @@ def custom_logout(request):
     """
     auth_logout(request)
     return HttpResponseRedirect('/admin/login/')
+
+
+# RBAC Views
+@staff_member_required
+def role_management(request):
+    """
+    Role management page for Root Admin - list and manage roles
+    """
+    from .utils import has_privilege
+
+    if not has_privilege(request.user, 'manage_roles'):
+        messages.error(request, "You don't have permission to manage roles.")
+        return redirect('monitoring_dashboard')
+
+    from .models import Role, Privilege
+
+    roles = Role.objects.all().prefetch_related('role_privileges__privilege')
+    privileges = Privilege.objects.all().order_by('key')
+
+    context = {
+        'roles': roles,
+        'privileges': privileges,
+        'can_manage_roles': has_privilege(request.user, 'manage_roles'),
+    }
+    return render(request, 'core/role_management.html', context)
+
+
+@staff_member_required
+def create_role(request):
+    """
+    Create a new role
+    """
+    from .utils import has_privilege
+
+    if not has_privilege(request.user, 'manage_roles'):
+        messages.error(request, "You don't have permission to manage roles.")
+        return redirect('monitoring_dashboard')
+
+    from .models import Role, Privilege, RolePrivilege
+
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        privilege_ids = request.POST.getlist('privileges')
+
+        if not name:
+            messages.error(request, "Role name is required.")
+            return redirect('create_role')
+
+        if Role.objects.filter(name=name).exists():
+            messages.error(request, "A role with this name already exists.")
+            return redirect('create_role')
+
+        # Create role
+        role = Role.objects.create(
+            name=name,
+            description=description
+        )
+
+        # Assign privileges
+        for priv_id in privilege_ids:
+            try:
+                privilege = Privilege.objects.get(id=priv_id)
+                RolePrivilege.objects.create(role=role, privilege=privilege)
+            except Privilege.DoesNotExist:
+                continue
+
+        messages.success(request, f"Role '{name}' created successfully.")
+        return redirect('role_management')
+
+    privileges = Privilege.objects.all().order_by('key')
+    return render(request, 'core/create_role.html', {'privileges': privileges})
+
+
+@staff_member_required
+def edit_role(request, role_id):
+    """
+    Edit an existing role
+    """
+    from .utils import has_privilege
+
+    if not has_privilege(request.user, 'manage_roles'):
+        messages.error(request, "You don't have permission to manage roles.")
+        return redirect('monitoring_dashboard')
+
+    from .models import Role, Privilege, RolePrivilege
+
+    role = get_object_or_404(Role, id=role_id)
+
+    # Don't allow editing protected roles
+    if role.is_protected:
+        messages.error(request, "Protected roles cannot be edited.")
+        return redirect('role_management')
+
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        privilege_ids = request.POST.getlist('privileges')
+
+        if not name:
+            messages.error(request, "Role name is required.")
+            return redirect('edit_role', role_id=role_id)
+
+        # Check if name conflicts with another role
+        if Role.objects.filter(name=name).exclude(id=role_id).exists():
+            messages.error(request, "A role with this name already exists.")
+            return redirect('edit_role', role_id=role_id)
+
+        # Update role
+        role.name = name
+        role.description = description
+        role.save()
+
+        # Clear existing privileges
+        RolePrivilege.objects.filter(role=role).delete()
+
+        # Assign new privileges
+        for priv_id in privilege_ids:
+            try:
+                privilege = Privilege.objects.get(id=priv_id)
+                RolePrivilege.objects.create(role=role, privilege=privilege)
+            except Privilege.DoesNotExist:
+                continue
+
+        messages.success(request, f"Role '{name}' updated successfully.")
+        return redirect('role_management')
+
+    privileges = Privilege.objects.all().order_by('key')
+    role_privilege_ids = set(role.role_privileges.values_list('privilege_id', flat=True))
+
+    context = {
+        'role': role,
+        'privileges': privileges,
+        'role_privilege_ids': role_privilege_ids,
+    }
+    return render(request, 'core/edit_role.html', context)
+
+
+@staff_member_required
+def delete_role(request, role_id):
+    """
+    Delete a role
+    """
+    from .utils import has_privilege
+
+    if not has_privilege(request.user, 'manage_roles'):
+        messages.error(request, "You don't have permission to manage roles.")
+        return redirect('monitoring_dashboard')
+
+    from .models import Role, UserACL
+
+    role = get_object_or_404(Role, id=role_id)
+
+    # Don't allow deleting protected roles
+    if role.is_protected:
+        messages.error(request, "Protected roles cannot be deleted.")
+        return redirect('role_management')
+
+    # Check if role is assigned to any users
+    if UserACL.objects.filter(role=role).exists():
+        messages.error(request, f"Cannot delete role '{role.name}' because it is assigned to users. Please reassign users to other roles first.")
+        return redirect('role_management')
+
+    role_name = role.name
+    role.delete()
+    messages.success(request, f"Role '{role_name}' deleted successfully.")
+    return redirect('role_management')
+
+
+def demo_dashboard(request):
+    """
+    Demo dashboard showcasing all UI components from the design system
+    """
+    context = {
+        'page_title': 'Design System Demo',
+        'demo_data': {
+            'server_count': 8,
+            'active_alerts': 3,
+            'total_metrics': 156,
+            'uptime_percentage': 98.5,
+        },
+        'sample_servers': [
+            {'name': 'Web Server 01', 'status': 'online', 'cpu': 45, 'memory': 67},
+            {'name': 'Database 01', 'status': 'warning', 'cpu': 78, 'memory': 82},
+            {'name': 'API Gateway', 'status': 'online', 'cpu': 23, 'memory': 34},
+            {'name': 'Cache Server', 'status': 'offline', 'cpu': 0, 'memory': 0},
+        ],
+        'alerts': [
+            {'type': 'warning', 'message': 'High CPU usage on Database 01', 'time': '2 min ago'},
+            {'type': 'danger', 'message': 'API Gateway connection timeout', 'time': '5 min ago'},
+            {'type': 'info', 'message': 'Scheduled maintenance completed', 'time': '1 hour ago'},
+        ]
+    }
+    return render(request, 'core/demo_dashboard.html', context)

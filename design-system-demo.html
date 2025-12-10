@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StackSense Design System v2.0 - Complete Component Library</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           StackSense Design System v2.0 - CSS Variables
+           ============================================ */
+
+        :root {
+            /* Color Palette */
+            --color-primary-50: #f0f9ff;
+            --color-primary-100: #e0f2fe;
+            --color-primary-500: #0ea5e9;
+            --color-primary-600: #0284c7;
+            --color-primary-700: #0369a1;
+            --color-primary-900: #0c4a6e;
+
+            --color-secondary-50: #f8fafc;
+            --color-secondary-100: #f1f5f9;
+            --color-secondary-200: #e2e8f0;
+            --color-secondary-300: #cbd5e1;
+            --color-secondary-400: #94a3b8;
+            --color-secondary-500: #64748b;
+            --color-secondary-600: #475569;
+            --color-secondary-700: #334155;
+            --color-secondary-900: #0f172a;
+
+            --color-success-50: #f0fdf4;
+            --color-success-100: #dcfce7;
+            --color-success-500: #22c55e;
+            --color-success-600: #16a34a;
+            --color-success-700: #15803d;
+
+            --color-warning-50: #fffbeb;
+            --color-warning-100: #fef3c7;
+            --color-warning-500: #f59e0b;
+            --color-warning-600: #d97706;
+            --color-warning-700: #b45309;
+
+            --color-danger-50: #fef2f2;
+            --color-danger-100: #fee2e2;
+            --color-danger-500: #ef4444;
+            --color-danger-600: #dc2626;
+            --color-danger-700: #b91c1c;
+
+            --color-neutral-white: #ffffff;
+            --color-neutral-gray-50: #f8fafc;
+            --color-neutral-gray-100: #f1f5f9;
+            --color-neutral-gray-200: #e2e8f0;
+            --color-neutral-gray-300: #cbd5e1;
+            --color-neutral-gray-400: #94a3b8;
+            --color-neutral-gray-500: #64748b;
+            --color-neutral-gray-600: #475569;
+            --color-neutral-gray-700: #334155;
+
+            /* Typography */
+            --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+            --font-size-xs: 0.75rem;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+            --font-size-3xl: 1.875rem;
+            --font-size-4xl: 2.25rem;
+            --font-size-5xl: 3rem;
+
+            --font-weight-light: 300;
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-semibold: 600;
+            --font-weight-bold: 700;
+
+            --line-height-tight: 1.25;
+            --line-height-normal: 1.5;
+            --line-height-relaxed: 1.625;
+            --line-height-loose: 2;
+
+            --letter-spacing-tight: -0.025em;
+            --letter-spacing-normal: 0em;
+            --letter-spacing-wide: 0.025em;
+
+            /* Spacing */
+            --spacing-0: 0;
+            --spacing-1: 0.25rem;
+            --spacing-2: 0.5rem;
+            --spacing-3: 0.75rem;
+            --spacing-4: 1rem;
+            --spacing-5: 1.25rem;
+            --spacing-6: 1.5rem;
+            --spacing-8: 2rem;
+            --spacing-10: 2.5rem;
+            --spacing-12: 3rem;
+            --spacing-16: 4rem;
+            --spacing-20: 5rem;
+            --spacing-24: 6rem;
+
+            /* Border Radius */
+            --border-radius-none: 0;
+            --border-radius-sm: 0.125rem;
+            --border-radius-base: 0.25rem;
+            --border-radius-md: 0.375rem;
+            --border-radius-lg: 0.5rem;
+            --border-radius-xl: 0.75rem;
+            --border-radius-2xl: 1rem;
+            --border-radius-3xl: 1.5rem;
+            --border-radius-full: 9999px;
+
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            --shadow-outline: 0 0 0 3px rgba(59, 130, 246, 0.1);
+
+            /* Z-Index */
+            --z-dropdown: 1000;
+            --z-sticky: 1020;
+            --z-fixed: 1030;
+            --z-modal: 1040;
+            --z-popover: 1050;
+            --z-tooltip: 1060;
+            --z-toast: 1070;
+
+            /* Layout */
+            --container-max-width: 1200px;
+            --sidebar-width: 280px;
+        }
+
+        /* ============================================
+           Base Styles & Reset
+           ============================================ */
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-family: var(--font-family-primary);
+        }
+
+        body {
+            font-size: var(--font-size-base);
+            line-height: var(--line-height-normal);
+            color: var(--color-secondary-900);
+            background-color: var(--color-neutral-gray-50);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ============================================
+           Typography Classes
+           ============================================ */
+
+        .text-xs { font-size: var(--font-size-xs); }
+        .text-sm { font-size: var(--font-size-sm); }
+        .text-base { font-size: var(--font-size-base); }
+        .text-lg { font-size: var(--font-size-lg); }
+        .text-xl { font-size: var(--font-size-xl); }
+        .text-2xl { font-size: var(--font-size-2xl); }
+        .text-3xl { font-size: var(--font-size-3xl); }
+        .text-4xl { font-size: var(--font-size-4xl); }
+        .text-5xl { font-size: var(--font-size-5xl); }
+
+        .font-light { font-weight: var(--font-weight-light); }
+        .font-normal { font-weight: var(--font-weight-normal); }
+        .font-medium { font-weight: var(--font-weight-medium); }
+        .font-semibold { font-weight: var(--font-weight-semibold); }
+        .font-bold { font-weight: var(--font-weight-bold); }
+
+        .text-primary { color: var(--color-primary-600); }
+        .text-secondary { color: var(--color-secondary-600); }
+        .text-success { color: var(--color-success-600); }
+        .text-warning { color: var(--color-warning-600); }
+        .text-danger { color: var(--color-danger-600); }
+        .text-muted { color: var(--color-secondary-400); }
+
+        .leading-tight { line-height: var(--line-height-tight); }
+        .leading-normal { line-height: var(--line-height-normal); }
+        .leading-relaxed { line-height: var(--line-height-relaxed); }
+        .leading-loose { line-height: var(--line-height-loose); }
+
+        .tracking-tight { letter-spacing: var(--letter-spacing-tight); }
+        .tracking-normal { letter-spacing: var(--letter-spacing-normal); }
+        .tracking-wide { letter-spacing: var(--letter-spacing-wide); }
+
+        /* ============================================
+           Layout Utilities
+           ============================================ */
+
+        .container {
+            width: 100%;
+            max-width: var(--container-max-width);
+            margin: 0 auto;
+            padding-left: var(--spacing-4);
+            padding-right: var(--spacing-4);
+        }
+
+        .flex { display: flex; }
+        .inline-flex { display: inline-flex; }
+        .block { display: block; }
+        .inline-block { display: inline-block; }
+        .inline { display: inline; }
+        .hidden { display: none; }
+
+        .flex-row { flex-direction: row; }
+        .flex-col { flex-direction: column; }
+        .flex-wrap { flex-wrap: wrap; }
+        .flex-nowrap { flex-wrap: nowrap; }
+
+        .items-start { align-items: flex-start; }
+        .items-center { align-items: center; }
+        .items-end { align-items: flex-end; }
+        .items-stretch { align-items: stretch; }
+
+        .justify-start { justify-content: flex-start; }
+        .justify-center { justify-content: center; }
+        .justify-end { justify-content: flex-end; }
+        .justify-between { justify-content: space-between; }
+        .justify-around { justify-content: space-around; }
+
+        .flex-1 { flex: 1; }
+        .flex-auto { flex: auto; }
+        .flex-none { flex: none; }
+
+        /* ============================================
+           Spacing Utilities
+           ============================================ */
+
+        .m-0 { margin: var(--spacing-0); }
+        .m-1 { margin: var(--spacing-1); }
+        .m-2 { margin: var(--spacing-2); }
+        .m-3 { margin: var(--spacing-3); }
+        .m-4 { margin: var(--spacing-4); }
+        .m-6 { margin: var(--spacing-6); }
+        .m-8 { margin: var(--spacing-8); }
+
+        .mt-0 { margin-top: var(--spacing-0); }
+        .mt-1 { margin-top: var(--spacing-1); }
+        .mt-2 { margin-top: var(--spacing-2); }
+        .mt-3 { margin-top: var(--spacing-3); }
+        .mt-4 { margin-top: var(--spacing-4); }
+        .mt-6 { margin-top: var(--spacing-6); }
+        .mt-8 { margin-top: var(--spacing-8); }
+
+        .mb-0 { margin-bottom: var(--spacing-0); }
+        .mb-1 { margin-bottom: var(--spacing-1); }
+        .mb-2 { margin-bottom: var(--spacing-2); }
+        .mb-3 { margin-bottom: var(--spacing-3); }
+        .mb-4 { margin-bottom: var(--spacing-4); }
+        .mb-6 { margin-bottom: var(--spacing-6); }
+        .mb-8 { margin-bottom: var(--spacing-8); }
+
+        .p-0 { padding: var(--spacing-0); }
+        .p-1 { padding: var(--spacing-1); }
+        .p-2 { padding: var(--spacing-2); }
+        .p-3 { padding: var(--spacing-3); }
+        .p-4 { padding: var(--spacing-4); }
+        .p-6 { padding: var(--spacing-6); }
+        .p-8 { padding: var(--spacing-8); }
+
+        /* ============================================
+           Buttons
+           ============================================ */
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--spacing-3) var(--spacing-6);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            border-radius: var(--border-radius-md);
+            border: 1px solid transparent;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 200ms ease;
+            line-height: 1;
+        }
+
+        .btn:focus {
+            outline: none;
+            box-shadow: var(--shadow-outline);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* Primary Button */
+        .btn-primary {
+            background-color: var(--color-primary-500);
+            color: var(--color-neutral-white);
+            border-color: var(--color-primary-500);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--color-primary-600);
+            border-color: var(--color-primary-600);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Secondary Button */
+        .btn-secondary {
+            background-color: var(--color-neutral-white);
+            color: var(--color-secondary-700);
+            border-color: var(--color-secondary-300);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: var(--color-secondary-50);
+            border-color: var(--color-secondary-400);
+        }
+
+        /* Outline Button */
+        .btn-outline {
+            background-color: transparent;
+            color: var(--color-primary-600);
+            border-color: var(--color-primary-300);
+        }
+
+        .btn-outline:hover:not(:disabled) {
+            background-color: var(--color-primary-50);
+            border-color: var(--color-primary-400);
+        }
+
+        /* Ghost Button */
+        .btn-ghost {
+            background-color: transparent;
+            color: var(--color-secondary-600);
+            border-color: transparent;
+        }
+
+        .btn-ghost:hover:not(:disabled) {
+            background-color: var(--color-secondary-100);
+            color: var(--color-secondary-900);
+        }
+
+        /* Button Sizes */
+        .btn-sm {
+            padding: var(--spacing-2) var(--spacing-4);
+            font-size: var(--font-size-xs);
+        }
+
+        .btn-lg {
+            padding: var(--spacing-4) var(--spacing-8);
+            font-size: var(--font-size-lg);
+        }
+
+        /* Button with Icons */
+        .btn-icon {
+            gap: var(--spacing-2);
+        }
+
+        /* ============================================
+           Cards
+           ============================================ */
+
+        .card {
+            background-color: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            padding: var(--spacing-6);
+            transition: all 200ms ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--color-secondary-300);
+        }
+
+        .card-header {
+            margin-bottom: var(--spacing-4);
+            padding-bottom: var(--spacing-4);
+            border-bottom: 1px solid var(--color-secondary-100);
+        }
+
+        .card-title {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-secondary-900);
+            margin: 0;
+        }
+
+        .card-subtitle {
+            font-size: var(--font-size-sm);
+            color: var(--color-secondary-600);
+            margin: var(--spacing-1) 0 0 0;
+        }
+
+        .card-content {
+            color: var(--color-secondary-700);
+            line-height: var(--line-height-relaxed);
+        }
+
+        .card-footer {
+            margin-top: var(--spacing-6);
+            padding-top: var(--spacing-4);
+            border-top: 1px solid var(--color-secondary-100);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* ============================================
+           Form Elements
+           ============================================ */
+
+        .form-group {
+            margin-bottom: var(--spacing-4);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-secondary-700);
+            margin-bottom: var(--spacing-2);
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: var(--spacing-3) var(--spacing-4);
+            font-size: var(--font-size-sm);
+            font-family: inherit;
+            color: var(--color-secondary-900);
+            background-color: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-300);
+            border-radius: var(--border-radius-md);
+            transition: all 200ms ease;
+            line-height: var(--line-height-normal);
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--color-primary-500);
+            box-shadow: var(--shadow-outline);
+        }
+
+        .form-input::placeholder,
+        .form-textarea::placeholder {
+            color: var(--color-secondary-400);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right var(--spacing-3) center;
+            background-repeat: no-repeat;
+            background-size: 16px;
+            padding-right: var(--spacing-10);
+            appearance: none;
+        }
+
+        .form-checkbox,
+        .form-radio {
+            width: auto;
+            margin-right: var(--spacing-2);
+        }
+
+        .form-help {
+            font-size: var(--font-size-xs);
+            color: var(--color-secondary-500);
+            margin-top: var(--spacing-1);
+        }
+
+        .form-error {
+            font-size: var(--font-size-xs);
+            color: var(--color-danger-600);
+            margin-top: var(--spacing-1);
+        }
+
+        /* ============================================
+           Status Indicators
+           ============================================ */
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--spacing-2);
+            padding: var(--spacing-1) var(--spacing-3);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+            border-radius: var(--border-radius-full);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .status-online {
+            background-color: var(--color-success-100);
+            color: var(--color-success-700);
+            border: 1px solid var(--color-success-200);
+        }
+
+        .status-warning {
+            background-color: var(--color-warning-100);
+            color: var(--color-warning-700);
+            border: 1px solid var(--color-warning-200);
+        }
+
+        .status-offline {
+            background-color: var(--color-danger-100);
+            color: var(--color-danger-700);
+            border: 1px solid var(--color-danger-200);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* ============================================
+           Alerts & Messages
+           ============================================ */
+
+        .alert {
+            padding: var(--spacing-4);
+            border-radius: var(--border-radius-md);
+            border: 1px solid transparent;
+            font-size: var(--font-size-sm);
+            line-height: var(--line-height-relaxed);
+        }
+
+        .alert-success {
+            background-color: var(--color-success-50);
+            color: var(--color-success-800);
+            border-color: var(--color-success-200);
+        }
+
+        .alert-warning {
+            background-color: var(--color-warning-50);
+            color: var(--color-warning-800);
+            border-color: var(--color-warning-200);
+        }
+
+        .alert-error {
+            background-color: var(--color-danger-50);
+            color: var(--color-danger-800);
+            border-color: var(--color-danger-200);
+        }
+
+        .alert-info {
+            background-color: var(--color-primary-50);
+            color: var(--color-primary-800);
+            border-color: var(--color-primary-200);
+        }
+
+        .alert-title {
+            font-weight: var(--font-weight-semibold);
+            margin-bottom: var(--spacing-1);
+        }
+
+        /* ============================================
+           Page Layout & Demo Styles
+           ============================================ */
+
+        .demo-wrapper {
+            min-height: 100vh;
+            background-color: var(--color-neutral-gray-50);
+        }
+
+        .demo-header {
+            background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-neutral-white) 100%);
+            border-bottom: 1px solid var(--color-secondary-200);
+            padding: var(--spacing-12) 0;
+            margin-bottom: var(--spacing-12);
+        }
+
+        .demo-header-content {
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .demo-title {
+            font-size: var(--font-size-4xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-secondary-900);
+            margin-bottom: var(--spacing-4);
+            line-height: var(--line-height-tight);
+        }
+
+        .demo-subtitle {
+            font-size: var(--font-size-lg);
+            color: var(--color-secondary-600);
+            line-height: var(--line-height-relaxed);
+            margin-bottom: var(--spacing-8);
+        }
+
+        .demo-actions {
+            display: flex;
+            gap: var(--spacing-4);
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .demo-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-8);
+            margin-bottom: var(--spacing-12);
+        }
+
+        .stat-card {
+            background: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-xl);
+            padding: var(--spacing-6);
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: all 200ms ease;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .stat-number {
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary-600);
+            margin-bottom: var(--spacing-1);
+        }
+
+        .stat-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-secondary-600);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .demo-notice {
+            background: var(--color-primary-50);
+            border: 1px solid var(--color-primary-200);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-6);
+            margin-bottom: var(--spacing-8);
+            border-left: 4px solid var(--color-primary-500);
+        }
+
+        .demo-notice-title {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-primary-900);
+            margin-bottom: var(--spacing-2);
+        }
+
+        .demo-notice-text {
+            color: var(--color-primary-700);
+            line-height: var(--line-height-relaxed);
+            margin: 0;
+        }
+
+        .demo-section {
+            margin-bottom: var(--spacing-16);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: var(--spacing-8);
+        }
+
+        .section-title {
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-secondary-900);
+            margin-bottom: var(--spacing-4);
+        }
+
+        .section-description {
+            font-size: var(--font-size-lg);
+            color: var(--color-secondary-600);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: var(--line-height-relaxed);
+        }
+
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: var(--spacing-8);
+            margin-bottom: var(--spacing-8);
+        }
+
+        .component-showcase {
+            background: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-6);
+            box-shadow: var(--shadow-sm);
+            transition: all 200ms ease;
+        }
+
+        .component-showcase:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--color-secondary-300);
+        }
+
+        .component-header {
+            margin-bottom: var(--spacing-4);
+            padding-bottom: var(--spacing-4);
+            border-bottom: 1px solid var(--color-secondary-100);
+        }
+
+        .component-title {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-secondary-900);
+            margin: 0 0 var(--spacing-2) 0;
+        }
+
+        .component-description {
+            font-size: var(--font-size-sm);
+            color: var(--color-secondary-600);
+            margin: 0;
+            line-height: var(--line-height-relaxed);
+        }
+
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: var(--spacing-4);
+        }
+
+        .color-card {
+            background: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-4);
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: all 200ms ease;
+        }
+
+        .color-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .color-swatch {
+            width: 100%;
+            height: 80px;
+            border-radius: var(--border-radius-md);
+            margin-bottom: var(--spacing-3);
+            border: 2px solid var(--color-secondary-200);
+        }
+
+        .color-name {
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-secondary-900);
+            margin-bottom: var(--spacing-1);
+        }
+
+        .color-value {
+            font-size: var(--font-size-xs);
+            color: var(--color-secondary-500);
+            font-family: var(--font-family-mono);
+            background: var(--color-secondary-50);
+            padding: var(--spacing-1) var(--spacing-2);
+            border-radius: var(--border-radius-sm);
+            display: inline-block;
+        }
+
+        .typography-showcase {
+            display: grid;
+            gap: var(--spacing-6);
+        }
+
+        .typo-example {
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-6);
+            background: var(--color-neutral-white);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .typo-spec {
+            font-size: var(--font-size-xs);
+            color: var(--color-secondary-500);
+            margin-bottom: var(--spacing-2);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .typo-sample {
+            margin: 0;
+            color: var(--color-secondary-900);
+            line-height: var(--line-height-tight);
+        }
+
+        .status-showcase {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-3);
+            align-items: center;
+        }
+
+        .form-demo {
+            max-width: 480px;
+        }
+
+        .form-demo .form-group {
+            margin-bottom: var(--spacing-6);
+        }
+
+        .alert-demo {
+            display: grid;
+            gap: var(--spacing-4);
+        }
+
+        .mock-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--spacing-6);
+            margin-top: var(--spacing-8);
+        }
+
+        .metric-card {
+            background: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-6);
+            box-shadow: var(--shadow-sm);
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary-600);
+            margin-bottom: var(--spacing-1);
+        }
+
+        .metric-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-secondary-600);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .server-list {
+            background: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-6);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .server-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-3) 0;
+            border-bottom: 1px solid var(--color-secondary-100);
+        }
+
+        .server-item:last-child {
+            border-bottom: none;
+        }
+
+        .server-name {
+            font-weight: var(--font-weight-medium);
+            color: var(--color-secondary-900);
+        }
+
+        .server-meta {
+            font-size: var(--font-size-xs);
+            color: var(--color-secondary-500);
+        }
+
+        .sidebar-demo {
+            width: var(--sidebar-width);
+            background: var(--color-neutral-white);
+            border: 1px solid var(--color-secondary-200);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+
+        .sidebar-demo-header {
+            padding: var(--spacing-6);
+            border-bottom: 1px solid var(--color-secondary-200);
+            background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-neutral-white) 100%);
+        }
+
+        .sidebar-demo-brand {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary-700);
+            text-decoration: none;
+        }
+
+        .sidebar-demo-content {
+            padding: var(--spacing-4) 0;
+        }
+
+        .sidebar-demo-group {
+            margin-bottom: var(--spacing-6);
+        }
+
+        .sidebar-demo-group-header {
+            padding: var(--spacing-2) var(--spacing-4);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-secondary-500);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .sidebar-demo-nav {
+            padding: 0 var(--spacing-2);
+        }
+
+        .sidebar-demo-item {
+            display: flex;
+            align-items: center;
+            padding: var(--spacing-3) var(--spacing-4);
+            color: var(--color-secondary-600);
+            text-decoration: none;
+            border-radius: var(--border-radius-md);
+            margin: 0 var(--spacing-2);
+            transition: all 200ms ease;
+        }
+
+        .sidebar-demo-item:hover {
+            background-color: var(--color-secondary-100);
+            color: var(--color-secondary-900);
+        }
+
+        .sidebar-demo-item.active {
+            background-color: var(--color-primary-50);
+            color: var(--color-primary-700);
+        }
+
+        .demo-footer {
+            background: var(--color-secondary-900);
+            color: var(--color-neutral-white);
+            padding: var(--spacing-12) 0;
+            margin-top: var(--spacing-16);
+        }
+
+        .demo-footer-content {
+            text-align: center;
+        }
+
+        .demo-footer-title {
+            font-size: var(--font-size-2xl);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--spacing-4);
+        }
+
+        .demo-footer-text {
+            font-size: var(--font-size-base);
+            color: var(--color-secondary-300);
+            max-width: 600px;
+            margin: 0 auto var(--spacing-8) auto;
+            line-height: var(--line-height-relaxed);
+        }
+
+        /* ============================================
+           Responsive Design
+           ============================================ */
+
+        @media (max-width: 768px) {
+            .demo-header {
+                padding: var(--spacing-8) 0;
+                margin-bottom: var(--spacing-8);
+            }
+
+            .demo-title {
+                font-size: var(--font-size-3xl);
+            }
+
+            .demo-stats {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-4);
+            }
+
+            .component-grid {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-4);
+            }
+
+            .color-palette {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .mock-dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar-demo {
+                width: 100%;
+                margin: var(--spacing-6) 0;
+            }
+
+            .demo-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        /* ============================================
+           Accessibility
+           ============================================ */
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Focus indicators */
+        .btn:focus-visible,
+        .form-input:focus-visible,
+        .form-select:focus-visible,
+        .form-textarea:focus-visible {
+            outline: 2px solid var(--color-primary-500);
+            outline-offset: 2px;
+        }
+
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .card {
+                border: 2px solid var(--color-secondary-700);
+            }
+
+            .btn {
+                border: 2px solid currentColor;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-wrapper">
+        <!-- Hero Section -->
+        <section class="demo-header">
+            <div class="container">
+                <div class="demo-hero-content">
+                    <h1 class="demo-title">StackSense Design System v2.0</h1>
+                    <p class="demo-subtitle">
+                        Modern light-themed design system for professional monitoring applications.
+                        Clean, accessible, and scalable components built for enterprise-grade software.
+                    </p>
+                    <div class="demo-actions">
+                        <a href="#colors" class="btn btn-primary">Explore Colors</a>
+                        <a href="#components" class="btn btn-outline">View Components</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="container">
+            <!-- Notice -->
+            <div class="demo-notice">
+                <h3 class="demo-notice-title">🎨 Fresh Design System</h3>
+                <p class="demo-notice-text">
+                    This demo showcases StackSense v2.0 - a modern light theme design system optimized for professional monitoring dashboards.
+                    Experience clean typography, accessible colors, and scalable components.
+                </p>
+            </div>
+
+            <!-- Stats -->
+            <div class="demo-stats">
+                <div class="stat-card">
+                    <div class="stat-number">12</div>
+                    <div class="stat-label">Components</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">28</div>
+                    <div class="stat-label">Design Tokens</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">5</div>
+                    <div class="stat-label">Color Palettes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">Accessible</div>
+                </div>
+            </div>
+
+            <!-- Color Palette -->
+            <section class="demo-section" id="colors">
+                <div class="section-header">
+                    <h2 class="section-title">🎨 Color Palette</h2>
+                    <p class="section-description">
+                        Carefully crafted color system with semantic meanings, ensuring consistency and accessibility across all interfaces.
+                    </p>
+                </div>
+
+                <div class="color-palette">
+                    <div class="color-card">
+                        <div class="color-swatch" style="background: var(--color-primary-500);"></div>
+                        <div class="color-name">Primary</div>
+                        <div class="color-value">#0ea5e9</div>
+                    </div>
+                    <div class="color-card">
+                        <div class="color-swatch" style="background: var(--color-success-500);"></div>
+                        <div class="color-name">Success</div>
+                        <div class="color-value">#22c55e</div>
+                    </div>
+                    <div class="color-card">
+                        <div class="color-swatch" style="background: var(--color-warning-500);"></div>
+                        <div class="color-name">Warning</div>
+                        <div class="color-value">#f59e0b</div>
+                    </div>
+                    <div class="color-card">
+                        <div class="color-swatch" style="background: var(--color-danger-500);"></div>
+                        <div class="color-name">Danger</div>
+                        <div class="color-value">#ef4444</div>
+                    </div>
+                    <div class="color-card">
+                        <div class="color-swatch" style="background: var(--color-secondary-500);"></div>
+                        <div class="color-name">Secondary</div>
+                        <div class="color-value">#64748b</div>
+                    </div>
+                    <div class="color-card">
+                        <div class="color-swatch" style="background: var(--color-neutral-white); border: 2px solid var(--color-secondary-200);"></div>
+                        <div class="color-name">White</div>
+                        <div class="color-value">#ffffff</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Typography -->
+            <section class="demo-section">
+                <div class="section-header">
+                    <h2 class="section-title">🔤 Typography Scale</h2>
+                    <p class="section-description">
+                        Hierarchical typography system using Inter font family, optimized for readability and visual hierarchy.
+                    </p>
+                </div>
+
+                <div class="typography-showcase">
+                    <div class="typo-example">
+                        <div class="typo-spec">4xl / Bold (2.25rem)</div>
+                        <h1 class="typo-sample text-4xl font-bold">StackSense Monitoring</h1>
+                    </div>
+                    <div class="typo-example">
+                        <div class="typo-spec">2xl / Bold (1.5rem)</div>
+                        <h2 class="typo-sample text-2xl font-bold">System Overview</h2>
+                    </div>
+                    <div class="typo-example">
+                        <div class="typo-spec">lg / Semibold (1.125rem)</div>
+                        <p class="typo-sample text-lg font-semibold">Real-time performance monitoring dashboard</p>
+                    </div>
+                    <div class="typo-example">
+                        <div class="typo-spec">base / Normal (1rem)</div>
+                        <p class="typo-sample text-base font-normal">This is regular body text for general content and descriptions.</p>
+                    </div>
+                    <div class="typo-example">
+                        <div class="typo-spec">sm / Medium (0.875rem)</div>
+                        <p class="typo-sample text-sm font-medium">Secondary information and metadata</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Components -->
+            <section class="demo-section" id="components">
+                <div class="section-header">
+                    <h2 class="section-title">🧩 Component Library</h2>
+                    <p class="section-description">
+                        Reusable UI components designed for consistency, accessibility, and professional appearance.
+                    </p>
+                </div>
+
+                <div class="component-grid">
+                    <!-- Buttons -->
+                    <div class="component-showcase">
+                        <div class="component-header">
+                            <h3 class="component-title">Buttons</h3>
+                            <p class="component-description">Action-oriented components with multiple variants and states</p>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: var(--spacing-3);">
+                            <div style="display: flex; gap: var(--spacing-3); flex-wrap: wrap;">
+                                <button class="btn btn-primary">Primary</button>
+                                <button class="btn btn-outline">Outline</button>
+                                <button class="btn btn-secondary">Secondary</button>
+                            </div>
+                            <div style="display: flex; gap: var(--spacing-3); flex-wrap: wrap;">
+                                <button class="btn btn-ghost">Ghost</button>
+                                <button class="btn btn-sm">Small</button>
+                                <button class="btn btn-lg">Large</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cards -->
+                    <div class="component-showcase">
+                        <div class="component-header">
+                            <h3 class="component-title">Cards</h3>
+                            <p class="component-description">Content containers with subtle shadows and clean borders</p>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title">Server Status</h4>
+                                <p class="card-subtitle">Real-time monitoring</p>
+                            </div>
+                            <div class="card-content">
+                                <p>All systems operational with normal performance metrics across all monitored servers.</p>
+                            </div>
+                            <div class="card-footer">
+                                <span class="text-sm text-muted">Last updated: 2 minutes ago</span>
+                                <a href="#" class="btn btn-sm">View Details</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Indicators -->
+                    <div class="component-showcase">
+                        <div class="component-header">
+                            <h3 class="component-title">Status Indicators</h3>
+                            <p class="component-description">Visual status indicators with semantic colors</p>
+                        </div>
+                        <div class="status-showcase">
+                            <span class="status status-online">
+                                <span class="status-dot"></span>
+                                <span>Online</span>
+                            </span>
+                            <span class="status status-warning">
+                                <span class="status-dot"></span>
+                                <span>Warning</span>
+                            </span>
+                            <span class="status status-offline">
+                                <span class="status-dot"></span>
+                                <span>Offline</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Forms -->
+                    <div class="component-showcase">
+                        <div class="component-header">
+                            <h3 class="component-title">Form Elements</h3>
+                            <p class="component-description">Accessible form controls with consistent styling</p>
+                        </div>
+                        <form class="form-demo">
+                            <div class="form-group">
+                                <label class="form-label" for="demo-name">Server Name</label>
+                                <input type="text" id="demo-name" class="form-input" placeholder="Enter server name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="demo-type">Server Type</label>
+                                <select id="demo-type" class="form-select">
+                                    <option value="">Select server type</option>
+                                    <option value="web">Web Server</option>
+                                    <option value="db">Database</option>
+                                    <option value="cache">Cache Server</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="demo-enabled">
+                                    <input type="checkbox" id="demo-enabled" class="form-checkbox">
+                                    Enable monitoring
+                                </label>
+                            </div>
+                            <div style="display: flex; gap: var(--spacing-3);">
+                                <button type="button" class="btn btn-secondary">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Server</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Alerts -->
+                    <div class="component-showcase">
+                        <div class="component-header">
+                            <h3 class="component-title">Alerts & Messages</h3>
+                            <p class="component-description">Contextual messaging with appropriate colors and icons</p>
+                        </div>
+                        <div class="alert-demo">
+                            <div class="alert alert-success">
+                                <div class="alert-title">✅ Success</div>
+                                <p>Server configuration updated successfully.</p>
+                            </div>
+                            <div class="alert alert-warning">
+                                <div class="alert-title">⚠️ Warning</div>
+                                <p>High CPU usage detected on Web Server 01.</p>
+                            </div>
+                            <div class="alert alert-error">
+                                <div class="alert-title">❌ Error</div>
+                                <p>Database connection failed. Please check credentials.</p>
+                            </div>
+                            <div class="alert alert-info">
+                                <div class="alert-title">ℹ️ Info</div>
+                                <p>Scheduled maintenance will begin in 30 minutes.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mock Dashboard -->
+            <section class="demo-section">
+                <div class="section-header">
+                    <h2 class="section-title">📊 Mock Dashboard</h2>
+                    <p class="section-description">
+                        Example implementation showing how components work together in a real monitoring interface.
+                    </p>
+                </div>
+
+                <div class="mock-dashboard">
+                    <!-- Metrics Overview -->
+                    <div class="metric-card">
+                        <div class="metric-value">8</div>
+                        <div class="metric-label">Servers</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">156</div>
+                        <div class="metric-label">Metrics</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">3</div>
+                        <div class="metric-label">Alerts</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">98.5%</div>
+                        <div class="metric-label">Uptime</div>
+                    </div>
+
+                    <!-- Server List -->
+                    <div class="server-list">
+                        <h4 style="margin-bottom: var(--spacing-4); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">Server Status</h4>
+                        <div class="server-item">
+                            <div>
+                                <div class="server-name">Web Server 01</div>
+                                <div class="server-meta">CPU: 45% | RAM: 67%</div>
+                            </div>
+                            <span class="status status-online">
+                                <span class="status-dot"></span>
+                                <span>Online</span>
+                            </span>
+                        </div>
+                        <div class="server-item">
+                            <div>
+                                <div class="server-name">Database 01</div>
+                                <div class="server-meta">CPU: 78% | RAM: 82%</div>
+                            </div>
+                            <span class="status status-warning">
+                                <span class="status-dot"></span>
+                                <span>Warning</span>
+                            </span>
+                        </div>
+                        <div class="server-item">
+                            <div>
+                                <div class="server-name">API Gateway</div>
+                                <div class="server-meta">CPU: 23% | RAM: 34%</div>
+                            </div>
+                            <span class="status status-online">
+                                <span class="status-dot"></span>
+                                <span>Online</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Recent Alerts -->
+                    <div class="server-list">
+                        <h4 style="margin-bottom: var(--spacing-4); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">Recent Alerts</h4>
+                        <div style="padding: var(--spacing-3) 0; border-bottom: 1px solid var(--color-secondary-100);">
+                            <div style="display: flex; justify-content: space-between; align-items: start; gap: var(--spacing-3);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: var(--font-weight-medium); color: var(--color-secondary-900); margin-bottom: var(--spacing-1);">High CPU usage on Database 01</div>
+                                    <div style="font-size: var(--font-size-xs); color: var(--color-secondary-500);">2 min ago</div>
+                                </div>
+                                <span style="color: var(--color-warning-600); font-size: var(--font-size-lg);">⚠️</span>
+                            </div>
+                        </div>
+                        <div style="padding: var(--spacing-3) 0; border-bottom: 1px solid var(--color-secondary-100);">
+                            <div style="display: flex; justify-content: space-between; align-items: start; gap: var(--spacing-3);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: var(--font-weight-medium); color: var(--color-secondary-900); margin-bottom: var(--spacing-1);">API Gateway connection timeout</div>
+                                    <div style="font-size: var(--font-size-xs); color: var(--color-secondary-500);">5 min ago</div>
+                                </div>
+                                <span style="color: var(--color-danger-600); font-size: var(--font-size-lg);">❌</span>
+                            </div>
+                        </div>
+                        <div style="padding: var(--spacing-3) 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; gap: var(--spacing-3);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: var(--font-weight-medium); color: var(--color-secondary-900); margin-bottom: var(--spacing-1);">Scheduled maintenance completed</div>
+                                    <div style="font-size: var(--font-size-xs); color: var(--color-secondary-500);">1 hour ago</div>
+                                </div>
+                                <span style="color: var(--color-primary-600); font-size: var(--font-size-lg);">ℹ️</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sidebar Preview -->
+            <section class="demo-section">
+                <div class="section-header">
+                    <h2 class="section-title">📱 Navigation Sidebar</h2>
+                    <p class="section-description">
+                        Clean navigation with organized sections, hover states, and active indicators.
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: var(--spacing-8); align-items: flex-start; flex-wrap: wrap;">
+                    <div class="sidebar-demo">
+                        <div class="sidebar-demo-header">
+                            <a href="#" class="sidebar-demo-brand">StackSense</a>
+                        </div>
+                        <div class="sidebar-demo-content">
+                            <div class="sidebar-demo-group">
+                                <div class="sidebar-demo-group-header">Monitoring</div>
+                                <div class="sidebar-demo-nav">
+                                    <a href="#" class="sidebar-demo-item active">
+                                        <div style="width: 20px; height: 20px; margin-right: var(--spacing-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                                                <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/>
+                                            </svg>
+                                        </div>
+                                        <span style="font-size: var(--font-size-sm);">Dashboard</span>
+                                    </a>
+                                    <a href="#" class="sidebar-demo-item">
+                                        <div style="width: 20px; height: 20px; margin-right: var(--spacing-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                                                <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/>
+                                            </svg>
+                                        </div>
+                                        <span style="font-size: var(--font-size-sm);">Servers</span>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="sidebar-demo-group">
+                                <div class="sidebar-demo-group-header">Management</div>
+                                <div class="sidebar-demo-nav">
+                                    <a href="#" class="sidebar-demo-item">
+                                        <div style="width: 20px; height: 20px; margin-right: var(--spacing-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                                                <path d="M16 7c0-2.21-1.79-4-4-4S8 4.79 8 7s1.79 4 4 4 4-1.79 4-4zm-4 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/>
+                                            </svg>
+                                        </div>
+                                        <span style="font-size: var(--font-size-sm);">Users</span>
+                                    </a>
+                                    <a href="#" class="sidebar-demo-item">
+                                        <div style="width: 20px; height: 20px; margin-right: var(--spacing-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                            </svg>
+                                        </div>
+                                        <span style="font-size: var(--font-size-sm);">Roles</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="flex: 1; min-width: 280px;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title">Navigation Features</h4>
+                            </div>
+                            <div class="card-content">
+                                <ul style="padding-left: var(--spacing-5); margin: 0;">
+                                    <li style="margin-bottom: var(--spacing-2); color: var(--color-secondary-700);">• Organized sections with headers</li>
+                                    <li style="margin-bottom: var(--spacing-2); color: var(--color-secondary-700);">• Icon + text combinations</li>
+                                    <li style="margin-bottom: var(--spacing-2); color: var(--color-secondary-700);">• Active state indicators</li>
+                                    <li style="margin-bottom: var(--spacing-2); color: var(--color-secondary-700);">• Hover interactions</li>
+                                    <li style="margin-bottom: 0; color: var(--color-secondary-700);">• Responsive behavior</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Footer -->
+        <footer class="demo-footer">
+            <div class="container">
+                <div class="demo-footer-content">
+                    <h3 class="demo-footer-title">🎨 StackSense Design System v2.0</h3>
+                    <p class="demo-footer-text">
+                        A modern, accessible, and scalable design system built for professional monitoring applications.
+                        Clean aesthetics, thoughtful interactions, and enterprise-grade reliability.
+                    </p>
+                    <div class="demo-actions">
+                        <button class="btn btn-primary" onclick="window.print()">📄 Print Guide</button>
+                        <button class="btn btn-outline" onclick="location.reload()">🔄 Refresh Demo</button>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

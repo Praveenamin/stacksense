@@ -1,114 +1,108 @@
 {% load static %}
-{% comment %}
-Shared Sidebar Component for StackSense
+{% load rbac_tags %}
 
-This sidebar is used across all pages and includes ACL-based visibility controls.
-{% endcomment %}
-
-<div class="sidebar">
-    <div class="sidebar-content">
-        <!-- Dashboard - Always visible -->
-        <div class="sidebar-item" onclick="window.location.href='{% url 'monitoring_dashboard' %}'" title="Dashboard">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/>
-                </svg>
+<aside class="ui-shell-left-panel">
+    <div class="ui-shell-left-panel-content">
+        <a href="/monitoring/" class="nav-item active" title="Dashboard">
+            <div class="nav-item-icon">
+                <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
             </div>
-            <span class="sidebar-item-text">Dashboard</span>
-        </div>
-        <div class="sidebar-divider"></div>
+            <span class="nav-item-text">Dashboard</span>
+        </a>
 
-        <!-- Manage Users - Only for superusers -->
-        {% if user.is_superuser %}
-        <div class="sidebar-group">
-            <div class="sidebar-group-header">
-                <span class="sidebar-item-text">Manage Users</span>
+        <div class="nav-divider"></div>
+
+        {% if user and user|has_privilege:"manage_users" %}
+        <div class="nav-group">
+            <div class="nav-group-header">
+                <span class="nav-group-text">Manage Users</span>
             </div>
-            <div class="sidebar-group-items">
-                <div class="sidebar-item" onclick="window.location.href='{% url 'admin_users' %}'" title="User List">
-                    <div class="sidebar-item-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M16 7c0-2.21-1.79-4-4-4S8 4.79 8 7s1.79 4 4 4 4-1.79 4-4zm-4 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/>
-                        </svg>
+            <div class="nav-group-items">
+                <a href="/admin-users/" class="nav-item" title="User List">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24"><path d="M16 7c0-2.21-1.79-4-4-4S8 4.79 8 7s1.79 4 4 4 4-1.79 4-4zm-4 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/></svg>
                     </div>
-                    <span class="sidebar-item-text">User List</span>
-                </div>
-                <div class="sidebar-item" onclick="window.location.href='{% url 'create_admin_user' %}'" title="Add User">
-                    <div class="sidebar-item-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                        </svg>
+                    <span class="nav-item-text">User List</span>
+                </a>
+                <a href="/admin-users/create/" class="nav-item" title="Add User">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
                     </div>
-                    <span class="sidebar-item-text">Add User</span>
-                </div>
+                    <span class="nav-item-text">Add User</span>
+                </a>
             </div>
         </div>
-        <div class="sidebar-divider"></div>
+        <div class="nav-divider"></div>
         {% endif %}
 
-        <!-- Manage Servers - Based on ACL permissions -->
-        {% with user_acl=user.acl|default:None %}
-        {% if user.is_superuser or user_acl.can_view_dashboard %}
-        <div class="sidebar-group">
-            <div class="sidebar-group-header">
-                <span class="sidebar-item-text">Manage Servers</span>
+        {% if user and user|has_privilege:"view_servers" %}
+        <div class="nav-group">
+            <div class="nav-group-header">
+                <span class="nav-group-text">Manage Servers</span>
             </div>
-            <div class="sidebar-group-items">
-                <div class="sidebar-item" onclick="window.location.href='{% url 'monitoring_dashboard' %}'" title="Server List">
-                    <div class="sidebar-item-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/>
-                        </svg>
+            <div class="nav-group-items">
+                <a href="/monitoring/" class="nav-item" title="Server List">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
                     </div>
-                    <span class="sidebar-item-text">Server List</span>
-                </div>
-                {% if user.is_superuser or user_acl.can_add_server %}
-                <div class="sidebar-item" onclick="window.location.href='{% url 'add_server' %}'" title="Add Server">
-                    <div class="sidebar-item-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                        </svg>
+                    <span class="nav-item-text">Server List</span>
+                </a>
+                <a href="/add-server/" class="nav-item" title="Add Server">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
                     </div>
-                    <span class="sidebar-item-text">Add Server</span>
-                </div>
-                {% endif %}
+                    <span class="nav-item-text">Add Server</span>
+                </a>
             </div>
         </div>
-        <div class="sidebar-divider"></div>
+        <div class="nav-divider"></div>
         {% endif %}
-        {% endwith %}
 
-        <!-- Notifications - Based on ACL permissions -->
-        {% with user_acl=user.acl|default:None %}
-        {% if user.is_superuser or user_acl.can_view_dashboard %}
-        <div class="sidebar-group">
-            <div class="sidebar-group-header">
-                <span class="sidebar-item-text">Notifications</span>
+        {% if user and user|has_privilege:"configure_alerts" %}
+        <div class="nav-group">
+            <div class="nav-group-header">
+                <span class="nav-group-text">Notifications</span>
             </div>
-            <div class="sidebar-group-items">
-                <div class="sidebar-item" onclick="openAlertConfigModal()" title="Alert Config">
-                    <div class="sidebar-item-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-                        </svg>
+            <div class="nav-group-items">
+                <a href="#" class="nav-item" onclick="openAlertConfigModal()" title="Alert Config">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                     </div>
-                    <span class="sidebar-item-text">Alert Config</span>
-                </div>
+                    <span class="nav-item-text">Alert Config</span>
+                </a>
             </div>
         </div>
-        <div class="sidebar-divider"></div>
+        <div class="nav-divider"></div>
         {% endif %}
-        {% endwith %}
 
-        <!-- Help Docs - Always visible -->
-        <div class="sidebar-item" onclick="window.location.href='{% url 'help_docs' %}'" title="Help Documentation">
-            <div class="sidebar-item-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
-                </svg>
+        {% if user and user|has_privilege:"manage_roles" %}
+        <div class="nav-group">
+            <div class="nav-group-header">
+                <span class="nav-group-text">Role Management</span>
             </div>
-            <span class="sidebar-item-text">Help Docs</span>
+            <div class="nav-group-items">
+                <a href="/roles/" class="nav-item" title="Role List">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <span class="nav-item-text">Role List</span>
+                </a>
+                <a href="/roles/create/" class="nav-item" title="Add Role">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    </div>
+                    <span class="nav-item-text">Add Role</span>
+                </a>
+            </div>
         </div>
+        <div class="nav-divider"></div>
+        {% endif %}
+
+        <a href="/help/" class="nav-item" title="Help Documentation">
+            <div class="nav-item-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
+            </div>
+            <span class="nav-item-text">Help Docs</span>
+        </a>
     </div>
-</div>
-
+</aside>

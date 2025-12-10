@@ -25,23 +25,26 @@
         }
 
         // Determine severity and active count
-        const severity = data.highest_severity || 'unknown';
+        const severity = data.highest_severity || 'OK';
         const active = data.active || 0;
         
-        // Build label text
-        let labelText = `Anomaly: ${severity}`;
+        // If active is 0, severity should always be "OK"
+        const finalSeverity = active > 0 ? severity : 'OK';
+        
+        // Build tooltip text
+        let tooltipText = `Anomaly: ${finalSeverity}`;
         if (active > 0) {
-            labelText += ` (${active} active)`;
+            tooltipText += ` (${active} active)`;
+        } else {
+            tooltipText += ' (no active anomalies)';
         }
 
         // Update each element
         elements.forEach(element => {
-            const label = element.querySelector('.anomaly-status-label');
-            if (label) {
-                label.textContent = labelText;
-            }
+            // Update tooltip
+            element.setAttribute('title', tooltipText);
 
-            // Remove all severity classes
+            // Remove all severity classes (ALWAYS remove to ensure clean state)
             element.classList.remove(
                 'anomaly-ok',
                 'anomaly-low',
@@ -52,14 +55,20 @@
             );
 
             // Add appropriate severity class
-            const severityClass = `anomaly-${severity.toLowerCase()}`;
+            // If no active anomalies, always show as 'ok' (off state)
+            const severityClass = active > 0 ? `anomaly-${finalSeverity.toLowerCase()}` : 'anomaly-ok';
             element.classList.add(severityClass);
-
-            // Add/remove active indicator
-            if (active > 0) {
-                element.classList.add('has-active');
-            } else {
-                element.classList.remove('has-active');
+            
+            // Update label if present
+            const labelElement = element.querySelector('.anomaly-status-label');
+            if (labelElement) {
+                if (active > 0) {
+                    labelElement.textContent = `Anomaly: ${finalSeverity} (${active} active)`;
+                    labelElement.style.display = 'inline';
+                } else {
+                    labelElement.textContent = 'Anomaly: OK';
+                    labelElement.style.display = 'none';
+                }
             }
         });
     }
@@ -93,13 +102,10 @@
         if (data) {
             updateAnomalyStatus(serverId, data);
         } else {
-            // On error, set to unknown
+            // On error, set to unknown (off state)
             const elements = document.querySelectorAll(`[data-server-id="${serverId}"] .anomaly-status`);
             elements.forEach(element => {
-                const label = element.querySelector('.anomaly-status-label');
-                if (label) {
-                    label.textContent = 'Anomaly: unknown';
-                }
+                element.setAttribute('title', 'Anomaly: unknown');
                 element.classList.remove(
                     'anomaly-ok',
                     'anomaly-low',
@@ -108,7 +114,6 @@
                     'anomaly-critical'
                 );
                 element.classList.add('anomaly-unknown');
-                element.classList.remove('has-active');
             });
         }
     }
@@ -144,14 +149,18 @@
             return; // Not on server details page
         }
 
-        const severity = data.highest_severity || 'unknown';
+        const severity = data.highest_severity || 'OK';
         const active = data.active || 0;
         const details = data.details || {};
+
+        // If active is 0, severity should always be "OK"
+        const finalSeverity = active > 0 ? severity : 'OK';
 
         // Update main severity
         const severityElement = summaryElement.querySelector('.anomaly-summary-severity');
         if (severityElement) {
-            severityElement.textContent = `Anomaly: ${severity}`;
+            severityElement.textContent = `Anomaly: ${finalSeverity}`;
+            // ALWAYS remove all classes to ensure clean state
             severityElement.classList.remove(
                 'anomaly-ok',
                 'anomaly-low',
@@ -160,7 +169,8 @@
                 'anomaly-critical',
                 'anomaly-unknown'
             );
-            severityElement.classList.add(`anomaly-${severity.toLowerCase()}`);
+            // Add the correct class
+            severityElement.classList.add(`anomaly-${finalSeverity.toLowerCase()}`);
         }
 
         // Update active count

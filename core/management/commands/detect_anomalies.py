@@ -70,8 +70,8 @@ class Command(BaseCommand):
                     self.stdout.write(
                         self.style.WARNING(
                             f"⚠ Anomaly detected: {metric.server.name} - "
-                            f"{anomaly_data[metric_type]} = {anomaly_data[metric_value]:.2f} "
-                            f"(severity: {anomaly_data[severity]})"
+                            f"{anomaly_data['metric_type']} {anomaly_data['metric_name']} = {anomaly_data['metric_value']:.2f} "
+                            f"(severity: {anomaly_data['severity']})"
                         )
                     )
             except Exception as e:
