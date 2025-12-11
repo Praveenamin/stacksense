@@ -1,0 +1,407 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Alert Configuration - StackWatch{% endblock %}
+
+{% block bodyclass %}alert-config-page{% endblock %}
+
+{% block content %}
+<!-- Page Header - IBM Carbon Layout -->
+<div style="margin-bottom: var(--spacing-3xl);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
+        <div>
+            <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">Alert Configuration</h1>
+            <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Configure SMTP settings for email alerts and notifications</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: var(--spacing-md);">
+            <a href="/monitoring/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<!-- Messages - IBM Carbon Notification Pattern -->
+{% if messages %}
+<div style="margin-bottom: var(--spacing-3xl);">
+    {% for message in messages %}
+    <div class="notification notification-{{ message.tags|default:'info' }}">
+        <div class="notification-content">
+            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
+                <div class="notification-icon">
+                    {% if message.tags == 'error' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'success' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'warning' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    {% else %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div>
+                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
+                        {{ message }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Email Provider Selection - IBM Carbon Contained List -->
+<section style="margin-bottom: var(--spacing-3xl);">
+    <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Choose Email Provider</h2>
+
+    <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); overflow: hidden;">
+        <div style="padding: var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
+            <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin: 0;">
+                <input type="radio" name="provider" value="gmail" id="provider-gmail"
+                       {% if not config or config.provider == 'gmail' %}checked{% endif %}
+                       onchange="updateProviderSettings()" style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                <div style="display: flex; align-items: center; gap: var(--spacing-md); flex: 1;">
+                    <div style="width: 32px; height: 32px; background-color: rgba(220, 38, 38, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-support-error);">G</span>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary);">Gmail</div>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">smtp.gmail.com / 587 / TLS</div>
+                    </div>
+                </div>
+            </label>
+        </div>
+
+        <div style="padding: var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
+            <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin: 0;">
+                <input type="radio" name="provider" value="outlook" id="provider-outlook"
+                       {% if config and config.provider == 'outlook' %}checked{% endif %}
+                       onchange="updateProviderSettings()" style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                <div style="display: flex; align-items: center; gap: var(--spacing-md); flex: 1;">
+                    <div style="width: 32px; height: 32px; background-color: rgba(14, 165, 233, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-primary-interactive);">O</span>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary);">Outlook / Office365</div>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">smtp.office365.com / 587 / TLS</div>
+                    </div>
+                </div>
+            </label>
+        </div>
+
+        <div style="padding: var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
+            <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin: 0;">
+                <input type="radio" name="provider" value="yahoo" id="provider-yahoo"
+                       {% if config and config.provider == 'yahoo' %}checked{% endif %}
+                       onchange="updateProviderSettings()" style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                <div style="display: flex; align-items: center; gap: var(--spacing-md); flex: 1;">
+                    <div style="width: 32px; height: 32px; background-color: rgba(161, 98, 7, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-support-warning);">Y</span>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary);">Yahoo</div>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">smtp.mail.yahoo.com / 465 / SSL</div>
+                    </div>
+                </div>
+            </label>
+        </div>
+
+        <div style="padding: var(--spacing-lg);">
+            <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin: 0;">
+                <input type="radio" name="provider" value="custom" id="provider-custom"
+                       {% if config and config.provider == 'custom' %}checked{% endif %}
+                       onchange="updateProviderSettings()" style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                <div style="display: flex; align-items: center; gap: var(--spacing-md); flex: 1;">
+                    <div style="width: 32px; height: 32px; background-color: var(--color-neutral-ui-layer1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 16px; height: 16px; color: var(--color-neutral-text-secondary);">
+                            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c1.56.379 2.978-1.56 2.978-2.978a1.533 1.533 0 01.947-2.287c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-2.287-.947c.379-1.561-1.56-2.978-2.978-2.978a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary);">Custom SMTP</div>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">Manual SMTP server configuration</div>
+                    </div>
+                </div>
+            </label>
+        </div>
+    </div>
+</section>
+
+<!-- SMTP Configuration Form - IBM Carbon Form Layout -->
+<form id="alert-config-form" method="post" action="/alert-config/save/">
+    {% csrf_token %}
+
+    <section style="margin-bottom: var(--spacing-3xl);">
+        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">SMTP Settings</h2>
+
+        <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-2xl);">
+            <!-- Form Grid - IBM 8px spacing -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-xl);">
+
+                <!-- Server Configuration -->
+                <div id="server-config" style="{% if config and config.provider != 'custom' %}display: none;{% endif %}">
+                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Server Configuration</h3>
+
+                    <!-- SMTP Host Field -->
+                    <div style="margin-bottom: var(--spacing-lg);">
+                        <label for="smtp_host" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">SMTP Host *</label>
+                        <input type="text" id="smtp_host" name="smtp_host"
+                               value="{{ config.smtp_host|default:'' }}"
+                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">The SMTP server hostname or IP address</div>
+                    </div>
+
+                    <!-- SMTP Port Field -->
+                    <div style="margin-bottom: var(--spacing-lg);">
+                        <label for="smtp_port" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">SMTP Port *</label>
+                        <input type="number" id="smtp_port" name="smtp_port"
+                               value="{{ config.smtp_port|default:'587' }}" min="1" max="65535"
+                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">Usually 587 for TLS, 465 for SSL, 25 for plain</div>
+                    </div>
+
+                    <!-- Security Options -->
+                    <div style="margin-bottom: var(--spacing-lg);">
+                        <div style="font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-sm); line-height: var(--line-height-caption);">Security</div>
+
+                        <div style="display: flex; gap: var(--spacing-lg);">
+                            <label style="display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin: 0;">
+                                <input type="checkbox" id="use_tls" name="use_tls"
+                                       {% if not config or config.use_tls %}checked{% endif %}
+                                       onchange="updateSecurityOptions()" style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                                <span>Use TLS</span>
+                            </label>
+
+                            <label style="display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin: 0;">
+                                <input type="checkbox" id="use_ssl" name="use_ssl"
+                                       {% if config and config.use_ssl %}checked{% endif %}
+                                       onchange="updateSecurityOptions()" style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                                <span>Use SSL</span>
+                            </label>
+                        </div>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">Choose TLS for most modern SMTP servers, SSL for legacy servers</div>
+                    </div>
+                </div>
+
+                <!-- Authentication -->
+                <div>
+                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Authentication</h3>
+
+                    <!-- Username Field -->
+                    <div style="margin-bottom: var(--spacing-lg);">
+                        <label for="username" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Username *</label>
+                        <input type="email" id="username" name="username"
+                               value="{{ config.username|default:'' }}"
+                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">Your email address for SMTP authentication</div>
+                    </div>
+
+                    <!-- Password Field -->
+                    <div style="margin-bottom: var(--spacing-lg);">
+                        <label for="password" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Password *</label>
+                        <input type="password" id="password" name="password"
+                               placeholder="{% if config %}Leave blank to keep current password{% else %}Enter your email password{% endif %}"
+                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
+                        <div id="password-help" style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">
+                            {% if config %}
+                            Leave blank to keep your current password
+                            {% else %}
+                            Your email account password or app-specific password
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Gmail App Password Instructions -->
+                    <div id="gmail-instructions" style="display: none;">
+                        <div style="background-color: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.2); border-radius: var(--border-radius-control); padding: var(--spacing-lg); margin-top: var(--spacing-lg);">
+                            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px; color: var(--color-support-error); margin-top: var(--spacing-xs); flex-shrink: 0;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                                </svg>
+                                <div>
+                                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-support-error); margin-bottom: var(--spacing-xs);">Gmail App Password Required</div>
+                                    <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); line-height: var(--line-height-body);">
+                                        Gmail requires an <strong>App Password</strong> for SMTP access instead of your regular password.
+                                        <br><br>
+                                        <strong>To get an App Password:</strong>
+                                        <ol style="margin: var(--spacing-sm) 0; padding-left: var(--spacing-xl);">
+                                            <li>Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--color-primary-interactive); text-decoration: underline;">Google App Passwords</a></li>
+                                            <li>Sign in to your Google account</li>
+                                            <li>Generate a new App Password for "Mail"</li>
+                                            <li>Use that 16-character password below</li>
+                                        </ol>
+                                        <strong>Note:</strong> App Passwords are required if you have 2-factor authentication enabled.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- From Email Field -->
+                    <div style="margin-bottom: var(--spacing-lg);">
+                        <label for="from_email" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">From Email *</label>
+                        <input type="email" id="from_email" name="from_email"
+                               value="{{ config.from_email|default:'' }}"
+                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">The email address that will appear as the sender</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Test Email Section -->
+    <section style="margin-bottom: var(--spacing-3xl);">
+        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Test Configuration</h2>
+
+        <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-2xl);">
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-xl); align-items: end;">
+                <div>
+                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-heading-md);">Send Test Email</h3>
+                    <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-body);">Verify your SMTP configuration by sending a test email to yourself.</p>
+
+                    <div>
+                        <label for="test_recipient" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Test Recipient Email</label>
+                        <input type="email" id="test_recipient" name="test_recipient"
+                               placeholder="your-email@example.com"
+                               style="width: 100%; max-width: 400px; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
+                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">The email address where you want to receive the test message</div>
+                    </div>
+                </div>
+
+                <button type="submit" form="test-email-form" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;">Send Test Email</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Action Buttons -->
+    <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end;">
+        <button type="submit" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;">Save Configuration</button>
+    </div>
+</form>
+
+<!-- Hidden Test Email Form -->
+<form id="test-email-form" method="post" action="/alert-config/test/" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" name="smtp_host" id="test_smtp_host">
+    <input type="hidden" name="smtp_port" id="test_smtp_port">
+    <input type="hidden" name="use_tls" id="test_use_tls">
+    <input type="hidden" name="use_ssl" id="test_use_ssl">
+    <input type="hidden" name="username" id="test_username">
+    <input type="hidden" name="password" id="test_password">
+    <input type="hidden" name="from_email" id="test_from_email">
+    <input type="hidden" name="test_recipient" id="test_recipient_hidden">
+</form>
+
+<script>
+const providerConfigs = {
+    'gmail': {
+        smtp_host: 'smtp.gmail.com',
+        smtp_port: 587,
+        use_tls: true,
+        use_ssl: false
+    },
+    'outlook': {
+        smtp_host: 'smtp.office365.com',
+        smtp_port: 587,
+        use_tls: true,
+        use_ssl: false
+    },
+    'yahoo': {
+        smtp_host: 'smtp.mail.yahoo.com',
+        smtp_port: 465,
+        use_tls: false,
+        use_ssl: true
+    },
+    'custom': {
+        smtp_host: '',
+        smtp_port: 587,
+        use_tls: true,
+        use_ssl: false
+    }
+};
+
+function updateProviderSettings() {
+    const provider = document.querySelector('input[name="provider"]:checked').value;
+    const config = providerConfigs[provider];
+    const gmailInstructions = document.getElementById('gmail-instructions');
+    const passwordHelp = document.getElementById('password-help');
+    const passwordInput = document.getElementById('password');
+
+    if (provider === 'custom') {
+        document.getElementById('server-config').style.display = 'block';
+        gmailInstructions.style.display = 'none';
+        // Keep existing values for custom
+        return;
+    }
+
+    // Hide server config for pre-configured providers
+    document.getElementById('server-config').style.display = 'none';
+
+    // Set provider-specific values
+    document.getElementById('smtp_host').value = config.smtp_host;
+    document.getElementById('smtp_port').value = config.smtp_port;
+    document.getElementById('use_tls').checked = config.use_tls;
+    document.getElementById('use_ssl').checked = config.use_ssl;
+
+    // Show Gmail-specific instructions and update password help
+    if (provider === 'gmail') {
+        gmailInstructions.style.display = 'block';
+        passwordInput.placeholder = 'Enter your Gmail App Password';
+        passwordHelp.innerHTML = 'Gmail App Password (16 characters) - not your regular password';
+    } else {
+        gmailInstructions.style.display = 'none';
+        passwordInput.placeholder = '{% if config %}Leave blank to keep current password{% else %}Enter your email password{% endif %}';
+        passwordHelp.innerHTML = '{% if config %}Leave blank to keep your current password{% else %}Your email account password or app-specific password{% endif %}';
+    }
+}
+
+function updateSecurityOptions() {
+    const useTls = document.getElementById('use_tls').checked;
+    const useSsl = document.getElementById('use_ssl').checked;
+
+    // Ensure only one security option is selected
+    if (useTls && useSsl) {
+        // If both are checked, prefer TLS
+        document.getElementById('use_ssl').checked = false;
+    }
+}
+
+// Handle test email form submission
+document.getElementById('test-email-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    // Copy current form values to test form
+    document.getElementById('test_smtp_host').value = document.getElementById('smtp_host').value;
+    document.getElementById('test_smtp_port').value = document.getElementById('smtp_port').value;
+    document.getElementById('test_use_tls').value = document.getElementById('use_tls').checked ? 'on' : '';
+    document.getElementById('test_use_ssl').value = document.getElementById('use_ssl').checked ? 'on' : '';
+    document.getElementById('test_username').value = document.getElementById('username').value;
+    document.getElementById('test_password').value = document.getElementById('password').value;
+    document.getElementById('test_from_email').value = document.getElementById('from_email').value;
+    document.getElementById('test_recipient_hidden').value = document.getElementById('test_recipient').value;
+
+    // Submit the test form
+    this.submit();
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateProviderSettings();
+    updateSecurityOptions();
+});
+</script>
+{% endblock %}

@@ -17,9 +17,14 @@
      * @param {Object} data - Anomaly status data from API
      */
     function updateAnomalyStatus(serverId, data) {
-        // Find all elements with this server ID
-        const elements = document.querySelectorAll(`[data-server-id="${serverId}"] .anomaly-status`);
-        
+        // Find all elements with this server ID - check both patterns
+        let elements = document.querySelectorAll(`[data-server-id="${serverId}"] .anomaly-status`);
+
+        // If no elements found with the parent-child pattern, try direct match
+        if (elements.length === 0) {
+            elements = document.querySelectorAll(`.anomaly-status[data-server-id="${serverId}"]`);
+        }
+
         if (elements.length === 0) {
             return; // No elements found, skip gracefully
         }
@@ -55,19 +60,28 @@
             );
 
             // Add appropriate severity class
-            // If no active anomalies, always show as 'ok' (off state)
             const severityClass = active > 0 ? `anomaly-${finalSeverity.toLowerCase()}` : 'anomaly-ok';
             element.classList.add(severityClass);
-            
-            // Update label if present
-            const labelElement = element.querySelector('.anomaly-status-label');
-            if (labelElement) {
+
+            // Update severity label
+            const severityLabel = element.querySelector('.severity-label');
+            if (severityLabel) {
                 if (active > 0) {
-                    labelElement.textContent = `Anomaly: ${finalSeverity} (${active} active)`;
-                    labelElement.style.display = 'inline';
+                    severityLabel.textContent = finalSeverity;
                 } else {
-                    labelElement.textContent = 'Anomaly: OK';
-                    labelElement.style.display = 'none';
+                    severityLabel.textContent = 'OK';
+                }
+            }
+
+            // Update active count
+            const activeCount = element.querySelector('.active-count');
+            if (activeCount) {
+                if (active > 0) {
+                    activeCount.textContent = `${active} active`;
+                    activeCount.style.display = 'inline';
+                } else {
+                    activeCount.textContent = 'No Active Anomalies';
+                    activeCount.style.display = 'inline';
                 }
             }
         });
@@ -125,7 +139,7 @@
         // Find all server cards/elements with data-server-id
         const serverElements = document.querySelectorAll('[data-server-id]');
         const serverIds = new Set();
-        
+
         serverElements.forEach(element => {
             const serverId = element.getAttribute('data-server-id');
             if (serverId) {
@@ -159,7 +173,10 @@
         // Update main severity
         const severityElement = summaryElement.querySelector('.anomaly-summary-severity');
         if (severityElement) {
-            severityElement.textContent = `Anomaly: ${finalSeverity}`;
+            // For OK status (no active anomalies), show friendly message
+            const severityText = active > 0 ? `Anomaly: ${finalSeverity}` : 'No Active Anomalies';
+            severityElement.textContent = severityText;
+
             // ALWAYS remove all classes to ensure clean state
             severityElement.classList.remove(
                 'anomaly-ok',
@@ -169,7 +186,7 @@
                 'anomaly-critical',
                 'anomaly-unknown'
             );
-            // Add the correct class
+            // Add the correct class (always OK/green when no active anomalies)
             severityElement.classList.add(`anomaly-${finalSeverity.toLowerCase()}`);
         }
 
@@ -206,24 +223,24 @@
      */
     async function updateServerDetailsSummary(serverId) {
         const data = await fetchAnomalyStatus(serverId);
-        if (data) {
+        if (data && data.active !== undefined) {
             updateAnomalySummary(serverId, data);
         } else {
-            // On error, set to unknown
+            // On error or missing data, default to OK state (no active anomalies)
             const summaryElement = document.querySelector(`#anomaly-summary[data-server-id="${serverId}"]`);
             if (summaryElement) {
-                const severityElement = summaryElement.querySelector('.anomaly-summary-severity');
-                if (severityElement) {
-                    severityElement.textContent = 'Anomaly: unknown';
-                    severityElement.classList.remove(
-                        'anomaly-ok',
-                        'anomaly-low',
-                        'anomaly-medium',
-                        'anomaly-high',
-                        'anomaly-critical'
-                    );
-                    severityElement.classList.add('anomaly-unknown');
-                }
+                // Create a default OK response
+                const defaultData = {
+                    active: 0,
+                    highest_severity: 'OK',
+                    details: {
+                        cpu: 'normal',
+                        memory: 'normal',
+                        disk: 'normal',
+                        network: 'normal'
+                    }
+                };
+                updateAnomalySummary(serverId, defaultData);
             }
         }
     }

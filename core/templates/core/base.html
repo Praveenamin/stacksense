@@ -8,15 +8,29 @@
     <link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
     {% block extrahead %}{% endblock %}
 </head>
-<body class="{% block bodyclass %}{% endblock %}">
+<body class="{% block bodyclass %}{% endblock %} {% if show_sidebar %}with-sidebar{% endif %}">
     <!-- IBM Carbon UI Shell Header -->
     {% include 'core/header.html' %}
 
-    <!-- IBM Carbon UI Shell Left Panel -->
-    {% include 'core/sidebar.html' %}
+    <!-- IBM Carbon UI Shell Left Panel - Only show on dashboard -->
+    {% if show_sidebar %}
+    {% include "core/sidebar.html" %}
+    {% endif %}
 
     <!-- Main Content -->
     <div class="main-content">
+        {% if not show_sidebar %}
+        <!-- Back button for pages without sidebar -->
+        <div class="back-button-container">
+            <a href="/monitoring/" class="back-button">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+        {% endif %}
+
         <div class="container">
             {% block content %}{% endblock %}
         </div>
@@ -25,3 +39,5 @@
     {% block extrajs %}{% endblock %}
 </body>
 </html>
+
+

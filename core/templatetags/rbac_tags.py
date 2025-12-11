@@ -14,6 +14,10 @@ def has_privilege(user, privilege_key):
     if not user or not user.is_authenticated:
         return False
 
+    # Superusers always have all privileges
+    if user.is_superuser:
+        return True
+
     try:
         acl = UserACL.objects.get(user=user)
         return acl.has_privilege(privilege_key)
@@ -30,8 +34,23 @@ def check_privilege(user, privilege_key):
     if not user or not user.is_authenticated:
         return False
 
+    # Superusers always have all privileges
+    if user.is_superuser:
+        return True
+
     try:
         acl = UserACL.objects.get(user=user)
         return acl.has_privilege(privilege_key)
     except UserACL.DoesNotExist:
         return False
+
+
+@register.filter
+def user_can(user, privilege_key):
+    """
+    Alias for has_privilege - check if user can perform an action
+    Usage: {% if user|user_can:"add_server" %}...{% endif %}
+    """
+    return has_privilege(user, privilege_key)
+
+

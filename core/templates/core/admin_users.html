@@ -1,145 +1,149 @@
-{% extends "admin/base_site.html" %}
+{% extends "core/base.html" %}
 {% load static %}
+{% load rbac_tags %}
 
-{% block title %}Manage Users - StackSense{% endblock %}
+{% block title %}Manage Users - StackWatch{% endblock %}
 
-{% block extrahead %}
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
-{% endblock %}
+{% block bodyclass %}admin-users-page{% endblock %}
 
 {% block content %}
-<div class="page-wrapper">
-    <!-- Sidebar -->
-    {% include 'core/sidebar.html' %}
+<!-- Page Header - IBM Carbon Layout -->
+<div style="margin-bottom: var(--spacing-3xl);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
+        <div>
+            <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">Manage Users</h1>
+            <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Role-based access control settings</p>
+        </div>
 
-    <!-- Main Content -->
-    <div class="main-content">
-        <div class="container">
-            <!-- Header -->
-            <div class="mb-8">
-                <div class="flex items-center gap-4 mb-4">
-                    <a href="/monitoring/" class="btn btn-ghost">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                        </svg>
-                        Back to Dashboard
-                    </a>
+        <!-- User Counter Badge - IBM Carbon Tag -->
+        <div style="display: flex; align-items: center; gap: var(--spacing-lg);">
+            <div class="tag" style="background-color: rgba(15, 98, 254, 0.1); color: var(--color-primary-interactive); border: 1px solid rgba(15, 98, 254, 0.2);">
+                Total Users: {{ user_count }}
+            </div>
+            <a href="/admin-users/create/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: var(--spacing-sm);">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Create User
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Messages - IBM Carbon Notification Pattern -->
+{% if messages %}
+<div style="margin-bottom: var(--spacing-3xl);">
+    {% for message in messages %}
+    <div class="notification notification-{{ message.tags|default:'info' }}">
+        <div class="notification-content">
+            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
+                <div class="notification-icon">
+                    {% if message.tags == 'error' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'success' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'warning' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    {% else %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
                 </div>
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h1 class="text-3xl font-bold text-secondary-900">Manage Users</h1>
-                        <p class="text-secondary-600 mt-2">Manage user accounts and permissions</p>
+                <div>
+                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
+                        {{ message }}
                     </div>
-                    <a href="/admin-users/create/" class="btn btn-primary">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                        </svg>
-                        Create User
-                    </a>
                 </div>
             </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
-            <!-- Messages -->
-            {% if messages %}
-            <div class="mb-6">
-                {% for message in messages %}
-                <div class="alert alert-{{ message.tags }}">
-                    {{ message }}
-                </div>
+<!-- Users Table - IBM Carbon DataTable -->
+<section style="margin-bottom: var(--spacing-3xl);">
+    <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">User Accounts</h2>
+
+    {% if users %}
+    <div class="data-table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Name</th>
+                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Email</th>
+                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Role</th>
+                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Status</th>
+                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for acl in users %}
+                <tr style="transition: background-color 150ms ease;">
+                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
+                        <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                            <div style="width: 32px; height: 32px; background-color: rgba(15, 98, 254, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-primary-interactive);">{{ acl.user.username|first|upper }}</span>
+                            </div>
+                            <div>
+                                <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">{{ acl.user.username }}</div>
+                                {% if acl.user.is_superuser %}
+                                <div style="font-size: var(--font-size-caption); color: var(--color-support-error);">Superuser</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-secondary); vertical-align: middle;">{{ acl.user.email|default:"—" }}</td>
+                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
+                        {% if acl.role %}
+                        <span class="tag" style="background-color: rgba(15, 98, 254, 0.1); color: var(--color-primary-interactive); border: 1px solid rgba(15, 98, 254, 0.2);">
+                            {{ acl.role.name }}
+                        </span>
+                        {% else %}
+                        <span style="font-size: var(--font-size-caption); color: var(--color-neutral-text-placeholder);">No Role</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
+                        {% if acl.user.is_active %}
+                        <span class="status status-online">Active</span>
+                        {% else %}
+                        <span class="status" style="background-color: rgba(100, 116, 139, 0.1); color: var(--color-neutral-text-secondary); border: 1px solid rgba(100, 116, 139, 0.2);">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
+                        <div style="display: flex; gap: var(--spacing-sm);">
+                            <a href="/admin-users/edit/{{ acl.user.id }}/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Edit</a>
+                            {% if acl.user|has_privilege:"manage_users" and not acl.user.is_superuser and acl.user.username != "admin" %}
+                            <form action="/admin-users/delete/{{ acl.user.id }}/" method="post" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn" style="background-color: var(--color-support-error); color: var(--color-neutral-ui-background); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;" onclick="return confirm('Are you sure you want to delete this user?')">Delete</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
                 {% endfor %}
-            </div>
-            {% endif %}
-
-            <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="card">
-                    <div class="card-content text-center">
-                        <div class="text-3xl font-bold text-primary-600 mb-1">{{ total_users }}</div>
-                        <div class="text-sm text-secondary-600">Total Users</div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-content text-center">
-                        <div class="text-3xl font-bold text-success-600 mb-1">{{ superusers_count }}</div>
-                        <div class="text-sm text-secondary-600">Superusers</div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-content text-center">
-                        <div class="text-3xl font-bold text-warning-600 mb-1">{{ active_users_count }}</div>
-                        <div class="text-sm text-secondary-600">Active Users</div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-content text-center">
-                        <div class="text-3xl font-bold text-secondary-600 mb-1">{{ staff_users_count }}</div>
-                        <div class="text-sm text-secondary-600">Staff Users</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Users Table -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">User Accounts</h2>
-                </div>
-                <div class="card-content">
-                    {% if users %}
-                    <div class="overflow-x-auto">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="border-b border-secondary-200">
-                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Username</th>
-                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Email</th>
-                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Role</th>
-                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Status</th>
-                                    <th class="text-left py-3 px-4 font-semibold text-secondary-900">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for user in users %}
-                                <tr class="border-b border-secondary-100 hover:bg-secondary-50">
-                                    <td class="py-3 px-4">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                                                <span class="text-sm font-medium text-primary-700">{{ user.username|first|upper }}</span>
-                                            </div>
-                                            <div>
-                                                <div class="font-medium text-secondary-900">{{ user.username }}</div>
-                                                {% if user.is_superuser %}
-                                                <div class="text-xs text-danger-600">Superuser</div>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="py-3 px-4 text-secondary-700">{{ user.email|default:"—" }}</td>
-                                    <td class="py-3 px-4">
-                                        {% if user.acl.role %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary-100 text-secondary-800">
-                                            {{ user.acl.role.name }}
-                                        </span>
-                                        {% else %}
-                                        <span class="text-secondary-500 text-sm">No Role</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="py-3 px-4">
-                                        {% if user.is_active %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800">
-                                            Active
-                                        </span>
-                                        {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary-100 text-secondary-800">
-                                            Inactive
-                                        </span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="py-3 px-4">
-                                        <div class="flex gap-2">
-                                            <a href="/admin-users/edit/{{ user.id }}/" class="btn btn-sm btn-outline">Edit</a>
-                                            {% if not user.is_superuser %}
-                                            <form action="/admin-users/delete/{{ user.id }}/" method="post" class="inline">
-                                                {% csrf_token %}
-                                                <button type="submit" class="btn btn-sm btn-danger"
-                                                        onclick="return confirm('Are you sure you want to delete this user?')">Delete</button>
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: var(--spacing-3xl) var(--spacing-xl); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card);">
+        <div style="width: 64px; height: 64px; color: var(--color-neutral-text-placeholder); margin: 0 auto var(--spacing-lg) auto;">
+            <svg fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+            </svg>
+        </div>
+        <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-heading-md);">No Users Found</h3>
+        <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-body);">No user accounts have been created yet.</p>
+        <a href="/admin-users/create/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Create First User</a>
+    </div>
+    {% endif %}
+</section>
 {% endblock %}

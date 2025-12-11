@@ -14,6 +14,8 @@ class Server(models.Model):
     port = models.IntegerField(default=22)
     ssh_key_deployed = models.BooleanField(default=False, help_text="Whether SSH key has been deployed")
     ssh_key_deployed_at = models.DateTimeField(null=True, blank=True)
+    suppress_alerts = models.BooleanField(default=False, help_text="Whether to suppress email alerts for this server")
+    suspend_monitoring = models.BooleanField(default=False, help_text="Whether to suspend monitoring for this server")
 
     def __str__(self):
         return self.name
@@ -227,6 +229,12 @@ class MonitoringConfig(models.Model):
     # Alert and monitoring control
     alert_suppressed = models.BooleanField(default=False, help_text="Suppress alerts for this server")
     monitoring_suspended = models.BooleanField(default=False, help_text="Suspend monitoring for this server")
+
+    # Service monitoring settings
+    monitored_services = models.JSONField(default=list, help_text="List of systemd services to monitor")
+    service_failure_alert = models.BooleanField(default=True, help_text="Enable alerts for service failures")
+    service_restart_threshold = models.IntegerField(default=2, help_text="Number of restarts allowed in 10 minutes")
+    service_down_duration_threshold = models.IntegerField(default=30, help_text="Seconds before down service triggers alert")
     
     class Meta:
         verbose_name = "Monitoring Configuration"
@@ -268,17 +276,57 @@ class AggregatedMetric(models.Model):
 
 class EmailAlertConfig(models.Model):
     """Email configuration for sending alerts"""
-    provider = models.CharField(max_length=50, default="custom")
-    smtp_host = models.CharField(max_length=255)
-    smtp_port = models.IntegerField(default=465)
-    use_tls = models.BooleanField(default=False)
-    smtp_username = models.EmailField()
-    smtp_password = models.CharField(max_length=255)
-    from_email = models.EmailField()
-    alert_recipients = models.TextField()
+    class ProviderChoices(models.TextChoices):
+        GMAIL = "gmail", "Gmail"
+        OUTLOOK = "outlook", "Outlook / Office365"
+        YAHOO = "yahoo", "Yahoo"
+        CUSTOM = "custom", "Custom SMTP"
+
+    provider = models.CharField(
+        max_length=20,
+        choices=ProviderChoices.choices,
+        default=ProviderChoices.CUSTOM
+    )
+    smtp_host = models.CharField(max_length=255, blank=True)
+    smtp_port = models.IntegerField(default=587)
+    use_tls = models.BooleanField(default=True)
+    use_ssl = models.BooleanField(default=False)
+    username = models.EmailField(blank=True)
+    password = models.CharField(max_length=255, blank=True)  # Will be encrypted
+    from_email = models.EmailField(blank=True)
     enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def get_smtp_config(self):
+        """Get SMTP configuration with provider defaults"""
+        configs = {
+            self.ProviderChoices.GMAIL: {
+                'smtp_host': 'smtp.gmail.com',
+                'smtp_port': 587,
+                'use_tls': True,
+                'use_ssl': False,
+            },
+            self.ProviderChoices.OUTLOOK: {
+                'smtp_host': 'smtp.office365.com',
+                'smtp_port': 587,
+                'use_tls': True,
+                'use_ssl': False,
+            },
+            self.ProviderChoices.YAHOO: {
+                'smtp_host': 'smtp.mail.yahoo.com',
+                'smtp_port': 465,
+                'use_tls': False,
+                'use_ssl': True,
+            },
+            self.ProviderChoices.CUSTOM: {
+                'smtp_host': self.smtp_host,
+                'smtp_port': self.smtp_port,
+                'use_tls': self.use_tls,
+                'use_ssl': self.use_ssl,
+            }
+        }
+        return configs[self.provider]
     
     def __str__(self):
         return f"Email Alert Config ({self.provider})"
@@ -428,14 +476,24 @@ class UserACL(models.Model):
     def get_or_create_for_user(cls, user):
         """Get or create ACL for a user"""
         acl, created = cls.objects.get_or_create(user=user)
-        if created and not user.is_superuser:
-            # For new staff users, assign default Viewer role if it exists
-            try:
-                viewer_role = Role.objects.get(name="Viewer")
-                acl.role = viewer_role
-                acl.save()
-            except Role.DoesNotExist:
-                # Fallback to old boolean system if roles not yet set up
-                acl.can_view_dashboard = True
-                acl.save()
+        if created:
+            if user.is_superuser:
+                # For superusers, assign Root Admin role if it exists
+                try:
+                    root_admin_role = Role.objects.get(name="Root Admin")
+                    acl.role = root_admin_role
+                    acl.save()
+                except Role.DoesNotExist:
+                    # If Root Admin role doesn't exist, superuser still gets all privileges via has_privilege checks
+                    pass
+            else:
+                # For regular staff users, assign default Viewer role if it exists
+                try:
+                    viewer_role = Role.objects.get(name="Viewer")
+                    acl.role = viewer_role
+                    acl.save()
+                except Role.DoesNotExist:
+                    # Fallback to old boolean system if roles not yet set up
+                    acl.can_view_dashboard = True
+                    acl.save()
         return acl

@@ -1,0 +1,52 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Server Details{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <h1>Server Details</h1>
+    
+    <section>
+        <h2>Service Monitoring</h2>
+        
+        <div id="services-table-body">
+            <p>Loading services...</p>
+        </div>
+        
+        <button id="refresh-services-btn">Refresh</button>
+    </section>
+</div>
+{% endblock %}
+
+{% block extrajs %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Service monitoring: Initializing...');
+    loadServices();
+    
+    document.getElementById('refresh-services-btn').addEventListener('click', loadServices);
+});
+
+async function loadServices() {
+    console.log('Loading services...');
+    const tableBody = document.getElementById('services-table-body');
+    tableBody.innerHTML = '<p>Loading services...</p>';
+    
+    try {
+        const response = await fetch('/api/server/1/services/');
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('Data received:', data);
+            tableBody.innerHTML = '<p>Services loaded successfully!</p>';
+        } else {
+            tableBody.innerHTML = '<p>Failed to load services</p>';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        tableBody.innerHTML = '<p>Error loading services</p>';
+    }
+}
+</script>
+{% endblock %}

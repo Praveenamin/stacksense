@@ -133,3 +133,5 @@ class Command(BaseCommand):
         self.stdout.write(f'  Created {len(privileges)} privileges')
         self.stdout.write(f'  Created {Role.objects.count()} roles')
         self.stdout.write(f'  Assigned roles to {UserACL.objects.filter(role__isnull=False).count()} users')
+
+
