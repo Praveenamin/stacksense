@@ -1,0 +1,29 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Help Documentation - StackSense{% endblock %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <!-- Sidebar -->
+    {% include 'core/sidebar.html' %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <!-- Header -->
+            <div class="mb-8">
+                <div class="flex items-center gap-4 mb-4">
+                    <a href="/monitoring/" class="btn btn-ghost">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

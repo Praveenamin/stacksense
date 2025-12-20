@@ -7,28 +7,28 @@
 
 {% block content %}
 <!-- Page Header - IBM Carbon Layout -->
-<div style="margin-bottom: var(--spacing-3xl);">
-    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
+<div style="margin-bottom: var(--cds-spacing-12);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
         <div>
-            <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">Server List</h1>
-            <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Manage your monitored servers and their configurations</p>
+            <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--cds-line-height-tight);">Server List</h1>
+            <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0; line-height: var(--cds-line-height-normal);">Manage your monitored servers and their configurations</p>
         </div>
 
         <!-- Action Buttons -->
-        <div style="display: flex; gap: var(--spacing-md);">
-            <a href="/monitoring/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Back to Dashboard</a>
-            <a href="/add-server/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Add New Server</a>
+        <div style="display: flex; gap: var(--cds-spacing-4);">
+            <a href="/monitoring/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Back to Dashboard</a>
+            <a href="/add-server/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Add New Server</a>
         </div>
     </div>
 </div>
 
 <!-- Messages - IBM Carbon Notification Pattern -->
 {% if messages %}
-<div style="margin-bottom: var(--spacing-3xl);">
+<div style="margin-bottom: var(--cds-spacing-12);">
     {% for message in messages %}
     <div class="notification notification-{{ message.tags|default:'info' }}">
         <div class="notification-content">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
                 <div class="notification-icon">
                     {% if message.tags == 'error' %}
                     <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
@@ -49,7 +49,7 @@
                     {% endif %}
                 </div>
                 <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); line-height: var(--cds-line-height-normal);">
                         {{ message }}
                     </div>
                 </div>
@@ -61,44 +61,44 @@
 {% endif %}
 
 <!-- Servers Table - IBM Carbon DataTable -->
-<section style="margin-bottom: var(--spacing-3xl);">
-    <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Your Servers</h2>
+<section style="margin-bottom: var(--cds-spacing-12);">
+    <h2 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-8) 0; line-height: var(--cds-line-height-tight);">Your Servers</h2>
 
     {% if servers %}
     <div class="data-table-container">
         <table class="data-table">
             <thead>
                 <tr>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Server Name</th>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">IP Address</th>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Status</th>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Last Check-in</th>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Actions</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Server Name</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">IP Address</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Status</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Last Check-in</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for server in servers %}
                 <tr style="transition: background-color 150ms ease;">
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
-                        <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-100); vertical-align: middle;">
+                        <div style="display: flex; align-items: center; gap: var(--cds-spacing-4);">
                             <div style="width: 32px; height: 32px; background-color: rgba(15, 98, 254, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-primary-interactive);">{{ server.name|first|upper }}</span>
+                                <span style="font-size: var(--font-size-caption); font-weight: var(--cds-font-weight-medium); color: var(--color-primary-interactive);">{{ server.name|first|upper }}</span>
                             </div>
                             <div>
-                                <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">{{ server.name }}</div>
+                                <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--spacing-xs);">{{ server.name }}</div>
                                 {% if server.description %}
-                                <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">{{ server.description|truncatechars:60 }}</div>
+                                <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70);">{{ server.description|truncatechars:60 }}</div>
                                 {% endif %}
                             </div>
                         </div>
                     </td>
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-secondary); vertical-align: middle;">
-                        <div style="font-family: var(--font-family-mono); font-size: var(--font-size-body);">{{ server.ip_address }}</div>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-70); vertical-align: middle;">
+                        <div style="font-family: var(--cds-font-family-mono); font-size: var(--cds-font-size-base);">{{ server.ip_address }}</div>
                         {% if server.port and server.port != 22 %}
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs);">Port: {{ server.port }}</div>
+                        <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); margin-top: var(--spacing-xs);">Port: {{ server.port }}</div>
                         {% endif %}
                     </td>
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-secondary); vertical-align: middle;">
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-70); vertical-align: middle;">
                         <span class="status status-{{ server.status }}">
                             {% if server.status == 'online' %}
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: var(--spacing-xs);">
@@ -123,21 +123,21 @@
                             {% endif %}
                         </span>
                     </td>
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-secondary); vertical-align: middle;">
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-70); vertical-align: middle;">
                         {% if server.last_checkin %}
-                        <div style="font-size: var(--font-size-body);">{{ server.last_checkin|date:"M d, H:i" }}</div>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs);">{{ server.last_checkin|timesince }}</div>
+                        <div style="font-size: var(--cds-font-size-base);">{{ server.last_checkin|date:"M d, H:i" }}</div>
+                        <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); margin-top: var(--spacing-xs);">{{ server.last_checkin|timesince }}</div>
                         {% else %}
-                        <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Never</div>
+                        <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70);">Never</div>
                         {% endif %}
                     </td>
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
-                        <div style="display: flex; gap: var(--spacing-sm);">
-                            <a href="/server/{{ server.id }}/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">View</a>
-                            <a href="/server/edit/{{ server.id }}/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Edit</a>
-                            <form action="/server/delete/{{ server.id }}/" method="post" style="display: inline;">
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-100); vertical-align: middle;">
+                        <div style="display: flex; gap: var(--cds-spacing-2);">
+                            <a href="/server/{{ server.id }}/" class="btn" style="background-color: var(--cds-color-white); color: #22c55e; border: 1px solid var(--cds-color-gray-30); padding: var(--spacing-xs) var(--cds-spacing-2); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">View</a>
+                            <a href="/server/edit/{{ server.id }}/" class="btn" style="background-color: var(--cds-color-white); color: #0ea5e9; border: 1px solid var(--cds-color-gray-30); padding: var(--spacing-xs) var(--cds-spacing-2); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Edit</a>
+                            <form id="delete-form-{{ server.id }}" action="/server/delete/{{ server.id }}/" method="post" style="display: inline;">
                                 {% csrf_token %}
-                                <button type="submit" class="btn" style="background-color: var(--color-support-error); color: var(--color-neutral-ui-background); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;" onclick="return confirm('Are you sure you want to delete the server \"{{ server.name }}\"? This action cannot be undone.')">Delete</button>
+                                <button type="button" class="btn" style="background-color: var(--cds-color-white); color: #ef4444; border: 1px solid var(--cds-color-gray-30); padding: var(--spacing-xs) var(--cds-spacing-2); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border-radius: var(--cds-border-radius); cursor: pointer;" onclick="confirmDeleteServerList('{{ server.name }}', {{ server.id }});">Delete</button>
                             </form>
                         </div>
                     </td>
@@ -147,16 +147,37 @@
         </table>
     </div>
     {% else %}
-    <div style="text-align: center; padding: var(--spacing-3xl) var(--spacing-xl); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card);">
-        <div style="width: 64px; height: 64px; color: var(--color-neutral-text-placeholder); margin: 0 auto var(--spacing-lg) auto;">
+    <div style="text-align: center; padding: var(--cds-spacing-12) var(--cds-spacing-8); background-color: var(--cds-color-white); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card);">
+        <div style="width: 64px; height: 64px; color: var(--color-neutral-text-placeholder); margin: 0 auto var(--cds-spacing-6) auto;">
             <svg fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001-1v-6z" clip-rule="evenodd"/>
             </svg>
         </div>
-        <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-heading-md);">No Servers Added Yet</h3>
-        <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-body);">Start by adding your first server to monitor its performance and receive alerts.</p>
-        <a href="/add-server/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Add Your First Server</a>
+        <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--line-height-heading-md);">No Servers Added Yet</h3>
+        <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--cds-line-height-normal);">Start by adding your first server to monitor its performance and receive alerts.</p>
+        <a href="/add-server/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Add Your First Server</a>
     </div>
     {% endif %}
 </section>
+
+<script>
+    function confirmDeleteServerList(serverName, serverId) {
+        var message = '⚠️ WARNING: Delete Server\n\n' +
+            'Are you sure you want to delete the server "' + serverName + '"?\n\n' +
+            'This action will permanently delete:\n' +
+            '• All server configuration\n' +
+            '• All collected metrics\n' +
+            '• All alert history\n' +
+            '• All monitoring data\n\n' +
+            'This action CANNOT be undone!\n\n' +
+            'Click OK to confirm deletion, or Cancel to abort.';
+        
+        if (confirm(message)) {
+            // User confirmed, submit the form
+            document.getElementById('delete-form-' + serverId).submit();
+        }
+        // If user cancels, do nothing (form won't submit)
+    }
+</script>
 {% endblock %}
+

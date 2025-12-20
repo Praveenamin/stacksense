@@ -1,43 +1,124 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}StackWatch{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
-    {% block extrahead %}{% endblock %}
-</head>
-<body class="{% block bodyclass %}{% endblock %} {% if show_sidebar %}with-sidebar{% endif %}">
-    <!-- IBM Carbon UI Shell Header -->
-    {% include 'core/header.html' %}
+    <title>{% block title %}StackSense - Monitoring Dashboard{% endblock %}</title>
 
-    <!-- IBM Carbon UI Shell Left Panel - Only show on dashboard -->
+    <!-- Tailwind CSS (compiled) -->
+    <link rel="stylesheet" href="{% static 'core/css/main.css' %}">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Favicon -->
+    <link rel="icon" href="{% static 'core/img/logo.svg' %}" type="image/svg+xml">
+
+    {% block extrahead %}{% endblock %}
+    <style>
+        :root {
+            /* IBM Carbon Color Palette */
+            --cds-color-blue-50: #f0f9ff;
+            --cds-color-blue-60: #0ea5e9;
+            --cds-color-blue-70: #0369a1;
+            --cds-color-gray-5: #f9fafb;
+            --cds-color-gray-10: #f8fafc;
+            --cds-color-gray-20: #e2e8f0;
+            --cds-color-gray-50: #64748b;
+            --cds-color-gray-70: #334155;
+            --cds-color-gray-100: #0f172a;
+            --cds-color-green-50: #f0fdf4;
+            --cds-color-green-60: #22c55e;
+            --cds-color-yellow-50: #fffbeb;
+            --cds-color-yellow-60: #f59e0b;
+            --cds-color-red-50: #fef2f2;
+            --cds-color-red-60: #ef4444;
+            --cds-color-white: #ffffff;
+
+            /* Typography */
+            --cds-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --cds-font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --cds-font-size-xs: 0.75rem;
+            --cds-font-size-sm: 0.875rem;
+            --cds-font-size-base: 1rem;
+            --cds-font-size-lg: 1.125rem;
+            --cds-font-size-xl: 1.25rem;
+            --cds-font-size-2xl: 1.5rem;
+            --cds-font-size-3xl: 1.875rem;
+            --cds-font-size-4xl: 2.25rem;
+            --cds-font-weight-light: 300;
+            --cds-font-weight-regular: 400;
+            --cds-font-weight-normal: 400;
+            --cds-font-weight-medium: 500;
+            --cds-font-weight-semibold: 600;
+            --cds-font-weight-bold: 700;
+
+            /* Spacing */
+            --cds-spacing-1: 0.25rem;
+            --cds-spacing-2: 0.5rem;
+            --cds-spacing-3: 0.75rem;
+            --cds-spacing-4: 1rem;
+            --cds-spacing-5: 1.25rem;
+            --cds-spacing-6: 1.5rem;
+            --cds-spacing-8: 2rem;
+            --cds-spacing-10: 2.5rem;
+            --cds-spacing-12: 3rem;
+
+            /* Border Radius & Line Heights */
+            --cds-border-radius: 0.5rem;
+            --cds-line-height-tight: 1.25;
+            --cds-line-height-normal: 1.5;
+            --cds-line-height-relaxed: 1.625;
+        }
+        
+        /* Apply body font */
+        body {
+            font-family: var(--cds-font-family);
+        }
+    </style>
+</head>
+
+<body class="bg-background text-foreground flex h-screen overflow-hidden font-sans">
+
+    <!-- Sidebar -->
     {% if show_sidebar %}
     {% include "core/sidebar.html" %}
     {% endif %}
 
-    <!-- Main Content -->
-    <div class="main-content">
-        {% if not show_sidebar %}
-        <!-- Back button for pages without sidebar -->
-        <div class="back-button-container">
-            <a href="/monitoring/" class="back-button">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                </svg>
-                Back to Dashboard
-            </a>
-        </div>
-        {% endif %}
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col h-screen overflow-hidden relative">
 
-        <div class="container">
-            {% block content %}{% endblock %}
-        </div>
+        <!-- Main Scrollable Content -->
+        <main class="flex-1 overflow-y-auto bg-background p-8">
+            <!-- Back button for non-sidebar pages -->
+            {% if not show_sidebar %}
+            <div class="mb-6">
+                <a href="/monitoring/"
+                    class="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back to Dashboard
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="max-w-7xl mx-auto w-full">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
     </div>
 
+    <!-- JavaScript -->
     {% block extrajs %}{% endblock %}
 </body>
+
 </html>
-
-

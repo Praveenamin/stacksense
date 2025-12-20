@@ -3,143 +3,353 @@
 
 {% block title %}Edit Server - StackWatch{% endblock %}
 
-{% block bodyclass %}edit-server-page{% endblock %}
+{% block extrahead %}
+<style>
+    .form-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        max-width: 600px;
+    }
+    .form-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .form-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0 0 32px 0;
+    }
+    .form-section {
+        margin-bottom: 24px;
+    }
+    .form-section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .form-label .required {
+        color: #ef4444;
+    }
+    .form-input {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        transition: all 150ms ease;
+        box-sizing: border-box;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .form-input::placeholder {
+        color: #94a3b8;
+    }
+    .form-hint {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+    .form-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 16px;
+    }
+    .btn-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #0ea5e9;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+        width: 100%;
+    }
+    .btn-submit:hover {
+        background-color: #0284c7;
+    }
+    .btn-cancel {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background-color 150ms ease;
+        width: 100%;
+    }
+    .btn-cancel:hover {
+        background-color: #f8fafc;
+    }
+    .status-card {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 24px;
+        max-width: 600px;
+    }
+    .status-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+    }
+    .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .status-item:last-child {
+        border-bottom: none;
+    }
+    .status-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #64748b;
+    }
+    .status-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .status-note {
+        background-color: #fffbeb;
+        border: 1px solid #fcd34d;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-top: 16px;
+    }
+    .status-note-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #92400e;
+        margin: 0 0 4px 0;
+    }
+    .status-note-text {
+        font-size: 12px;
+        color: #a16207;
+        margin: 0;
+        line-height: 1.4;
+    }
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+    .alert-success {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+    .button-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 24px;
+    }
+    .button-group-three {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+        margin-top: 24px;
+    }
+    .btn-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #ef4444;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background-color 150ms ease;
+        width: 100%;
+    }
+    .btn-delete:hover {
+        background-color: #dc2626;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<!-- Page Header - IBM Carbon Layout -->
-<div style="margin-bottom: var(--spacing-3xl);">
-    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
-        <div>
-            <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">Edit Server</h1>
-            <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Modify server configuration settings</p>
-        </div>
-
-        <!-- Action Buttons -->
-        <div style="display: flex; gap: var(--spacing-md);">
-            <a href="/servers/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Cancel</a>
-            <button type="submit" form="edit-server-form" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;">Save Changes</button>
-        </div>
+    <!-- Page Header -->
+    <div style="margin-bottom: 32px;">
+        <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Edit Server</h1>
+        <p style="font-size: 14px; color: #64748b; margin: 0;">Modify server configuration settings</p>
     </div>
-</div>
 
-<!-- Messages - IBM Carbon Notification Pattern -->
-{% if messages %}
-<div style="margin-bottom: var(--spacing-3xl);">
-    {% for message in messages %}
-    <div class="notification notification-{{ message.tags|default:'info' }}">
-        <div class="notification-content">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div class="notification-icon">
-                    {% if message.tags == 'error' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'success' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'warning' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                    </svg>
+    <!-- Messages -->
+    {% if messages %}
+    <div style="max-width: 600px; margin-bottom: 24px;">
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start;">
+        <!-- Server Configuration Form -->
+        <div class="form-card">
+            <h2 class="form-title">Server Configuration</h2>
+            <p class="form-subtitle">Update the connection details for your server</p>
+
+            <form id="edit-server-form" method="post">
+                {% csrf_token %}
+
+                <!-- Basic Information Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Basic Information</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="name">
+                            Server Name <span class="required">*</span>
+                        </label>
+                        <input type="text" id="name" name="name" class="form-input" 
+                               value="{{ server.name }}" placeholder="e.g., Web Server 01" required>
+                        <div class="form-hint">A friendly name to identify this server</div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="ip_address">
+                                Server IP <span class="required">*</span>
+                            </label>
+                            <input type="text" id="ip_address" name="ip_address" class="form-input" 
+                                   value="{{ server.ip_address }}" placeholder="192.168.1.100" required>
+                            <div class="form-hint">IP address or hostname</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="port">
+                                SSH Port <span class="required">*</span>
+                            </label>
+                            <input type="number" id="port" name="port" class="form-input" 
+                                   value="{{ server.port|default:22 }}" min="1" max="65535" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Button Group -->
+                <div class="button-group-three">
+                    <a href="/servers/" class="btn-cancel">Cancel</a>
+                    <button type="submit" class="btn-submit">
+                        <svg style="width: 16px; height: 16px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Save Changes
+                    </button>
+                    <form id="delete-server-form" action="/server/delete/{{ server.id }}/" method="post" style="display: inline; width: 100%;">
+                        {% csrf_token %}
+                        <button type="button" class="btn-delete" onclick="confirmDeleteServer('{{ server.name }}', {{ server.id }});">
+                            <svg style="width: 16px; height: 16px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                            Delete Server
+                        </button>
+                    </form>
+                </div>
+            </form>
+        </div>
+
+        <!-- Server Status Information -->
+        <div class="status-card">
+            <h3 class="status-title">Server Status</h3>
+            
+            <div class="status-item">
+                <span class="status-label">Current Status</span>
+                <span class="status-value">
+                    {% if server.monitoring_config and server.monitoring_config.monitoring_enabled %}
+                    Active
                     {% else %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                    </svg>
+                    Disabled
                     {% endif %}
-                </div>
-                <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
-                        {{ message }}
-                    </div>
-                </div>
+                </span>
+            </div>
+
+            <div class="status-item">
+                <span class="status-label">Last Updated</span>
+                <span class="status-value">
+                    {% if server.monitoring_config and server.monitoring_config.last_updated %}
+                    {{ server.monitoring_config.last_updated|date:"M d, H:i" }}
+                    {% else %}
+                    Never
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="status-note">
+                <p class="status-note-title">⚠️ Important Note</p>
+                <p class="status-note-text">SSH connection details (username, password, keys) cannot be modified after server creation. To change authentication, remove and re-add the server.</p>
             </div>
         </div>
     </div>
-    {% endfor %}
-</div>
-{% endif %}
 
-<!-- Edit Server Form - IBM Carbon Form Layout -->
-<section style="margin-bottom: var(--spacing-3xl);">
-    <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-2xl);">
-        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Server Configuration</h2>
-        <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0 0 var(--spacing-2xl) 0; line-height: var(--line-height-body);">Update the basic configuration for this server</p>
-
-        <form id="edit-server-form" method="post">
-            {% csrf_token %}
-
-            <!-- Form Grid - IBM 8px spacing -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-xl);">
-
-                <!-- Basic Server Information -->
-                <div>
-                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Basic Information</h3>
-
-                    <!-- Server Name Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="name" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Server Name *</label>
-                        <input type="text" id="name" name="name" value="{{ server.name }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">A friendly name to identify this server</div>
-                    </div>
-
-                    <!-- IP Address Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="ip_address" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">IP Address *</label>
-                        <input type="text" id="ip_address" name="ip_address" value="{{ server.ip_address }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">The IP address or hostname of your server</div>
-                    </div>
-
-                    <!-- SSH Port Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="port" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">SSH Port</label>
-                        <input type="number" id="port" name="port" value="{{ server.port }}" min="1" max="65535"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">Usually 22 for SSH connections (leave blank for default)</div>
-                    </div>
-                </div>
-
-                <!-- Server Status Information -->
-                <div>
-                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Server Status</h3>
-
-                    <!-- Status Information -->
-                    <div style="background-color: var(--color-neutral-ui-layer1); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-control); padding: var(--spacing-lg);">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
-                            <div>
-                                <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Current Status</div>
-                                <div style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">
-                                    {% if server.monitoring_config and server.monitoring_config.monitoring_enabled %}
-                                    Active
-                                    {% else %}
-                                    Disabled
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div>
-                                <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Last Updated</div>
-                                <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-primary);">
-                                    {% if server.monitoring_config and server.monitoring_config.last_updated %}
-                                    {{ server.monitoring_config.last_updated|date:"M d, H:i" }}
-                                    {% else %}
-                                    Never
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--color-neutral-ui-border-subtle);">
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-bottom: var(--spacing-sm);">Note</div>
-                            <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); line-height: var(--line-height-body);">SSH connection details (username, password, keys) cannot be modified after server creation. To change authentication, remove and re-add the server.</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </form>
-    </div>
-</section>
+    <script>
+        function confirmDeleteServer(serverName, serverId) {
+            var message = '⚠️ WARNING: Delete Server\n\n' +
+                'Are you sure you want to delete the server "' + serverName + '"?\n\n' +
+                'This action will permanently delete:\n' +
+                '• All server configuration\n' +
+                '• All collected metrics\n' +
+                '• All alert history\n' +
+                '• All monitoring data\n\n' +
+                'This action CANNOT be undone!\n\n' +
+                'Click OK to confirm deletion, or Cancel to abort.';
+            
+            if (confirm(message)) {
+                // User confirmed, submit the form
+                document.getElementById('delete-server-form').submit();
+            }
+            // If user cancels, do nothing (form won't submit)
+        }
+    </script>
 {% endblock %}

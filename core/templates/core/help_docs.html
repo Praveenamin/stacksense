@@ -1,29 +1,323 @@
-{% extends "admin/base_site.html" %}
+{% extends "core/base.html" %}
 {% load static %}
 
 {% block title %}Help Documentation - StackSense{% endblock %}
 
 {% block extrahead %}
-<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    .page-header {
+        margin-bottom: 32px;
+    }
+    .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .page-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0;
+    }
+    .help-section {
+        margin-bottom: 32px;
+    }
+    .help-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 24px;
+    }
+    .help-card-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .help-card-description {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0 0 24px 0;
+        line-height: 1.6;
+    }
+    .help-item {
+        margin-bottom: 24px;
+    }
+    .help-item:last-child {
+        margin-bottom: 0;
+    }
+    .help-item-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .help-item-title svg {
+        width: 20px;
+        height: 20px;
+        color: #0ea5e9;
+        flex-shrink: 0;
+    }
+    .help-item-content {
+        font-size: 14px;
+        color: #64748b;
+        line-height: 1.6;
+        margin: 0;
+        padding-left: 28px;
+    }
+    .help-item-content ul {
+        margin: 8px 0;
+        padding-left: 24px;
+    }
+    .help-item-content li {
+        margin-bottom: 4px;
+    }
+    .help-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .help-list-item {
+        padding: 16px;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 12px;
+    }
+    .help-list-item:last-child {
+        margin-bottom: 0;
+    }
+    .help-list-item-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 4px 0;
+    }
+    .help-list-item-text {
+        font-size: 13px;
+        color: #64748b;
+        margin: 0;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="page-wrapper">
-    <!-- Sidebar -->
-    {% include 'core/sidebar.html' %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">Help Documentation</h1>
+    <p class="page-subtitle">Learn how to use StackSense monitoring features</p>
+</div>
 
-    <!-- Main Content -->
-    <div class="main-content">
-        <div class="container">
-            <!-- Header -->
-            <div class="mb-8">
-                <div class="flex items-center gap-4 mb-4">
-                    <a href="/monitoring/" class="btn btn-ghost">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+<!-- Getting Started -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Getting Started</h2>
+        <p class="help-card-description">
+            StackSense is a comprehensive server monitoring and infrastructure management platform. 
+            This guide will help you get started with the key features.
+        </p>
+        
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Adding a Server
+            </h3>
+            <div class="help-item-content">
+                <p>To start monitoring a server:</p>
+                <ul>
+                    <li>Navigate to "Add Server" from the sidebar or server list</li>
+                    <li>Enter the server's IP address, SSH port, username, and password</li>
+                    <li>The system will automatically deploy SSH keys and install required dependencies</li>
+                    <li>Initial metrics will be collected immediately after setup</li>
+                </ul>
             </div>
         </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                Viewing Metrics
+            </h3>
+            <div class="help-item-content">
+                <p>Monitor server performance in real-time:</p>
+                <ul>
+                    <li>Click on any server from the dashboard to view detailed metrics</li>
+                    <li>View CPU, memory, disk usage, and network I/O over time</li>
+                    <li>Check service status and system uptime</li>
+                    <li>Review historical data and trends</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monitoring Features -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Monitoring Features</h2>
+        
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Server Status
+            </h3>
+            <div class="help-item-content">
+                <p>The system continuously monitors server connectivity through SSH heartbeat checks every 30 seconds.</p>
+                <ul>
+                    <li><strong>Online:</strong> Server is responding and has no active alerts</li>
+                    <li><strong>Warning:</strong> Server is online but has active alerts or anomalies</li>
+                    <li><strong>Offline:</strong> Server is not responding or monitoring is suspended</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                Alerts & Notifications
+            </h3>
+            <div class="help-item-content">
+                <p>Receive alerts when issues are detected:</p>
+                <ul>
+                    <li>Configure email alerts in the Alert Configuration page</li>
+                    <li>Set thresholds for CPU, memory, disk usage, and I/O metrics</li>
+                    <li>Get notified when services go down or come back online</li>
+                    <li>View and manage alert history from the Alerts page</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01"/>
+                </svg>
+                Anomaly Detection
+            </h3>
+            <div class="help-item-content">
+                <p>The system automatically detects anomalies in your server metrics:</p>
+                <ul>
+                    <li>Uses advanced algorithms to identify unusual patterns</li>
+                    <li>Generates AI-powered explanations for detected anomalies</li>
+                    <li>View anomalies on the server details page</li>
+                    <li>Mark anomalies as resolved when addressed</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Server Management -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Server Management</h2>
+        
+        <ul class="help-list">
+            <li class="help-list-item">
+                <div class="help-list-item-title">Edit Server</div>
+                <div class="help-list-item-text">Update server name, IP address, and SSH port. Changes take effect immediately.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Suspend Monitoring</div>
+                <div class="help-list-item-text">Temporarily pause monitoring, data collection, and alerts for a server without removing it from the system.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Suppress Alerts</div>
+                <div class="help-list-item-text">Stop receiving alert notifications while keeping monitoring active. Useful for planned maintenance.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Service Monitoring</div>
+                <div class="help-list-item-text">Enable or disable monitoring for specific services. Configure thresholds and get alerts when services go down.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Delete Server</div>
+                <div class="help-list-item-text">Remove a server from monitoring. This action cannot be undone and will stop all data collection.</div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- User & Role Management -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">User & Role Management</h2>
+        
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+                Managing Users
+            </h3>
+            <div class="help-item-content">
+                <p>Create and manage user accounts:</p>
+                <ul>
+                    <li>Create new users with specific roles and permissions</li>
+                    <li>Edit user information, passwords, and access levels</li>
+                    <li>Deactivate or delete user accounts as needed</li>
+                    <li>Assign roles to control what users can access</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+                Roles & Permissions
+            </h3>
+            <div class="help-item-content">
+                <p>Control access with role-based permissions:</p>
+                <ul>
+                    <li>Create custom roles with specific privileges</li>
+                    <li>Assign privileges like viewing servers, managing users, or configuring alerts</li>
+                    <li>Edit or delete roles (except protected system roles)</li>
+                    <li>View which users are assigned to each role</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Best Practices -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Best Practices</h2>
+        
+        <ul class="help-list">
+            <li class="help-list-item">
+                <div class="help-list-item-title">Regular Monitoring</div>
+                <div class="help-list-item-text">Check your dashboard regularly to identify potential issues before they become critical.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Alert Configuration</div>
+                <div class="help-list-item-text">Configure appropriate thresholds for your infrastructure to avoid false positives while catching real issues.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Service Monitoring</div>
+                <div class="help-list-item-text">Enable monitoring for critical services to get notified immediately when they go down.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">User Access</div>
+                <div class="help-list-item-text">Use roles and permissions to grant appropriate access levels to team members.</div>
+            </li>
+        </ul>
     </div>
 </div>
 {% endblock %}

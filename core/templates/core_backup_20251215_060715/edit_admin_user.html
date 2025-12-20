@@ -1,0 +1,208 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load rbac_tags %}
+
+{% block title %}Edit User - StackWatch{% endblock %}
+
+{% block bodyclass %}edit-user-page{% endblock %}
+
+{% block content %}
+<!-- Page Header - IBM Carbon Layout -->
+<div style="margin-bottom: var(--cds-spacing-12);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+        <div>
+            <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--cds-line-height-tight);">Edit User</h1>
+            <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0; line-height: var(--cds-line-height-normal);">Modify user account settings and permissions</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: var(--cds-spacing-4);">
+            <a href="/admin-users/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Cancel</a>
+            <button type="submit" form="edit-user-form" class="btn" style="background-color: var(--cds-color-blue-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Messages - IBM Carbon Notification Pattern -->
+{% if messages %}
+<div style="margin-bottom: var(--cds-spacing-12);">
+    {% for message in messages %}
+    <div class="notification notification-{{ message.tags|default:'info' }}">
+        <div class="notification-content">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
+                <div class="notification-icon">
+                    {% if message.tags == 'error' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'success' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'warning' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    {% else %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div>
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); line-height: var(--line-height-body);">
+                        {{ message }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Edit User Form - IBM Carbon Form Layout -->
+<section style="margin-bottom: var(--cds-spacing-12);">
+    <div style="background-color: var(--cds-color-white); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--cds-spacing-8);">
+        <form id="edit-user-form" action="/admin-users/edit/{{ user_obj.id }}/" method="post">
+            {% csrf_token %}
+
+            <!-- Form Grid - IBM 8px spacing -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-xl);">
+
+                <!-- Basic Information -->
+                <div>
+                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--line-height-heading-md);">Basic Information</h3>
+
+                    <!-- Username Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="username" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Username *</label>
+                        <input type="text" id="username" name="username" value="{{ user_obj.username }}"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-base); font-family: var(--font-family-primary); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               required>
+                    </div>
+
+                    <!-- Email Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="email" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Email</label>
+                        <input type="email" id="email" name="email" value="{{ user_obj.email|default:'' }}"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-base); font-family: var(--font-family-primary); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;">
+                    </div>
+
+                    <!-- Password Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="password" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">New Password</label>
+                        <input type="password" id="password" name="password" placeholder="Leave blank to keep current password"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-base); font-family: var(--font-family-primary); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;">
+                        <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">Leave blank if you don't want to change the password</div>
+                    </div>
+                </div>
+
+                <!-- Account Settings -->
+                <div>
+                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--line-height-heading-md);">Account Settings</h3>
+
+                    <!-- Status Checkboxes -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <div style="margin-bottom: var(--cds-spacing-4);">
+                            <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer;">
+                                <input type="checkbox" name="is_active" {% if user_obj.is_active %}checked{% endif %}
+                                       style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                                <span>Active (user can log in)</span>
+                            </label>
+                        </div>
+
+                        <div style="margin-bottom: var(--cds-spacing-4);">
+                            <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer;">
+                                <input type="checkbox" name="is_superuser" id="is_superuser" {% if user_obj.is_superuser %}checked{% endif %} onchange="toggleRoleOptions()"
+                                       style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                                <span>Superuser (full admin access)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Role Selection (only for non-superusers) -->
+                    <div id="roleSection" style="{% if user_obj.is_superuser %}display: none;{% endif %}">
+                        <label for="role" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Role</label>
+                        <select id="role" name="role" style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-base); font-family: var(--font-family-primary); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease; appearance: none; background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238d8d8d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\"); background-position: right var(--cds-spacing-2) center; background-repeat: no-repeat; background-size: 16px; padding-right: var(--cds-spacing-8);">
+                            <option value="">No Role</option>
+                            {% for role in roles %}
+                            <option value="{{ role.id }}" {% if acl.role and acl.role.id == role.id %}selected{% endif %}>{{ role.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Access Control Section (only for non-superuser staff) -->
+            <div id="aclSection" style="{% if user_obj.is_superuser %}display: none;{% endif %} margin-top: var(--cds-spacing-8); padding-top: var(--spacing-xl); border-top: 1px solid var(--color-neutral-ui-border-subtle);">
+                <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--line-height-heading-md);">Access Control</h3>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--cds-spacing-6);">
+                    <div>
+                        <h4 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0; line-height: var(--cds-line-height-normal);">Dashboard Access</h4>
+                        <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer; margin-bottom: var(--cds-spacing-2);">
+                            <input type="checkbox" name="can_view_dashboard" {% if acl.can_view_dashboard %}checked{% endif %}
+                                   style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                            <span>View Servers/Alerts</span>
+                        </label>
+                    </div>
+
+                    <div>
+                        <h4 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0; line-height: var(--cds-line-height-normal);">Server Management</h4>
+                        <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer; margin-bottom: var(--cds-spacing-2);">
+                            <input type="checkbox" name="can_add_server" {% if acl.can_add_server %}checked{% endif %}
+                                   style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                            <span>Add Servers</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer; margin-bottom: var(--cds-spacing-2);">
+                            <input type="checkbox" name="can_edit_server" {% if acl.can_edit_server %}checked{% endif %}
+                                   style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                            <span>Edit Servers</span>
+                        </label>
+                    </div>
+
+                    <div>
+                        <h4 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0; line-height: var(--cds-line-height-normal);">Monitoring</h4>
+                        <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer; margin-bottom: var(--cds-spacing-2);">
+                            <input type="checkbox" name="can_halt_monitoring" {% if acl.can_halt_monitoring %}checked{% endif %}
+                                   style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                            <span>Control Monitoring</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer; margin-bottom: var(--cds-spacing-2);">
+                            <input type="checkbox" name="can_edit_thresholds" {% if acl.can_edit_thresholds %}checked{% endif %}
+                                   style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                            <span>Edit Thresholds</span>
+                        </label>
+                    </div>
+
+                    <div>
+                        <h4 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0; line-height: var(--cds-line-height-normal);">Notifications</h4>
+                        <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer; margin-bottom: var(--cds-spacing-2);">
+                            <input type="checkbox" name="can_mute_notifications" {% if acl.can_mute_notifications %}checked{% endif %}
+                                   style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                            <span>Control Alerts</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<script>
+function toggleRoleOptions() {
+    const isSuperuser = document.getElementById('is_superuser').checked;
+    const roleSection = document.getElementById('roleSection');
+    const aclSection = document.getElementById('aclSection');
+
+    if (isSuperuser) {
+        roleSection.style.display = 'none';
+        aclSection.style.display = 'none';
+    } else {
+        roleSection.style.display = 'block';
+        aclSection.style.display = 'block';
+    }
+}
+</script>
+{% endblock %}

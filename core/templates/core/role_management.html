@@ -6,20 +6,243 @@
 
 {% block bodyclass %}role-management-page{% endblock %}
 
+{% block extrahead %}
+<style>
+    .page-header {
+        margin-bottom: 32px;
+    }
+    .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .page-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0;
+    }
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #0ea5e9;
+        border: none;
+        border-radius: 6px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+    .btn-primary:hover {
+        background-color: #0284c7;
+    }
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+    .alert-success {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+    .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+    }
+    .table-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .data-table thead {
+        background-color: #f8fafc;
+    }
+    .data-table th {
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #0f172a;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .data-table td {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        color: #0f172a;
+        vertical-align: middle;
+    }
+    .data-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .data-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+    .role-avatar {
+        width: 32px;
+        height: 32px;
+        background-color: rgba(14, 165, 233, 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0ea5e9;
+    }
+    .role-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .role-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 2px;
+    }
+    .role-description {
+        font-size: 12px;
+        color: #64748b;
+    }
+    .protected-badge {
+        background-color: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        margin-top: 4px;
+        display: inline-block;
+    }
+    .table-text {
+        font-size: 14px;
+        color: #64748b;
+    }
+    .count-badge {
+        display: inline-block;
+        background-color: rgba(14, 165, 233, 0.1);
+        color: #0ea5e9;
+        border: 1px solid rgba(14, 165, 233, 0.2);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-right: 8px;
+    }
+    .count-badge-success {
+        background-color: rgba(34, 197, 94, 0.1);
+        color: #22c55e;
+        border-color: rgba(34, 197, 94, 0.2);
+    }
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+    }
+    .btn-edit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 12px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 150ms ease;
+    }
+    .btn-edit:hover {
+        background-color: #f8fafc;
+        border-color: #cbd5e1;
+    }
+    .btn-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 12px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #ef4444;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+    .btn-delete:hover {
+        background-color: #dc2626;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 48px 32px;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+    }
+    .empty-state-icon {
+        width: 64px;
+        height: 64px;
+        color: #94a3b8;
+        margin: 0 auto 24px auto;
+    }
+    .empty-state-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .empty-state-text {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0 0 24px 0;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<!-- Page Header - IBM Carbon Layout -->
-<div style="margin-bottom: var(--spacing-3xl);">
-    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
+<!-- Page Header -->
+<div class="page-header">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: flex-start;">
         <div>
-            <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">Role Management</h1>
-            <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Manage user roles and their associated privileges</p>
+            <h1 class="page-title">Role Management</h1>
+            <p class="page-subtitle">Manage user roles and their associated privileges</p>
         </div>
 
         <!-- Action Buttons -->
         {% if can_manage_roles %}
-        <div style="display: flex; gap: var(--spacing-md);">
-            <a href="/roles/create/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: var(--spacing-sm);">
+        <div class="header-actions">
+            <a href="/roles/create/" class="btn-primary">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: 8px;">
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                 </svg>
                 Create New Role
@@ -29,107 +252,72 @@
     </div>
 </div>
 
-<!-- Messages - IBM Carbon Notification Pattern -->
+<!-- Messages -->
 {% if messages %}
-<div style="margin-bottom: var(--spacing-3xl);">
+<div style="max-width: 100%; margin-bottom: 24px;">
     {% for message in messages %}
-    <div class="notification notification-{{ message.tags|default:'info' }}">
-        <div class="notification-content">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div class="notification-icon">
-                    {% if message.tags == 'error' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'success' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'warning' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                    </svg>
-                    {% else %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                    </svg>
-                    {% endif %}
-                </div>
-                <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
-                        {{ message }}
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+        <span>{{ message }}</span>
     </div>
     {% endfor %}
 </div>
 {% endif %}
 
-<!-- Roles Table - IBM Carbon DataTable -->
-<section style="margin-bottom: var(--spacing-3xl);">
-    <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">User Roles</h2>
+<!-- Roles Table -->
+<section style="margin-bottom: 32px;">
+    <h2 class="section-title">User Roles</h2>
 
     {% if roles %}
-    <div class="data-table-container">
+    <div class="table-card">
         <table class="data-table">
             <thead>
                 <tr>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Role Name</th>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);"># of Privileges</th>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);"># of Assigned Users</th>
-                    <th style="padding: var(--spacing-md) var(--spacing-lg); text-align: left; font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); font-size: var(--font-size-label); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Actions</th>
+                    <th>Role Name</th>
+                    <th># of Privileges</th>
+                    <th># of Assigned Users</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for role in roles %}
-                <tr style="transition: background-color 150ms ease;">
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
-                        <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                            <div style="width: 32px; height: 32px; background-color: rgba(15, 98, 254, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-primary-interactive);">{{ role.name|first|upper }}</span>
+                <tr>
+                    <td>
+                        <div class="role-info">
+                            <div class="role-avatar">
+                                {{ role.name|first|upper }}
                             </div>
                             <div>
-                                <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">{{ role.name }}</div>
+                                <div class="role-name">{{ role.name }}</div>
                                 {% if role.description %}
-                                <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">{{ role.description|truncatechars:60 }}</div>
+                                <div class="role-description">{{ role.description|truncatechars:60 }}</div>
                                 {% endif %}
                                 {% if role.is_protected %}
-                                <span class="status" style="background-color: rgba(245, 101, 101, 0.1); color: var(--color-support-error); border: 1px solid rgba(245, 101, 101, 0.2); font-size: var(--font-size-caption); padding: var(--spacing-xs) var(--spacing-sm); border-radius: var(--border-radius-control); margin-top: var(--spacing-xs); display: inline-block;">Protected</span>
+                                <span class="protected-badge">Protected</span>
                                 {% endif %}
                             </div>
                         </div>
                     </td>
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-secondary); vertical-align: middle;">
-                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
-                            <span class="tag" style="background-color: rgba(15, 98, 254, 0.1); color: var(--color-primary-interactive); border: 1px solid rgba(15, 98, 254, 0.2);">
-                                {{ role.role_privileges.count }}
-                            </span>
-                            <span style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">privilege{{ role.role_privileges.count|pluralize }}</span>
-                        </div>
+                    <td>
+                        <span class="count-badge">{{ role.role_privileges.count }}</span>
+                        <span class="table-text">privilege{{ role.role_privileges.count|pluralize }}</span>
                     </td>
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-secondary); vertical-align: middle;">
-                        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
-                            <span class="tag" style="background-color: rgba(36, 168, 72, 0.1); color: var(--color-support-success); border: 1px solid rgba(36, 168, 72, 0.2);">
-                                {{ role.user_count }}
-                            </span>
-                            <span style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">user{{ role.user_count|pluralize }}</span>
-                        </div>
+                    <td>
+                        <span class="count-badge count-badge-success">{{ role.user_count }}</span>
+                        <span class="table-text">user{{ role.user_count|pluralize }}</span>
                     </td>
-                    <td style="padding: var(--spacing-md) var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--color-neutral-text-primary); vertical-align: middle;">
+                    <td>
                         {% if can_manage_roles %}
-                        <div style="display: flex; gap: var(--spacing-sm);">
-                            <a href="/roles/edit/{{ role.id }}/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Edit</a>
+                        <div class="action-buttons">
+                            <a href="/roles/edit/{{ role.id }}/" class="btn-edit">Edit</a>
                             {% if not role.is_protected %}
                             <form action="/roles/delete/{{ role.id }}/" method="post" style="display: inline;">
                                 {% csrf_token %}
-                                <button type="submit" class="btn" style="background-color: var(--color-support-error); color: var(--color-neutral-ui-background); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;" onclick="return confirm('Are you sure you want to delete the role \"{{ role.name }}\"? This action cannot be undone.')">Delete</button>
+                                <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete the role \"{{ role.name }}\"? This action cannot be undone.')">Delete</button>
                             </form>
                             {% endif %}
                         </div>
                         {% else %}
-                        <span style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">No permissions</span>
+                        <span style="font-size: 12px; color: #64748b;">No permissions</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -138,16 +326,16 @@
         </table>
     </div>
     {% else %}
-    <div style="text-align: center; padding: var(--spacing-3xl) var(--spacing-xl); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card);">
-        <div style="width: 64px; height: 64px; color: var(--color-neutral-text-placeholder); margin: 0 auto var(--spacing-lg) auto;">
+    <div class="empty-state">
+        <div class="empty-state-icon">
             <svg fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
             </svg>
         </div>
-        <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-heading-md);">No Roles Found</h3>
-        <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-body);">No roles have been created yet. Create your first role to get started.</p>
+        <h3 class="empty-state-title">No Roles Found</h3>
+        <p class="empty-state-text">No roles have been created yet. Create your first role to get started.</p>
         {% if can_manage_roles %}
-        <a href="/roles/create/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Create First Role</a>
+        <a href="/roles/create/" class="btn-primary">Create First Role</a>
         {% endif %}
     </div>
     {% endif %}

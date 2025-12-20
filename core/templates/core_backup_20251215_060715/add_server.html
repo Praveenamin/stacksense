@@ -1,0 +1,190 @@
+{% extends "core/base.html" %}
+
+{% block title %}Add New Server - StackWatch{% endblock %}
+
+{% block bodyclass %}add-server-page{% endblock %}
+
+{% block content %}
+    <!-- Page Header -->
+    <div style="margin-bottom: var(--cds-spacing-12);">
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+            <div>
+                <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Add New Server</h1>
+                <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0;">Configure a new server for monitoring and alerting</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: var(--cds-spacing-4);">
+                <a href="/monitoring/" class="bx--btn bx--btn--secondary bx--btn--sm">Cancel</a>
+                <button type="submit" form="add-server-form" class="bx--btn bx--btn--primary bx--btn--sm">Add Server</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div style="margin-bottom: var(--cds-spacing-12);">
+        {% for message in messages %}
+        <div class="bx--inline-notification bx--inline-notification--{% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} bx--inline-notification--low-contrast" role="alert" style="margin-bottom: var(--cds-spacing-4);">
+            <div class="bx--inline-notification__details">
+                {% if message.tags == 'error' %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M9,5h2v6H9V5z M9,13h2v2H9V13z"></path>
+                </svg>
+                {% elif message.tags == 'success' %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M8,15.414L3.293,10.707l1.414-1.414L8,12.586l7.293-7.293l1.414,1.414 L8,15.414z"></path>
+                </svg>
+                {% elif message.tags == 'warning' %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M9,5h2v6H9V5z M9,13h2v2H9V13z"></path>
+                </svg>
+                {% else %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"></path>
+                </svg>
+                {% endif %}
+                <div class="bx--inline-notification__text-wrapper">
+                    <p class="bx--inline-notification__title">{{ message }}</p>
+                </div>
+            </div>
+            <button class="bx--inline-notification__close-button" type="button" aria-label="close">
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M12 4.7l-.7-.7L8 7.3 4.7 4l-.7.7L7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"></path>
+                </svg>
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Server Configuration Form -->
+    <div class="bx--tile" style="margin-bottom: var(--cds-spacing-12);">
+        <h2 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Server Configuration</h2>
+        <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-8) 0;">Enter the connection details for your server</p>
+
+        <form id="add-server-form" method="post">
+            {% csrf_token %}
+
+            <!-- Form Grid - IBM 8px spacing -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--cds-spacing-6);">
+
+                <!-- Basic Server Information -->
+                <div>
+                    <h3 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0; line-height: var(--cds-line-height-tight);">Basic Information</h3>
+
+                    <!-- Server Name Field -->
+                    <div class="bx--form-item" style="margin-bottom: var(--cds-spacing-6);">
+                        <label class="bx--label" for="name">Server Name *</label>
+                        <input type="text" id="name" name="name" class="bx--text-input" placeholder="e.g., Web Server 01" required>
+                        <div class="bx--form__helper-text">A friendly name to identify this server</div>
+                    </div>
+
+                    <!-- IP Address Field -->
+                    <div style="margin-bottom: var(--cds-spacing-4);">
+                        <label for="ip_address" style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">SSH Server IP *</label>
+                        <input type="text" id="ip_address" name="ip_address" placeholder="192.168.1.100"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-3); font-size: var(--cds-font-size-base); font-family: var(--cds-font-family); color: var(--cds-color-gray-100); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">The IP address or hostname of your server</div>
+                    </div>
+
+                    <!-- SSH Port Field -->
+                    <div style="margin-bottom: var(--cds-spacing-4);">
+                        <label for="port" style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">SSH Port *</label>
+                        <input type="number" id="port" name="port" value="22" min="1" max="65535"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-3); font-size: var(--cds-font-size-base); font-family: var(--cds-font-family); color: var(--cds-color-gray-100); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">Usually 22 for SSH connections</div>
+                    </div>
+                </div>
+
+                <!-- Authentication Settings -->
+                <div>
+                    <h3 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0; line-height: var(--cds-line-height-tight);">Authentication</h3>
+
+                    <!-- Username Field -->
+                    <div style="margin-bottom: var(--cds-spacing-4);">
+                        <label for="username" style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">SSH Username *</label>
+                        <input type="text" id="username" name="username" value="root" placeholder="root"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-3); font-size: var(--cds-font-size-base); font-family: var(--cds-font-family); color: var(--cds-color-gray-100); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">User account with sudo privileges</div>
+                    </div>
+
+                    <!-- Password Field -->
+                    <div style="margin-bottom: var(--cds-spacing-4);">
+                        <label for="password" style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">SSH Password *</label>
+                        <input type="password" id="password" name="password" placeholder="Enter password for SSH key deployment"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-3); font-size: var(--cds-font-size-base); font-family: var(--cds-font-family); color: var(--cds-color-gray-100); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               required>
+                        <div style="background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-3); margin-top: var(--cds-spacing-2);">
+                            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-2);">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: var(--cds-color-yellow-60); margin-top: var(--cds-spacing-1); flex-shrink: 0;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <div>
+                                    <div style="font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Security Notice</div>
+                                    <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-tight);">Password is used only once to deploy SSH key. It will not be stored in the database.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<!-- Setup Requirements - IBM Carbon Contained List -->
+<section style="margin-bottom: var(--cds-spacing-12);">
+    <h2 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--cds-line-height-tight);">Setup Requirements</h2>
+
+    <div style="background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); overflow: hidden;">
+        <div style="padding: var(--cds-spacing-4); border-bottom: 1px solid var(--cds-color-gray-20);">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-3);">
+                <div style="width: 24px; height: 24px; background-color: var(--cds-color-green-60); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: var(--cds-spacing-1);">
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 12px; height: 12px; color: var(--cds-color-gray-10);">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">SSH Access</div>
+                    <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-normal);">Server must be accessible via SSH</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding: var(--cds-spacing-4); border-bottom: 1px solid var(--cds-color-gray-20);">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-3);">
+                <div style="width: 24px; height: 24px; background-color: var(--cds-color-green-60); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: var(--cds-spacing-1);">
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 12px; height: 12px; color: var(--cds-color-gray-10);">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Sudo Privileges</div>
+                    <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-normal);">User must have sudo access for monitoring setup</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding: var(--cds-spacing-4);">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-3);">
+                <div style="width: 24px; height: 24px; background-color: var(--cds-color-green-60); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: var(--cds-spacing-1);">
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 12px; height: 12px; color: var(--cds-color-gray-10);">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Python Support</div>
+                    <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-normal);">Server should have Python installed</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+
+

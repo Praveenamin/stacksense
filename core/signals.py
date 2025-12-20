@@ -13,3 +13,12 @@ def create_user_acl(sender, instance, created, **kwargs):
     if created:
         # Create ACL entry for the new user
         UserACL.get_or_create_for_user(instance)
+
+
+
+
+
+
+
+
+

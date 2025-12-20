@@ -58,8 +58,12 @@ WSGI_APPLICATION = "log_analyzer.wsgi.application"
 # Database
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "monitoring_db",
+        "USER": "monitoring_user",
+        "PASSWORD": "monitoring_pass",
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5433"),
     }
 }
 
@@ -71,7 +75,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+TIME_ZONE = "UTC"  # Core application timezone (for calculations, storage)
+DISPLAY_TIME_ZONE = os.environ.get("DISPLAY_TIME_ZONE", "UTC")  # Display timezone (for UI only)
 USE_I18N = True
 USE_TZ = True
 
@@ -180,7 +185,15 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = "DENY"
 
-CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:8000").split(",")
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:8000").split(",")]
+
+# Trust proxy headers for HTTPS behind reverse proxy
+USE_TLS = os.environ.get("USE_TLS", "False") == "True"
+if USE_TLS:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = False  # Nginx handles redirect
 
 # Jazzmin Configuration
 JAZZMIN_SETTINGS = {

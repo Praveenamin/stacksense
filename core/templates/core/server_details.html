@@ -7,921 +7,774 @@
 {% block bodyclass %}server-details-page{% endblock %}
 
 {% block content %}
-<div class="page-content">
-    <div class="page-header">
-        <div class="page-breadcrumb">
-            <a href="{% url 'monitoring_dashboard' %}" class="breadcrumb-link">Dashboard</a>
-            <span class="breadcrumb-separator">/</span>
-            <span class="breadcrumb-current">{{ server.name }}</span>
-        </div>
-        <h1 class="page-title">{{ server.name }}</h1>
-        <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: var(--spacing-xs) 0 0 0;">{{ server.ip_address }}{% if server.port and server.port != 22 %}:{{ server.port }}{% endif %}</p>
-    </div>
+<style>
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+<!-- Page Header -->
+<div style="margin-bottom: var(--cds-spacing-8);">
+    <nav style="margin-bottom: var(--cds-spacing-4); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+        <a href="{% url 'monitoring_dashboard' %}" style="color: var(--cds-color-blue-60); text-decoration: none;">Dashboard</a>
+        <span style="margin: 0 var(--cds-spacing-2);">/</span>
+        <span style="color: var(--cds-color-gray-100); font-weight: var(--cds-font-weight-medium);">{{ server.name }}</span>
+    </nav>
 
-    {% if server.monitoring_config.suspend_monitoring %}
-    <!-- Monitoring Suspended Banner -->
-    <div style="background-color: var(--color-support-warning); color: var(--color-neutral-ui-background); padding: var(--spacing-lg); border-radius: var(--border-radius-card); margin-bottom: var(--spacing-xl); display: flex; align-items: center; gap: var(--spacing-md);">
-        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 24px; height: 24px; flex-shrink: 0;">
-            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-        </svg>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--cds-spacing-4); flex-wrap: wrap;">
         <div>
-            <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); margin-bottom: var(--spacing-xs);">Monitoring is suspended for this server</div>
-            <div style="font-size: var(--font-size-caption);">Metrics collection and anomaly detection are currently disabled</div>
+            <h1 style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">{{ server.name }}</h1>
+            <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+                <span style="font-family: var(--cds-font-family-mono);">{{ server.ip_address }}</span>
+                <span>•</span>
+                <span id="server-status-text" style="font-weight: var(--cds-font-weight-medium);">Checking status...</span>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
+            {% if user.is_staff or user.is_superuser %}
+            <a href="/server/edit/{{ server.id }}/" style="display: inline-flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); text-decoration: none;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                Edit Server
+            </a>
+            <a href="{% url 'server_anomalies_log' server.id %}" style="display: inline-flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); text-decoration: none;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Anomalies Log
+            </a>
+            {% endif %}
+            <label style="display: inline-flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); cursor: pointer;">
+                <span>Auto-Refresh</span>
+                <input type="checkbox" id="auto-refresh-toggle" checked style="width: 16px; height: 16px;">
+            </label>
         </div>
     </div>
-    {% endif %}
-
-    <!-- 1. Anomaly & Metrics Header Section -->
-    <section style="margin-bottom: var(--spacing-3xl);">
-        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--spacing-xl);">
-
-            <!-- Anomaly Detection Summary Block -->
-            <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-xl);">
-                <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Anomaly Status</h3>
-
-                <div class="anomaly-status" data-server-id="{{ server.id }}">
-                    <span class="severity-label">Loading...</span>
-                    <span class="active-count"></span>
-                </div>
-            </div>
-
-            <!-- Metrics Graph Placeholder -->
-            <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-xl);">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-lg);">
-                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0; line-height: var(--line-height-heading-md);">System Metrics</h3>
-                    <div style="display: flex; gap: var(--spacing-sm);">
-                        <button class="metric-time-filter active" data-period="1h">1H</button>
-                        <button class="metric-time-filter" data-period="24h">24H</button>
-                        <button class="metric-time-filter" data-period="7d">7D</button>
-                        <button class="metric-time-filter" data-period="30d">30D</button>
-                    </div>
-                </div>
-
-                <div id="metrics-chart" style="height: 200px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-text-secondary);">
-                    {% if server.monitoring_config.suspend_monitoring %}
-                        <div style="text-align: center;">
-                            <svg fill="currentColor" viewBox="0 0 20 20" style="width: 48px; height: 48px; margin: 0 auto var(--spacing-md) auto; opacity: 0.5;">
-                                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd"/>
-                            </svg>
-                            <p>No data during suspended monitoring</p>
-                        </div>
-                    {% else %}
-                        <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-                            <div style="width: 48px; height: 48px; opacity: 0.5;">
-                                <svg class="animate-spin" fill="currentColor" viewBox="0 0 20 20" style="width: 48px; height: 48px;">
-                                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                                </svg>
-                            </div>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 2. Hardware Resource Details Section -->
-    <section style="margin-bottom: var(--spacing-3xl);">
-        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Hardware Resources</h2>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-xl);">
-
-            <!-- CPU Card -->
-            <div class="resource-card">
-                <div style="display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
-                    <div style="width: 48px; height: 48px; background-color: rgba(36, 168, 72, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 24px; height: 24px; color: var(--color-support-success);">
-                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h4 style="font-size: var(--font-size-heading-sm); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0; line-height: var(--line-height-heading-sm);">CPU</h4>
-                        <p style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin: var(--spacing-xs) 0 0 0;">Processor usage and cores</p>
-                    </div>
-                </div>
-
-                {% if latest_metric %}
-                <div style="space-y: var(--spacing-lg);">
-                    <div class="metric-item">
-                        <span class="metric-label">Usage</span>
-                        <span class="metric-value">{{ latest_metric.cpu_load_avg_1m|floatformat:1 }}%</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Load Average</span>
-                        <span class="metric-value">{{ latest_metric.cpu_load_avg_1m|floatformat:2 }}</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Cores</span>
-                        <span class="metric-value">{{ server.cpu_cores|default:"—" }}</span>
-                    </div>
-                </div>
-                {% else %}
-                <div style="color: var(--color-neutral-text-secondary); font-style: italic;">No CPU data available</div>
-                {% endif %}
-            </div>
-
-            <!-- Memory Card -->
-            <div class="resource-card">
-                <div style="display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
-                    <div style="width: 48px; height: 48px; background-color: rgba(59, 130, 246, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 24px; height: 24px; color: #3b82f6;">
-                            <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h4 style="font-size: var(--font-size-heading-sm); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0; line-height: var(--line-height-heading-sm);">Memory</h4>
-                        <p style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin: var(--spacing-xs) 0 0 0;">RAM usage and swap</p>
-                    </div>
-                </div>
-
-                {% if latest_metric %}
-                <div style="space-y: var(--spacing-lg);">
-                    <div class="metric-item">
-                        <span class="metric-label">Used</span>
-                        <span class="metric-value">{{ latest_metric.memory_used|filesizeformat }} / {{ latest_metric.memory_total|filesizeformat }}</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Percentage</span>
-                        <span class="metric-value">{{ latest_metric.memory_percent|floatformat:1 }}%</span>
-                    </div>
-                    {% if latest_metric.swap_total and latest_metric.swap_total > 0 %}
-                    <div class="metric-item">
-                        <span class="metric-label">Swap</span>
-                        <span class="metric-value">{{ latest_metric.swap_used|filesizeformat }} / {{ latest_metric.swap_total|filesizeformat }}</span>
-                    </div>
-                    {% endif %}
-                </div>
-                {% else %}
-                <div style="color: var(--color-neutral-text-secondary); font-style: italic;">No memory data available</div>
-                {% endif %}
-            </div>
-
-            <!-- Disk Card -->
-            <div class="resource-card">
-                <div style="display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
-                    <div style="width: 48px; height: 48px; background-color: rgba(245, 158, 11, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 24px; height: 24px; color: var(--color-support-warning);">
-                            <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h4 style="font-size: var(--font-size-heading-sm); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0; line-height: var(--line-height-heading-sm);">Disk</h4>
-                        <p style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin: var(--spacing-xs) 0 0 0;">Storage usage and partitions</p>
-                    </div>
-                </div>
-
-                {% if disk_summary.partitions %}
-                <div style="space-y: var(--spacing-lg);">
-                    {% for partition in disk_summary.partitions|slice:":3" %}
-                    <div class="metric-item">
-                        <span class="metric-label">{{ partition.mount_point }}</span>
-                        <span class="metric-value">{{ partition.used|filesizeformat }} / {{ partition.total|filesizeformat }}</span>
-                    </div>
-                    {% endfor %}
-                    {% if disk_summary.partitions|length > 3 %}
-                    <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-sm);">
-                        +{{ disk_summary.partitions|length|add:"-3" }} more partitions
-                    </div>
-                    {% endif %}
-                </div>
-                {% else %}
-                <div style="color: var(--color-neutral-text-secondary); font-style: italic;">No disk data available</div>
-                {% endif %}
-            </div>
-
-            <!-- Network Card -->
-            <div class="resource-card">
-                <div style="display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
-                    <div style="width: 48px; height: 48px; background-color: rgba(168, 85, 247, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 24px; height: 24px; color: #a855f7;">
-                            <path fill-rule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h4 style="font-size: var(--font-size-heading-sm); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0; line-height: var(--line-height-heading-sm);">Network</h4>
-                        <p style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin: var(--spacing-xs) 0 0 0;">Interface traffic and throughput</p>
-                    </div>
-                </div>
-
-                {% if latest_metric and latest_metric.network_interfaces %}
-                <div style="space-y: var(--spacing-lg);">
-                    {% for interface, data in latest_metric.network_interfaces.items %}
-                    {% if forloop.first %}
-                    <div class="metric-item">
-                        <span class="metric-label">{{ interface }}</span>
-                        <span class="metric-value">{{ data.rx_bytes|filesizeformat }}/s RX</span>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">{{ interface }}</span>
-                        <span class="metric-value">{{ data.tx_bytes|filesizeformat }}/s TX</span>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div style="color: var(--color-neutral-text-secondary); font-style: italic;">No network data available</div>
-                {% endif %}
-            </div>
-
-        </div>
-    </section>
-
-    <!-- 3. Services Section (Restructured) -->
-    <section style="margin-bottom: var(--spacing-3xl);">
-        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Service Monitoring</h2>
-
-        <!-- Service Status Overview -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-lg); margin-bottom: var(--spacing-2xl);">
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Monitored Services</span>
-                    <span id="monitored-count" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">—</span>
-                </div>
-            </div>
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Total Services</span>
-                    <span id="total-count" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">—</span>
-                </div>
-            </div>
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Running</span>
-                    <span id="running-count-overview" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-support-success);">—</span>
-                </div>
-            </div>
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Failed</span>
-                    <span id="failed-count-overview" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-support-error);">—</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Service Tabs -->
-        <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); overflow: hidden; margin-bottom: var(--spacing-xl);">
-            <div style="border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
-                <div style="display: flex; gap: 0;">
-                    <button class="service-tab active" data-tab="critical" style="padding: var(--spacing-md) var(--spacing-lg); border: none; background: none; border-bottom: 2px solid var(--color-primary-interactive); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-primary-interactive); cursor: pointer; transition: all 150ms ease;">
-                        Critical Services <span id="critical-count" class="tab-count">(0)</span>
-                    </button>
-                    <button class="service-tab" data-tab="enabled" style="padding: var(--spacing-md) var(--spacing-lg); border: none; background: none; border-bottom: 2px solid transparent; font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-secondary); cursor: pointer; transition: all 150ms ease;">
-                        Enabled Services <span id="enabled-count" class="tab-count">(0)</span>
-                    </button>
-                    <button class="service-tab" data-tab="all" style="padding: var(--spacing-md) var(--spacing-lg); border: none; background: none; border-bottom: 2px solid transparent; font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-secondary); cursor: pointer; transition: all 150ms ease;">
-                        All Services <span id="all-count" class="tab-count">(0)</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Service Content with Scrolling -->
-            <div id="service-content" style="max-height: 400px; overflow-y: auto;">
-                <!-- Services will be loaded here -->
-                <div style="padding: var(--spacing-2xl); text-align: center;">
-                    <div style="width: 48px; height: 48px; margin: 0 auto var(--spacing-lg) auto; opacity: 0.5;">
-                        <svg class="animate-spin" fill="currentColor" viewBox="0 0 20 20" style="width: 48px; height: 48px;">
-                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0;">Loading services...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Service Actions -->
-        <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end;">
-            <button id="refresh-services-btn" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border-radius: var(--border-radius-control); cursor: pointer;">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: var(--spacing-xs);">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                Refresh
-            </button>
-        </div>
-    </section>
-
-    <!-- 4. Threshold Settings Section -->
-    <section>
-        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Alert Thresholds</h2>
-
-        <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-2xl);">
-            <form id="thresholds-form">
-                {% csrf_token %}
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-xl);">
-
-                    <!-- CPU Alert Threshold -->
-                    <div>
-                        <label for="cpu-threshold" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">CPU Usage Threshold (%)</label>
-                        <input type="number" id="cpu-threshold" name="cpu_threshold" min="1" max="100" value="{{ server.monitoring_config.cpu_alert_threshold|default:80 }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">
-                            Alert when CPU usage exceeds this percentage
-                        </div>
-                    </div>
-
-                    <!-- Memory Alert Threshold -->
-                    <div>
-                        <label for="memory-threshold" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Memory Usage Threshold (%)</label>
-                        <input type="number" id="memory-threshold" name="memory_threshold" min="1" max="100" value="{{ server.monitoring_config.memory_alert_threshold|default:85 }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">
-                            Alert when memory usage exceeds this percentage
-                        </div>
-                    </div>
-
-                    <!-- Disk Usage Threshold -->
-                    <div>
-                        <label for="disk-threshold" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Disk Usage Threshold (%)</label>
-                        <input type="number" id="disk-threshold" name="disk_threshold" min="1" max="100" value="{{ server.monitoring_config.disk_alert_threshold|default:90 }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">
-                            Alert when disk usage exceeds this percentage
-                        </div>
-                    </div>
-
-                    <!-- Network Spike Threshold -->
-                    <div>
-                        <label for="network-threshold" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Network Spike Threshold (MB/s)</label>
-                        <input type="number" id="network-threshold" name="network_threshold" min="1" max="10000" value="{{ server.monitoring_config.network_alert_threshold|default:100 }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">
-                            Alert when network traffic exceeds this rate
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end; margin-top: var(--spacing-xl);">
-                    <button type="submit" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;">Save Thresholds</button>
-                </div>
-            </form>
-        </div>
-    </section>
-
-        <!-- Service Status Overview -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-lg); margin-bottom: var(--spacing-2xl);">
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Monitored Services</span>
-                    <span id="monitored-count" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">—</span>
-                </div>
-            </div>
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Total Services</span>
-                    <span id="total-count" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">—</span>
-                </div>
-            </div>
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Running</span>
-                    <span id="running-count-overview" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-support-success);">—</span>
-                </div>
-            </div>
-            <div class="structured-list-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary);">Failed</span>
-                    <span id="failed-count-overview" style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-support-error);">—</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Services Table - IBM Carbon DataTable -->
-        <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); overflow: hidden;">
-            <div style="padding: var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
-                <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0; line-height: var(--line-height-heading-md);">System Services</h3>
-                <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: var(--spacing-xs) 0 0 0; line-height: var(--line-height-body);">Monitor and manage systemd services on this server</p>
-            </div>
-
-            <div id="services-table-body">
-                <!-- Loading state -->
-                <div style="padding: var(--spacing-3xl); text-align: center;">
-                    <div style="width: 48px; height: 48px; margin: 0 auto var(--spacing-lg) auto; opacity: 0.5;">
-                        <svg class="animate-spin" fill="currentColor" viewBox="0 0 20 20" style="width: 48px; height: 48px;">
-                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0;">Loading services...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Service Actions -->
-        <div style="margin-top: var(--spacing-xl); display: flex; gap: var(--spacing-md); justify-content: flex-end;">
-            <button id="refresh-services-btn" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border-radius: var(--border-radius-control); cursor: pointer;">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: var(--spacing-xs);">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                Refresh
-            </button>
-        </div>
-    </section>
 </div>
+
+<input type="hidden" id="server-id" value="{{ server.id }}">
+
+<!-- CPU Section -->
+<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
+    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">CPU</h2>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4); margin-bottom: var(--cds-spacing-4);">
+        <div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">CPU Usage</div>
+            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="cpu-percent">{% if latest_metric %}{{ latest_metric.cpu_percent|default:"--"|floatformat:1 }}%{% else %}--%{% endif %}</div>
+        </div>
+        <div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Cores</div>
+            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="cpu-cores">{% if latest_metric %}{{ latest_metric.cpu_count|default:"--" }}{% else %}--{% endif %}</div>
+        </div>
+        <div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Load Average (1m)</div>
+            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="cpu-load-avg">{% if latest_metric and latest_metric.cpu_load_avg_1m %}{{ latest_metric.cpu_load_avg_1m|floatformat:2 }}{% else %}--{% endif %}</div>
+        </div>
+    </div>
+    
+    <div>
+        <div style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Top 3 CPU Processes</div>
+        <div id="top-cpu-processes" style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+            <div style="padding: var(--cds-spacing-2); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius);">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<!-- RAM Section -->
+<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
+    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">RAM</h2>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4); margin-bottom: var(--cds-spacing-4);">
+        <div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Total RAM</div>
+            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="ram-total">{% if latest_metric %}{{ latest_metric.memory_total|filesizeformat }}{% else %}--{% endif %}</div>
+        </div>
+        <div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Free RAM</div>
+            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="ram-free">{% if latest_metric %}{{ latest_metric.memory_available|filesizeformat }}{% else %}--{% endif %}</div>
+        </div>
+        <div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Cached</div>
+            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="ram-cached">{% if latest_metric and latest_metric.memory_cached %}{{ latest_metric.memory_cached|filesizeformat }}{% else %}--{% endif %}</div>
+        </div>
+        {% if latest_metric and latest_metric.swap_total %}
+        <div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Swap (Total/Used)</div>
+            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="swap-info">{{ latest_metric.swap_total|filesizeformat }} / {{ latest_metric.swap_used|default:0|filesizeformat }}</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div>
+        <div style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Top 3 RAM Processes</div>
+        <div id="top-ram-processes" style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+            <div style="padding: var(--cds-spacing-2); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius);">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Disk Usage Section -->
+<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
+        <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Disk Usage</h2>
+        <button onclick="openDiskModal()" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-blue-60); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-blue-60); border-radius: var(--cds-border-radius); cursor: pointer;">Select Disks</button>
+    </div>
+    
+    <div style="margin-bottom: var(--cds-spacing-4);">
+        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Number of Disks</div>
+        <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">{{ disk_summary.total_disks|default:0 }}</div>
+    </div>
+    
+    <div id="disk-list">
+        <!-- Show all monitored disks -->
+        {% if disk_data %}
+        {% for mount_point in monitored_disks %}
+        {% for disk_mount, info in disk_data.items %}
+        {% if disk_mount == mount_point %}
+        <div style="padding: var(--cds-spacing-3); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius); margin-bottom: var(--cds-spacing-2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-2);">
+                <div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ mount_point }}{% if mount_point == "/" %} (Root){% endif %}</div>
+                <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">{{ info.percent|default:0|floatformat:1 }}%</div>
+            </div>
+            <div style="height: 8px; background-color: var(--cds-color-gray-20); border-radius: 4px; overflow: hidden;">
+                <div style="height: 100%; background-color: var(--cds-color-blue-60); width: {{ info.percent|default:0 }}%; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">
+                {{ info.used|filesizeformat }} / {{ info.total|filesizeformat }}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Graphs Section -->
+<div style="margin-bottom: var(--cds-spacing-6);">
+    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Anomaly and Metrics Graphs</h2>
+    
+    <!-- CPU & Memory Graph -->
+    <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-4);">
+        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">CPU & Memory</h3>
+        <div style="position: relative; height: 300px;">
+            <canvas id="cpu-memory-chart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Disk I/O Graph -->
+    <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-4);">
+        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Disk I/O</h3>
+        <div style="position: relative; height: 300px;">
+            <canvas id="disk-io-chart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Network I/O Graph -->
+    <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6);">
+        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Network I/O (In/Out)</h3>
+        <div style="position: relative; height: 300px;">
+            <canvas id="network-io-chart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Services Status Section -->
+<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
+        <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Services Status</h2>
+        <div style="display: flex; gap: var(--cds-spacing-2);">
+            <button onclick="showServices('enabled')" id="btn-enabled" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-white); background-color: var(--cds-color-blue-60); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Enabled</button>
+            <button onclick="showServices('critical')" id="btn-critical" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); cursor: pointer;">Critical</button>
+            <button onclick="showServices('all')" id="btn-all" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); cursor: pointer;">All</button>
+        </div>
+    </div>
+    
+    <div id="services-list">
+        <!-- Services will be loaded here -->
+    </div>
+</div>
+
+<!-- Threshold Values Section -->
+<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6);">
+    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Threshold Values</h2>
+    
+    <form id="thresholds-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--cds-spacing-4);">
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">CPU Threshold (%)</label>
+            <input type="number" name="cpu_threshold" value="{{ server.monitoring_config.cpu_threshold|default:80 }}" min="0" max="100" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+        </div>
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Memory Threshold (%)</label>
+            <input type="number" name="memory_threshold" value="{{ server.monitoring_config.memory_threshold|default:85 }}" min="0" max="100" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+        </div>
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Disk Usage Threshold (%)</label>
+            <input type="number" name="disk_threshold" value="{{ server.monitoring_config.disk_threshold|default:90 }}" min="0" max="100" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+        </div>
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Disk I/O Threshold (MB/s)</label>
+            <input type="number" name="disk_io_threshold" value="{% if server.monitoring_config.disk_io_threshold %}{{ server.monitoring_config.disk_io_threshold|floatformat:2 }}{% else %}1000{% endif %}" min="0" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+        </div>
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Network I/O Threshold (MB/s)</label>
+            <input type="number" name="network_io_threshold" value="{% if server.monitoring_config.network_io_threshold %}{{ server.monitoring_config.network_io_threshold|floatformat:2 }}{% else %}1000{% endif %}" min="0" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+        </div>
+        <div style="display: flex; align-items: flex-end;">
+            <button type="submit" style="padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-white); background-color: var(--cds-color-blue-60); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Save Thresholds</button>
+        </div>
+    </form>
+</div>
+
+<!-- Disk Selection Modal -->
+<div id="disk-modal" style="display: none; position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background-color: var(--cds-color-white); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
+            <h3 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Select Disks to Monitor</h3>
+            <button onclick="closeDiskModal()" style="background: none; border: none; font-size: var(--cds-font-size-xl); color: var(--cds-color-gray-70); cursor: pointer; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">×</button>
+        </div>
+        <div id="disk-modal-list">
+            {% for mount_point, info in disk_data.items %}
+            <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); margin-bottom: var(--cds-spacing-2); cursor: pointer;">
+                <input type="checkbox" value="{{ mount_point }}" {% if mount_point in monitored_disks %}checked{% endif %} {% if mount_point == "/" %}disabled{% endif %}>
+                <div style="flex: 1;">
+                    <div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ mount_point }}</div>
+                    <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">{{ info.total|filesizeformat }} total</div>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: var(--cds-spacing-2); margin-top: var(--cds-spacing-4);">
+            <button onclick="closeDiskModal()" style="padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); cursor: pointer;">Cancel</button>
+            <button onclick="saveDiskSelection()" style="padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-white); background-color: var(--cds-color-blue-60); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Save</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extrajs %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script>
-// Server details functionality
-let servicePollingInterval = null;
-let anomalyPollingInterval = null;
-let currentServiceTab = 'critical';
-
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Server details: Initializing...');
-
-    // Initialize all components
-    initAnomalyStatus();
-    loadServices();
-    initServiceTabs();
-    initThresholdsForm();
-    initTimeFilters();
-
-    // Set up refresh button
-    const refreshBtn = document.getElementById('refresh-services-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', function() {
-            loadServices();
-        });
-    }
-
-    // Start polling
-    startServicePolling();
-    startAnomalyPolling();
-});
-
-// Initialize anomaly status
-function initAnomalyStatus() {
-    // Load initial anomaly status
-    updateAnomalyStatus();
-
-    // Set up polling for anomaly updates
-    anomalyPollingInterval = setInterval(updateAnomalyStatus, 30000); // 30 seconds
-}
-
-// Update anomaly status
-async function updateAnomalyStatus() {
-    try {
-        const response = await fetch(`/api/server/{{ server.id }}/anomaly-status/`);
-        const data = await response.json();
-
-        // API returns data directly (not wrapped in success/data)
-        const anomalyElement = document.querySelector('.anomaly-status');
-        if (anomalyElement) {
-            const severityLabel = anomalyElement.querySelector('.severity-label');
-            const activeCount = anomalyElement.querySelector('.active-count');
-
-            if (data.active > 0) {
-                severityLabel.textContent = data.highest_severity;
-                severityLabel.className = 'severity-label';
-                activeCount.textContent = `${data.active} active`;
-                anomalyElement.className = `anomaly-status anomaly-${data.highest_severity.toLowerCase()}`;
-            } else {
-                severityLabel.textContent = 'OK';
-                severityLabel.className = 'severity-label';
-                activeCount.textContent = 'No Active Anomalies';
-                anomalyElement.className = 'anomaly-status anomaly-ok';
-            }
-        }
-    } catch (error) {
-        console.error('Failed to load anomaly status:', error);
-        // Show error state
-        const anomalyElement = document.querySelector('.anomaly-status');
-        if (anomalyElement) {
-            const severityLabel = anomalyElement.querySelector('.severity-label');
-            const activeCount = anomalyElement.querySelector('.active-count');
-            if (severityLabel) severityLabel.textContent = 'Error';
-            if (activeCount) activeCount.textContent = 'Unable to load';
-            anomalyElement.className = 'anomaly-status anomaly-unknown';
-        }
-    }
-}
-
-// Initialize service tabs
-function initServiceTabs() {
-    document.querySelectorAll('.service-tab').forEach(tab => {
-        tab.addEventListener('click', function() {
-            const tabName = this.dataset.tab;
-
-            // Update active tab
-            document.querySelectorAll('.service-tab').forEach(t => {
-                t.classList.remove('active');
-                t.style.borderBottomColor = 'transparent';
-                t.style.color = 'var(--color-neutral-text-secondary)';
+    const serverId = document.getElementById('server-id').value;
+    let refreshInterval;
+    let cpuMemoryChart, diskIOChart, networkIOChart;
+    
+    // Initialize charts
+    document.addEventListener('DOMContentLoaded', function() {
+        loadTopProcesses();
+        loadServices('enabled');
+        initializeCharts();
+        fetchMetrics();
+        
+        const toggle = document.getElementById('auto-refresh-toggle');
+        if (toggle && toggle.checked) startPolling();
+        
+        if (toggle) {
+            toggle.addEventListener('change', function(e) {
+                if (e.target.checked) startPolling();
+                else stopPolling();
             });
-
-            this.classList.add('active');
-            this.style.borderBottomColor = 'var(--color-primary-interactive)';
-            this.style.color = 'var(--color-primary-interactive)';
-
-            currentServiceTab = tabName;
-            loadServices();
-        });
-    });
-}
-
-// Initialize time filters (placeholder for future chart implementation)
-function initTimeFilters() {
-    document.querySelectorAll('.metric-time-filter').forEach(filter => {
-        filter.addEventListener('click', function() {
-            document.querySelectorAll('.metric-time-filter').forEach(f => f.classList.remove('active'));
-            this.classList.add('active');
-
-            // TODO: Implement chart time filtering when chart library is added
-            console.log('Time filter changed to:', this.dataset.period);
-        });
-    });
-}
-
-// Load services from API
-async function loadServices() {
-    console.log('Service monitoring: Loading services...');
-    const serviceContent = document.getElementById('service-content');
-
-    // Show loading state
-    serviceContent.innerHTML = `
-        <div style="padding: var(--spacing-3xl); text-align: center;">
-            <div style="width: 48px; height: 48px; margin: 0 auto var(--spacing-lg) auto; opacity: 0.5;">
-                <svg class="animate-spin" fill="currentColor" viewBox="0 0 20 20" style="width: 48px; height: 48px;">
-                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0;">Loading services...</p>
-        </div>
-    `;
-
-    try {
-        const response = await fetch(`/api/server/{{ server.id }}/services/`);
-        const data = await response.json();
-
-        if (data.success) {
-            console.log('Service monitoring: Data received', data);
-            renderServices(data);
-            updateOverviewStats(data);
-            updateTabCounts(data);
-        } else {
-            console.error('Service monitoring: API error', data.error);
-            showError('Failed to load services: ' + (data.error || 'Unknown error'));
         }
-    } catch (error) {
-        console.error('Service monitoring: Network error', error);
-        showError('Network error while loading services');
-    }
-}
-
-// Render services based on current tab
-function renderServices(data) {
-    const serviceContent = document.getElementById('service-content');
-
-    if (!data.all || data.all.length === 0) {
-        serviceContent.innerHTML = `
-            <div style="padding: var(--spacing-3xl); text-align: center; color: var(--color-neutral-text-secondary);">
-                <div style="width: 48px; height: 48px; margin: 0 auto var(--spacing-lg) auto; opacity: 0.5;">
-                    <svg fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <p>No services found on this server.</p>
-            </div>
-        `;
-        return;
-    }
-
-    // Filter services based on current tab
-    let servicesToShow = [];
-
-    switch (currentServiceTab) {
-        case 'critical':
-            // Show critical services by default (ssh, nginx, mysql, etc.)
-            const criticalServices = ['sshd', 'nginx', 'apache2', 'httpd', 'mysql', 'mariadb', 'redis', 'php-fpm', 'postfix', 'systemd-logind', 'docker', 'cron', 'rsyslog', 'syslog'];
-            servicesToShow = data.all.filter(service =>
-                criticalServices.includes(service.name) ||
-                data.critical.some(c => c.name === service.name)
-            );
-            break;
-        case 'enabled':
-            // Show only monitored services
-            servicesToShow = data.critical;
-            break;
-        case 'all':
-            // Show all services
-            servicesToShow = data.all;
-            break;
-    }
-
-    if (servicesToShow.length === 0) {
-        serviceContent.innerHTML = `
-            <div style="padding: var(--spacing-3xl); text-align: center; color: var(--color-neutral-text-secondary);">
-                <p>No services in this category.</p>
-            </div>
-        `;
-        return;
-    }
-
-    // Sort services: monitored first, then by status, then alphabetically
-    const sortedServices = servicesToShow.sort((a, b) => {
-        const aMonitored = data.critical.some(s => s.name === a.name);
-        const bMonitored = data.critical.some(s => s.name === b.name);
-
-        if (aMonitored !== bMonitored) return bMonitored ? 1 : -1;
-
-        const statusOrder = { 'failed': 0, 'running': 1, 'stopped': 2 };
-        const aOrder = statusOrder[a.status] ?? 3;
-        const bOrder = statusOrder[b.status] ?? 3;
-
-        if (aOrder !== bOrder) return aOrder - bOrder;
-
-        return a.name.localeCompare(b.name);
-    });
-
-    let html = '';
-    sortedServices.forEach(service => {
-        const isMonitored = data.critical.some(s => s.name === service.name);
-        const isCritical = ['sshd', 'nginx', 'apache2', 'httpd', 'mysql', 'mariadb', 'redis', 'php-fpm', 'postfix', 'systemd-logind', 'docker'].includes(service.name);
-        const statusClass = getServiceStatusClass(service.status);
-        const statusColor = getServiceStatusColor(service.status);
-
-        html += `
-            <div style="padding: var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                        <div style="width: 40px; height: 40px; background-color: ${statusColor.background}; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <span style="font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); color: ${statusColor.text};">${service.name.charAt(0).toUpperCase()}</span>
-                        </div>
-                        <div style="min-width: 0; flex: 1;">
-                            <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">
-                                ${service.name}
-                                ${isCritical ? '<span style="font-size: var(--font-size-caption); background-color: var(--color-support-error); color: var(--color-neutral-ui-background); padding: 2px 6px; border-radius: 10px; margin-left: var(--spacing-sm);">Critical</span>' : ''}
-                                ${isMonitored ? '<span style="font-size: var(--font-size-caption); background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: 2px 6px; border-radius: 10px; margin-left: var(--spacing-sm);">Monitored</span>' : ''}
-                            </div>
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">
-                                ${service.description || 'System service'}
-                            </div>
-                        </div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                        <span class="status ${statusClass}" style="font-size: var(--font-size-caption); padding: var(--spacing-xs) var(--spacing-sm); border-radius: var(--border-radius-control);">
-                            ${service.status.charAt(0).toUpperCase() + service.status.slice(1)}
-                        </span>
-                        <button onclick="${isMonitored ? 'disableService' : 'enableService'}('${service.name}')" class="btn" style="background-color: ${isMonitored ? 'var(--color-support-error)' : 'var(--color-primary-interactive)'}; color: var(--color-neutral-ui-background); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-caption); border: none; border-radius: var(--border-radius-control); cursor: pointer;">${isMonitored ? 'Disable' : 'Enable'}</button>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    serviceContent.innerHTML = html;
-}
-
-// Update tab counts
-function updateTabCounts(data) {
-    // Critical services count
-    const criticalServices = ['sshd', 'nginx', 'apache2', 'httpd', 'mysql', 'mariadb', 'redis', 'php-fpm', 'postfix', 'systemd-logind', 'docker', 'cron', 'rsyslog', 'syslog'];
-    const criticalCount = data.all.filter(service =>
-        criticalServices.includes(service.name) ||
-        data.critical.some(c => c.name === service.name)
-    ).length;
-
-    // Enabled services count
-    const enabledCount = data.critical.length;
-
-    // All services count
-    const allCount = data.all.length;
-
-    document.getElementById('critical-count').textContent = `(${criticalCount})`;
-    document.getElementById('enabled-count').textContent = `(${enabledCount})`;
-    document.getElementById('all-count').textContent = `(${allCount})`;
-}
-
-// Update overview statistics
-function updateOverviewStats(data) {
-    document.getElementById('monitored-count').textContent = data.critical.length;
-    document.getElementById('total-count').textContent = data.all.length;
-    document.getElementById('running-count-overview').textContent = data.running.length;
-    document.getElementById('failed-count-overview').textContent = data.failed.length;
-}
-
-// Initialize thresholds form
-function initThresholdsForm() {
-    const form = document.getElementById('thresholds-form');
-    if (form) {
-        form.addEventListener('submit', async function(e) {
+        
+        document.getElementById('thresholds-form')?.addEventListener('submit', function(e) {
             e.preventDefault();
-
-            const formData = {
-                cpu_threshold: parseInt(document.getElementById('cpu-threshold').value),
-                memory_threshold: parseInt(document.getElementById('memory-threshold').value),
-                disk_threshold: parseInt(document.getElementById('disk-threshold').value),
-                network_threshold: parseInt(document.getElementById('network-threshold').value)
-            };
-
-            try {
-                const response = await fetch(`/api/server/{{ server.id }}/thresholds/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                    },
-                    body: JSON.stringify(formData)
+            saveThresholds();
+        });
+    });
+    
+    function startPolling() {
+        fetchMetrics();
+        refreshInterval = setInterval(fetchMetrics, 5000);
+    }
+    
+    function stopPolling() {
+        if (refreshInterval) clearInterval(refreshInterval);
+    }
+    
+    async function fetchMetrics() {
+        try {
+            const [metricsRes, diskIORes, networkIORes] = await Promise.all([
+                fetch(`/api/server/${serverId}/metrics/?range=1h`),
+                fetch(`/api/server/${serverId}/disk-io/?range=1h`),
+                fetch(`/api/server/${serverId}/network-io/?range=1h`)
+            ]);
+            
+            if (!metricsRes.ok) throw new Error(`HTTP error! status: ${metricsRes.status}`);
+            
+            const metricsData = await metricsRes.json();
+            const diskIOData = diskIORes.ok ? await diskIORes.json() : { read: [], write: [] };
+            const networkIOData = networkIORes.ok ? await networkIORes.json() : { sent: [], recv: [] };
+            
+            // Update CPU
+            if (metricsData.cpu && metricsData.cpu.length > 0) {
+                const latest = metricsData.cpu[metricsData.cpu.length - 1];
+                document.getElementById('cpu-percent').textContent = Math.round(latest.value) + '%';
+            }
+            
+            // Combine data for charts - match timestamps
+            const diskIO = [];
+            if (diskIOData.read && diskIOData.write) {
+                const readMap = new Map(diskIOData.read.map(r => [r.timestamp, r.value]));
+                diskIOData.write.forEach(w => {
+                    diskIO.push({
+                        timestamp: w.timestamp,
+                        read: readMap.get(w.timestamp) || 0,
+                        write: w.value || 0
+                    });
                 });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('Alert thresholds updated successfully', 'success');
-                } else {
-                    showToast(data.error || 'Failed to update thresholds', 'error');
+            }
+            
+            const networkIO = [];
+            if (networkIOData.sent && networkIOData.recv) {
+                const sentMap = new Map(networkIOData.sent.map(s => [s.timestamp, s.value]));
+                networkIOData.recv.forEach(r => {
+                    networkIO.push({
+                        timestamp: r.timestamp,
+                        tx: sentMap.get(r.timestamp) || 0,
+                        rx: r.value || 0
+                    });
+                });
+            }
+            
+            const chartData = {
+                ...metricsData,
+                disk_io: diskIO,
+                network: networkIO
+            };
+            
+            // Update charts
+            updateCharts(chartData);
+            
+            // Update server status
+            if (metricsData.status) {
+                updateServerStatus(metricsData.status);
+            }
+            
+        } catch (e) {
+            console.error('Error fetching metrics:', e);
+            // On error, show offline status
+            updateServerStatus('offline');
+        }
+    }
+    
+    function updateServerStatus(status) {
+        const statusElement = document.getElementById('server-status-text');
+        if (!statusElement) return;
+        
+        // Remove any existing status classes from parent
+        statusElement.className = '';
+        
+        if (status === 'online') {
+            statusElement.textContent = 'Online';
+            statusElement.style.color = '#166534';
+        } else if (status === 'warning') {
+            statusElement.textContent = 'Warning';
+            statusElement.style.color = '#92400e';
+        } else {
+            statusElement.textContent = 'Offline';
+            statusElement.style.color = '#991b1b';
+        }
+    }
+    
+    async function loadTopProcesses() {
+        try {
+            const [cpuRes, ramRes] = await Promise.all([
+                fetch(`/api/server/${serverId}/top-processes/`),
+                fetch(`/api/server/${serverId}/top-ram-processes/`)
+            ]);
+            
+            if (cpuRes.ok) {
+                const cpuData = await cpuRes.json();
+                displayTopProcesses('top-cpu-processes', cpuData.processes || []);
+            }
+            
+            if (ramRes.ok) {
+                const ramData = await ramRes.json();
+                displayTopProcesses('top-ram-processes', ramData.processes || []);
+            }
+        } catch (e) {
+            console.error('Error loading top processes:', e);
+        }
+    }
+    
+    function displayTopProcesses(containerId, processes) {
+        const container = document.getElementById(containerId);
+        if (!processes || processes.length === 0) {
+            container.innerHTML = '<div style="padding: var(--cds-spacing-2); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius);">No data available</div>';
+            return;
+        }
+        
+        container.innerHTML = processes.map(p => `
+            <div style="display: flex; justify-content: space-between; padding: var(--cds-spacing-2); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius); margin-bottom: var(--cds-spacing-1);">
+                <div style="flex: 1;">
+                    <div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">${p.name || p.command || 'Unknown'}</div>
+                    <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">PID: ${p.pid || 'N/A'}</div>
+                </div>
+                <div style="font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">${p.usage || 0}%</div>
+            </div>
+        `).join('');
+    }
+    
+    async function loadServices(filter) {
+        try {
+            currentFilter = filter;  // Store current filter
+            
+            // Show loading indicator
+            const container = document.getElementById('services-list');
+            if (container) {
+                container.innerHTML = '<div style="padding: var(--cds-spacing-4); text-align: center; color: var(--cds-color-gray-70);"><div style="display: inline-block; width: 20px; height: 20px; border: 3px solid var(--cds-color-gray-20); border-top-color: var(--cds-color-blue-60); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px;"></div>Loading...</div>';
+            }
+            
+            const res = await fetch(`/api/server/${serverId}/services/`);
+            if (!res.ok) throw new Error('Failed to load services');
+            
+            const data = await res.json();
+            let services = [];
+            
+            // Get services based on filter
+            if (filter === 'enabled') {
+                // Get monitored services (services with monitoring enabled)
+                services = data.monitored || [];
+            } else if (filter === 'critical') {
+                // Get critical services (monitored + pattern-matched critical services)
+                services = data.critical || [];
+            } else if (filter === 'all') {
+                // Get all services
+                services = data.all || [];
+            }
+            
+            displayServices(services);
+            
+            // Update button states
+            document.querySelectorAll('[id^="btn-"]').forEach(btn => {
+                btn.style.backgroundColor = 'var(--cds-color-white)';
+                btn.style.color = 'var(--cds-color-gray-100)';
+            });
+            const btn = document.getElementById(`btn-${filter}`);
+            if (btn) {
+                btn.style.backgroundColor = 'var(--cds-color-blue-60)';
+                btn.style.color = 'var(--cds-color-white)';
+            }
+            
+        } catch (e) {
+            console.error('Error loading services:', e);
+            const container = document.getElementById('services-list');
+            if (container) {
+                container.innerHTML = '<div style="padding: var(--cds-spacing-4); text-align: center; color: var(--cds-color-red-60);">Error loading services: ' + e.message + '</div>';
+            }
+        }
+    }
+    
+    let currentFilter = 'enabled';  // Track current filter
+    
+    function showServices(filter) {
+        loadServices(filter);
+    }
+    
+    function displayServices(services) {
+        const container = document.getElementById('services-list');
+        if (!container) {
+            console.error('Services list container not found');
+            return;
+        }
+        
+        if (!services || services.length === 0) {
+            container.innerHTML = '<div style="padding: var(--cds-spacing-4); text-align: center; color: var(--cds-color-gray-70);">No services found</div>';
+            return;
+        }
+        
+        container.innerHTML = services.map(s => {
+            const status = s.status || 'unknown';
+            const statusColor = status === 'running' ? 'background-color: #dcfce7; color: #166534;' : 
+                               status === 'failed' ? 'background-color: #fee2e2; color: #991b1b;' :
+                               'background-color: #f3f4f6; color: #6b7280;';
+            const isCritical = s.is_critical || false;
+            const monitoringEnabled = s.monitoring_enabled || false;
+            const serviceId = s.id || null;
+            
+            // Show Enable/Disable button only for Critical and All filters
+            const showToggleButton = (currentFilter === 'critical' || currentFilter === 'all') && serviceId;
+            const toggleButton = showToggleButton ? `
+                <button onclick="toggleServiceMonitoring(${serviceId}, ${!monitoringEnabled})" 
+                        style="padding: var(--cds-spacing-1) var(--cds-spacing-2); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); 
+                               ${monitoringEnabled ? 'background-color: #dc2626; color: #ffffff;' : 'background-color: #22c55e; color: #ffffff;'} 
+                               border: none; border-radius: var(--cds-border-radius); cursor: pointer;">
+                    ${monitoringEnabled ? 'Disable' : 'Enable'} Monitoring
+                </button>
+            ` : '';
+            
+            return `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--cds-spacing-3); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); margin-bottom: var(--cds-spacing-2);">
+                <div style="flex: 1;">
+                    <div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">${s.name || 'Unknown'}</div>
+                    <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">${s.description || s.status || 'Unknown'}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
+                    <span style="padding: var(--cds-spacing-1) var(--cds-spacing-2); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); border-radius: var(--cds-border-radius); ${statusColor}">${status}</span>
+                    ${isCritical ? '<span style="padding: var(--cds-spacing-1) var(--cds-spacing-2); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); background-color: #fef3c7; color: #92400e; border-radius: var(--cds-border-radius);">Critical</span>' : ''}
+                    ${toggleButton}
+                </div>
+            </div>
+            `;
+        }).join('');
+    }
+    
+    async function toggleServiceMonitoring(serviceId, enable) {
+        try {
+            // Show loading state on the button
+            const toggleBtn = document.getElementById(`toggle-btn-${serviceId}`);
+            if (toggleBtn) {
+                const originalText = toggleBtn.textContent;
+                toggleBtn.disabled = true;
+                toggleBtn.style.opacity = '0.6';
+                toggleBtn.style.cursor = 'not-allowed';
+                toggleBtn.innerHTML = '<div style="display: inline-block; width: 12px; height: 12px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 4px;"></div>Loading...';
+            }
+            
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
                 }
-            } catch (error) {
-                console.error('Thresholds update error:', error);
-                showToast('Network error occurred', 'error');
+                return cookieValue;
+            }
+            
+            const res = await fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            
+            if (!res.ok) throw new Error('Failed to toggle monitoring');
+            
+            const data = await res.json();
+            if (data.success) {
+                // Reload services to reflect the change
+                loadServices(currentFilter);
+            } else {
+                // Restore button state on error
+                if (toggleBtn) {
+                    toggleBtn.disabled = false;
+                    toggleBtn.style.opacity = '1';
+                    toggleBtn.style.cursor = 'pointer';
+                    toggleBtn.textContent = originalText;
+                }
+                alert('Error: ' + (data.error || 'Failed to toggle monitoring'));
+            }
+        } catch (e) {
+            console.error('Error toggling service monitoring:', e);
+            // Restore button state on error
+            const toggleBtn = document.getElementById(`toggle-btn-${serviceId}`);
+            if (toggleBtn) {
+                toggleBtn.disabled = false;
+                toggleBtn.style.opacity = '1';
+                toggleBtn.style.cursor = 'pointer';
+            }
+            alert('Error toggling service monitoring: ' + e.message);
+        }
+    }
+    
+    function initializeCharts() {
+        // CPU & Memory Chart
+        const cpuMemoryCtx = document.getElementById('cpu-memory-chart').getContext('2d');
+        cpuMemoryChart = new Chart(cpuMemoryCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'CPU %', data: [], borderColor: '#0ea5e9', backgroundColor: 'rgba(14, 165, 233, 0.1)' },
+                    { label: 'Memory %', data: [], borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.1)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: true } },
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+        
+        // Disk I/O Chart
+        const diskIOCtx = document.getElementById('disk-io-chart').getContext('2d');
+        diskIOChart = new Chart(diskIOCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Read (KB/s)', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)' },
+                    { label: 'Write (KB/s)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: true } }
+            }
+        });
+        
+        // Network I/O Chart
+        const networkIOCtx = document.getElementById('network-io-chart').getContext('2d');
+        networkIOChart = new Chart(networkIOCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'In (KB/s)', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+                    { label: 'Out (KB/s)', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: true } }
             }
         });
     }
-}
-
-// Get service status CSS class
-function getServiceStatusClass(status) {
-    switch (status.toLowerCase()) {
-        case 'running':
-            return 'status-success';
-        case 'failed':
-            return 'status-error';
-        case 'stopped':
-            return 'status-warning';
-        default:
-            return 'status-info';
-    }
-}
-
-// Get service status colors
-function getServiceStatusColor(status) {
-    switch (status.toLowerCase()) {
-        case 'running':
-            return { background: 'rgba(36, 168, 72, 0.1)', text: 'var(--color-support-success)' };
-        case 'failed':
-            return { background: 'rgba(218, 30, 40, 0.1)', text: 'var(--color-support-error)' };
-        case 'stopped':
-            return { background: 'rgba(245, 158, 11, 0.1)', text: 'var(--color-support-warning)' };
-        default:
-            return { background: 'rgba(107, 114, 128, 0.1)', text: 'var(--color-neutral-text-secondary)' };
-    }
-}
-
-// Enable service for monitoring
-async function enableService(serviceName) {
-    try {
-        const response = await fetch(`/api/server/{{ server.id }}/services/monitor/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            },
-            body: JSON.stringify({
-                services: [serviceName]
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            showToast(`Service "${serviceName}" enabled for monitoring`, 'success');
-            loadServices(); // Refresh the list
-        } else {
-            showToast(data.error || 'Failed to enable service', 'error');
+    
+    function updateCharts(data) {
+        // Update CPU & Memory chart
+        if (data.cpu && data.memory && data.cpu.length > 0) {
+            const timestamps = data.cpu.map(d => {
+                const date = new Date(d.timestamp);
+                return date.toLocaleTimeString();
+            });
+            cpuMemoryChart.data.labels = timestamps;
+            cpuMemoryChart.data.datasets[0].data = data.cpu.map(d => d.value);
+            cpuMemoryChart.data.datasets[1].data = data.memory.map(d => d.value);
+            cpuMemoryChart.update('none');
         }
-    } catch (error) {
-        console.error('Enable service error:', error);
-        showToast('Network error occurred', 'error');
-    }
-}
-
-// Disable service from monitoring
-async function disableService(serviceName) {
-    try {
-        const response = await fetch(`/api/server/{{ server.id }}/services/monitor/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            },
-            body: JSON.stringify({
-                services: [serviceName] // API will remove this from monitored list
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            showToast(`Service "${serviceName}" disabled from monitoring`, 'success');
-            loadServices(); // Refresh the list
-        } else {
-            showToast(data.error || 'Failed to disable service', 'error');
+        
+        // Update Disk I/O chart
+        if (data.disk_io && data.disk_io.length > 0) {
+            const timestamps = data.disk_io.map(d => {
+                const date = new Date(d.timestamp);
+                return date.toLocaleTimeString();
+            });
+            diskIOChart.data.labels = timestamps;
+            diskIOChart.data.datasets[0].data = data.disk_io.map(d => (d.read || 0) / 1024);
+            diskIOChart.data.datasets[1].data = data.disk_io.map(d => (d.write || 0) / 1024);
+            diskIOChart.update('none');
         }
-    } catch (error) {
-        console.error('Disable service error:', error);
-        showToast('Network error occurred', 'error');
-    }
-}
-
-// Show error state
-function showError(message) {
-    const tableBody = document.getElementById('services-table-body');
-    tableBody.innerHTML = `
-        <div style="padding: var(--spacing-3xl); text-align: center; color: var(--color-support-error);">
-            <div style="width: 48px; height: 48px; margin: 0 auto var(--spacing-lg) auto; opacity: 0.5;">
-                <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <p style="font-size: var(--font-size-body); margin: 0;">${message}</p>
-        </div>
-    `;
-}
-
-// Start polling for service updates
-function startServicePolling() {
-    // Poll every 60 seconds for services (less frequent than metrics)
-    servicePollingInterval = setInterval(() => {
-        loadServices();
-    }, 60000);
-}
-
-// Start polling for anomaly updates
-function startAnomalyPolling() {
-    // Poll every 30 seconds for anomaly status (matches dashboard)
-    anomalyPollingInterval = setInterval(() => {
-        updateAnomalyStatus();
-    }, 30000);
-}
-
-// Clean up on page unload
-window.addEventListener('beforeunload', () => {
-    if (servicePollingInterval) {
-        clearInterval(servicePollingInterval);
-    }
-    if (anomalyPollingInterval) {
-        clearInterval(anomalyPollingInterval);
-    }
-});
-
-// Toast notification function (simplified)
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `notification notification-${type}`;
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 1000;
-        min-width: 300px;
-        max-width: 500px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        border-radius: var(--border-radius-card);
-        background-color: var(--color-neutral-ui-background);
-        border: 1px solid var(--color-neutral-ui-border-subtle);
-    `;
-
-    const iconColor = type === 'success' ? 'var(--color-support-success)' :
-                     type === 'error' ? 'var(--color-support-error)' :
-                     'var(--color-primary-interactive)';
-
-    toast.innerHTML = `
-        <div class="notification-content" style="padding: var(--spacing-lg);">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div class="notification-icon" style="color: ${iconColor};">
-                    ${type === 'success' ? `
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                    ` : type === 'error' ? `
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                        </svg>
-                    ` : `
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                        </svg>
-                    `}
-                </div>
-                <div style="flex: 1;">
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
-                        ${message}
-                    </div>
-                </div>
-                <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; color: var(--color-neutral-text-secondary); cursor: pointer; padding: var(--spacing-xs);">
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 16px; height: 16px;">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 011.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-        if (toast.parentElement) {
-            toast.remove();
+        
+        // Update Network I/O chart
+        if (data.network && data.network.length > 0) {
+            const timestamps = data.network.map(d => {
+                const date = new Date(d.timestamp);
+                return date.toLocaleTimeString();
+            });
+            networkIOChart.data.labels = timestamps;
+            networkIOChart.data.datasets[0].data = data.network.map(d => (d.rx || 0) / 1024);
+            networkIOChart.data.datasets[1].data = data.network.map(d => (d.tx || 0) / 1024);
+            networkIOChart.update('none');
         }
-    }, 5000);
-}
+    }
+    
+    function openDiskModal() {
+        document.getElementById('disk-modal').style.display = 'flex';
+    }
+    
+    function closeDiskModal() {
+        document.getElementById('disk-modal').style.display = 'none';
+    }
+    
+    async function saveDiskSelection() {
+        const checkboxes = document.querySelectorAll('#disk-modal-list input[type="checkbox"]:not([disabled])');
+        const selectedDisks = Array.from(checkboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        
+        // Always include / if not already selected
+        if (!selectedDisks.includes('/')) {
+            selectedDisks.unshift('/');
+        }
+        
+        try {
+            const res = await fetch(`/api/server/${serverId}/monitored-disks/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || ''
+                },
+                body: JSON.stringify({ disks: selectedDisks })
+            });
+            
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success) {
+                    // Reload the page to show updated disk list
+                    location.reload();
+                } else {
+                    alert('Failed to save disk selection: ' + (result.error || 'Unknown error'));
+                }
+            } else {
+                alert('Failed to save disk selection');
+            }
+        } catch (e) {
+            console.error('Error saving disk selection:', e);
+            alert('Error saving disk selection');
+        }
+    }
+    
+    async function saveThresholds() {
+        const form = document.getElementById('thresholds-form');
+        const formData = new FormData(form);
+        const data = {};
+        for (let [key, value] of formData.entries()) {
+            data[key] = parseFloat(value);
+        }
+        
+        try {
+            const res = await fetch(`/api/server/${serverId}/thresholds/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || ''
+                },
+                body: JSON.stringify(data)
+            });
+            
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success) {
+                    alert('Thresholds saved successfully');
+                } else {
+                    alert('Failed to save thresholds: ' + (result.error || 'Unknown error'));
+                }
+            } else {
+                alert('Failed to save thresholds');
+            }
+        } catch (e) {
+            console.error('Error saving thresholds:', e);
+            alert('Error saving thresholds');
+        }
+    }
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 </script>
 {% endblock %}

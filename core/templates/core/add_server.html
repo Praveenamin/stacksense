@@ -1,194 +1,627 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Add New Server - StackWatch{% endblock %}
 
-{% block bodyclass %}add-server-page{% endblock %}
+{% block extrahead %}
+<style>
+    .form-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        max-width: 600px;
+    }
+    .form-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .form-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0 0 32px 0;
+    }
+    .form-section {
+        margin-bottom: 24px;
+    }
+    .form-section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .form-label .required {
+        color: #ef4444;
+    }
+    .form-input {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        transition: all 150ms ease;
+        box-sizing: border-box;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .form-input::placeholder {
+        color: #94a3b8;
+    }
+    .form-hint {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+    .form-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 16px;
+    }
+    .btn-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #0ea5e9;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+        width: 100%;
+    }
+    .btn-submit:hover {
+        background-color: #0284c7;
+    }
+    .security-notice {
+        background-color: #fffbeb;
+        border: 1px solid #fcd34d;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-top: 8px;
+    }
+    .security-notice-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #92400e;
+        margin: 0 0 4px 0;
+    }
+    .security-notice-text {
+        font-size: 12px;
+        color: #a16207;
+        margin: 0;
+        line-height: 1.4;
+    }
+    .requirements-card {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 24px;
+        max-width: 600px;
+    }
+    .requirements-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+    }
+    .requirement-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .requirement-item:last-child {
+        border-bottom: none;
+    }
+    .requirement-icon {
+        width: 24px;
+        height: 24px;
+        background-color: #22c55e;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .requirement-icon svg {
+        width: 14px;
+        height: 14px;
+        color: white;
+    }
+    .requirement-text-title {
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin: 0 0 2px 0;
+    }
+    .requirement-text-desc {
+        font-size: 13px;
+        color: #64748b;
+        margin: 0;
+    }
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+    .alert-success {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+    /* Progress Modal */
+    .progress-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    .progress-modal.active {
+        display: flex;
+    }
+    .progress-modal-content {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 32px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .progress-modal-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 24px 0;
+    }
+    .progress-steps {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .progress-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 16px 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .progress-step:last-child {
+        border-bottom: none;
+    }
+    .progress-step-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 16px;
+        font-weight: 600;
+    }
+    .progress-step-icon.pending {
+        background-color: #f1f5f9;
+        color: #64748b;
+    }
+    .progress-step-icon.in_progress {
+        background-color: #dbeafe;
+        color: #0ea5e9;
+        animation: pulse 2s infinite;
+    }
+    .progress-step-icon.completed {
+        background-color: #dcfce7;
+        color: #22c55e;
+    }
+    .progress-step-icon.warning {
+        background-color: #fef3c7;
+        color: #f59e0b;
+    }
+    .progress-step-icon.failed {
+        background-color: #fee2e2;
+        color: #ef4444;
+    }
+    .progress-step-content {
+        flex: 1;
+    }
+    .progress-step-title {
+        font-size: 16px;
+        font-weight: 500;
+        color: #0f172a;
+        margin: 0 0 4px 0;
+    }
+    .progress-step-message {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    .spinner {
+        border: 3px solid #f1f5f9;
+        border-top: 3px solid #0ea5e9;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<!-- Page Header - IBM Carbon Layout -->
-<div style="margin-bottom: var(--spacing-3xl);">
-    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
-        <div>
-            <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">Add New Server</h1>
-            <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Configure a new server for monitoring and alerting</p>
-        </div>
-
-        <!-- Action Buttons -->
-        <div style="display: flex; gap: var(--spacing-md);">
-            <a href="/monitoring/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Cancel</a>
-            <button type="submit" form="add-server-form" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;">Add Server</button>
-        </div>
+    <!-- Page Header -->
+    <div style="margin-bottom: 32px;">
+        <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Add New Server</h1>
+        <p style="font-size: 14px; color: #64748b; margin: 0;">Configure a new server for monitoring</p>
     </div>
-</div>
 
-<!-- Messages - IBM Carbon Notification Pattern -->
-{% if messages %}
-<div style="margin-bottom: var(--spacing-3xl);">
-    {% for message in messages %}
-    <div class="notification notification-{{ message.tags|default:'info' }}">
-        <div class="notification-content">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div class="notification-icon">
-                    {% if message.tags == 'error' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'success' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'warning' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                    </svg>
-                    {% else %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                    </svg>
-                    {% endif %}
-                </div>
-                <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
-                        {{ message }}
-                    </div>
-                </div>
-            </div>
+    <!-- Messages -->
+    {% if messages %}
+    <div style="max-width: 600px; margin-bottom: 24px;">
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+            <span>{{ message }}</span>
         </div>
+        {% endfor %}
     </div>
-    {% endfor %}
-</div>
-{% endif %}
+    {% endif %}
 
-<!-- Server Configuration Form - IBM Carbon Form Layout -->
-<section style="margin-bottom: var(--spacing-3xl);">
-    <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-2xl);">
-        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-lg);">Server Configuration</h2>
-        <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0 0 var(--spacing-2xl) 0; line-height: var(--line-height-body);">Enter the connection details for your server</p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start;">
+        <!-- Server Configuration Form -->
+        <div class="form-card">
+            <h2 class="form-title">Server Configuration</h2>
+            <p class="form-subtitle">Enter the connection details for your server</p>
 
-        <form id="add-server-form" method="post">
-            {% csrf_token %}
+            <form id="add-server-form" method="post">
+                {% csrf_token %}
 
-            <!-- Form Grid - IBM 8px spacing -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-xl);">
-
-                <!-- Basic Server Information -->
-                <div>
-                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Basic Information</h3>
-
-                    <!-- Server Name Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="name" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Server Name *</label>
-                        <input type="text" id="name" name="name" placeholder="e.g., Web Server 01"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">A friendly name to identify this server</div>
+                <!-- Basic Information Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Basic Information</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="name">
+                            Server Name <span class="required">*</span>
+                        </label>
+                        <input type="text" id="name" name="name" class="form-input" 
+                               placeholder="e.g., Web Server 01" required>
+                        <div class="form-hint">A friendly name to identify this server</div>
                     </div>
 
-                    <!-- IP Address Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="ip_address" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">SSH Server IP *</label>
-                        <input type="text" id="ip_address" name="ip_address" placeholder="192.168.1.100"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">The IP address or hostname of your server</div>
-                    </div>
-
-                    <!-- SSH Port Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="port" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">SSH Port *</label>
-                        <input type="number" id="port" name="port" value="22" min="1" max="65535"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">Usually 22 for SSH connections</div>
-                    </div>
-                </div>
-
-                <!-- Authentication Settings -->
-                <div>
-                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Authentication</h3>
-
-                    <!-- Username Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="username" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">SSH Username *</label>
-                        <input type="text" id="username" name="username" value="root" placeholder="root"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">User account with sudo privileges</div>
-                    </div>
-
-                    <!-- Password Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="password" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">SSH Password *</label>
-                        <input type="password" id="password" name="password" placeholder="Enter password for SSH key deployment"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
-                        <div style="background-color: var(--color-neutral-ui-layer1); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-control); padding: var(--spacing-md); margin-top: var(--spacing-sm);">
-                            <div style="display: flex; align-items: flex-start; gap: var(--spacing-sm);">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: var(--color-support-warning); margin-top: var(--spacing-xs); flex-shrink: 0;">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                <div>
-                                    <div style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">Security Notice</div>
-                                    <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); line-height: var(--line-height-caption);">Password is used only once to deploy SSH key. It will not be stored in the database.</div>
-                                </div>
-                            </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="ip_address">
+                                Server IP <span class="required">*</span>
+                            </label>
+                            <input type="text" id="ip_address" name="ip_address" class="form-input" 
+                                   placeholder="192.168.1.100" required>
+                            <div class="form-hint">IP address or hostname</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="port">
+                                SSH Port <span class="required">*</span>
+                            </label>
+                            <input type="number" id="port" name="port" class="form-input" 
+                                   value="22" min="1" max="65535" required>
                         </div>
                     </div>
                 </div>
+
+                <!-- Authentication Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Authentication</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="username">
+                            SSH Username <span class="required">*</span>
+                        </label>
+                        <input type="text" id="username" name="username" class="form-input" 
+                               value="root" placeholder="root" required>
+                        <div class="form-hint">User account with sudo privileges</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">
+                            SSH Password <span class="required">*</span>
+                        </label>
+                        <input type="password" id="password" name="password" class="form-input" 
+                               placeholder="Enter password for SSH key deployment" required>
+                        
+                        <div class="security-notice">
+                            <p class="security-notice-title">🔒 Security Notice</p>
+                            <p class="security-notice-text">Password is used only once to deploy SSH key. It will not be stored in the database.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn-submit">
+                    <svg style="width: 16px; height: 16px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Add Server
+                </button>
+            </form>
+        </div>
+
+        <!-- Setup Requirements -->
+        <div class="requirements-card">
+            <h3 class="requirements-title">Setup Requirements</h3>
+            
+            <div class="requirement-item">
+                <div class="requirement-icon">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="requirement-text-title">SSH Access</p>
+                    <p class="requirement-text-desc">Server must be accessible via SSH</p>
+                </div>
             </div>
-        </form>
+
+            <div class="requirement-item">
+                <div class="requirement-icon">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="requirement-text-title">Sudo Privileges</p>
+                    <p class="requirement-text-desc">User must have sudo access for monitoring setup</p>
+                </div>
+            </div>
+
+            <div class="requirement-item">
+                <div class="requirement-icon">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="requirement-text-title">Python Support</p>
+                    <p class="requirement-text-desc">Server should have Python installed</p>
+                </div>
+            </div>
+        </div>
     </div>
-</section>
 
-<!-- Setup Requirements - IBM Carbon Contained List -->
-<section style="margin-bottom: var(--spacing-3xl);">
-    <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Setup Requirements</h2>
-
-    <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); overflow: hidden;">
-        <div style="padding: var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div style="width: 24px; height: 24px; background-color: var(--color-support-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: var(--spacing-xs);">
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 12px; height: 12px; color: var(--color-neutral-ui-background);">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">SSH Access</div>
-                    <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); line-height: var(--line-height-body);">Server must be accessible via SSH</div>
-                </div>
-            </div>
-        </div>
-
-        <div style="padding: var(--spacing-lg); border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div style="width: 24px; height: 24px; background-color: var(--color-support-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: var(--spacing-xs);">
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 12px; height: 12px; color: var(--color-neutral-ui-background);">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">Sudo Privileges</div>
-                    <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); line-height: var(--line-height-body);">User must have sudo access for monitoring setup</div>
-                </div>
-            </div>
-        </div>
-
-        <div style="padding: var(--spacing-lg);">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div style="width: 24px; height: 24px; background-color: var(--color-support-success); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: var(--spacing-xs);">
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 12px; height: 12px; color: var(--color-neutral-ui-background);">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs);">Python Support</div>
-                    <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); line-height: var(--line-height-body);">Server should have Python installed</div>
-                </div>
-            </div>
+    <!-- Progress Modal -->
+    <div id="progress-modal" class="progress-modal">
+        <div class="progress-modal-content">
+            <h2 class="progress-modal-title">Adding Server...</h2>
+            <ul class="progress-steps" id="progress-steps">
+                <li class="progress-step">
+                    <div class="progress-step-icon pending">1</div>
+                    <div class="progress-step-content">
+                        <div class="progress-step-title">Creating server record</div>
+                        <div class="progress-step-message">Waiting...</div>
+                    </div>
+                </li>
+                <li class="progress-step">
+                    <div class="progress-step-icon pending">2</div>
+                    <div class="progress-step-content">
+                        <div class="progress-step-title">Creating monitoring configuration</div>
+                        <div class="progress-step-message">Waiting...</div>
+                    </div>
+                </li>
+                <li class="progress-step">
+                    <div class="progress-step-icon pending">3</div>
+                    <div class="progress-step-content">
+                        <div class="progress-step-title">Connecting via SSH</div>
+                        <div class="progress-step-message">Waiting...</div>
+                    </div>
+                </li>
+                <li class="progress-step">
+                    <div class="progress-step-icon pending">4</div>
+                    <div class="progress-step-content">
+                        <div class="progress-step-title">Deploying SSH key</div>
+                        <div class="progress-step-message">Waiting...</div>
+                    </div>
+                </li>
+                <li class="progress-step">
+                    <div class="progress-step-icon pending">5</div>
+                    <div class="progress-step-content">
+                        <div class="progress-step-title">Checking requirements</div>
+                        <div class="progress-step-message">Waiting...</div>
+                    </div>
+                </li>
+                <li class="progress-step">
+                    <div class="progress-step-icon pending">6</div>
+                    <div class="progress-step-content">
+                        <div class="progress-step-title">Collecting initial metrics</div>
+                        <div class="progress-step-message">Waiting...</div>
+                    </div>
+                </li>
+                <li class="progress-step">
+                    <div class="progress-step-icon pending">7</div>
+                    <div class="progress-step-content">
+                        <div class="progress-step-title">Setup complete</div>
+                        <div class="progress-step-message">Waiting...</div>
+                    </div>
+                </li>
+            </ul>
         </div>
     </div>
-</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('add-server-form');
+    const progressModal = document.getElementById('progress-modal');
+    const progressSteps = document.getElementById('progress-steps');
+    
+    // Map step names to indices
+    const stepMap = {
+        'Creating server record': 0,
+        'Creating monitoring configuration': 1,
+        'Connecting via SSH': 2,
+        'Deploying SSH key': 3,
+        'Checking requirements': 4,
+        'Collecting initial metrics': 5,
+        'Setup complete': 6
+    };
+    
+    function updateStep(stepName, status, message) {
+        const index = stepMap[stepName];
+        if (index === undefined) return;
+        
+        const stepElement = progressSteps.children[index];
+        const icon = stepElement.querySelector('.progress-step-icon');
+        const messageElement = stepElement.querySelector('.progress-step-message');
+        
+        icon.className = 'progress-step-icon ' + status;
+        messageElement.textContent = message;
+        
+        // Update icon content based on status
+        if (status === 'completed') {
+            icon.innerHTML = '✓';
+        } else if (status === 'failed') {
+            icon.innerHTML = '✗';
+        } else if (status === 'warning') {
+            icon.innerHTML = '⚠';
+        } else if (status === 'in_progress') {
+            icon.innerHTML = '<div class="spinner"></div>';
+        }
+        
+        // Mark previous steps as completed if current is completed
+        if (status === 'completed' && index > 0) {
+            for (let i = 0; i < index; i++) {
+                const prevStep = progressSteps.children[i];
+                const prevIcon = prevStep.querySelector('.progress-step-icon');
+                if (!prevIcon.classList.contains('completed')) {
+                    prevIcon.className = 'progress-step-icon completed';
+                    prevIcon.innerHTML = '✓';
+                }
+            }
+        }
+    }
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Show progress modal
+        progressModal.classList.add('active');
+        
+        // Reset all steps to pending
+        Array.from(progressSteps.children).forEach((step, index) => {
+            const icon = step.querySelector('.progress-step-icon');
+            icon.className = 'progress-step-icon pending';
+            icon.textContent = index + 1;
+            step.querySelector('.progress-step-message').textContent = 'Waiting...';
+        });
+        
+        // Get form data
+        const formData = {
+            name: document.getElementById('name').value,
+            ip_address: document.getElementById('ip_address').value,
+            port: parseInt(document.getElementById('port').value),
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value
+        };
+        
+        // Make AJAX request
+        fetch('/api/add-server/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update all progress steps
+                if (data.progress) {
+                    data.progress.forEach(progress => {
+                        updateStep(progress.step, progress.status, progress.message);
+                    });
+                }
+                
+                // Show success and redirect after a short delay
+                setTimeout(() => {
+                    window.location.href = '/servers/';
+                }, 2000);
+            } else {
+                // Update progress with error
+                if (data.progress) {
+                    data.progress.forEach(progress => {
+                        updateStep(progress.step, progress.status, progress.message);
+                    });
+                }
+                
+                // Show error message
+                alert('Error: ' + (data.error || 'Failed to add server'));
+                progressModal.classList.remove('active');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to add server. Please try again.');
+            progressModal.classList.remove('active');
+        });
+    });
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
 {% endblock %}
-
-
-

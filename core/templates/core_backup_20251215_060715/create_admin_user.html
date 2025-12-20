@@ -1,0 +1,223 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Create User - StackSense{% endblock %}
+
+{% block extrahead %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
+{% endblock %}
+
+{% block content %}
+    <!-- Page Header -->
+    <div style="margin-bottom: var(--cds-spacing-12);">
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+            <div>
+                <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Create New User</h1>
+                <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0;">Add a new user account with role-based permissions</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: var(--cds-spacing-4);">
+                <a href="{% url 'admin_users' %}" class="bx--btn bx--btn--secondary bx--btn--sm">← Back to Users</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div style="margin-bottom: var(--cds-spacing-12);">
+        {% for message in messages %}
+        <div class="bx--inline-notification bx--inline-notification--{% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} bx--inline-notification--low-contrast" role="alert" style="margin-bottom: var(--cds-spacing-4);">
+            <div class="bx--inline-notification__details">
+                {% if message.tags == 'error' %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M9,5h2v6H9V5z M9,13h2v2H9V13z"></path>
+                </svg>
+                {% elif message.tags == 'success' %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M8,15.414L3.293,10.707l1.414-1.414L8,12.586l7.293-7.293l1.414,1.414 L8,15.414z"></path>
+                </svg>
+                {% elif message.tags == 'warning' %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M9,5h2v6H9V5z M9,13h2v2H9V13z"></path>
+                </svg>
+                {% else %}
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"></path>
+                </svg>
+                {% endif %}
+                <div class="bx--inline-notification__text-wrapper">
+                    <p class="bx--inline-notification__title">{{ message }}</p>
+                </div>
+            </div>
+            <button class="bx--inline-notification__close-button" type="button" aria-label="close">
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M12 4.7l-.7-.7L8 7.3 4.7 4l-.7.7L7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"></path>
+                </svg>
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- User Creation Form -->
+    <div class="bx--tile" style="margin-bottom: var(--cds-spacing-12);">
+        <h2 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">User Account Details</h2>
+        <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-8) 0;">Enter the user information and assign appropriate permissions</p>
+            <form action="{% url 'create_admin_user' %}" method="post">
+                {% csrf_token %}
+
+                <!-- Basic Information -->
+                <div style="margin-bottom: var(--cds-spacing-8);">
+                    <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Basic Information</h3>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--cds-spacing-6);">
+                        <div class="bx--form-item">
+                            <label class="bx--label" for="username">Username *</label>
+                            <input type="text" id="username" name="username" class="bx--text-input" placeholder="Enter username" required>
+                            <div class="bx--form__helper-text">Unique identifier for the user account</div>
+                        </div>
+
+                        <div class="bx--form-item">
+                            <label class="bx--label" for="email">Email Address</label>
+                            <input type="email" id="email" name="email" class="bx--text-input" placeholder="user@example.com">
+                            <div class="bx--form__helper-text">Optional email for notifications</div>
+                        </div>
+
+                        <div class="bx--form-item">
+                            <label class="bx--label" for="password">Password *</label>
+                            <input type="password" id="password" name="password" class="bx--text-input" placeholder="Enter password" required>
+                            <div class="bx--form__helper-text">Minimum 8 characters recommended</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Permissions Section -->
+                <div style="border-top: 1px solid var(--cds-color-gray-20); padding-top: var(--cds-spacing-6);">
+                    <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Permissions & Access</h3>
+
+                    <div class="bx--form-item" style="margin-bottom: var(--cds-spacing-6);">
+                        <div class="bx--checkbox-wrapper">
+                            <input type="checkbox" class="bx--checkbox" name="is_superuser" id="is_superuser" onchange="toggleRoleOptions()">
+                            <label class="bx--checkbox-label" for="is_superuser">
+                                <strong>Superuser (Full Administrator Access)</strong>
+                            </label>
+                        </div>
+                        <div class="bx--form__helper-text" style="margin-top: var(--cds-spacing-2);">
+                            Superusers have unrestricted access to all features and can manage roles/privileges. This overrides role-based permissions.
+                        </div>
+                    </div>
+
+                    <!-- Role Assignment (only for non-superuser staff) -->
+                    <div id="roleOptions" style="border-top: 1px solid var(--cds-color-gray-20); padding-top: var(--cds-spacing-6); margin-top: var(--cds-spacing-6);">
+                        <h4 style="color: var(--cds-color-blue-60); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-semibold); margin: 0 0 var(--cds-spacing-4) 0;">Role Assignment</h4>
+
+                        <div class="bx--form-item" style="margin-bottom: var(--cds-spacing-6);">
+                            <label class="bx--label" for="role">Assign Role *</label>
+                            <select id="role" name="role" class="bx--select-input" required>
+                                <option value="">Select a role...</option>
+                                {% for role in available_roles %}
+                                <option value="{{ role.id }}">{{ role.name }}{% if role.description %} - {{ role.description|truncatechars:50 }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="bx--form__helper-text">The role determines what permissions this user will have</div>
+                        </div>
+
+                        <!-- Role Privileges Preview -->
+                        <div id="rolePrivileges" style="display: none; margin-top: var(--cds-spacing-4); padding: var(--cds-spacing-4); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius-md); border: 1px solid var(--cds-color-gray-20);">
+                            <h4 style="color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-spacing-3) 0;">Role Privileges:</h4>
+                            <div id="privilegesList" style="display: flex; flex-wrap: wrap; gap: var(--cds-spacing-2);"></div>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div style="border-top: 1px solid var(--cds-color-gray-20); padding-top: var(--cds-spacing-6); margin-top: var(--cds-spacing-8);">
+                        <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-end;">
+                            <a href="{% url 'admin_users' %}" class="bx--btn bx--btn--secondary">Cancel</a>
+                            <button type="submit" class="bx--btn bx--btn--primary">Create User</button>
+                        </div>
+                    </div>
+                </form>
+    </div>
+
+<script>
+function toggleRoleOptions() {
+    const isSuperuser = document.getElementById('is_superuser').checked;
+    const roleOptions = document.getElementById('roleOptions');
+    const roleSelect = document.getElementById('role');
+
+    if (isSuperuser) {
+        roleOptions.style.display = 'none';
+        roleSelect.required = false;
+        roleSelect.value = '';
+        updateRolePrivileges();
+    } else {
+        roleOptions.style.display = 'block';
+        roleSelect.required = true;
+    }
+}
+
+// Role privilege data (this would ideally come from the server)
+const rolePrivileges = {
+{% for role in available_roles %}
+    {{ role.id }}: [
+        {% for role_privilege in role.role_privileges.all %}
+        '{{ role_privilege.privilege.label }}'{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]{% if not forloop.last %},{% endif %}
+{% endfor %}
+};
+
+function updateRolePrivileges() {
+    const roleSelect = document.getElementById('role');
+    const privilegesDiv = document.getElementById('rolePrivileges');
+    const privilegesList = document.getElementById('privilegesList');
+
+    const selectedRoleId = roleSelect.value;
+
+    if (selectedRoleId && rolePrivileges[selectedRoleId]) {
+        const privileges = rolePrivileges[selectedRoleId];
+        privilegesList.innerHTML = '';
+
+        if (privileges.length > 0) {
+            privileges.forEach(privilege => {
+                const tag = document.createElement('span');
+                tag.className = 'privilege-tag';
+                tag.style.cssText = 'background: rgba(201, 169, 97, 0.1); color: var(--primary-color); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; border: 1px solid rgba(201, 169, 97, 0.2);';
+                tag.textContent = privilege;
+                privilegesList.appendChild(tag);
+            });
+        } else {
+            privilegesList.innerHTML = '<span style="color: var(--text-secondary); font-style: italic;">No privileges assigned</span>';
+        }
+
+        privilegesDiv.style.display = 'block';
+    } else {
+        privilegesDiv.style.display = 'none';
+    }
+}
+
+function openRemoveServerModal() {
+    window.location.href = '/monitoring/';
+}
+
+function openAlertConfigModal() {
+    window.location.href = '/monitoring/';
+}
+
+// Initialize role selection handler
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.getElementById('role');
+    if (roleSelect) {
+        roleSelect.addEventListener('change', updateRolePrivileges);
+    }
+
+    // Initialize form state
+    toggleRoleOptions();
+});
+</script>
+{% endblock %}
+
+
+

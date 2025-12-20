@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0010_privilege_role_alter_useracl_can_add_server_and_more'),
+        ('core', '0003_alter_monitoringconfig_cpu_threshold_and_more'),
     ]
 
     operations = [

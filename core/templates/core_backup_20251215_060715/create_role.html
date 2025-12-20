@@ -1,0 +1,185 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Create New Role - StackWatch{% endblock %}
+
+{% block bodyclass %}create-role-page{% endblock %}
+
+{% block content %}
+<!-- Page Header - IBM Carbon Layout -->
+<div style="margin-bottom: var(--cds-spacing-12);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+        <div>
+            <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--cds-line-height-tight);">Create New Role</h1>
+            <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0; line-height: var(--cds-line-height-normal);">Define a new role with specific permissions and access levels</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: var(--cds-spacing-4);">
+            <a href="/roles/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Cancel</a>
+            <button type="submit" form="create-role-form" class="btn" style="background-color: var(--cds-color-blue-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Create Role</button>
+        </div>
+    </div>
+</div>
+
+<!-- Messages - IBM Carbon Notification Pattern -->
+{% if messages %}
+<div style="margin-bottom: var(--cds-spacing-12);">
+    {% for message in messages %}
+    <div class="notification notification-{{ message.tags|default:'info' }}">
+        <div class="notification-content">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
+                <div class="notification-icon">
+                    {% if message.tags == 'error' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'success' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'warning' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    {% else %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div>
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); line-height: var(--line-height-body);">
+                        {{ message }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Create Role Form - IBM Carbon Form Layout -->
+<section style="margin-bottom: var(--cds-spacing-12);">
+    <div style="background-color: var(--cds-color-white); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--cds-spacing-8);">
+        <form id="create-role-form" method="post">
+            {% csrf_token %}
+
+            <!-- Form Grid - IBM 8px spacing -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-xl);">
+
+                <!-- Basic Information -->
+                <div>
+                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--line-height-heading-md);">Basic Information</h3>
+
+                    <!-- Role Name Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="name" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Role Name *</label>
+                        <input type="text" id="name" name="name"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-base); font-family: var(--font-family-primary); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               placeholder="e.g., Operator, Administrator, Analyst" required>
+                    </div>
+
+                    <!-- Description Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="description" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Description</label>
+                        <textarea id="description" name="description" rows="4"
+                                  style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-base); font-family: var(--font-family-primary); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease; resize: vertical;"
+                                  placeholder="Describe the responsibilities and scope of this role"></textarea>
+                    </div>
+                </div>
+
+                <!-- Privilege Assignment -->
+                <div>
+                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--line-height-heading-md);">Assign Privileges</h3>
+                    <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--line-height-body);">Select the permissions this role should have</p>
+
+                    <!-- Privilege Checkboxes - IBM Contained List -->
+                    <div style="background-color: var(--color-neutral-ui-layer1); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); overflow: hidden;">
+                        {% for privilege in privileges %}
+                        <div style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); {% if forloop.last %}border-bottom: none;{% endif %}">
+                            <label style="display: flex; align-items: flex-start; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); cursor: pointer; margin: 0;">
+                                <input type="checkbox" name="privileges" value="{{ privilege.id }}"
+                                       style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60); margin-top: var(--spacing-xs); flex-shrink: 0;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: var(--cds-font-weight-medium); margin-bottom: var(--spacing-xs);">{{ privilege.label }}</div>
+                                    <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); line-height: var(--line-height-caption);">
+                                        {% if privilege.key == 'view_dashboard' %}
+                                        Access to monitoring dashboard and server status
+                                        {% elif privilege.key == 'view_servers' %}
+                                        View server details and configurations
+                                        {% elif privilege.key == 'add_server' %}
+                                        Add new servers to monitoring
+                                        {% elif privilege.key == 'edit_server' %}
+                                        Modify server settings and configurations
+                                        {% elif privilege.key == 'delete_server' %}
+                                        Remove servers from monitoring
+                                        {% elif privilege.key == 'view_metrics' %}
+                                        Access to system metrics and performance data
+                                        {% elif privilege.key == 'view_anomalies' %}
+                                        View detected anomalies and alerts
+                                        {% elif privilege.key == 'resolve_anomalies' %}
+                                        Acknowledge and resolve anomaly alerts
+                                        {% elif privilege.key == 'configure_alerts' %}
+                                        Set up email alerts and notifications
+                                        {% elif privilege.key == 'manage_users' %}
+                                        Create and manage user accounts
+                                        {% elif privilege.key == 'manage_roles' %}
+                                        Create and manage user roles and permissions
+                                        {% elif privilege.key == 'suspend_monitoring' %}
+                                        Pause and resume server monitoring
+                                        {% elif privilege.key == 'configure_thresholds' %}
+                                        Set alert thresholds and monitoring parameters
+                                        {% elif privilege.key == 'view_alert_history' %}
+                                        Access to historical alert and incident data
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<script>
+// Auto-select related privileges for better UX
+document.addEventListener('DOMContentLoaded', function() {
+    const privilegeCheckboxes = document.querySelectorAll('input[name="privileges"]');
+
+    // Define privilege dependencies
+    const dependencies = {
+        'view_servers': [],  // Base privilege
+        'add_server': ['view_servers'],
+        'edit_server': ['view_servers'],
+        'delete_server': ['view_servers'],
+        'view_anomalies': [],
+        'resolve_anomalies': ['view_anomalies'],
+        'manage_roles': ['manage_users'],  // Managing roles implies managing users
+    };
+
+    privilegeCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const privilegeKey = this.value; // Use value instead of data-key
+
+            if (this.checked) {
+                // Auto-select dependencies
+                const deps = dependencies[privilegeKey] || [];
+                deps.forEach(depId => {
+                    const depCheckbox = document.querySelector(`input[name="privileges"][value="${depId}"]`);
+                    if (depCheckbox && !depCheckbox.checked) {
+                        depCheckbox.checked = true;
+                    }
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+
+

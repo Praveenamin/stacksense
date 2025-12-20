@@ -28,6 +28,9 @@ last_anomaly_check = timezone.now()
 
 while running:
     try:
+        # Track that monitoring app is running
+        call_command("track_app_heartbeat", verbosity=0)
+        
         print(f"\n[{timezone.now().strftime("%Y-%m-%d %H:%M:%S")}] Running metrics collection...")
         call_command("collect_metrics", verbosity=1)
         print(f"Metrics collection completed. Next run in {interval} seconds.")

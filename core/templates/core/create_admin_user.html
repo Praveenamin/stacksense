@@ -4,118 +4,329 @@
 {% block title %}Create User - StackSense{% endblock %}
 
 {% block extrahead %}
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
+<style>
+    .page-header {
+        margin-bottom: 32px;
+    }
+    .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .page-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0;
+    }
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 150ms ease;
+    }
+    .btn-secondary:hover {
+        background-color: #f8fafc;
+        border-color: #cbd5e1;
+    }
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #0ea5e9;
+        border: none;
+        border-radius: 6px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+    .btn-primary:hover {
+        background-color: #0284c7;
+    }
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+    .alert-success {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+    .alert-warning {
+        background-color: #fffbeb;
+        border: 1px solid #fcd34d;
+        color: #92400e;
+    }
+    .form-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .form-section {
+        margin-bottom: 24px;
+    }
+    .form-section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .form-label .required {
+        color: #ef4444;
+    }
+    .form-input {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        transition: all 150ms ease;
+        box-sizing: border-box;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .form-input::placeholder {
+        color: #94a3b8;
+    }
+    .form-select {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        transition: all 150ms ease;
+        box-sizing: border-box;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 10px center;
+        background-repeat: no-repeat;
+        background-size: 16px;
+        padding-right: 40px;
+    }
+    .form-select:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .form-hint {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+    .checkbox-group {
+        margin-bottom: 16px;
+    }
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #0f172a;
+        cursor: pointer;
+    }
+    .checkbox-label input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #0ea5e9;
+        cursor: pointer;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+    }
+    .form-actions {
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+    .role-section {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .privileges-preview {
+        margin-top: 16px;
+        padding: 16px;
+        background-color: #f8fafc;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+    .privileges-title {
+        color: #0f172a;
+        font-size: 14px;
+        font-weight: 500;
+        margin: 0 0 12px 0;
+    }
+    .privilege-tag {
+        display: inline-block;
+        background: rgba(14, 165, 233, 0.1);
+        color: #0ea5e9;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        border: 1px solid rgba(14, 165, 233, 0.2);
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<!-- Top-Right Navigation - Logout -->
-<div class="top-right-nav">
-    <span class="username">{{ user.username }}</span>
-    <form action="{% url 'logout' %}" method="post" style="margin: 0; padding: 0; display: inline;">
-        {% csrf_token %}
-        <button type="submit" class="logout-btn">Logout</button>
-    </form>
-</div>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: flex-start;">
+            <div>
+                <h1 class="page-title">Create New User</h1>
+                <p class="page-subtitle">Add a new user account with role-based permissions</p>
+            </div>
 
-<!-- Sidebar removed - only appears on dashboard pages -->
-
-<div class="create-user-container">
-    <!-- Back Button -->
-    <div class="back-button-container" style="margin-bottom: 1rem;">
-        <a href="{% url 'admin_users' %}" class="back-button" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--primary-color); color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
-            ← Back to Users
-        </a>
+            <!-- Action Buttons -->
+            <div class="header-actions">
+                <a href="{% url 'admin_users' %}" class="btn-secondary">← Back to Users</a>
+            </div>
+        </div>
     </div>
 
+    <!-- Messages -->
     {% if messages %}
-    <div class="messages">
+    <div style="max-width: 100%; margin-bottom: 24px;">
         {% for message in messages %}
-        <div class="message {{ message.tags }}">
-            {{ message }}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}">
+            <span>{{ message }}</span>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Z-Pattern Layout -->
-    <div class="z-pattern-layout">
-        <!-- Z-Pattern: Top Left - Header -->
-        <div class="z-top-left">
-            <h1>Create User</h1>
-            <a href="{% url 'admin_users' %}" class="btn btn-secondary">← Back to Manage Users</a>
-        </div>
+    <!-- User Creation Form -->
+    <section style="margin-bottom: 32px;">
+        <div class="form-card">
+            <form action="{% url 'create_admin_user' %}" method="post">
+                {% csrf_token %}
 
-        <!-- Z-Pattern: Form Card -->
-        <div class="z-form-card">
-            <div class="card">
-                <form action="{% url 'create_admin_user' %}" method="post">
-                    {% csrf_token %}
-                    <div class="form-group">
-                        <label for="username">Username *</label>
-                        <input type="text" id="username" name="username" required>
+                <!-- Basic Information -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Basic Information</h3>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="username" class="form-label">Username <span class="required">*</span></label>
+                            <input type="text" id="username" name="username" class="form-input" placeholder="Enter username" required>
+                            <div class="form-hint">Unique identifier for the user account</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" id="email" name="email" class="form-input" placeholder="user@example.com">
+                            <div class="form-hint">Optional email for notifications</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password" class="form-label">Password <span class="required">*</span></label>
+                            <input type="password" id="password" name="password" class="form-input" placeholder="Enter password" required>
+                            <div class="form-hint">Minimum 8 characters recommended</div>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Permissions Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Permissions & Access</h3>
+
                     <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email">
-                    </div>
-                    <div class="form-group">
-                        <label for="password">Password *</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" name="is_superuser" id="is_superuser" onchange="toggleRoleOptions()">
-                            Superuser (full admin access - all privileges)
-                        </label>
-                        <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
-                            Superusers have unrestricted access to all features and can manage roles/privileges.
-                        </small>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="is_superuser" id="is_superuser" onchange="toggleRoleOptions()">
+                                <span><strong>Superuser (Full Administrator Access)</strong></span>
+                            </label>
+                        </div>
+                        <div class="form-hint">
+                            Superusers have unrestricted access to all features and can manage roles/privileges. This overrides role-based permissions.
+                        </div>
                     </div>
 
                     <!-- Role Assignment (only for non-superuser staff) -->
-                    <div id="roleOptions" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-top: 1.5rem;">
-                        <h3 style="color: var(--primary-color); font-size: 1rem; margin-bottom: 1rem;">Role Assignment</h3>
-
+                    <div id="roleOptions" class="role-section">
                         <div class="form-group">
-                            <label for="role">Assign Role *</label>
-                            <select id="role" name="role" required style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);">
+                            <label for="role" class="form-label">Assign Role <span class="required">*</span></label>
+                            <select id="role" name="role" class="form-select" required>
                                 <option value="">Select a role...</option>
                                 {% for role in available_roles %}
                                 <option value="{{ role.id }}">{{ role.name }}{% if role.description %} - {{ role.description|truncatechars:50 }}{% endif %}</option>
                                 {% endfor %}
                             </select>
-                            <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
-                                The role determines what permissions this user will have.
-                            </small>
+                            <div class="form-hint">The role determines what permissions this user will have</div>
                         </div>
 
                         <!-- Role Privileges Preview -->
-                        <div id="rolePrivileges" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                            <h4 style="color: var(--text-primary); font-size: 0.9rem; margin-bottom: 0.5rem;">Role Privileges:</h4>
-                            <div id="privilegesList" style="display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+                        <div id="rolePrivileges" class="privileges-preview" style="display: none;">
+                            <h4 class="privileges-title">Role Privileges:</h4>
+                            <div id="privilegesList"></div>
                         </div>
                     </div>
-                            </label>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" name="can_delete_server">
-                                Delete Server
-                            </label>
-                        </div>
-                    </div>
-                    
+
+                    <!-- Form Actions -->
                     <div class="form-actions">
-                        <a href="{% url 'admin_users' %}" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Create User</button>
+                        <a href="{% url 'admin_users' %}" class="btn-secondary">Cancel</a>
+                        <button type="submit" class="btn-primary">Create User</button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
-    </div>
-</div>
+    </section>
 
 <script>
 function toggleRoleOptions() {
@@ -160,12 +371,11 @@ function updateRolePrivileges() {
             privileges.forEach(privilege => {
                 const tag = document.createElement('span');
                 tag.className = 'privilege-tag';
-                tag.style.cssText = 'background: rgba(201, 169, 97, 0.1); color: var(--primary-color); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; border: 1px solid rgba(201, 169, 97, 0.2);';
                 tag.textContent = privilege;
                 privilegesList.appendChild(tag);
             });
         } else {
-            privilegesList.innerHTML = '<span style="color: var(--text-secondary); font-style: italic;">No privileges assigned</span>';
+            privilegesList.innerHTML = '<span style="color: #64748b; font-style: italic; font-size: 12px;">No privileges assigned</span>';
         }
 
         privilegesDiv.style.display = 'block';

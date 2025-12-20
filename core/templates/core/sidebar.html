@@ -1,105 +1,131 @@
-{% load static %}
+<aside class="w-64 bg-sidebar border-r border-sidebar-border h-full flex flex-col text-sidebar-foreground">
+    <div class="p-4 border-b border-sidebar-border flex items-center gap-2">
+        <div class="h-8 w-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+        </div>
+        <span class="font-bold text-lg tracking-tight">StackSense</span>
+    </div>
 
-<aside class="ui-shell-left-panel">
-    <div class="ui-shell-left-panel-content">
-        <!-- Dashboard - Always visible -->
-        <a href="/monitoring/" class="nav-item{% if 'monitoring' in request.path or request.path == '/' %} active{% endif %}" title="Dashboard">
-            <div class="nav-item-icon">
-                <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
-            </div>
-            <span class="nav-item-text">Dashboard</span>
+    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <div class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Monitoring
+        </div>
+        <a href="/monitoring/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if request.path == '/monitoring/' or request.path == '/' %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if request.path == '/monitoring/' or request.path == '/' %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+                </path>
+            </svg>
+            Dashboard
+        </a>
+        <a href="/servers/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'servers' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if 'servers' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 01-2 2v4a2 2 0 012 2h14a2 2 0 012-2v-4a2 2 0 01-2-2m-2-4h.01M17 16h.01">
+                </path>
+            </svg>
+            Server List
+        </a>
+        <a href="/alerts/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'alerts' in request.path and 'alert-config' not in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if 'alerts' in request.path and 'alert-config' not in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z">
+                </path>
+            </svg>
+            Alert History
         </a>
 
-        <div class="nav-divider"></div>
-
-        <!-- Manage Users -->
-        <div class="nav-group">
-            <div class="nav-group-header">
-                <span class="nav-group-text">Manage Users</span>
-            </div>
-            <div class="nav-group-items">
-                <a href="/admin-users/" class="nav-item{% if 'admin-users' in request.path and 'edit' not in request.path and 'create' not in request.path %} active{% endif %}" title="User List">
-                    <div class="nav-item-icon">
-                        <svg viewBox="0 0 24 24"><path d="M16 7c0-2.21-1.79-4-4-4S8 4.79 8 7s1.79 4 4 4 4-1.79 4-4zm-4 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/></svg>
-                    </div>
-                    <span class="nav-item-text">User List</span>
-                </a>
-                <a href="/admin-users/create/" class="nav-item{% if 'admin-users/create' in request.path %} active{% endif %}" title="Add User">
-                    <div class="nav-item-icon">
-                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    </div>
-                    <span class="nav-item-text">Add User</span>
-                </a>
-            </div>
+        {% if user.is_staff or user.is_superuser %}
+        <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Administration
         </div>
-        <div class="nav-divider"></div>
-
-        <!-- Manage Roles -->
-        <div class="nav-group">
-            <div class="nav-group-header">
-                <span class="nav-group-text">Role Management</span>
-            </div>
-            <div class="nav-group-items">
-                <a href="/roles/" class="nav-item{% if 'roles' in request.path and 'create' not in request.path and 'edit' not in request.path %} active{% endif %}" title="Role List">
-                    <div class="nav-item-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    </div>
-                    <span class="nav-item-text">Role List</span>
-                </a>
-                <a href="/roles/create/" class="nav-item{% if 'roles/create' in request.path %} active{% endif %}" title="Create Role">
-                    <div class="nav-item-icon">
-                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    </div>
-                    <span class="nav-item-text">Create Role</span>
-                </a>
-            </div>
-        </div>
-        <div class="nav-divider"></div>
-
-        <!-- Manage Servers -->
-        <div class="nav-group">
-            <div class="nav-group-header">
-                <span class="nav-group-text">Manage Servers</span>
-            </div>
-            <div class="nav-group-items">
-                <a href="/servers/" class="nav-item{% if 'servers' in request.path and 'edit' not in request.path and 'delete' not in request.path %} active{% endif %}" title="Server List">
-                    <div class="nav-item-icon">
-                        <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
-                    </div>
-                    <span class="nav-item-text">Server List</span>
-                </a>
-                <a href="/add-server/" class="nav-item{% if 'add-server' in request.path %} active{% endif %}" title="Add Server">
-                    <div class="nav-item-icon">
-                        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    </div>
-                    <span class="nav-item-text">Add Server</span>
-                </a>
-            </div>
-        </div>
-        <div class="nav-divider"></div>
-
-        <!-- Notifications -->
-        <div class="nav-group">
-            <div class="nav-group-header">
-                <span class="nav-group-text">Notifications</span>
-            </div>
-            <div class="nav-group-items">
-                <a href="/alert-config/" class="nav-item{% if 'alert-config' in request.path %} active{% endif %}" title="Alert Config">
-                    <div class="nav-item-icon">
-                        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                    </div>
-                    <span class="nav-item-text">Alert Config</span>
-                </a>
-            </div>
-        </div>
-        <div class="nav-divider"></div>
-
-        <!-- Help Docs - Always visible -->
-        <a href="/help/" class="nav-item{% if 'help' in request.path %} active{% endif %}" title="Help Documentation">
-            <div class="nav-item-icon">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
-            </div>
-            <span class="nav-item-text">Help Docs</span>
+        <a href="/add-server/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'add-server' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if 'add-server' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6">
+                </path>
+            </svg>
+            Add Server
         </a>
+        <a href="/alert-config/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'alert-config' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if 'alert-config' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
+                </path>
+            </svg>
+            Alerts
+        </a>
+
+        <!-- RBAC Section -->
+        <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Access Control
+        </div>
+        <a href="/admin-users/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'admin-users' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if 'admin-users' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z">
+                </path>
+            </svg>
+            Users
+        </a>
+        <a href="/roles/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'roles' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if 'roles' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+                </path>
+            </svg>
+            Roles
+        </a>
+        {% endif %}
+    </nav>
+
+    <div class="p-4 border-t border-sidebar-border">
+        <a href="/help/"
+            class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                </path>
+            </svg>
+            Help & Documentation
+        </a>
+
+        <div class="mt-4 pt-4 border-t border-sidebar-border flex items-center justify-between">
+            <div class="flex items-center">
+                <div
+                    class="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-secondary-foreground">
+                    {{ user.username|slice:":2"|upper }}
+                </div>
+                <div class="ml-2">
+                    <p class="text-sm font-medium">{{ user.username }}</p>
+                </div>
+            </div>
+            <form action="/logout/" method="post">
+                {% csrf_token %}
+                <button type="submit" class="text-muted-foreground hover:text-destructive transition-colors"
+                    title="Logout">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                        </path>
+                    </svg>
+                </button>
+            </form>
+        </div>
     </div>
 </aside>

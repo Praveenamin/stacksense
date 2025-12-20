@@ -1,232 +1,696 @@
 {% extends "core/base.html" %}
 {% load static %}
-{% load rbac_tags %}
 
-{% block title %}StackWatch Dashboard{% endblock %}
+{% block title %}Dashboard - StackSense{% endblock %}
 
-{% block bodyclass %}dashboard-page{% endblock %}
+{% block extrahead %}
+<style>
+    /* Force grid layout */
+    .server-cards-grid {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 24px !important;
+    }
+    @media (max-width: 1200px) {
+        .server-cards-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+    }
+    @media (max-width: 768px) {
+        .server-cards-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+    .server-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .status-light {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        box-shadow: 0 0 6px currentColor;
+    }
+    .status-light-online { background-color: #22c55e; color: #22c55e; }
+    .status-light-warning { background-color: #f59e0b; color: #f59e0b; }
+    .status-light-offline { background-color: #ef4444; color: #ef4444; }
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .status-badge-online { background-color: #dcfce7; color: #166534; }
+    .status-badge-warning { background-color: #fef3c7; color: #92400e; }
+    .status-badge-offline { background-color: #fee2e2; color: #991b1b; }
+    .metric-box {
+        background-color: #f8fafc;
+        padding: 12px;
+        border-radius: 6px;
+        text-align: center;
+    }
+    .metric-label {
+        font-size: 11px;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }
+    .metric-value {
+        font-size: 18px;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .btn-primary {
+        display: block;
+        background-color: #0ea5e9;
+        color: white;
+        padding: 10px 16px;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        border-radius: 6px;
+        text-align: center;
+        margin-bottom: 16px;
+    }
+    .btn-primary:hover {
+        background-color: #0284c7;
+    }
+    .summary-card {
+        padding: 16px;
+        border-radius: 8px;
+        text-align: center;
+        color: white;
+    }
+    .summary-online { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
+    .summary-warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+    .summary-offline { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+    
+    /* Toggle Button Styles */
+    .toggle-btn.toggle-off {
+        background-color: #e2e8f0;
+        color: #64748b;
+    }
+    .toggle-btn.toggle-off:hover {
+        background-color: #cbd5e1;
+    }
+    
+    /* Suppress Alerts - Orange when ON */
+    .toggle-btn.toggle-suppress.toggle-on {
+        background-color: #f59e0b;
+        color: white;
+    }
+    .toggle-btn.toggle-suppress.toggle-on:hover {
+        background-color: #d97706;
+    }
+    
+    /* Suspend Monitoring - Red when ON */
+    .toggle-btn.toggle-suspend.toggle-on {
+        background-color: #ef4444;
+        color: white;
+    }
+    .toggle-btn.toggle-suspend.toggle-on:hover {
+        background-color: #dc2626;
+    }
+    
+    /* News Ticker Marquee Styles */
+    .news-ticker-container {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 8px;
+        padding: 12px 20px;
+        margin-bottom: 32px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .news-ticker-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        color: #f1f5f9;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .news-ticker-header::before {
+        content: "📡";
+        margin-right: 8px;
+        font-size: 16px;
+    }
+    
+    .news-ticker-wrapper {
+        position: relative;
+        height: 28px;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    
+    .news-ticker-content {
+        display: inline-block;
+        white-space: nowrap;
+        animation: scroll-left 120s linear infinite;
+    }
+    
+    .news-item {
+        display: inline-block;
+        margin-right: 40px;
+        color: #f1f5f9;
+        font-size: 14px;
+        font-weight: 400;
+        vertical-align: middle;
+    }
+    
+    .news-item-separator {
+        display: inline-block;
+        margin: 0 20px;
+        color: #64748b;
+        font-weight: bold;
+        vertical-align: middle;
+    }
+    
+    @keyframes scroll-left {
+        0% {
+            transform: translateX(0);
+        }
+        100% {
+            transform: translateX(-50%);
+        }
+    }
+    
+    .news-ticker-wrapper:hover .news-ticker-content {
+        animation-play-state: paused;
+    }
+    
+    .news-item-high {
+        color: #fca5a5; /* Light red for high severity */
+    }
+    
+    .news-item-warning {
+        color: #fcd34d; /* Yellow for warnings */
+    }
+    
+    .news-item-info {
+        color: #93c5fd; /* Light blue for info */
+    }
+    
+    .news-ticker-loading {
+        color: #64748b;
+        font-size: 14px;
+        font-style: italic;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-    <!-- Page Header - IBM Carbon Layout -->
-    <div style="margin-bottom: var(--spacing-3xl);">
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
-            <div>
-                <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">StackWatch Dashboard</h1>
-                <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Real-time infrastructure monitoring and alerting</p>
-            </div>
+    <!-- Dashboard Header -->
+    <div style="margin-bottom: 32px;">
+        <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">
+            Server Overview
+        </h1>
+        <p style="font-size: 16px; color: #64748b; margin: 0;">
+            Monitor all servers at a glance
+        </p>
+    </div>
 
-            <!-- Status Summary - Using IBM Carbon tile pattern -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-lg);">
-                <div class="status-tile">
-                    <div class="status-tile-value">{{ online_count }}</div>
-                    <div class="status-tile-label">Online</div>
-                    <div class="status-tile-indicator status-success"></div>
-                </div>
-                <div class="status-tile">
-                    <div class="status-tile-value">{{ warning_count }}</div>
-                    <div class="status-tile-label">Warning</div>
-                    <div class="status-tile-indicator status-warning"></div>
-                </div>
-                <div class="status-tile">
-                    <div class="status-tile-value">{{ offline_count }}</div>
-                    <div class="status-tile-label">Offline</div>
-                    <div class="status-tile-indicator status-error"></div>
-                </div>
+    <!-- News Ticker Marquee -->
+    <div class="news-ticker-container">
+        <div class="news-ticker-header">System Status News Feed</div>
+        <div class="news-ticker-wrapper">
+            <div class="news-ticker-content" id="news-ticker-content">
+                <span class="news-ticker-loading">Loading system status updates...</span>
             </div>
         </div>
     </div>
 
-    <!-- Servers Overview - IBM Carbon Contained List -->
-    <section style="margin-bottom: var(--spacing-3xl);">
-        <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-xl) 0; line-height: var(--line-height-heading-lg);">Servers Overview</h2>
+    <!-- Summary Stats Row -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px;">
+        <div class="summary-card summary-online">
+            <div style="font-size: 32px; font-weight: 700;">{{ online_count|default:0 }}</div>
+            <div style="font-size: 14px; opacity: 0.9;">Online</div>
+                </div>
+        <div class="summary-card summary-warning">
+            <div style="font-size: 32px; font-weight: 700;">{{ warning_count|default:0 }}</div>
+            <div style="font-size: 14px; opacity: 0.9;">Warning</div>
+                </div>
+        <div class="summary-card summary-offline">
+            <div style="font-size: 32px; font-weight: 700;">{{ offline_count|default:0 }}</div>
+            <div style="font-size: 14px; opacity: 0.9;">Offline</div>
+        </div>
+    </div>
+
+    <!-- Servers Section -->
+    <section>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h2 style="font-size: 20px; font-weight: 600; color: #0f172a; margin: 0;">
+                Servers
+            </h2>
+            <div style="display: flex; gap: 12px;">
+                <a href="{% url 'log_troubleshooting_config' %}" style="background-color: #6366f1; color: white; padding: 8px 16px; font-size: 14px; font-weight: 500; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Log Troubleshooting
+                </a>
+                <a href="/add-server/" style="background-color: #0ea5e9; color: white; padding: 8px 16px; font-size: 14px; font-weight: 500; text-decoration: none; border-radius: 6px;">
+                    + Add Server
+                </a>
+            </div>
+        </div>
 
         {% if servers_data %}
-        <div style="display: flex; flex-direction: column; gap: var(--spacing-lg);">
+        <!-- Server Cards Grid -->
+        <div class="server-cards-grid">
             {% for server_data in servers_data %}
-            <div class="contained-list-item">
-                <div class="contained-list-item-header">
-                    <div>
-                        <h3 class="contained-list-item-title">{{ server_data.server.name }}</h3>
-                        <div style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs);">
+            <div class="server-card" data-server-id="{{ server_data.server.id }}">
+                
+                <!-- Card Header -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
+                    <div style="flex: 1; min-width: 0; margin-right: 12px;">
+                        <h3 style="font-size: 18px; font-weight: 600; color: #0f172a; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            {{ server_data.server.name }}
+                        </h3>
+                        <div style="font-size: 14px; color: #64748b;">
                             {{ server_data.server.ip_address }}
                         </div>
-                        <!-- Anomaly Status Widget -->
-                        <div class="anomaly-status" data-server-id="{{ server_data.server.id }}">
-                            <span class="severity-label">Loading...</span>
-                            <span class="active-count"></span>
-                        </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: var(--spacing-sm);">
-                        <span class="status status-{{ server_data.server_status|lower }}">
-                            <span>{{ server_data.server_status|title }}</span>
+                    <!-- Status Badge with Light -->
+                    {% if server_data.server_status == "online" %}
+                    <span class="status-badge status-badge-online">
+                        <span class="status-light status-light-online"></span>
+                        Online
+                    </span>
+                    {% elif server_data.server_status == "warning" %}
+                    <span class="status-badge status-badge-warning">
+                        <span class="status-light status-light-warning"></span>
+                        Warning
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-badge-offline">
+                        <span class="status-light status-light-offline"></span>
+                        Offline
+                    </span>
+                    {% endif %}
+                </div>
+
+                <!-- Anomaly Status -->
+                <div style="margin-bottom: 16px;">
+                    {% if server_data.active_anomalies and server_data.active_anomalies.count > 0 %}
+                    <div style="display: flex; align-items: center; background-color: #fef2f2; padding: 8px 12px; border-radius: 6px;">
+                        <span style="width: 10px; height: 10px; background-color: #ef4444; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 6px #ef4444;"></span>
+                        <span style="font-size: 14px; color: #991b1b; font-weight: 500;">
+                            {{ server_data.active_anomalies.count }} Active Anomal{{ server_data.active_anomalies.count|pluralize:"y,ies" }}
                         </span>
-                        {% if server_data.active_anomalies %}
-                        <span style="font-size: var(--font-size-caption); color: var(--color-support-error); background-color: rgba(218, 30, 40, 0.1); padding: var(--spacing-xs) var(--spacing-sm); border-radius: var(--border-radius-control);">
-                            {{ server_data.active_anomalies.count }} Alert{{ server_data.active_anomalies.count|pluralize }}
+                    </div>
+                    {% else %}
+                    <div style="display: flex; align-items: center; background-color: #f0fdf4; padding: 8px 12px; border-radius: 6px;">
+                        <span style="width: 10px; height: 10px; background-color: #22c55e; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 6px #22c55e;"></span>
+                        <span style="font-size: 14px; color: #166534; font-weight: 500;">
+                            No Active Anomalies
                         </span>
-                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Metrics Grid -->
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; flex: 1;">
+                    <div class="metric-box">
+                        <div class="metric-label">CPU</div>
+                        <div class="metric-value" id="metric-cpu-{{ server_data.server.id }}">{{ server_data.latest_metric.cpu_percent|default:"—"|floatformat:"0" }}%</div>
+                            </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Memory</div>
+                        <div class="metric-value" id="metric-memory-{{ server_data.server.id }}">{{ server_data.latest_metric.memory_percent|default:"—"|floatformat:"0" }}%</div>
+                        </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Disk I/O</div>
+                        <div class="metric-value" id="metric-disk-io-{{ server_data.server.id }}">{{ server_data.latest_metric.disk_io_read|default:"—"|floatformat:"0" }} KB/s</div>
+                            </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Network</div>
+                        <div class="metric-value" id="metric-network-{{ server_data.server.id }}">{{ server_data.latest_metric.net_io_sent|default:"—"|floatformat:"0" }} KB/s</div>
+                        </div>
+                    <div class="metric-box" style="grid-column: span 2;">
+                        <div class="metric-label">Uptime</div>
+                        <div class="metric-value">{{ server_data.latest_metric.uptime_formatted|default:"—" }}</div>
                     </div>
                 </div>
 
-                <div class="contained-list-item-meta">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--spacing-lg);">
-                        <div>
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">CPU Usage</div>
-                            <div style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">
-                                {{ server_data.latest_metric.cpu_percent|default:"N/A"|floatformat:"1" }}%
-                            </div>
-                        </div>
-                        <div>
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Memory</div>
-                            <div style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">
-                                {{ server_data.latest_metric.memory_percent|default:"N/A"|floatformat:"1" }}%
-                            </div>
-                        </div>
-                        <div>
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Uptime</div>
-                            <div style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">
-                                {{ server_data.uptime_days }}d {{ server_data.uptime_hours }}h
-                            </div>
-                        </div>
-                        <div>
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Disk Usage</div>
-                            <div style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary);">
-                                {{ server_data.disk_percent|default:"N/A"|floatformat:"1" }}%
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-md); border-top: 1px solid var(--color-neutral-ui-border-subtle);">
-                    <!-- Action Buttons and Status -->
-                    <div style="display: flex; align-items: center; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
-                        <a href="/server/{{ server_data.server.id }}/" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-xs) var(--spacing-sm); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">View Details</a>
-
-                        {% if server_data.server.suspend_monitoring %}
-                        <span class="status" style="background-color: rgba(245, 101, 101, 0.1); color: var(--color-support-error); border: 1px solid rgba(245, 101, 101, 0.2); font-size: var(--font-size-caption); padding: var(--spacing-xs) var(--spacing-sm); border-radius: var(--border-radius-control);">Monitoring Suspended</span>
-                        {% elif server_data.server.suppress_alerts %}
-                        <span class="status" style="background-color: rgba(245, 158, 11, 0.1); color: var(--color-support-warning); border: 1px solid rgba(245, 158, 11, 0.2); font-size: var(--font-size-caption); padding: var(--spacing-xs) var(--spacing-sm); border-radius: var(--border-radius-control);">Alerts Suppressed</span>
-                        {% endif %}
-                    </div>
-
-                    <!-- Operational Toggles -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
-                        <!-- Suppress Alerts Toggle -->
-                        <div style="display: flex; flex-direction: column; gap: var(--spacing-xs);">
-                            <label style="font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
-                                <input type="checkbox"
-                                       id="suppress-alerts-{{ server_data.server.id }}"
-                                       {% if server_data.server.suppress_alerts %}checked{% endif %}
-                                       onchange="toggleAlertSuppression({{ server_data.server.id }}, this.checked)"
-                                       style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                                <span>Suppress Alerts</span>
-                            </label>
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); line-height: var(--line-height-caption);">
-                                Prevent email alerts for this server
-                            </div>
-                        </div>
-
-                        <!-- Suspend Monitoring Toggle -->
-                        <div style="display: flex; flex-direction: column; gap: var(--spacing-xs);">
-                            <label style="font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer;">
-                                <input type="checkbox"
-                                       id="suspend-monitoring-{{ server_data.server.id }}"
-                                       {% if server_data.server.suspend_monitoring %}checked{% endif %}
-                                       onchange="toggleMonitoring({{ server_data.server.id }}, this.checked)"
-                                       style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                                <span>Suspend Monitoring</span>
-                            </label>
-                            <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); line-height: var(--line-height-caption);">
-                                Pause all monitoring and alerts
-                            </div>
-                        </div>
+                <!-- Card Footer: Actions -->
+                <div style="padding-top: 16px; border-top: 1px solid #e2e8f0;">
+                    <a href="/server/{{ server_data.server.id }}/" class="btn-primary">
+                        View Details →
+                    </a>
+                    
+                    <!-- Toggles -->
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px;">
+                        <!-- Suppress Alerts Toggle (Orange when ON) -->
+                        <button type="button"
+                                id="suppress-alerts-{{ server_data.server.id }}"
+                                onclick="toggleAlertSuppression({{ server_data.server.id }}, !this.classList.contains('toggle-on'))"
+                                class="toggle-btn toggle-suppress {% if server_data.alert_suppressed %}toggle-on{% else %}toggle-off{% endif %}"
+                                style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 13px; font-weight: 500; border: none; border-radius: 6px; cursor: pointer; transition: all 150ms ease; outline: none;">
+                            <span class="toggle-indicator" style="width: 8px; height: 8px; border-radius: 50%; background-color: currentColor; transition: all 150ms ease;"></span>
+                            <span id="suppress-alerts-text-{{ server_data.server.id }}">{% if server_data.alert_suppressed %}Enable Alerts{% else %}Suppress Alerts{% endif %}</span>
+                        </button>
+                        
+                        <!-- Suspend Monitoring Toggle (Red when ON) -->
+                        <button type="button"
+                                id="suspend-monitoring-{{ server_data.server.id }}"
+                                onclick="toggleMonitoring({{ server_data.server.id }}, !this.classList.contains('toggle-on'))"
+                                class="toggle-btn toggle-suspend {% if server_data.monitoring_suspended %}toggle-on{% else %}toggle-off{% endif %}"
+                                style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 13px; font-weight: 500; border: none; border-radius: 6px; cursor: pointer; transition: all 150ms ease; outline: none;">
+                            <span class="toggle-indicator" style="width: 8px; height: 8px; border-radius: 50%; background-color: currentColor; transition: all 150ms ease;"></span>
+                            <span id="suspend-monitoring-text-{{ server_data.server.id }}">{% if server_data.monitoring_suspended %}Enable Monitoring{% else %}Suspend Monitoring{% endif %}</span>
+                        </button>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <div style="text-align: center; padding: var(--spacing-3xl) var(--spacing-xl); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card);">
-            <div style="width: 64px; height: 64px; color: var(--color-neutral-text-placeholder); margin: 0 auto var(--spacing-lg) auto;">
+        <!-- Empty State -->
+        <div style="text-align: center; padding: 48px 32px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <div style="width: 64px; height: 64px; color: #94a3b8; margin: 0 auto 24px auto;">
                 <svg fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd"/>
                 </svg>
             </div>
-            <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-heading-md);">No Servers Added Yet</h3>
-            <p style="font-size: var(--font-size-body); color: var(--color-neutral-text-secondary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-body);">Start by adding your first server to monitor its performance.</p>
-            <a href="/add-server/" class="btn btn-primary">Add Server</a>
+            <h3 style="font-size: 20px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">No Servers Added Yet</h3>
+            <p style="font-size: 16px; color: #64748b; margin: 0 0 24px 0;">Start by adding your first server to monitor its performance.</p>
+            <a href="/add-server/" class="btn-primary" style="display: inline-block;">Add Server</a>
         </div>
         {% endif %}
     </section>
 
-    <!-- Recent Alerts - IBM Carbon Notification Pattern -->
-    <section style="margin-bottom: var(--spacing-3xl);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-xl);">
-            <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0; line-height: var(--line-height-heading-lg);">Recent Alerts</h2>
-            {% if alerts %}
-            <a href="#" class="btn">View All</a>
-            {% endif %}
-        </div>
+{% endblock %}
 
-        {% if alerts %}
-        <div style="display: flex; flex-direction: column; gap: var(--spacing-md);">
-            {% for alert in alerts %}
-            <div class="notification notification-{{ alert.alert_type|default:'info' }}">
-                <div class="notification-content">
-                    <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                        <div class="notification-icon">
-                            {% if alert.alert_type == 'warning' %}
-                            <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                            </svg>
-                            {% elif alert.alert_type == 'danger' %}
-                            <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                            {% else %}
-                            <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                            </svg>
-                            {% endif %}
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-body);">
-                                {{ alert.message }}
-                            </div>
-                            <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                                <span style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary);">{{ alert.timestamp|date:"M d, Y H:i" }}</span>
-                                <span class="tag tag-server">{{ alert.server.name }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="notification notification-success">
-            <div class="notification-content">
-                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                    <div class="notification-icon">
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
-                            All systems operational
-                        </div>
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs);">
-                            No active alerts at this time
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </section>
-
-    {% block extrajs %}
-    <script src="{% static 'core/js/anomaly_status.js' %}"></script>
-    {% endblock %}
+{% block extrajs %}
+<script src="{% static 'core/js/anomaly_status.js' %}"></script>
+<script>
+    let metricsRefreshInterval;
+    
+    // Auto-refresh metrics every 10 seconds
+    function startMetricsRefresh() {
+        // Initial fetch
+        fetchMetrics();
+        
+        // Set up interval for every 10 seconds
+        metricsRefreshInterval = setInterval(fetchMetrics, 10000);
+    }
+    
+    function stopMetricsRefresh() {
+        if (metricsRefreshInterval) {
+            clearInterval(metricsRefreshInterval);
+        }
+    }
+    
+    async function fetchMetrics() {
+        try {
+            const response = await fetch('/api/live-metrics/');
+            if (!response.ok) {
+                console.error('Failed to fetch metrics:', response.status);
+                return;
+            }
+            
+            const data = await response.json();
+            const metrics = data.metrics || [];
+            
+            // Update metrics for each server
+            metrics.forEach(metric => {
+                const serverId = metric.server_id;
+                
+                // Update CPU
+                const cpuElement = document.getElementById(`metric-cpu-${serverId}`);
+                if (cpuElement) {
+                    cpuElement.textContent = `${Math.round(metric.cpu_percent || 0)}%`;
+                }
+                
+                // Update Memory (RAM)
+                const memoryElement = document.getElementById(`metric-memory-${serverId}`);
+                if (memoryElement) {
+                    memoryElement.textContent = `${Math.round(metric.memory_percent || 0)}%`;
+                }
+                
+                // Update Disk I/O
+                const diskIoElement = document.getElementById(`metric-disk-io-${serverId}`);
+                if (diskIoElement) {
+                    const diskIoValue = metric.disk_io_read || 0;
+                    diskIoElement.textContent = `${Math.round(diskIoValue)} KB/s`;
+                }
+                
+                // Update Network I/O
+                const networkElement = document.getElementById(`metric-network-${serverId}`);
+                if (networkElement) {
+                    const networkValue = metric.net_io_sent || 0;
+                    networkElement.textContent = `${Math.round(networkValue)} KB/s`;
+                }
+                
+                // Update Status Badge
+                if (metric.status) {
+                    const statusContainer = document.querySelector(`[data-server-id="${serverId}"] .status-badge`);
+                    if (statusContainer) {
+                        // Remove all status classes
+                        statusContainer.className = 'status-badge';
+                        const statusLight = statusContainer.querySelector('.status-light');
+                        if (statusLight) {
+                            statusLight.className = 'status-light';
+                        }
+                        
+                        // Add appropriate status classes
+                        if (metric.status === 'online') {
+                            statusContainer.classList.add('status-badge-online');
+                            if (statusLight) statusLight.classList.add('status-light-online');
+                            statusContainer.innerHTML = '<span class="status-light status-light-online"></span>Online';
+                        } else if (metric.status === 'warning') {
+                            statusContainer.classList.add('status-badge-warning');
+                            if (statusLight) statusLight.classList.add('status-light-warning');
+                            statusContainer.innerHTML = '<span class="status-light status-light-warning"></span>Warning';
+                        } else {
+                            statusContainer.classList.add('status-badge-offline');
+                            if (statusLight) statusLight.classList.add('status-light-offline');
+                            statusContainer.innerHTML = '<span class="status-light status-light-offline"></span>Offline';
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching metrics:', error);
+        }
+    }
+    
+    // Start auto-refresh when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        startMetricsRefresh();
+    });
+    
+    // Stop refresh when page is hidden (optional optimization)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopMetricsRefresh();
+        } else {
+            startMetricsRefresh();
+        }
+    });
+    
+    function toggleAlertSuppression(serverId, checked) {
+        const button = document.getElementById(`suppress-alerts-${serverId}`);
+        const textElement = document.getElementById(`suppress-alerts-text-${serverId}`);
+        const action = checked ? 'suppress' : 'resume';
+        
+        // Update UI immediately for better UX
+        if (checked) {
+            button.classList.remove('toggle-off');
+            button.classList.add('toggle-on');
+            if (textElement) textElement.textContent = 'Enable Alerts';
+        } else {
+            button.classList.remove('toggle-on');
+            button.classList.add('toggle-off');
+            if (textElement) textElement.textContent = 'Suppress Alerts';
+        }
+        
+        // Get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        fetch(`/api/servers/${serverId}/alerts/${action}/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                // Revert UI if request failed
+                if (checked) {
+                    button.classList.remove('toggle-on');
+                    button.classList.add('toggle-off');
+                    if (textElement) textElement.textContent = 'Suppress Alerts';
+                } else {
+                    button.classList.remove('toggle-off');
+                    button.classList.add('toggle-on');
+                    if (textElement) textElement.textContent = 'Enable Alerts';
+                }
+                alert('Error: ' + (data.error || 'Failed to update alert suppression'));
+            }
+        })
+        .catch(error => {
+            // Revert UI on error
+            if (checked) {
+                button.classList.remove('toggle-on');
+                button.classList.add('toggle-off');
+                if (textElement) textElement.textContent = 'Suppress Alerts';
+            } else {
+                button.classList.remove('toggle-off');
+                button.classList.add('toggle-on');
+                if (textElement) textElement.textContent = 'Enable Alerts';
+            }
+            console.error('Error:', error);
+            alert('Error updating alert suppression. Please try again.');
+        });
+    }
+    function toggleMonitoring(serverId, checked) {
+        const button = document.getElementById(`suspend-monitoring-${serverId}`);
+        const textElement = document.getElementById(`suspend-monitoring-text-${serverId}`);
+        const action = checked ? 'suspend' : 'resume';
+        
+        // Update UI immediately for better UX
+        if (checked) {
+            button.classList.remove('toggle-off');
+            button.classList.add('toggle-on');
+            if (textElement) textElement.textContent = 'Enable Monitoring';
+        } else {
+            button.classList.remove('toggle-on');
+            button.classList.add('toggle-off');
+            if (textElement) textElement.textContent = 'Suspend Monitoring';
+        }
+        
+        // Get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        fetch(`/api/servers/${serverId}/monitoring/${action}/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                // Revert UI if request failed
+                if (checked) {
+                    button.classList.remove('toggle-on');
+                    button.classList.add('toggle-off');
+                    if (textElement) textElement.textContent = 'Suspend Monitoring';
+                } else {
+                    button.classList.remove('toggle-off');
+                    button.classList.add('toggle-on');
+                    if (textElement) textElement.textContent = 'Enable Monitoring';
+                }
+                alert('Error: ' + (data.error || 'Failed to update monitoring suspension'));
+            }
+        })
+        .catch(error => {
+            // Revert UI on error
+            if (checked) {
+                button.classList.remove('toggle-on');
+                button.classList.add('toggle-off');
+                if (textElement) textElement.textContent = 'Suspend Monitoring';
+            } else {
+                button.classList.remove('toggle-off');
+                button.classList.add('toggle-on');
+                if (textElement) textElement.textContent = 'Enable Monitoring';
+            }
+            console.error('Error:', error);
+            alert('Error updating monitoring suspension. Please try again.');
+        });
+    }
+    
+    // News Ticker Feed
+    function loadNewsFeed() {
+        fetch('/api/dashboard/news-feed/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.news_items && data.news_items.length > 0) {
+                    const newsContent = document.getElementById('news-ticker-content');
+                    let html = '';
+                    
+                    // Duplicate items for seamless loop
+                    const items = [...data.news_items, ...data.news_items];
+                    
+                    items.forEach((item, index) => {
+                        let severityClass = '';
+                        if (item.severity === 'high' || item.severity === 'critical') {
+                            severityClass = 'news-item-high';
+                        } else if (item.severity === 'warning' || item.severity === 'medium') {
+                            severityClass = 'news-item-warning';
+                        } else {
+                            severityClass = 'news-item-info';
+                        }
+                        
+                        html += `<span class="news-item ${severityClass}">${item.icon} ${item.text}</span>`;
+                        if (index < items.length - 1) {
+                            html += '<span class="news-item-separator">•</span>';
+                        }
+                    });
+                    
+                    newsContent.innerHTML = html;
+                } else {
+                    document.getElementById('news-ticker-content').innerHTML = 
+                        '<span class="news-item-info">📊 All systems operational - No recent events to report</span>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading news feed:', error);
+                document.getElementById('news-ticker-content').innerHTML = 
+                    '<span class="news-item-warning">⚠️ Unable to load system status updates</span>';
+            });
+    }
+    
+    // Load news feed on page load
+    loadNewsFeed();
+    
+    // Refresh news feed every 30 seconds
+    setInterval(loadNewsFeed, 30000);
+</script>
 {% endblock %}

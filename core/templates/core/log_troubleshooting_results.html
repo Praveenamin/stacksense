@@ -1,0 +1,403 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Log Troubleshooting Results - StackSense{% endblock %}
+
+{% block extrahead %}
+<style>
+    .results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 32px;
+    }
+    .results-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0;
+    }
+    .results-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 4px 0 0 0;
+    }
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .results-table thead {
+        background-color: #f8fafc;
+    }
+    .results-table th {
+        padding: 12px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .results-table td {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 14px;
+        color: #0f172a;
+    }
+    .results-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+    .results-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .log-level-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .log-level-error {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+    .log-level-warning {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+    .log-level-info {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+    .log-message {
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        color: #334155;
+        word-break: break-word;
+        max-width: 600px;
+    }
+    .count-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        background-color: #6366f1;
+        color: white;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 8px;
+    }
+    .solution-box {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-top: 8px;
+    }
+    .solution-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #166534;
+        margin: 0 0 8px 0;
+    }
+    .solution-text {
+        font-size: 13px;
+        color: #166534;
+        margin: 0;
+        white-space: pre-wrap;
+    }
+    .btn-create-solution {
+        padding: 6px 12px;
+        background-color: #6366f1;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-top: 8px;
+    }
+    .btn-create-solution:hover {
+        background-color: #4f46e5;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 64px 32px;
+        color: #64748b;
+    }
+    .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+    }
+    .empty-state-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .empty-state-text {
+        font-size: 14px;
+        margin: 0;
+    }
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal.active {
+        display: flex;
+    }
+    .modal-content {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 32px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+    .modal-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 24px 0;
+    }
+    .modal-form-group {
+        margin-bottom: 20px;
+    }
+    .modal-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .modal-input, .modal-textarea {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        box-sizing: border-box;
+    }
+    .modal-textarea {
+        min-height: 120px;
+        resize: vertical;
+        font-family: inherit;
+    }
+    .modal-buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 24px;
+    }
+    .modal-btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .modal-btn-primary {
+        background-color: #0ea5e9;
+        color: white;
+    }
+    .modal-btn-secondary {
+        background-color: #e2e8f0;
+        color: #0f172a;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="results-header">
+    <div>
+        <h1 class="results-title">Log Troubleshooting Results</h1>
+        <p class="results-subtitle">Detected errors and issues from monitored logs ({{ total_events }} total)</p>
+    </div>
+    <div>
+        <a href="{% url 'log_troubleshooting_config' %}" style="display: inline-flex; align-items: center; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;">
+            Configure Log Monitoring →
+        </a>
+    </div>
+</div>
+
+{% if events_with_solutions %}
+<table class="results-table">
+    <thead>
+        <tr>
+            <th>Server / Service</th>
+            <th>Level</th>
+            <th>Message</th>
+            <th>Count</th>
+            <th>First Seen</th>
+            <th>Last Seen</th>
+            <th>Solution</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in events_with_solutions %}
+        <tr>
+            <td>
+                <strong>{{ item.event.monitored_log.server.name }}</strong><br>
+                <small style="color: #64748b;">{{ item.event.monitored_log.application_name }}</small>
+            </td>
+            <td>
+                <span class="log-level-badge log-level-{{ item.event.log_level|lower }}">
+                    {{ item.event.log_level }}
+                </span>
+            </td>
+            <td>
+                <div class="log-message">{{ item.event.message }}</div>
+            </td>
+            <td>
+                {% if item.event.event_count > 1 %}
+                <span class="count-badge">{{ item.event.event_count }}x</span>
+                {% else %}
+                —
+                {% endif %}
+            </td>
+            <td>{{ item.event.first_seen|date:"Y-m-d H:i:s" }}</td>
+            <td>{{ item.event.last_seen|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                {% if item.solution %}
+                <div class="solution-box">
+                    <div class="solution-title">✓ Solution Available</div>
+                    <div class="solution-text">{{ item.solution }}</div>
+                </div>
+                {% else %}
+                <button class="btn-create-solution" onclick="openCreateSolutionModal('{{ item.event.id }}', `{{ item.event.message|escapejs }}`)">
+                    Create Solution
+                </button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">📋</div>
+    <h2 class="empty-state-title">No Log Events Found</h2>
+    <p class="empty-state-text">
+        No errors have been detected yet. Configure log monitoring to start detecting issues.
+    </p>
+    <div style="margin-top: 24px;">
+        <a href="{% url 'log_troubleshooting_config' %}" style="display: inline-flex; align-items: center; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;">
+            Configure Log Monitoring
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Create Solution Modal -->
+<div id="solution-modal" class="modal">
+    <div class="modal-content">
+        <h2 class="modal-title">Create Solution for Error</h2>
+        <form id="solution-form">
+            {% csrf_token %}
+            <input type="hidden" id="solution-event-id" name="event_id">
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-pattern">Error Pattern (Auto-filled)</label>
+                <input type="text" id="solution-pattern" name="pattern" class="modal-input" readonly>
+                <small style="color: #64748b; font-size: 12px;">This pattern will be used to match similar errors</small>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-name">Solution Name *</label>
+                <input type="text" id="solution-name" name="name" class="modal-input" required placeholder="e.g., Fix 500 Internal Server Error">
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-explanation">Explanation *</label>
+                <textarea id="solution-explanation" name="explanation" class="modal-textarea" required placeholder="Explain what causes this error..."></textarea>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-text">Solution Steps *</label>
+                <textarea id="solution-text" name="solution" class="modal-textarea" required placeholder="Step-by-step solution..."></textarea>
+            </div>
+            
+            <div class="modal-buttons">
+                <button type="button" class="modal-btn modal-btn-secondary" onclick="closeCreateSolutionModal()">Cancel</button>
+                <button type="submit" class="modal-btn modal-btn-primary">Save Solution</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentEventId = null;
+
+function openCreateSolutionModal(eventId, message) {
+    currentEventId = eventId;
+    document.getElementById('solution-event-id').value = eventId;
+    // Use first 100 chars of message as pattern
+    document.getElementById('solution-pattern').value = message.substring(0, 100);
+    document.getElementById('solution-modal').classList.add('active');
+}
+
+function closeCreateSolutionModal() {
+    document.getElementById('solution-modal').classList.remove('active');
+    document.getElementById('solution-form').reset();
+    currentEventId = null;
+}
+
+document.getElementById('solution-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        event_id: document.getElementById('solution-event-id').value,
+        pattern: document.getElementById('solution-pattern').value,
+        name: document.getElementById('solution-name').value,
+        explanation: document.getElementById('solution-explanation').value,
+        solution: document.getElementById('solution-text').value,
+    };
+    
+    try {
+        const response = await fetch('/api/log-troubleshooting/create-solution/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeCreateSolutionModal();
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to create solution'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Close modal on background click
+document.getElementById('solution-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeCreateSolutionModal();
+    }
+});
+</script>
+{% endblock %}

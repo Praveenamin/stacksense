@@ -35,10 +35,20 @@ class OllamaAnalyzer:
         except Exception as e:
             raise Exception(f"Ollama API error: {e}")
     
-    def explain_anomaly(self, metric_type, metric_name, metric_value, server_name):
+    def explain_anomaly(self, metric_type, metric_name, metric_value, server_name, process_context=None):
         """
         Generate a human-readable explanation for a detected anomaly.
-        Returns a string explanation or None if LLM is disabled.
+        
+        Args:
+            metric_type: Type of metric ('cpu', 'memory', etc.)
+            metric_name: Name of the metric
+            metric_value: Current value of the metric
+            server_name: Name of the server
+            process_context: Optional dict with process information
+                Format: {'cpu': [{'pid': '12345', 'cpu_percent': 95.8, 'command': 'yes'}], 'memory': [...]}
+        
+        Returns:
+            string explanation or None if LLM is disabled
         """
         if not self.enabled:
             return None
@@ -48,13 +58,41 @@ class OllamaAnalyzer:
 Metric Type: {metric_type}
 Metric Name: {metric_name}
 Current Value: {metric_value}
+"""
+        
+        # Add process information if available
+        if process_context:
+            relevant_processes = process_context.get('cpu' if metric_type == 'cpu' else 'memory', [])
+            if relevant_processes:
+                prompt += f"""
+Process Information (collected at anomaly detection time):
+Top {metric_type.upper()} Processes:
+"""
+                for proc in relevant_processes[:3]:  # Top 3
+                    if metric_type == 'cpu':
+                        prompt += f"  - PID {proc['pid']}: {proc['command']} ({proc['cpu_percent']}% CPU)\n"
+                    else:
+                        prompt += f"  - PID {proc['pid']}: {proc['command']} ({proc['memory_percent']}% Memory)\n"
+                
+                prompt += "\nAnalyze these specific processes to identify the root cause. Identify which process(es) are causing the anomaly and why."
+        else:
+            prompt += "\n(Process information not available - provide general analysis)"
+        
+        prompt += """
 
-Provide a brief, human-readable explanation (2-3 sentences) of:
-1. What this anomaly means in practical terms
-2. What might be causing it
-3. What the system administrator should check first
+Provide a detailed explanation with two clearly labeled sections:
 
-Keep it concise and actionable. Return only the explanation text, no JSON or formatting."""
+CAUSE:
+Explain what is causing this anomaly. If process information is available above, identify specific processes (by name/PID) and explain what they are doing. Otherwise, explain general causes. Be specific about the root cause.
+
+FIX:
+Provide step-by-step instructions to resolve. If specific processes are identified above, include commands to investigate/kill them (e.g., "kill PID" or "ps aux | grep process_name"). Otherwise, provide general troubleshooting steps.
+
+Format your response as:
+CAUSE: [explanation]
+FIX: [step-by-step instructions]
+
+Keep it clear, concise, and actionable. Return only the explanation text with the CAUSE: and FIX: labels."""
 
         try:
             response = self._call_ollama(prompt)

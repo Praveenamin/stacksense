@@ -1,12 +1,23 @@
 #!/bin/bash
 set -e
 
-echo "Waiting for database to be ready..."
+echo "Checking database configuration..."
 python << END
 import sys
+import os
+from django.conf import settings
+import django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'log_analyzer.settings')
+django.setup()
+
+# Check if we're using SQLite
+if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+    print("Using SQLite database - no external database connection needed")
+    sys.exit(0)
+
+# For PostgreSQL, wait for database to be ready
 import time
 import psycopg2
-import os
 
 # Get database connection details from environment
 db_name = os.environ.get('POSTGRES_DB', 'monitoring_db')

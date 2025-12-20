@@ -1,0 +1,151 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - StackSense{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header / Control Bar -->
+<div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p class="text-muted-foreground">Real-time infrastructure monitoring</p>
+    </div>
+    <div class="flex items-center gap-2">
+        <select id="timeRange"
+            class="h-9 w-[180px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+            <option value="1h">Last 1 hour</option>
+            <option value="6h">Last 6 hours</option>
+            <option value="12h" selected>Last 12 hours</option>
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last 7 days</option>
+        </select>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Total Servers -->
+    <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 class="tracking-tight text-sm font-medium">Total Servers</h3>
+            <svg class="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                </path>
+            </svg>
+        </div>
+        <div class="p-6 pt-0">
+            <div class="text-2xl font-bold">{{ servers|length }}</div>
+            <p class="text-xs text-muted-foreground">Active monitoring</p>
+        </div>
+    </div>
+
+    <!-- Online -->
+    <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 class="tracking-tight text-sm font-medium">Online</h3>
+            <svg class="h-4 w-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        </div>
+        <div class="p-6 pt-0">
+            <div class="text-2xl font-bold text-emerald-600" id="onlineCount">--</div>
+        </div>
+    </div>
+
+    <!-- Warnings -->
+    <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 class="tracking-tight text-sm font-medium">Warnings</h3>
+            <svg class="h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                </path>
+            </svg>
+        </div>
+        <div class="p-6 pt-0">
+            <div class="text-2xl font-bold text-amber-600" id="warningCount">--</div>
+        </div>
+    </div>
+
+    <!-- Offline -->
+    <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div class="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 class="tracking-tight text-sm font-medium">Offline</h3>
+            <svg class="h-4 w-4 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636">
+                </path>
+            </svg>
+        </div>
+        <div class="p-6 pt-0">
+            <div class="text-2xl font-bold text-destructive" id="offlineCount">--</div>
+        </div>
+    </div>
+</div>
+
+<!-- Server Grid -->
+<h2 class="text-lg font-semibold tracking-tight mb-4">Infrastructure Status</h2>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for server in servers %}
+    <div class="rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
+        <div class="p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="h-2.5 w-2.5 rounded-full bg-emerald-500 server-status-indicator"
+                        data-server-id="{{ server.id }}"></div>
+                    <div>
+                        <h3 class="font-semibold leading-none tracking-tight">{{ server.name }}</h3>
+                        <p class="text-sm text-muted-foreground">{{ server.ip_address }}</p>
+                    </div>
+                </div>
+                <span
+                    class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">
+                    Monitoring
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-2">
+                <div class="space-y-1">
+                    <p class="text-xs font-medium text-muted-foreground">CPU Usage</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-lg font-bold" id="cpu-{{ server.id }}">--%</span>
+                        <span class="text-xs text-muted-foreground">avg</span>
+                    </div>
+                    <div class="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                        <div class="h-full bg-primary transition-all duration-500" style="width: 0%"
+                            id="cpu-bar-{{ server.id }}"></div>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-xs font-medium text-muted-foreground">Memory</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-lg font-bold" id="mem-{{ server.id }}">--%</span>
+                    </div>
+                    <div class="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                        <div class="h-full bg-primary transition-all duration-500" style="width: 0%"
+                            id="mem-bar-{{ server.id }}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 flex items-center justify-between border-t">
+                <button class="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                    onclick="location.href='/server/{{ server.id }}/'">
+                    View Details
+                </button>
+                <div class="flex items-center space-x-2">
+                    <!-- Actions -->
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'core/js/dashboard.js' %}"></script>
+{% endblock %}

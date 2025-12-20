@@ -1,0 +1,246 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load rbac_tags %}
+
+{% block title %}StackWatch Dashboard{% endblock %}
+
+{% block bodyclass %}dashboard-page{% endblock %}
+
+{% block content %}
+    <!-- Page Header - IBM Carbon Layout -->
+    <div style="margin-bottom: var(--cds-spacing-12);">
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+            <div>
+                <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--cds-line-height-tight);">StackWatch Dashboard</h1>
+                <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0; line-height: var(--cds-line-height-normal);">Real-time infrastructure monitoring and alerting platform</p>
+            </div>
+
+            <!-- Status Summary - Using IBM Carbon tile pattern -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--cds-spacing-4);">
+                <div class="bx--tile status-summary">
+                    <div style="text-align: center;">
+                        <div style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-green-60); margin-bottom: var(--cds-spacing-1);">{{ online_count }}</div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em;">Online</div>
+                        <div style="width: 8px; height: 8px; background-color: var(--cds-color-green-60); border-radius: 50%; margin: var(--cds-spacing-2) auto 0;"></div>
+                    </div>
+                </div>
+                <div class="bx--tile status-summary">
+                    <div style="text-align: center;">
+                        <div style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-yellow-60); margin-bottom: var(--cds-spacing-1);">{{ warning_count }}</div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em;">Warning</div>
+                        <div style="width: 8px; height: 8px; background-color: var(--cds-color-yellow-60); border-radius: 50%; margin: var(--cds-spacing-2) auto 0;"></div>
+                    </div>
+                </div>
+                <div class="bx--tile status-summary">
+                    <div style="text-align: center;">
+                        <div style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-red-60); margin-bottom: var(--cds-spacing-1);">{{ offline_count }}</div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em;">Offline</div>
+                        <div style="width: 8px; height: 8px; background-color: var(--cds-color-red-60); border-radius: 50%; margin: var(--cds-spacing-2) auto 0;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Servers Overview - IBM Carbon Contained List -->
+    <section style="margin-bottom: var(--cds-spacing-12);">
+        <h2 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-8) 0; line-height: var(--cds-line-height-tight);">Monitored Servers</h2>
+
+        {% if servers_data %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: var(--cds-spacing-6);">
+            {% for server_data in servers_data %}
+            <div class="bx--tile" style="padding: var(--cds-spacing-6); border-radius: var(--cds-border-radius); border: 1px solid var(--cds-color-gray-20); background-color: var(--cds-color-gray-10);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--cds-spacing-4);">
+                    <div>
+                        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">{{ server_data.server.name }}</h3>
+                        <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); margin-bottom: var(--cds-spacing-2);">
+                            {{ server_data.server.ip_address }}
+                        </div>
+                        <!-- Anomaly Status Widget -->
+                        <div class="anomaly-status" data-server-id="{{ server_data.server.id }}">
+                            <span class="severity-label">Loading...</span>
+                            <span class="active-count"></span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: var(--cds-spacing-2);">
+                        <span class="status status-{{ server_data.server_status|lower }}" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); text-transform: uppercase; letter-spacing: 0.025em;">
+                            <span>{{ server_data.server_status|title }}</span>
+                        </span>
+                        {% if server_data.active_anomalies %}
+                        <span style="font-size: var(--cds-font-size-xs); color: var(--cds-color-red-60); background-color: rgba(218, 30, 40, 0.1); padding: var(--cds-spacing-1) var(--cds-spacing-2); border-radius: var(--cds-border-radius);">
+                            {{ server_data.active_anomalies.count }} Alert{{ server_data.active_anomalies.count|pluralize }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--cds-spacing-4); margin-bottom: var(--cds-spacing-6);">
+                    <div style="text-align: center; padding: var(--cds-spacing-3); background-color: var(--cds-color-gray-5); border-radius: var(--cds-border-radius);">
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">CPU Usage</div>
+                        <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">
+                            {{ server_data.latest_metric.cpu_percent|default:"—"|floatformat:"1" }}%
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: var(--cds-spacing-3); background-color: var(--cds-color-gray-5); border-radius: var(--cds-border-radius);">
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Memory</div>
+                        <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">
+                            {{ server_data.latest_metric.memory_percent|default:"—"|floatformat:"1" }}%
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: var(--cds-spacing-3); background-color: var(--cds-color-gray-5); border-radius: var(--cds-border-radius);">
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Disk I/O</div>
+                        <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">
+                            {{ server_data.latest_metric.disk_io_read|default:"—"|floatformat:"0" }} KB/s
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: var(--cds-spacing-3); background-color: var(--cds-color-gray-5); border-radius: var(--cds-border-radius);">
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Network I/O</div>
+                        <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">
+                            {{ server_data.latest_metric.net_io_sent|default:"—"|floatformat:"0" }} KB/s
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons and Status -->
+                <div style="padding-top: var(--cds-spacing-4); border-top: 1px solid var(--cds-color-gray-20);">
+                    <div style="display: flex; align-items: center; gap: var(--cds-spacing-4); margin-bottom: var(--cds-spacing-4);">
+                        <a href="/server/{{ server_data.server.id }}/" style="background-color: var(--cds-color-blue-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius); display: inline-flex; align-items: center; gap: var(--cds-spacing-2);">
+                            <span>View Details</span>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </a>
+
+                        {% if server_data.server.monitoring_config.suspend_monitoring %}
+                        <span style="background-color: rgba(218, 30, 40, 0.1); color: var(--cds-color-red-60); border: 1px solid rgba(218, 30, 40, 0.2); font-size: var(--cds-font-size-xs); padding: var(--cds-spacing-1) var(--cds-spacing-2); border-radius: var(--cds-border-radius); font-weight: var(--cds-font-weight-medium);">
+                            Monitoring Suspended
+                        </span>
+                        {% elif server_data.server.monitoring_config.suppress_alerts %}
+                        <span style="background-color: rgba(245, 158, 11, 0.1); color: var(--cds-color-yellow-60); border: 1px solid rgba(245, 158, 11, 0.2); font-size: var(--cds-font-size-xs); padding: var(--cds-spacing-1) var(--cds-spacing-2); border-radius: var(--cds-border-radius); font-weight: var(--cds-font-weight-medium);">
+                            Alerts Suppressed
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Operational Toggles -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--cds-spacing-4);">
+                        <!-- Suppress Alerts Toggle -->
+                        <div style="display: flex; flex-direction: column; gap: var(--cds-spacing-2);">
+                            <label style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); display: flex; align-items: center; gap: var(--cds-spacing-2); cursor: pointer;">
+                                <input type="checkbox"
+                                       id="suppress-alerts-{{ server_data.server.id }}"
+                                       {% if server_data.server.monitoring_config.suppress_alerts %}checked{% endif %}
+                                       onchange="toggleAlertSuppression({{ server_data.server.id }}, this.checked)"
+                                       style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                                <span>Suppress Alerts</span>
+                            </label>
+                            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-tight);">
+                                Prevent email alerts for this server
+                            </div>
+                        </div>
+
+                        <!-- Suspend Monitoring Toggle -->
+                        <div style="display: flex; flex-direction: column; gap: var(--cds-spacing-2);">
+                            <label style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); display: flex; align-items: center; gap: var(--cds-spacing-2); cursor: pointer;">
+                                <input type="checkbox"
+                                       id="suspend-monitoring-{{ server_data.server.id }}"
+                                       {% if server_data.server.monitoring_config.suspend_monitoring %}checked{% endif %}
+                                       onchange="toggleMonitoring({{ server_data.server.id }}, this.checked)"
+                                       style="width: 16px; height: 16px; accent-color: var(--cds-color-blue-60);">
+                                <span>Suspend Monitoring</span>
+                            </label>
+                            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-tight);">
+                                Pause all monitoring and alerts
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bx--tile" style="text-align: center; padding: var(--cds-spacing-12) var(--cds-spacing-8); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+            <div style="width: 64px; height: 64px; color: var(--cds-color-gray-50); margin: 0 auto var(--cds-spacing-6) auto;">
+                <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd"/>
+                </svg>
+            </div>
+            <h3 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--cds-line-height-tight);">No Servers Added Yet</h3>
+            <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--cds-line-height-normal);">Start by adding your first server to monitor its performance.</p>
+            <a href="/add-server/" style="background-color: var(--cds-color-blue-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius); display: inline-block;">Add Server</a>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Recent Alerts - IBM Carbon Notification Pattern -->
+    <section style="margin-bottom: var(--cds-spacing-12);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-8);">
+            <h2 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0; line-height: var(--cds-line-height-tight);">Recent Alerts</h2>
+            {% if alerts %}
+            <a href="#" class="btn">View All</a>
+            {% endif %}
+        </div>
+
+        {% if alerts %}
+        <div style="display: flex; flex-direction: column; gap: var(--cds-spacing-4);">
+            {% for alert in alerts %}
+            <div class="notification notification-{{ alert.alert_type|default:'info' }}">
+                <div class="notification-content">
+                    <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
+                        <div class="notification-icon">
+                            {% if alert.alert_type == 'warning' %}
+                            <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                            {% elif alert.alert_type == 'danger' %}
+                            <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                            {% else %}
+                            <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                            {% endif %}
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-normal);">
+                                {{ alert.message }}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: var(--cds-spacing-4);">
+                                <span style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">{{ alert.timestamp|date:"M d, Y H:i" }}</span>
+                                <span class="tag tag-server">{{ alert.server.name }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="notification notification-success">
+            <div class="notification-content">
+                <div style="display: flex; align-items: center; gap: var(--cds-spacing-4);">
+                    <div class="notification-icon">
+                        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); line-height: var(--cds-line-height-normal);">
+                            All systems operational
+                        </div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">
+                            No active alerts at this time
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+    {% block extrajs %}
+    <script src="{% static 'core/js/anomaly_status.js' %}"></script>
+    {% endblock %}
+{% endblock %}

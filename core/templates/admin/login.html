@@ -1,184 +1,183 @@
-{% extends "admin/base.html" %}
+<!-- DEBUG: IBM CARBON ADMIN LOGIN TEMPLATE -->
+{% extends "core/base.html" %}
 {% load static %}
 
 {% block title %}Login - StackSense{% endblock %}
 
-{% block extrastyle %}
+{% block extrahead %}
+<!-- IBM Carbon Design System -->
+<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
 <style>
-    html, body {
+    /* Full-screen login layout */
+    body {
         margin: 0 !important;
         padding: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
-        background: #0f172a !important;
-        color: #f1f5f9 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-        overflow: hidden !important;
+        background: var(--cds-color-gray-10) !important;
+        display: flex !important;
+        align-items: flex-start !important;
+        justify-content: flex-start !important;
     }
 
-    #header, .main-header, .navbar, .main-sidebar, footer, .main-footer, .content-wrapper {
+    /* Hide base template elements */
+    .ui-shell-header,
+    .ui-shell-left-panel,
+    .main-content,
+    .back-button-container,
+    a[href="/monitoring/"] {
         display: none !important;
     }
 
-    #content {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        background: #0f172a !important;
-    }
-
-    .content, section.content, .container-fluid, .row, .login {
-        width: 100vw !important;
-        height: 100vh !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
+    /* Login container - left aligned and styled */
     .login-container {
-        width: 450px !important;
-        min-width: 350px !important;
-        min-height: 400px !important;
-        background: rgba(30, 41, 59, 0.4) !important;
-        backdrop-filter: blur(10px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.18) !important;
-        border-radius: 16px !important;
-        padding: 2.5rem !important;
-        margin: 0 !important;
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37) !important;
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        z-index: 99999 !important;
-        box-sizing: border-box !important;
+        width: 400px;
+        max-width: 90vw;
+        background: var(--cds-color-white);
+        border: 1px solid var(--cds-color-gray-20);
+        border-radius: var(--cds-border-radius-lg);
+        padding: var(--cds-spacing-8);
+        box-shadow: var(--cds-shadow-lg);
+        margin: var(--cds-spacing-8);
     }
 
-    .login-container h1 {
-        color: #c9a961 !important;
-        text-align: center !important;
-        margin-bottom: 0.5rem !important;
+    .login-header {
+        text-align: left;
+        margin-bottom: var(--cds-spacing-8);
     }
 
-    .login-container p {
-        color: #cbd5e1 !important;
-        text-align: center !important;
-        margin-bottom: 2rem !important;
+    .login-logo {
+        margin-bottom: var(--cds-spacing-4);
     }
 
-    .form-row {
-        margin-bottom: 1.5rem !important;
+    .login-title {
+        font-size: var(--cds-font-size-3xl);
+        font-weight: var(--cds-font-weight-bold);
+        color: var(--cds-color-gray-100);
+        margin-bottom: var(--cds-spacing-2);
     }
 
-    .form-row label {
-        color: #f1f5f9 !important;
-        display: block !important;
-        margin-bottom: 0.5rem !important;
+    .login-subtitle {
+        font-size: var(--cds-font-size-lg);
+        color: var(--cds-color-gray-70);
+        margin: 0;
     }
 
-    .form-row input {
-        width: 100% !important;
-        padding: 0.875rem !important;
-        background: rgba(15, 23, 42, 0.8) !important;
-        border: 1px solid rgba(255, 255, 255, 0.3) !important;
-        border-radius: 8px !important;
-        color: #f1f5f9 !important;
-        font-size: 0.9375rem !important;
-        min-height: 44px !important;
-        box-sizing: border-box !important;
+    /* Error messages */
+    .error-message {
+        background-color: var(--cds-color-red-50);
+        border: 1px solid var(--cds-color-red-20);
+        border-radius: var(--cds-border-radius-md);
+        color: var(--cds-color-red-70);
+        padding: var(--cds-spacing-4);
+        margin-bottom: var(--cds-spacing-6);
+        font-size: var(--cds-font-size-sm);
     }
 
-    .submit-row input {
-        background: rgba(201, 169, 97, 0.3) !important;
-        border: 1px solid rgba(201, 169, 97, 0.4) !important;
-        color: white !important;
-        padding: 0.875rem 2rem !important;
-        border-radius: 12px !important;
-        width: 100% !important;
-        cursor: pointer !important;
-        min-height: 44px !important;
-    }
-
+    /* Forgot password link */
     .forgot-password {
-        text-align: center !important;
-        margin-top: 1.5rem !important;
-        padding-top: 1.5rem !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+        text-align: center;
+        margin-top: var(--cds-spacing-6);
+        padding-top: var(--cds-spacing-4);
+        border-top: 1px solid var(--cds-color-gray-20);
     }
 
     .forgot-password a {
-        color: #c9a961 !important;
-        text-decoration: none !important;
+        color: var(--cds-color-blue-60);
+        text-decoration: none;
+        font-size: var(--cds-font-size-sm);
+    }
+
+    .forgot-password a:hover {
+        color: var(--cds-color-blue-70);
+        text-decoration: underline;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="login">
-    <div class="login-container">
-        <div class="login-logo" style="text-align: center; margin-bottom: 2rem;">
+<div class="login-container">
+    <!-- Header -->
+    <header class="login-header">
+        <div class="login-logo">
             <svg width="64" height="48" viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#4a90e2;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#357abd;stop-opacity:1" />
+                        <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#0369a1;stop-opacity:1" />
                     </linearGradient>
                     <linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#5bc0de;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#4a9bc8;stop-opacity:1" />
+                        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#15803d;stop-opacity:1" />
                     </linearGradient>
                 </defs>
                 <rect x="20" y="10" width="120" height="26" rx="13" fill="url(#lg1)" opacity="0.95"/>
-                <circle cx="35" cy="23" r="5.5" fill="#10b981"/>
+                <circle cx="35" cy="23" r="5.5" fill="#22c55e"/>
                 <rect x="20" y="45" width="120" height="26" rx="13" fill="url(#lg1)" opacity="0.95"/>
                 <circle cx="35" cy="58" r="5.5" fill="#f59e0b"/>
                 <rect x="20" y="80" width="120" height="26" rx="13" fill="url(#lg2)" opacity="0.95"/>
                 <circle cx="35" cy="93" r="5.5" fill="#ef4444"/>
             </svg>
         </div>
-        <h1>StackSense</h1>
-        <p>Welcome to StackSense</p>
-        
-        {% if form.errors %}
-            <p style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; padding: 0.75rem; border-radius: 8px; margin-bottom: 1.5rem;">
-                Please correct the error{% if form.errors.items|length > 1 %}s{% endif %} below.
-            </p>
-        {% endif %}
+        <h1 class="login-title">StackSense</h1>
+        <p class="login-subtitle">Welcome to StackSense</p>
+    </header>
 
-        <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
-            <div class="form-row">
-                <label for="id_username">Username:</label>
-                <input type="text" name="username" id="id_username" required autofocus>
+    <!-- Error Messages -->
+    {% if form.errors %}
+    <div class="bx--inline-notification bx--inline-notification--error bx--inline-notification--low-contrast" role="alert" style="margin-bottom: var(--cds-spacing-6);">
+        <div class="bx--inline-notification__details">
+            <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M9,5h2v6H9V5z M9,13h2v2H9V13z"></path>
+            </svg>
+            <div class="bx--inline-notification__text-wrapper">
+                <p class="bx--inline-notification__title">Login Failed</p>
+                <p class="bx--inline-notification__subtitle">Please correct the errors below and try again.</p>
             </div>
-            <div class="form-row">
-                <label for="id_password">Password:</label>
-                <input type="password" name="password" id="id_password" required>
-            </div>
-            <input type="hidden" name="next" value="{{ next|default:"/monitoring/" }}">
-            <div class="submit-row">
-                <input type="submit" value="Log in">
-            </div>
-        </form>
-        
-        <div class="forgot-password">
-            <a href="/password-reset/">Forgot password?</a>
         </div>
+        <button class="bx--inline-notification__close-button" type="button" aria-label="close">
+            <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M12 4.7l-.7-.7L8 7.3 4.7 4l-.7.7L7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"></path>
+            </svg>
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Login Form -->
+    <form action="{% url 'admin:login' %}" method="post" id="login-form">
+        {% csrf_token %}
+
+        <!-- Username Field -->
+        <div class="bx--form-item" style="margin-bottom: var(--cds-spacing-6);">
+            <label class="bx--label" for="id_username">Username</label>
+            <input type="text" name="username" id="id_username" class="bx--text-input" placeholder="Enter your username" required autofocus>
+        </div>
+
+        <!-- Password Field -->
+        <div class="bx--form-item" style="margin-bottom: var(--cds-spacing-8);">
+            <label class="bx--label" for="id_password">Password</label>
+            <input type="password" name="password" id="id_password" class="bx--text-input" placeholder="Enter your password" required>
+        </div>
+
+        <!-- Hidden next field -->
+        <input type="hidden" name="next" value="{{ next|default:"/monitoring/" }}">
+
+        <!-- Submit Button -->
+        <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-end;">
+            <button type="submit" class="bx--btn bx--btn--primary bx--btn--field">Log in</button>
+        </div>
+    </form>
+
+    <!-- Forgot Password -->
+    <div class="forgot-password">
+        <a href="/password-reset/">Forgot password?</a>
     </div>
 </div>
 
+<!-- Initialize IBM Carbon components -->
 <script>
-(function(){'use strict';function fixLogin(){try{var c=document.querySelector('.login-container');if(!c)return;var r=c.getBoundingClientRect();var b=c.parentElement===document.body;var v=r.width>0&&r.height>0;if(!b||!v){var o=c;var n=o.cloneNode(true);var s='position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;width:450px!important;min-width:350px!important;min-height:400px!important;height:auto!important;background:rgba(30,41,59,0.4)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.18)!important;border-radius:16px!important;padding:2.5rem!important;box-shadow:0 8px 32px rgba(0,0,0,0.37)!important;display:block!important;visibility:visible!important;opacity:1!important;z-index:99999!important;box-sizing:border-box!important;';n.style.cssText=s;o.remove();document.body.appendChild(n);document.body.style.cssText='position:relative!important;width:100vw!important;height:100vh!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#0f172a!important;';}}catch(e){console.error('Login fix error:',e);}}fixLogin();if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',fixLogin);}setTimeout(fixLogin,50);setTimeout(fixLogin,200);setTimeout(fixLogin,500);setTimeout(fixLogin,1000);window.addEventListener('load',fixLogin);if(window.MutationObserver){var obs=new MutationObserver(function(){fixLogin();});obs.observe(document.body,{childList:true,subtree:true});}})();
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('IBM Carbon Login Page Loaded');
+});
 </script>
 {% endblock %}

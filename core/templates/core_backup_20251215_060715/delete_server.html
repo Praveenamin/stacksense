@@ -1,0 +1,139 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Delete Server - StackWatch{% endblock %}
+
+{% block bodyclass %}delete-server-page{% endblock %}
+
+{% block content %}
+<!-- Page Header - IBM Carbon Layout -->
+<div style="margin-bottom: var(--cds-spacing-12);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+        <div>
+            <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--cds-line-height-tight);">Delete Server</h1>
+            <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0; line-height: var(--cds-line-height-normal);">Confirm server deletion</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: var(--cds-spacing-4);">
+            <a href="/servers/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Cancel</a>
+            <form method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn" style="background-color: var(--cds-color-red-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Delete Server</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Messages - IBM Carbon Notification Pattern -->
+{% if messages %}
+<div style="margin-bottom: var(--cds-spacing-12);">
+    {% for message in messages %}
+    <div class="notification notification-{{ message.tags|default:'info' }}">
+        <div class="notification-content">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
+                <div class="notification-icon">
+                    {% if message.tags == 'error' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'success' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'warning' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    {% else %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div>
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); line-height: var(--line-height-body);">
+                        {{ message }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Delete Server Confirmation - IBM Carbon Layout -->
+<section style="margin-bottom: var(--cds-spacing-12);">
+    <div style="background-color: var(--cds-color-white); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--cds-spacing-8);">
+        <div style="text-align: center; margin-bottom: var(--cds-spacing-8);">
+            <div style="width: 64px; height: 64px; background-color: rgba(218, 30, 40, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--cds-spacing-6) auto;">
+                <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; color: var(--cds-color-red-60);">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+            </div>
+            <h2 style="font-size: var(--font-size-heading-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--line-height-heading-lg);">Delete Server</h2>
+            <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-8) 0; line-height: var(--line-height-body);">This action cannot be undone. All monitoring data, alerts, and configurations will be permanently deleted.</p>
+        </div>
+
+        <!-- Server Information Card -->
+        <div style="background-color: var(--color-neutral-ui-layer1); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-8);">
+            <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--line-height-heading-md);">Server Details</h3>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--cds-spacing-6);">
+                <div>
+                    <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Server Name</div>
+                    <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">{{ server.name }}</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">IP Address</div>
+                    <div style="font-size: var(--cds-font-size-base); font-family: var(--font-family-mono); color: var(--cds-color-gray-100);">{{ server.ip_address }}</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">SSH Port</div>
+                    <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100);">{{ server.port }}</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Status</div>
+                    <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100);">
+                        {% if server.monitoring_config and server.monitoring_config.monitoring_enabled %}
+                        Active
+                        {% else %}
+                        Disabled
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Impact Warning -->
+        <div style="background-color: rgba(245, 101, 101, 0.1); border: 1px solid rgba(245, 101, 101, 0.2); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-8);">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px; color: var(--cds-color-red-60); margin-top: var(--spacing-xs); flex-shrink: 0;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+                <div>
+                    <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-red-60); margin-bottom: var(--spacing-xs);">Warning: This action cannot be undone</div>
+                    <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); line-height: var(--line-height-body);">Deleting this server will permanently remove:</div>
+                    <ul style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: var(--cds-spacing-2) 0 0 var(--cds-spacing-4); padding-left: var(--spacing-xl);">
+                        <li>All historical monitoring data and metrics</li>
+                        <li>All alert history and configurations</li>
+                        <li>Service monitoring configurations</li>
+                        <li>Custom thresholds and settings</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div style="display: flex; justify-content: center; gap: var(--cds-spacing-4);">
+                <a href="/servers/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Cancel</a>
+                <button type="submit" class="btn" style="background-color: var(--cds-color-red-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Delete Server</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}
+
+

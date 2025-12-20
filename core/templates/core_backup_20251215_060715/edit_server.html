@@ -1,0 +1,145 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Edit Server - StackWatch{% endblock %}
+
+{% block bodyclass %}edit-server-page{% endblock %}
+
+{% block content %}
+<!-- Page Header - IBM Carbon Layout -->
+<div style="margin-bottom: var(--cds-spacing-12);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+        <div>
+            <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-bold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0; line-height: var(--cds-line-height-tight);">Edit Server</h1>
+            <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0; line-height: var(--cds-line-height-normal);">Modify server configuration settings</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: var(--cds-spacing-4);">
+            <a href="/servers/" class="btn" style="background-color: var(--cds-color-gray-10); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-20); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Cancel</a>
+            <button type="submit" form="edit-server-form" class="btn" style="background-color: var(--cds-color-blue-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Messages - IBM Carbon Notification Pattern -->
+{% if messages %}
+<div style="margin-bottom: var(--cds-spacing-12);">
+    {% for message in messages %}
+    <div class="notification notification-{{ message.tags|default:'info' }}">
+        <div class="notification-content">
+            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
+                <div class="notification-icon">
+                    {% if message.tags == 'error' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'success' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    {% elif message.tags == 'warning' %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    {% else %}
+                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div>
+                    <div style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); line-height: var(--cds-line-height-normal);">
+                        {{ message }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Edit Server Form - IBM Carbon Form Layout -->
+<section style="margin-bottom: var(--cds-spacing-12);">
+    <div style="background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-8);">
+        <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--cds-line-height-tight);">Server Configuration</h2>
+        <p style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-8) 0; line-height: var(--cds-line-height-normal);">Update the basic configuration for this server</p>
+
+        <form id="edit-server-form" method="post">
+            {% csrf_token %}
+
+            <!-- Form Grid - IBM 8px spacing -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--cds-spacing-6);">
+
+                <!-- Basic Server Information -->
+                <div>
+                    <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--cds-line-height-tight);">Basic Information</h3>
+
+                    <!-- Server Name Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="name" style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">Server Name *</label>
+                        <input type="text" id="name" name="name" value="{{ server.name }}"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-family: var(--cds-font-family); color: var(--cds-color-gray-100); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">A friendly name to identify this server</div>
+                    </div>
+
+                    <!-- IP Address Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="ip_address" style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">IP Address *</label>
+                        <input type="text" id="ip_address" name="ip_address" value="{{ server.ip_address }}"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-family: var(--cds-font-family); color: var(--cds-color-gray-100); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;"
+                               required>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">The IP address or hostname of your server</div>
+                    </div>
+
+                    <!-- SSH Port Field -->
+                    <div style="margin-bottom: var(--cds-spacing-6);">
+                        <label for="port" style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-regular); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">SSH Port</label>
+                        <input type="number" id="port" name="port" value="{{ server.port }}" min="1" max="65535"
+                               style="width: 100%; padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-family: var(--cds-font-family); color: var(--cds-color-gray-100); background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); transition: all 150ms ease;">
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1); line-height: var(--cds-line-height-tight);">Usually 22 for SSH connections (leave blank for default)</div>
+                    </div>
+                </div>
+
+                <!-- Server Status Information -->
+                <div>
+                    <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-6) 0; line-height: var(--cds-line-height-tight);">Server Status</h3>
+
+                    <!-- Status Information -->
+                    <div style="background-color: var(--cds-color-gray-10); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6);">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--cds-spacing-6);">
+                            <div>
+                                <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Current Status</div>
+                                <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">
+                                    {% if server.monitoring_config and server.monitoring_config.monitoring_enabled %}
+                                    Active
+                                    {% else %}
+                                    Disabled
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div>
+                                <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Last Updated</div>
+                                <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100);">
+                                    {% if server.monitoring_config and server.monitoring_config.last_updated %}
+                                    {{ server.monitoring_config.last_updated|date:"M d, H:i" }}
+                                    {% else %}
+                                    Never
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: var(--cds-spacing-6); padding-top: var(--cds-spacing-6); border-top: 1px solid var(--cds-color-gray-20);">
+                            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-bottom: var(--cds-spacing-2);">Note</div>
+                            <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-normal);">SSH connection details (username, password, keys) cannot be modified after server creation. To change authentication, remove and re-add the server.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

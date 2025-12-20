@@ -1,0 +1,318 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Log Troubleshooting Configuration - StackSense{% endblock %}
+
+{% block extrahead %}
+<style>
+    .form-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 24px;
+    }
+    .form-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .form-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0 0 32px 0;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .form-label .required {
+        color: #ef4444;
+    }
+    .form-input, .form-select {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        transition: all 150ms ease;
+        box-sizing: border-box;
+    }
+    .form-input:focus, .form-select:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .form-hint {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+    .btn-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #0ea5e9;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+    .btn-submit:hover {
+        background-color: #0284c7;
+    }
+    .btn-submit:disabled {
+        background-color: #94a3b8;
+        cursor: not-allowed;
+    }
+    .config-list {
+        margin-top: 32px;
+    }
+    .config-item {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .config-item-info {
+        flex: 1;
+    }
+    .config-item-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 4px 0;
+    }
+    .config-item-details {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0;
+    }
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .status-enabled {
+        background-color: #dcfce7;
+        color: #166534;
+    }
+    .status-disabled {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+    }
+    .alert-success {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div style="margin-bottom: 32px;">
+    <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Log Troubleshooting Configuration</h1>
+    <p style="font-size: 14px; color: #64748b; margin: 0;">Configure log monitoring for servers and services to detect and report errors</p>
+</div>
+
+<!-- Messages -->
+<div id="alert-container"></div>
+
+<!-- Configuration Form -->
+<div class="form-card">
+    <h2 class="form-title">Add Log Monitoring</h2>
+    <p class="form-subtitle">Select a server and service to begin log troubleshooting</p>
+
+    <form id="log-troubleshooting-form">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label class="form-label" for="server_id">
+                Server <span class="required">*</span>
+            </label>
+            <select id="server_id" name="server_id" class="form-select" required>
+                <option value="">Select a server...</option>
+                {% for server in servers %}
+                <option value="{{ server.id }}">{{ server.name }} ({{ server.ip_address }})</option>
+                {% endfor %}
+            </select>
+            <div class="form-hint">Choose the server to monitor logs from</div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="service_type">
+                Service Type <span class="required">*</span>
+            </label>
+            <select id="service_type" name="service_type" class="form-select" required>
+                <option value="">Select service type...</option>
+                {% for value, label in service_choices %}
+                <option value="{{ value }}" data-log-path="{% if value == 'apache' %}/var/log/apache2/error.log{% elif value == 'nginx' %}/var/log/nginx/error.log{% elif value == 'exim' %}/var/log/exim4/mainlog{% elif value == 'postfix' %}/var/log/mail.log{% elif value == 'mysql' or value == 'mariadb' %}/var/log/mysql/error.log{% endif %}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div class="form-hint">Service type determines the default log path</div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="log_path">
+                Log File Path <span class="required">*</span>
+            </label>
+            <input type="text" id="log_path" name="log_path" class="form-input" 
+                   placeholder="/var/log/nginx/error.log" required>
+            <div class="form-hint">Full path to the log file (auto-filled for known services, required for custom apps)</div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="application_name">
+                Application Name
+            </label>
+            <input type="text" id="application_name" name="application_name" class="form-input" 
+                   placeholder="e.g., Apache Web Server">
+            <div class="form-hint">Optional: A friendly name for this log configuration</div>
+        </div>
+
+        <button type="submit" class="btn-submit" id="submit-btn">
+            Begin Troubleshooting
+        </button>
+    </form>
+</div>
+
+<!-- Existing Configurations -->
+<div class="config-list">
+    <h2 style="font-size: 20px; font-weight: 600; color: #0f172a; margin: 0 0 24px 0;">Existing Configurations</h2>
+    
+    {% if monitored_logs %}
+        {% for log in monitored_logs %}
+        <div class="config-item">
+            <div class="config-item-info">
+                <div class="config-item-title">{{ log.application_name }} on {{ log.server.name }}</div>
+                <div class="config-item-details">
+                    Service: {{ log.get_service_type_display }} | 
+                    Path: {{ log.log_path }} | 
+                    Last Scan: {% if log.last_scan_time %}{{ log.last_scan_time|date:"Y-m-d H:i:s" }}{% else %}Never{% endif %}
+                </div>
+            </div>
+            <span class="status-badge {% if log.enabled %}status-enabled{% else %}status-disabled{% endif %}">
+                {% if log.enabled %}Enabled{% else %}Disabled{% endif %}
+            </span>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color: #64748b; font-size: 14px;">No log configurations yet. Add one above to get started.</p>
+    {% endif %}
+</div>
+
+<script>
+document.getElementById('service_type').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const logPath = selectedOption.getAttribute('data-log-path');
+    const logPathInput = document.getElementById('log_path');
+    
+    if (logPath && logPathInput.value === '') {
+        logPathInput.value = logPath;
+    }
+    
+    // Auto-fill application name
+    const appNameInput = document.getElementById('application_name');
+    if (selectedOption.value && appNameInput.value === '') {
+        appNameInput.value = selectedOption.text.toUpperCase();
+    }
+});
+
+document.getElementById('log-troubleshooting-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submit-btn');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Configuring...';
+    
+    const formData = {
+        server_id: document.getElementById('server_id').value,
+        service_type: document.getElementById('service_type').value,
+        log_path: document.getElementById('log_path').value,
+        application_name: document.getElementById('application_name').value,
+        enabled: true
+    };
+    
+    try {
+        const response = await fetch('/api/log-troubleshooting/add/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('success', data.message || 'Log troubleshooting configured successfully!');
+            // Reset form
+            document.getElementById('log-troubleshooting-form').reset();
+            // Reload page after 1 second to show updated list
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAlert('error', data.error || 'Failed to configure log troubleshooting');
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    } catch (error) {
+        showAlert('error', 'An error occurred: ' + error.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+});
+
+function showAlert(type, message) {
+    const container = document.getElementById('alert-container');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.textContent = message;
+    container.innerHTML = '';
+    container.appendChild(alert);
+    
+    setTimeout(() => {
+        alert.remove();
+    }, 5000);
+}
+</script>
+
+<div style="margin-top: 32px;">
+    <a href="{% url 'log_troubleshooting_results' %}" style="display: inline-flex; align-items: center; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;">
+        View Log Troubleshooting Results →
+    </a>
+</div>
+{% endblock %}

@@ -27,23 +27,59 @@ class MonitoredLog(models.Model):
         APACHE_ERROR = "APACHE_ERROR", "Apache Error Log"
         NGINX_ERROR = "NGINX_ERROR", "Nginx Error Log"
         CRON_STATUS = "CRON_STATUS", "Cron Status Log"
+        EXIM_ERROR = "EXIM_ERROR", "Exim Error Log"
+        POSTFIX_ERROR = "POSTFIX_ERROR", "Postfix Error Log"
+        MYSQL_ERROR = "MYSQL_ERROR", "MySQL Error Log"
+        MARIADB_ERROR = "MARIADB_ERROR", "MariaDB Error Log"
+        CUSTOM_APP = "CUSTOM_APP", "Custom Application"
+    
+    class ServiceChoices(models.TextChoices):
+        APACHE = "apache", "Apache"
+        NGINX = "nginx", "Nginx"
+        EXIM = "exim", "Exim"
+        POSTFIX = "postfix", "Postfix"
+        MYSQL = "mysql", "MySQL"
+        MARIADB = "mariadb", "MariaDB"
+        CUSTOM = "custom", "Custom App"
 
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
     application_name = models.CharField(max_length=50)
+    service_type = models.CharField(
+        max_length=20,
+        choices=ServiceChoices.choices,
+        default=ServiceChoices.CUSTOM,
+        help_text="Service type for automatic log path detection"
+    )
     log_path = models.CharField(max_length=255)
     last_read_offset = models.BigIntegerField(default=0)
+    last_scan_time = models.DateTimeField(null=True, blank=True, help_text="Last time logs were scanned")
     parser_type = models.CharField(
         max_length=20,
         choices=ParserChoices.choices,
         default=ParserChoices.GENERIC_ERROR
     )
+    enabled = models.BooleanField(default=True, help_text="Enable/disable log troubleshooting for this log")
+    scan_from_days = models.IntegerField(default=1, help_text="Start scanning from this many days ago (default: 1 day)")
 
     class Meta:
         verbose_name = "Track Activity"
         verbose_name_plural = "Track Activities"
+        unique_together = [["server", "log_path"]]
 
     def __str__(self):
         return f"{self.application_name} on {self.server.name}"
+
+    def get_default_log_path(self):
+        """Get default log path based on service type"""
+        defaults = {
+            'apache': '/var/log/apache2/error.log',
+            'nginx': '/var/log/nginx/error.log',
+            'exim': '/var/log/exim4/mainlog',
+            'postfix': '/var/log/mail.log',
+            'mysql': '/var/log/mysql/error.log',
+            'mariadb': '/var/log/mysql/error.log',
+        }
+        return defaults.get(self.service_type, '')
 
 
 class LogEvent(models.Model):
@@ -123,6 +159,31 @@ class SystemMetric(models.Model):
     # Network metrics (JSON field for multiple interfaces)
     network_io = models.JSONField(default=dict)
     network_connections = models.IntegerField(null=True, blank=True)
+
+    # I/O rate metrics (bytes per second)
+    disk_io_read = models.BigIntegerField(null=True, blank=True, help_text="Disk read rate (bytes/second)")
+    disk_io_write = models.BigIntegerField(null=True, blank=True, help_text="Disk write rate (bytes/second)")
+    net_io_sent = models.BigIntegerField(null=True, blank=True, help_text="Network sent rate (bytes/second)")
+    net_io_recv = models.BigIntegerField(null=True, blank=True, help_text="Network received rate (bytes/second)")
+    
+    # Network utilization metrics (percentage of NIC max speed)
+    net_utilization_sent = models.FloatField(null=True, blank=True, help_text="Network send utilization % (based on NIC max speed)")
+    net_utilization_recv = models.FloatField(null=True, blank=True, help_text="Network receive utilization % (based on NIC max speed)")
+    nic_max_speed_bits = models.BigIntegerField(null=True, blank=True, help_text="Total NIC max speed in bits/second (all interfaces)")
+    
+    # Raw I/O counter values for rate calculation (cumulative totals across all disks)
+    disk_read_bytes_total = models.BigIntegerField(null=True, blank=True, help_text="Cumulative disk read bytes (all disks)")
+    disk_write_bytes_total = models.BigIntegerField(null=True, blank=True, help_text="Cumulative disk write bytes (all disks)")
+    
+    # System uptime
+    system_uptime_seconds = models.BigIntegerField(null=True, blank=True, help_text="System uptime in seconds (time since last boot)")
+    
+    # Process context (collected during normal metric collection)
+    top_processes = models.JSONField(
+        null=True, 
+        blank=True,
+        help_text="Top processes by CPU/Memory at collection time. Format: {'cpu': [...], 'memory': [...]}"
+    )
     
     class Meta:
         ordering = ["-timestamp"]
@@ -218,6 +279,11 @@ class MonitoringConfig(models.Model):
     cpu_threshold = models.FloatField(default=80.0, help_text="CPU usage threshold (%)")
     memory_threshold = models.FloatField(default=90.0, help_text="Memory usage threshold (%)")
     disk_threshold = models.FloatField(default=90.0, help_text="Disk usage threshold (%)")
+    disk_io_threshold = models.FloatField(default=1000.0, help_text="Disk I/O threshold (MB/s)")
+    network_io_threshold = models.FloatField(default=1000.0, help_text="Network I/O threshold (MB/s)")
+    
+    # Selected disk partitions to monitor (JSON array of mount points)
+    monitored_disks = models.JSONField(default=list, help_text="List of disk mount points to monitor (e.g., ['/', '/home'])")
     
     # LLM settings
     use_llm_explanation = models.BooleanField(default=True, help_text="Always generate LLM explanations for anomalies")
@@ -294,6 +360,7 @@ class EmailAlertConfig(models.Model):
     username = models.EmailField(blank=True)
     password = models.CharField(max_length=255, blank=True)  # Will be encrypted
     from_email = models.EmailField(blank=True)
+    to_email = models.EmailField(blank=True, help_text="Recipient email address for alerts (comma-separated for multiple)")
     enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -497,3 +564,24 @@ class UserACL(models.Model):
                     acl.can_view_dashboard = True
                     acl.save()
         return acl
+
+
+class ServerHeartbeat(models.Model):
+    """Tracks heartbeat signals from agent scripts on monitored servers"""
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="heartbeats")
+    last_heartbeat = models.DateTimeField(default=timezone.now, db_index=True, help_text="Last heartbeat timestamp from agent")
+    agent_version = models.CharField(max_length=50, blank=True, null=True, help_text="Optional agent version string")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Server Heartbeat"
+        verbose_name_plural = "Server Heartbeats"
+        indexes = [
+            models.Index(fields=["server", "-last_heartbeat"]),
+            models.Index(fields=["-last_heartbeat"]),
+        ]
+        unique_together = [["server"]]
+    
+    def __str__(self):
+        return f"Heartbeat for {self.server.name} - {self.last_heartbeat}"

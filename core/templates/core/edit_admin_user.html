@@ -6,116 +6,278 @@
 
 {% block bodyclass %}edit-user-page{% endblock %}
 
+{% block extrahead %}
+<style>
+    .page-header {
+        margin-bottom: 32px;
+    }
+    .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .page-subtitle {
+        font-size: 14px;
+        color: #64748b;
+        margin: 0;
+    }
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #0ea5e9;
+        border: none;
+        border-radius: 6px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+    .btn-primary:hover {
+        background-color: #0284c7;
+    }
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 150ms ease;
+    }
+    .btn-secondary:hover {
+        background-color: #f8fafc;
+        border-color: #cbd5e1;
+    }
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+    .alert-success {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+    .form-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .form-section {
+        margin-bottom: 24px;
+    }
+    .form-section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .form-label .required {
+        color: #ef4444;
+    }
+    .form-input {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        transition: all 150ms ease;
+        box-sizing: border-box;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .form-input::placeholder {
+        color: #94a3b8;
+    }
+    .form-select {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        transition: all 150ms ease;
+        box-sizing: border-box;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 10px center;
+        background-repeat: no-repeat;
+        background-size: 16px;
+        padding-right: 40px;
+    }
+    .form-select:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .form-hint {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+    .checkbox-group {
+        margin-bottom: 16px;
+    }
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #0f172a;
+        cursor: pointer;
+    }
+    .checkbox-label input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #0ea5e9;
+        cursor: pointer;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+    }
+    .access-control-section {
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .access-control-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 24px;
+    }
+    .access-group-title {
+        font-size: 16px;
+        font-weight: 500;
+        color: #0f172a;
+        margin: 0 0 12px 0;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<!-- Page Header - IBM Carbon Layout -->
-<div style="margin-bottom: var(--spacing-3xl);">
-    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--spacing-2xl); align-items: flex-start;">
+<!-- Page Header -->
+<div class="page-header">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: flex-start;">
         <div>
-            <h1 style="font-size: var(--font-size-display); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-sm) 0; line-height: var(--line-height-display);">Edit User</h1>
-            <p style="font-size: var(--font-size-body-large); color: var(--color-neutral-text-secondary); margin: 0; line-height: var(--line-height-body-large);">Modify user account settings and permissions</p>
+            <h1 class="page-title">Edit User</h1>
+            <p class="page-subtitle">Modify user account settings and permissions</p>
         </div>
 
         <!-- Action Buttons -->
-        <div style="display: flex; gap: var(--spacing-md);">
-            <a href="/admin-users/" class="btn" style="background-color: var(--color-neutral-ui-background); color: var(--color-neutral-text-primary); border: 1px solid var(--color-neutral-ui-border-strong); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); text-decoration: none; border-radius: var(--border-radius-control);">Cancel</a>
-            <button type="submit" form="edit-user-form" class="btn" style="background-color: var(--color-primary-interactive); color: var(--color-neutral-ui-background); padding: var(--spacing-sm) var(--spacing-lg); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); border: none; border-radius: var(--border-radius-control); cursor: pointer;">Save Changes</button>
+        <div class="header-actions">
+            <a href="/admin-users/" class="btn-secondary">Cancel</a>
+            <button type="submit" form="edit-user-form" class="btn-primary">Save Changes</button>
         </div>
     </div>
 </div>
 
-<!-- Messages - IBM Carbon Notification Pattern -->
+<!-- Messages -->
 {% if messages %}
-<div style="margin-bottom: var(--spacing-3xl);">
+<div style="max-width: 100%; margin-bottom: 24px;">
     {% for message in messages %}
-    <div class="notification notification-{{ message.tags|default:'info' }}">
-        <div class="notification-content">
-            <div style="display: flex; align-items: flex-start; gap: var(--spacing-md);">
-                <div class="notification-icon">
-                    {% if message.tags == 'error' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'success' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'warning' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                    </svg>
-                    {% else %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                    </svg>
-                    {% endif %}
-                </div>
-                <div>
-                    <div style="font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); line-height: var(--line-height-body);">
-                        {{ message }}
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+        <span>{{ message }}</span>
     </div>
     {% endfor %}
 </div>
 {% endif %}
 
-<!-- Edit User Form - IBM Carbon Form Layout -->
-<section style="margin-bottom: var(--spacing-3xl);">
-    <div style="background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--border-radius-card); padding: var(--spacing-2xl);">
+<!-- Edit User Form -->
+<section style="margin-bottom: 32px;">
+    <div class="form-card">
         <form id="edit-user-form" action="/admin-users/edit/{{ user_obj.id }}/" method="post">
             {% csrf_token %}
 
-            <!-- Form Grid - IBM 8px spacing -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-xl);">
+            <!-- Form Grid -->
+            <div class="form-grid">
 
                 <!-- Basic Information -->
                 <div>
-                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Basic Information</h3>
+                    <h3 class="form-section-title">Basic Information</h3>
 
                     <!-- Username Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="username" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Username *</label>
-                        <input type="text" id="username" name="username" value="{{ user_obj.username }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;"
-                               required>
+                    <div class="form-group">
+                        <label for="username" class="form-label">Username <span class="required">*</span></label>
+                        <input type="text" id="username" name="username" value="{{ user_obj.username }}" class="form-input" required>
                     </div>
 
                     <!-- Email Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="email" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Email</label>
-                        <input type="email" id="email" name="email" value="{{ user_obj.email|default:'' }}"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
+                    <div class="form-group">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" id="email" name="email" value="{{ user_obj.email|default:'' }}" class="form-input">
                     </div>
 
                     <!-- Password Field -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <label for="password" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">New Password</label>
-                        <input type="password" id="password" name="password" placeholder="Leave blank to keep current password"
-                               style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease;">
-                        <div style="font-size: var(--font-size-caption); color: var(--color-neutral-text-secondary); margin-top: var(--spacing-xs); line-height: var(--line-height-caption);">Leave blank if you don't want to change the password</div>
+                    <div class="form-group">
+                        <label for="password" class="form-label">New Password</label>
+                        <input type="password" id="password" name="password" placeholder="Leave blank to keep current password" class="form-input">
+                        <div class="form-hint">Leave blank if you don't want to change the password</div>
                     </div>
                 </div>
 
                 <!-- Account Settings -->
                 <div>
-                    <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Account Settings</h3>
+                    <h3 class="form-section-title">Account Settings</h3>
 
                     <!-- Status Checkboxes -->
-                    <div style="margin-bottom: var(--spacing-lg);">
-                        <div style="margin-bottom: var(--spacing-md);">
-                            <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer;">
-                                <input type="checkbox" name="is_active" {% if user_obj.is_active %}checked{% endif %}
-                                       style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="is_active" {% if user_obj.is_active %}checked{% endif %}>
                                 <span>Active (user can log in)</span>
                             </label>
                         </div>
 
-                        <div style="margin-bottom: var(--spacing-md);">
-                            <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer;">
-                                <input type="checkbox" name="is_superuser" id="is_superuser" {% if user_obj.is_superuser %}checked{% endif %} onchange="toggleRoleOptions()"
-                                       style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="is_superuser" id="is_superuser" {% if user_obj.is_superuser %}checked{% endif %} onchange="toggleRoleOptions()">
                                 <span>Superuser (full admin access)</span>
                             </label>
                         </div>
@@ -123,66 +285,74 @@
 
                     <!-- Role Selection (only for non-superusers) -->
                     <div id="roleSection" style="{% if user_obj.is_superuser %}display: none;{% endif %}">
-                        <label for="role" style="display: block; font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-neutral-text-primary); margin-bottom: var(--spacing-xs); line-height: var(--line-height-caption);">Role</label>
-                        <select id="role" name="role" style="width: 100%; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--font-size-body); font-family: var(--font-family-primary); color: var(--color-neutral-text-primary); background-color: var(--color-neutral-ui-background); border: 1px solid var(--color-neutral-ui-border-strong); border-radius: var(--border-radius-control); transition: all 150ms ease; appearance: none; background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238d8d8d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\"); background-position: right var(--spacing-sm) center; background-repeat: no-repeat; background-size: 16px; padding-right: var(--spacing-2xl);">
-                            <option value="">No Role</option>
-                            {% for role in roles %}
-                            <option value="{{ role.id }}" {% if acl.role and acl.role.id == role.id %}selected{% endif %}>{{ role.name }}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="form-group">
+                            <label for="role" class="form-label">Role</label>
+                            <select id="role" name="role" class="form-select">
+                                <option value="">No Role</option>
+                                {% for role in roles %}
+                                <option value="{{ role.id }}" {% if acl.role and acl.role.id == role.id %}selected{% endif %}>{{ role.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Access Control Section (only for non-superuser staff) -->
-            <div id="aclSection" style="{% if user_obj.is_superuser %}display: none;{% endif %} margin-top: var(--spacing-2xl); padding-top: var(--spacing-xl); border-top: 1px solid var(--color-neutral-ui-border-subtle);">
-                <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--font-weight-semibold); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-lg) 0; line-height: var(--line-height-heading-md);">Access Control</h3>
+            <div id="aclSection" class="access-control-section" style="{% if user_obj.is_superuser %}display: none;{% endif %}">
+                <h3 class="form-section-title">Access Control</h3>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-lg);">
+                <div class="access-control-grid">
                     <div>
-                        <h4 style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-md) 0; line-height: var(--line-height-body-large);">Dashboard Access</h4>
-                        <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                            <input type="checkbox" name="can_view_dashboard" {% if acl.can_view_dashboard %}checked{% endif %}
-                                   style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                            <span>View Servers/Alerts</span>
-                        </label>
+                        <h4 class="access-group-title">Dashboard Access</h4>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="can_view_dashboard" {% if acl.can_view_dashboard %}checked{% endif %}>
+                                <span>View Servers/Alerts</span>
+                            </label>
+                        </div>
                     </div>
 
                     <div>
-                        <h4 style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-md) 0; line-height: var(--line-height-body-large);">Server Management</h4>
-                        <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                            <input type="checkbox" name="can_add_server" {% if acl.can_add_server %}checked{% endif %}
-                                   style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                            <span>Add Servers</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                            <input type="checkbox" name="can_edit_server" {% if acl.can_edit_server %}checked{% endif %}
-                                   style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                            <span>Edit Servers</span>
-                        </label>
+                        <h4 class="access-group-title">Server Management</h4>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="can_add_server" {% if acl.can_add_server %}checked{% endif %}>
+                                <span>Add Servers</span>
+                            </label>
+                        </div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="can_edit_server" {% if acl.can_edit_server %}checked{% endif %}>
+                                <span>Edit Servers</span>
+                            </label>
+                        </div>
                     </div>
 
                     <div>
-                        <h4 style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-md) 0; line-height: var(--line-height-body-large);">Monitoring</h4>
-                        <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                            <input type="checkbox" name="can_halt_monitoring" {% if acl.can_halt_monitoring %}checked{% endif %}
-                                   style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                            <span>Control Monitoring</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                            <input type="checkbox" name="can_edit_thresholds" {% if acl.can_edit_thresholds %}checked{% endif %}
-                                   style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                            <span>Edit Thresholds</span>
-                        </label>
+                        <h4 class="access-group-title">Monitoring</h4>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="can_halt_monitoring" {% if acl.can_halt_monitoring %}checked{% endif %}>
+                                <span>Control Monitoring</span>
+                            </label>
+                        </div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="can_edit_thresholds" {% if acl.can_edit_thresholds %}checked{% endif %}>
+                                <span>Edit Thresholds</span>
+                            </label>
+                        </div>
                     </div>
 
                     <div>
-                        <h4 style="font-size: var(--font-size-body-large); font-weight: var(--font-weight-medium); color: var(--color-neutral-text-primary); margin: 0 0 var(--spacing-md) 0; line-height: var(--line-height-body-large);">Notifications</h4>
-                        <label style="display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-body); color: var(--color-neutral-text-primary); cursor: pointer; margin-bottom: var(--spacing-sm);">
-                            <input type="checkbox" name="can_mute_notifications" {% if acl.can_mute_notifications %}checked{% endif %}
-                                   style="width: 16px; height: 16px; accent-color: var(--color-primary-interactive);">
-                            <span>Control Alerts</span>
-                        </label>
+                        <h4 class="access-group-title">Notifications</h4>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="can_mute_notifications" {% if acl.can_mute_notifications %}checked{% endif %}>
+                                <span>Control Alerts</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>

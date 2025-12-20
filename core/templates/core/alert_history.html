@@ -1,0 +1,432 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load timezone_tags %}
+
+{% block title %}Alert History - StackWatch{% endblock %}
+
+{% block bodyclass %}alert-history-page{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div style="margin-bottom: var(--cds-spacing-12);">
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--cds-spacing-8); align-items: flex-start;">
+        <div>
+            <h1 style="font-size: var(--cds-font-size-4xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Alert History</h1>
+            <p style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70); margin: 0;">View and manage all system alerts</p>
+        </div>
+        <div style="display: flex; gap: var(--cds-spacing-4);">
+            <a href="/monitoring/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-12);">
+    <div class="bx--tile" style="padding: var(--cds-spacing-6);">
+        <div style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">{{ total_alerts }}</div>
+        <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70);">Total Alerts</div>
+    </div>
+    <div class="bx--tile" style="padding: var(--cds-spacing-6); border-left: 4px solid #ef4444;">
+        <div style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: #ef4444; margin-bottom: var(--cds-spacing-2);">{{ triggered_count }}</div>
+        <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70);">Active (Triggered)</div>
+    </div>
+    <div class="bx--tile" style="padding: var(--cds-spacing-6); border-left: 4px solid #22c55e;">
+        <div style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: #22c55e; margin-bottom: var(--cds-spacing-2);">{{ resolved_count }}</div>
+        <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70);">Resolved</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bx--tile" style="margin-bottom: var(--cds-spacing-8); padding: var(--cds-spacing-6);">
+    <form method="get" action="{% url 'alert_history' %}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4); align-items: end;">
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Server</label>
+            <select name="server_id" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-base);">
+                <option value="">All Servers</option>
+                {% for server in servers %}
+                <option value="{{ server.id }}" {% if selected_server_id|stringformat:"s" == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Alert Type</label>
+            <select name="alert_type" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-base);">
+                <option value="">All Types</option>
+                {% for type_code, type_label in alert_types %}
+                <option value="{{ type_code }}" {% if selected_alert_type == type_code %}selected{% endif %}>{{ type_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label style="display: block; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Status</label>
+            <select name="status" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid var(--cds-color-gray-30); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-base);">
+                <option value="">All Statuses</option>
+                {% for status_code, status_label in alert_statuses %}
+                <option value="{{ status_code }}" {% if selected_status == status_code %}selected{% endif %}>{{ status_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <button type="submit" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-6); background-color: var(--color-primary-interactive); color: var(--cds-color-blue-60); border: none; border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); cursor: pointer;">Filter</button>
+        </div>
+    </form>
+</div>
+
+<!-- Alerts and Anomalies Table -->
+<section>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-6);">
+        <h2 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Alerts & Anomalies <span style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-normal); color: var(--cds-color-gray-70);">({{ filtered_count }} shown)</span></h2>
+        {% if selected_status == 'triggered' or selected_status == '' %}
+        <button id="bulk-resolve-btn" style="padding: var(--cds-spacing-2) var(--cds-spacing-6); background-color: #22c55e; color: var(--cds-color-white); border: none; border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); cursor: pointer; display: none;">Resolve Selected</button>
+        {% endif %}
+    </div>
+
+    {% if unified_items %}
+    <div class="data-table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    {% if selected_status == 'triggered' or selected_status == '' %}
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle); width: 40px;">
+                        <input type="checkbox" id="select-all" style="cursor: pointer;">
+                    </th>
+                    {% endif %}
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Server</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Type</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Details</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Value / Threshold</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Status</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Time</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.16px; border-bottom: 1px solid var(--color-neutral-ui-border-subtle);">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in unified_items %}
+                {% if item.type == 'alert' %}
+                {% with alert=item.object %}
+                <tr data-alert-id="{{ alert.id }}" data-item-type="alert" style="transition: background-color 150ms ease;">
+                    {% if selected_status == 'triggered' or selected_status == '' %}
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        {% if alert.status == 'triggered' %}
+                        <input type="checkbox" class="alert-checkbox" value="{{ alert.id }}" style="cursor: pointer;">
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-100); vertical-align: middle;">
+                        <a href="{% url 'server_details' alert.server.id %}" style="color: var(--color-primary-interactive); text-decoration: none; font-weight: var(--cds-font-weight-medium);">{{ alert.server.name }}</a>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">{{ alert.server.ip_address }}</div>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        <span class="bx--tag" style="background-color: {% if alert.alert_type == 'CPU' %}#f59e0b{% elif alert.alert_type == 'MEMORY' %}#f59e0b{% elif alert.alert_type == 'DISK' %}#ef4444{% elif alert.alert_type == 'CONNECTION' %}#ef4444{% elif alert.alert_type == 'SERVICE' %}#ef4444{% else %}#64748b{% endif %}; color: white; padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">
+                            {{ alert.alert_type }}
+                        </span>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-100); vertical-align: middle; max-width: 400px;">
+                        <div style="font-size: var(--cds-font-size-base);">{{ alert.message|truncatewords:20 }}</div>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-70); vertical-align: middle;">
+                        <div style="font-family: var(--cds-font-family-mono); font-size: var(--cds-font-size-base);">
+                            {{ alert.value|floatformat:2 }} / {{ alert.threshold|floatformat:2 }}
+                        </div>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        {% if alert.status == 'triggered' %}
+                        <span class="bx--tag bx--tag--red" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">Triggered</span>
+                        {% else %}
+                        <span class="bx--tag bx--tag--green" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">Resolved</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-70); vertical-align: middle;">
+                        <div style="font-size: var(--cds-font-size-base);">{{ alert.sent_at|timezone_date:"M d, Y H:i:s" }}</div>
+                        {% if alert.resolved_at %}
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">Resolved: {{ alert.resolved_at|timezone_date:"M d, Y H:i:s" }}</div>
+                        {% endif %}
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        {% if alert.status == 'triggered' %}
+                        <button onclick="resolveAlert({{ alert.id }})" style="padding: var(--cds-spacing-2) var(--cds-spacing-4); background-color: #22c55e; color: var(--cds-color-white); border: none; border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); cursor: pointer;">Resolve</button>
+                        {% else %}
+                        <span style="color: var(--cds-color-gray-70); font-size: var(--cds-font-size-base);">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endwith %}
+                {% else %}
+                {% with anomaly=item.object %}
+                <tr data-anomaly-id="{{ anomaly.id }}" data-item-type="anomaly" style="transition: background-color 150ms ease; background-color: {% if not anomaly.resolved %}#fff7ed{% else %}#ffffff{% endif %};">
+                    {% if selected_status == 'triggered' or selected_status == '' %}
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        {% if not anomaly.resolved %}
+                        <input type="checkbox" class="anomaly-checkbox" value="{{ anomaly.id }}" style="cursor: pointer;">
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-100); vertical-align: middle;">
+                        <a href="{% url 'server_details' anomaly.server.id %}" style="color: var(--color-primary-interactive); text-decoration: none; font-weight: var(--cds-font-weight-medium);">{{ anomaly.server.name }}</a>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">{{ anomaly.server.ip_address }}</div>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        <span class="bx--tag" style="background-color: {% if anomaly.metric_type == 'cpu' %}#f59e0b{% elif anomaly.metric_type == 'memory' %}#f59e0b{% elif anomaly.metric_type == 'disk' %}#ef4444{% elif anomaly.metric_type == 'network' %}#6366f1{% else %}#64748b{% endif %}; color: white; padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">
+                            ANOMALY - {{ anomaly.metric_type|upper }}
+                        </span>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">
+                            Severity: <strong>{% if anomaly.severity == 'CRITICAL' %}<span style="color: #dc2626;">CRITICAL</span>{% elif anomaly.severity == 'HIGH' %}<span style="color: #ea580c;">HIGH</span>{% elif anomaly.severity == 'MEDIUM' %}<span style="color: #f59e0b;">MEDIUM</span>{% else %}<span style="color: #84cc16;">LOW</span>{% endif %}</strong>
+                        </div>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-100); vertical-align: middle;">
+                        <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium);">
+                            {{ anomaly.metric_name|title }} = {{ anomaly.metric_value|floatformat:2 }}
+                        </div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">
+                            <a href="{% url 'server_anomalies_log' anomaly.server.id %}" style="color: var(--color-primary-interactive); text-decoration: none;">View in Anomalies Log →</a>
+                        </div>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-70); vertical-align: middle;">
+                        <div style="font-family: var(--cds-font-family-mono); font-size: var(--cds-font-size-base);">
+                            {{ anomaly.metric_value|floatformat:2 }}
+                        </div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">
+                            Score: {{ anomaly.anomaly_score|floatformat:2 }}
+                        </div>
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        {% if not anomaly.resolved %}
+                        <span class="bx--tag bx--tag--red" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">Unresolved</span>
+                        {% else %}
+                        <span class="bx--tag bx--tag--green" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">Resolved</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); color: var(--cds-color-gray-70); vertical-align: middle;">
+                        <div style="font-size: var(--cds-font-size-base);">{{ anomaly.timestamp|timezone_date:"M d, Y H:i:s" }}</div>
+                        {% if anomaly.resolved_at %}
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">Resolved: {{ anomaly.resolved_at|timezone_date:"M d, Y H:i:s" }}</div>
+                        {% endif %}
+                    </td>
+                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); border-bottom: 1px solid var(--color-neutral-ui-border-subtle); vertical-align: middle;">
+                        {% if not anomaly.resolved %}
+                        <button onclick="resolveAnomaly({{ anomaly.id }})" style="padding: var(--cds-spacing-2) var(--cds-spacing-4); background-color: #22c55e; color: var(--cds-color-white); border: none; border-radius: var(--cds-border-radius); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); cursor: pointer;">Resolve</button>
+                        {% else %}
+                        <span style="color: var(--cds-color-gray-70); font-size: var(--cds-font-size-base);">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endwith %}
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bx--tile" style="padding: var(--cds-spacing-12); text-align: center;">
+        <div style="font-size: var(--cds-font-size-lg); color: var(--cds-color-gray-70);">No alerts or anomalies found matching your filters.</div>
+    </div>
+    {% endif %}
+</section>
+
+<script>
+function resolveAlert(alertId) {
+    if (!confirm('Are you sure you want to mark this alert as resolved?')) {
+        return;
+    }
+    
+    fetch(`/api/alerts/${alertId}/resolve/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to resolve alert'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to resolve alert. Please try again.');
+    });
+}
+
+function resolveAnomaly(anomalyId) {
+    if (!confirm('Are you sure you want to mark this anomaly as resolved?')) {
+        return;
+    }
+    
+    fetch(`/api/anomalies/${anomalyId}/resolve/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to resolve anomaly'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to resolve anomaly. Please try again.');
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Bulk resolve functionality
+{% if selected_status == 'triggered' or selected_status == '' %}
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('select-all');
+    const alertCheckboxes = document.querySelectorAll('.alert-checkbox');
+    const anomalyCheckboxes = document.querySelectorAll('.anomaly-checkbox');
+    const bulkResolveBtn = document.getElementById('bulk-resolve-btn');
+    
+    if (!selectAllCheckbox || !bulkResolveBtn) {
+        return; // Exit if elements don't exist
+    }
+    
+    function updateBulkResolveButton() {
+        const selectedAlerts = document.querySelectorAll('.alert-checkbox:checked');
+        const selectedAnomalies = document.querySelectorAll('.anomaly-checkbox:checked');
+        const totalSelected = selectedAlerts.length + selectedAnomalies.length;
+        
+        if (totalSelected > 0) {
+            bulkResolveBtn.style.display = 'block';
+            bulkResolveBtn.textContent = `Resolve Selected (${totalSelected})`;
+        } else {
+            bulkResolveBtn.style.display = 'none';
+        }
+    }
+    
+    selectAllCheckbox.addEventListener('change', function() {
+        alertCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        anomalyCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateBulkResolveButton();
+    });
+    
+    alertCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBulkResolveButton();
+            updateSelectAllState();
+        });
+    });
+    
+    anomalyCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBulkResolveButton();
+            updateSelectAllState();
+        });
+    });
+    
+    function updateSelectAllState() {
+        const allAlertCheckboxes = Array.from(alertCheckboxes);
+        const allAnomalyCheckboxes = Array.from(anomalyCheckboxes);
+        const allCheckboxes = [...allAlertCheckboxes, ...allAnomalyCheckboxes];
+        
+        const allChecked = allCheckboxes.length > 0 && allCheckboxes.every(cb => cb.checked);
+        const someChecked = allCheckboxes.some(cb => cb.checked);
+        selectAllCheckbox.checked = allChecked;
+        selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    }
+    
+    bulkResolveBtn.addEventListener('click', function() {
+        const selectedAlerts = Array.from(document.querySelectorAll('.alert-checkbox:checked')).map(cb => parseInt(cb.value));
+        const selectedAnomalies = Array.from(document.querySelectorAll('.anomaly-checkbox:checked')).map(cb => parseInt(cb.value));
+        
+        if (selectedAlerts.length === 0 && selectedAnomalies.length === 0) {
+            alert('Please select at least one alert or anomaly to resolve.');
+            return;
+        }
+        
+        const totalSelected = selectedAlerts.length + selectedAnomalies.length;
+        if (!confirm(`Are you sure you want to resolve ${totalSelected} item(s)?`)) {
+            return;
+        }
+        
+        // Resolve alerts and anomalies in parallel
+        const promises = [];
+        
+        if (selectedAlerts.length > 0) {
+            promises.push(
+                fetch('/api/alerts/bulk-resolve/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ alert_ids: selectedAlerts })
+                }).then(response => response.json())
+            );
+        }
+        
+        if (selectedAnomalies.length > 0) {
+            promises.push(
+                fetch('/api/anomalies/bulk-resolve/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ anomaly_ids: selectedAnomalies })
+                }).then(response => response.json())
+            );
+        }
+        
+        Promise.all(promises)
+        .then(results => {
+            let totalResolved = 0;
+            let errors = [];
+            
+            results.forEach((data, index) => {
+                if (data.success) {
+                    totalResolved += data.resolved_count || 0;
+                } else {
+                    errors.push(data.error || 'Unknown error');
+                }
+            });
+            
+            if (errors.length === 0) {
+                alert(`Successfully resolved ${totalResolved} item(s).`);
+                location.reload();
+            } else {
+                alert(`Resolved ${totalResolved} item(s), but encountered errors: ${errors.join(', ')}`);
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to resolve items. Please try again.');
+        });
+    });
+});
+{% endif %}
+</script>
+{% endblock %}
+
+

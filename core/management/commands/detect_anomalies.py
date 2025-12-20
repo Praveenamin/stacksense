@@ -1,9 +1,11 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from datetime import timedelta
-from core.models import SystemMetric, Anomaly, MonitoringConfig
+from core.models import SystemMetric, Anomaly, MonitoringConfig, EmailAlertConfig
+from core.views import _send_alert_email
 from core.anomaly_detector import AnomalyDetector
 from core.llm_analyzer import OllamaAnalyzer
+from core.utils import collect_processes_on_demand
 
 
 class Command(BaseCommand):
@@ -43,7 +45,32 @@ class Command(BaseCommand):
                 detector = AnomalyDetector(metric.server, config)
                 detected = detector.detect_anomalies(metric)
                 
+                # Collect anomalies for this metric to send in one email
+                anomaly_alerts = []
+                
                 for anomaly_data in detected:
+                    # Deduplication: Check if there's already an unresolved anomaly of the same type
+                    # within the last 10 minutes to avoid creating multiple anomalies for the same spike
+                    recent_window = timezone.now() - timedelta(minutes=10)
+                    existing_anomaly = Anomaly.objects.filter(
+                        server=metric.server,
+                        metric_type=anomaly_data['metric_type'],
+                        metric_name=anomaly_data['metric_name'],
+                        resolved=False,
+                        timestamp__gte=recent_window
+                    ).order_by('-timestamp').first()
+                    
+                    if existing_anomaly:
+                        # Skip creating duplicate anomaly - one already exists for this spike
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"⚠ Skipping duplicate anomaly: {metric.server.name} - "
+                                f"{anomaly_data['metric_type']} {anomaly_data['metric_name']} "
+                                f"(existing anomaly ID: {existing_anomaly.id})"
+                            )
+                        )
+                        continue
+                    
                     anomaly = Anomaly.objects.create(
                         server=metric.server,
                         metric=metric,
@@ -51,14 +78,63 @@ class Command(BaseCommand):
                     )
                     anomaly_count += 1
                     
+                    # Add to alerts list for email notification
+                    if anomaly_data.get('severity') in ['HIGH', 'CRITICAL']:
+                        anomaly_alerts.append({
+                            'type': 'Anomaly',
+                            'value': anomaly_data['metric_value'],
+                            'threshold': None,
+                            'message': f"Anomaly detected: {anomaly_data['metric_type']} {anomaly_data['metric_name']} = {anomaly_data['metric_value']:.2f} (severity: {anomaly_data['severity']})"
+                        })
+                    
                     # Always generate LLM explanation if enabled
                     if config.use_llm_explanation and llm_analyzer:
                         try:
+                            # Multi-tier process context collection
+                            process_context = None
+                            
+                            # Tier 1: Use pre-collected process data from metric
+                            if metric.top_processes:
+                                process_context = metric.top_processes
+                                metric_type = anomaly_data["metric_type"]
+                                
+                                # Extract relevant processes for this anomaly type
+                                relevant_processes = []
+                                if metric_type == 'cpu' and process_context.get('cpu'):
+                                    relevant_processes = process_context.get('cpu', [])
+                                elif metric_type == 'memory' and process_context.get('memory'):
+                                    relevant_processes = process_context.get('memory', [])
+                                
+                                # Build process context with only relevant processes
+                                if relevant_processes:
+                                    process_context = {
+                                        'cpu': relevant_processes if metric_type == 'cpu' else [],
+                                        'memory': relevant_processes if metric_type == 'memory' else []
+                                    }
+                                else:
+                                    process_context = None  # No relevant processes found
+                            
+                            # Tier 2: On-demand collection (fallback for HIGH/CRITICAL if data missing)
+                            if not process_context and anomaly_data.get('severity') in ['HIGH', 'CRITICAL']:
+                                try:
+                                    on_demand_data = collect_processes_on_demand(
+                                        server=metric.server,
+                                        metric_type=anomaly_data["metric_type"],
+                                        timeout=5  # Short timeout to avoid blocking
+                                    )
+                                    if on_demand_data:
+                                        process_context = on_demand_data
+                                except Exception as e:
+                                    # Log but don't fail - fall back to generic explanation
+                                    self.stdout.write(self.style.WARNING(f"On-demand process collection failed: {e}"))
+                            
+                            # Generate explanation with or without process context
                             explanation = llm_analyzer.explain_anomaly(
-                                anomaly_data["metric_type"],
-                                anomaly_data["metric_name"],
-                                anomaly_data["metric_value"],
-                                metric.server.name
+                                metric_type=anomaly_data["metric_type"],
+                                metric_name=anomaly_data["metric_name"],
+                                metric_value=anomaly_data["metric_value"],
+                                server_name=metric.server.name,
+                                process_context=process_context  # Can be None
                             )
                             if explanation:
                                 anomaly.explanation = explanation
@@ -74,6 +150,25 @@ class Command(BaseCommand):
                             f"(severity: {anomaly_data['severity']})"
                         )
                     )
+                
+                # Send email alert for HIGH/CRITICAL anomalies
+                if anomaly_alerts:
+                    try:
+                        email_config = EmailAlertConfig.objects.filter(enabled=True).first()
+                        if email_config:
+                            # Refresh server to check if alerts are suppressed
+                            metric.server.refresh_from_db()
+                            server_config = metric.server.monitoring_config
+                            if (not server_config.monitoring_suspended and 
+                                not server_config.alert_suppressed):
+                                _send_alert_email(email_config, metric.server, anomaly_alerts)
+                                self.stdout.write(
+                                    self.style.SUCCESS(
+                                        f"✓ Sent anomaly alert email for {metric.server.name}"
+                                    )
+                                )
+                    except Exception as e:
+                        self.stdout.write(self.style.WARNING(f"Failed to send anomaly alert email: {e}"))
             except Exception as e:
                 self.stderr.write(self.style.ERROR(f"Error detecting anomalies for {metric.server.name}: {e}"))
         

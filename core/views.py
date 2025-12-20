@@ -5,9 +5,9 @@ from django.contrib.auth.models import User
 from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory, UserACL
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule
 from django.http import JsonResponse, HttpResponseRedirect
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
 import paramiko
 import os
@@ -24,6 +24,101 @@ import logging
 # Get logger instances
 app_logger = logging.getLogger('core')
 error_logger = logging.getLogger('django.request')
+
+
+def _calculate_server_status(server):
+    """
+    Calculate server status based on heartbeat and active alerts.
+    
+    Status logic:
+    - OFFLINE: Monitoring suspended OR no heartbeat OR heartbeat older than threshold
+    - ONLINE: Heartbeat within threshold AND no active alerts/anomalies AND monitoring not suspended
+    - WARNING: Heartbeat within threshold BUT has active alerts/anomalies AND monitoring not suspended
+    
+    IMPORTANT: Uses adaptive threshold to handle app downtime gracefully.
+    If the monitoring app itself was down, we use a longer grace period to avoid
+    false offline statuses when servers are actually still online.
+    
+    Returns: "offline", "online", or "warning"
+    """
+    from .models import Anomaly, AlertHistory, MonitoringConfig
+    from django.core.cache import cache
+    from datetime import datetime, timedelta
+    import os
+    
+    # Check if monitoring is suspended - if so, server appears offline
+    try:
+        config = server.monitoring_config
+        if config.monitoring_suspended:
+            return "offline"
+    except (MonitoringConfig.DoesNotExist, AttributeError):
+        pass  # Continue with normal status calculation
+    
+    # Determine adaptive threshold based on app downtime
+    base_threshold = 60  # Normal threshold: 60 seconds
+    app_heartbeat_key = "monitoring_app_heartbeat"
+    app_heartbeat_file = "/tmp/monitoring_app_heartbeat.txt"
+    
+    # Check if monitoring app was recently down
+    app_was_down = False
+    try:
+        from .utils import parse_app_heartbeat
+        
+        # Check cache first (fast, expires after 5 min)
+        app_last_heartbeat_str = cache.get(app_heartbeat_key)
+        if app_last_heartbeat_str:
+            app_last_heartbeat = parse_app_heartbeat(app_last_heartbeat_str)
+            if app_last_heartbeat:
+                app_downtime = (timezone.now() - app_last_heartbeat).total_seconds()
+                # If app heartbeat is missing or very old, app was likely down
+                if app_downtime > 300:  # 5 minutes
+                    app_was_down = True
+        else:
+            # Check file as fallback (persists across restarts)
+            if os.path.exists(app_heartbeat_file):
+                with open(app_heartbeat_file, 'r') as f:
+                    app_last_heartbeat_str = f.read().strip()
+                app_last_heartbeat = parse_app_heartbeat(app_last_heartbeat_str)
+                if app_last_heartbeat:
+                    app_downtime = (timezone.now() - app_last_heartbeat).total_seconds()
+                    if app_downtime > 300:  # 5 minutes
+                        app_was_down = True
+                else:
+                    app_was_down = True
+            else:
+                app_was_down = True
+    except Exception:
+        # If we can't determine, assume app wasn't down (conservative approach)
+        app_was_down = False
+    
+    # Use longer threshold if app was down (grace period after app restart)
+    if app_was_down:
+        threshold = 600  # 10 minutes grace period after app restart
+    else:
+        threshold = base_threshold
+    
+    # Check heartbeat
+    try:
+        heartbeat = ServerHeartbeat.objects.get(server=server)
+        time_diff = timezone.now() - heartbeat.last_heartbeat
+        time_diff_seconds = time_diff.total_seconds()
+        
+        # Use adaptive threshold
+        if time_diff_seconds > threshold:
+            return "offline"
+        
+        # Server is online (heartbeat OK) - check for alerts
+        active_anomalies = Anomaly.objects.filter(server=server, resolved=False).exists()
+        active_alerts = AlertHistory.objects.filter(server=server, status="triggered").exists()
+        
+        if active_anomalies or active_alerts:
+            return "warning"
+        else:
+            return "online"
+            
+    except ServerHeartbeat.DoesNotExist:
+        # No heartbeat record - server is offline
+        return "offline"
 
 
 def _get_client_ip(request):
@@ -49,7 +144,10 @@ def _log_user_action(request, action, details=""):
 @require_http_methods(["GET"])
 def get_live_metrics(request):
     """API endpoint for live metrics updates - reads from Redis with PostgreSQL fallback"""
-    servers = Server.objects.filter(monitoring_config__enabled=True).only("id", "name")
+    from .models import Anomaly, AlertHistory
+    
+    # Don't use .only() with select_related on same field - causes Django error
+    servers = Server.objects.filter(monitoring_config__enabled=True).select_related("monitoring_config")
     metrics_data = []
     
     for server in servers:
@@ -57,17 +155,38 @@ def get_live_metrics(request):
         redis_key = f"metrics:{server.id}:latest"
         cached_metric = cache.get(redis_key)
         
+        latest_metric = None
         if cached_metric:
             try:
                 metric = json.loads(cached_metric) if isinstance(cached_metric, str) else cached_metric
+                # Ensure all required fields are present
+                if "disk_io_read" not in metric:
+                    metric["disk_io_read"] = 0
+                if "net_io_sent" not in metric:
+                    metric["net_io_sent"] = 0
+                # Get timestamp from cache if available
+                if "timestamp" in metric:
+                    try:
+                        from datetime import datetime
+                        if isinstance(metric["timestamp"], str):
+                            latest_metric_timestamp = datetime.fromisoformat(metric["timestamp"].replace('Z', '+00:00'))
+                        else:
+                            latest_metric_timestamp = metric["timestamp"]
+                    except:
+                        latest_metric_timestamp = None
+                else:
+                    latest_metric_timestamp = None
                 metrics_data.append(metric)
+                # Calculate status based on heartbeat
+                metric["status"] = _calculate_server_status(server)
                 continue
             except:
                 pass
         
         # Fallback to PostgreSQL if Redis miss
         latest_metric = SystemMetric.objects.filter(server=server).only(
-            "cpu_percent", "memory_percent", "disk_usage", "timestamp"
+            "cpu_percent", "memory_percent", "disk_usage", "disk_io_read", "disk_io_write",
+            "net_io_sent", "net_io_recv", "timestamp"
         ).order_by("-timestamp").first()
         
         if latest_metric:
@@ -86,16 +205,77 @@ def get_live_metrics(request):
                 except:
                     pass
             
+            # Convert disk I/O from bytes/sec to KB/s
+            disk_io_read_kb = 0
+            if latest_metric.disk_io_read:
+                try:
+                    disk_io_read_kb = round(float(latest_metric.disk_io_read) / 1024, 0)
+                except:
+                    pass
+            
+            # Convert network I/O from bytes/sec to KB/s
+            net_io_sent_kb = 0
+            if latest_metric.net_io_sent:
+                try:
+                    net_io_sent_kb = round(float(latest_metric.net_io_sent) / 1024, 0)
+                except:
+                    pass
+            
+            # Calculate status based on heartbeat
+            status = _calculate_server_status(server)
+            
             metrics_data.append({
                 "server_id": server.id,
                 "server_name": server.name,
                 "cpu_percent": latest_metric.cpu_percent or 0,
                 "memory_percent": latest_metric.memory_percent or 0,
                 "disk_percent": disk_percent,
+                "disk_io_read": disk_io_read_kb,
+                "net_io_sent": net_io_sent_kb,
                 "timestamp": latest_metric.timestamp.isoformat(),
+                "status": status,
             })
     
     return JsonResponse({"metrics": metrics_data})
+
+
+@require_http_methods(["POST"])
+def heartbeat_api(request, server_id):
+    """
+    API endpoint for agent heartbeat signals.
+    Agents send POST requests every 30 seconds to indicate server is online.
+    """
+    try:
+        server = Server.objects.get(id=server_id)
+    except Server.DoesNotExist:
+        return JsonResponse({"error": "Server not found"}, status=404)
+    
+    # Get optional agent version from request
+    agent_version = None
+    if request.content_type == 'application/json':
+        try:
+            import json
+            data = json.loads(request.body)
+            agent_version = data.get('agent_version', None)
+        except:
+            pass
+    
+    # Update or create heartbeat record
+    heartbeat, created = ServerHeartbeat.objects.update_or_create(
+        server=server,
+        defaults={
+            'last_heartbeat': timezone.now(),
+            'agent_version': agent_version,
+        }
+    )
+    
+    return JsonResponse({
+        "status": "ok",
+        "server_id": server.id,
+        "server_name": server.name,
+        "heartbeat_received": True,
+        "timestamp": heartbeat.last_heartbeat.isoformat(),
+    })
 
 
 @require_http_methods(["GET"])
@@ -431,6 +611,7 @@ def server_details(request, server_id):
     
     # Parse disk usage
     disk_data = {}
+    disk_percent = 0
     if latest_metric and latest_metric.disk_usage:
         import json
         disk_data = (
@@ -438,6 +619,10 @@ def server_details(request, server_id):
             if isinstance(latest_metric.disk_usage, str)
             else latest_metric.disk_usage
         )
+        # Get root partition disk percent
+        root_partition = disk_data.get("/", None)
+        if root_partition and isinstance(root_partition, dict):
+            disk_percent = root_partition.get("percent", 0) or 0
     
     # Calculate disk summary
     disk_summary = {
@@ -520,20 +705,8 @@ def server_details(request, server_id):
     chart_data_json = json_module.dumps(chart_data)
     
 
-    # Calculate server status
-    # Consider server online if metrics are within last 15 minutes (3x typical collection interval)
-    server_status = "offline"
-    if latest_metric:
-        time_diff = timezone.now() - latest_metric.timestamp
-        if time_diff < timedelta(minutes=15):
-            cpu = latest_metric.cpu_percent or 0
-            memory = latest_metric.memory_percent or 0
-            if cpu > 80 or memory > 85:
-                server_status = "warning"
-            else:
-                server_status = "online"
-        else:
-            server_status = "offline"
+    # Calculate server status based on heartbeat
+    server_status = _calculate_server_status(server)
     # Get recent alerts for this server (last 50, only triggered ones)
     # Use the string value to match what's stored in the database
     recent_alerts = AlertHistory.objects.filter(
@@ -552,6 +725,9 @@ def server_details(request, server_id):
     # Get all alert statuses
     alert_statuses = AlertHistory.AlertStatus.choices
     
+    # Get monitored disks from config (default to ["/"] if not set)
+    monitored_disks = server.monitoring_config.monitored_disks if hasattr(server, 'monitoring_config') and server.monitoring_config.monitored_disks else ["/"]
+    
     context = {
         "server": server,
         "server_status": server_status,
@@ -560,6 +736,9 @@ def server_details(request, server_id):
         "all_services": all_services,
         "recent_anomalies": recent_anomalies,
         "disk_summary": disk_summary,
+        "disk_data": disk_data,
+        "disk_percent": disk_percent,
+        "monitored_disks": monitored_disks,
         "chart_data": chart_data_json,
         "recent_alerts": recent_alerts,
         "all_alerts": all_alerts,
@@ -581,29 +760,17 @@ def server_list(request):
 
     servers = Server.objects.all().select_related("monitoring_config").order_by("name")
 
-    # Calculate server status for each server
+    # Calculate server status based on heartbeat
     servers_with_status = []
     for server in servers:
-        # Get latest metric to determine status
-        latest_metric = SystemMetric.objects.filter(server=server).order_by("-timestamp").first()
-        server_status = "offline"  # Default status
-
-        if latest_metric:
-            from datetime import datetime, timedelta
-            time_diff = datetime.now() - latest_metric.timestamp.replace(tzinfo=None)
-            if time_diff < timedelta(minutes=15):
-                cpu = latest_metric.cpu_percent or 0
-                memory = latest_metric.memory_percent or 0
-                if cpu > 80 or memory > 85:
-                    server_status = "warning"
-                else:
-                    server_status = "online"
-            else:
-                server_status = "offline"
-
-        # Add status and latest check-in time to server object
-        server.status = server_status
-        server.last_checkin = latest_metric.timestamp if latest_metric else None
+        server.status = _calculate_server_status(server)
+        # Get last heartbeat timestamp if available
+        try:
+            from .models import ServerHeartbeat
+            heartbeat = ServerHeartbeat.objects.filter(server=server).first()
+            server.last_checkin = heartbeat.last_heartbeat if heartbeat else None
+        except:
+            server.last_checkin = None
         servers_with_status.append(server)
 
     context = {
@@ -684,180 +851,85 @@ def monitoring_dashboard(request):
     for server in servers:
         latest_metric = SystemMetric.objects.filter(server=server).only("cpu_percent", "memory_percent", "disk_usage", "timestamp").order_by("-timestamp").first()
         active_anomalies = Anomaly.objects.filter(server=server, resolved=False).only("id")
+        active_alerts = AlertHistory.objects.filter(server=server, status="triggered").count()
+        has_active_issues = active_anomalies.exists() or active_alerts > 0
         alert_count += active_anomalies.count()
         
+        # Get monitoring config values (for display only, NOT for status calculation)
+        from .models import MonitoringConfig
         try:
-            monitoring_enabled = server.monitoring_config.enabled
-            alert_suppressed = server.monitoring_config.alert_suppressed
-            monitoring_suspended = server.monitoring_config.monitoring_suspended
-        except:
+            config = server.monitoring_config
+            monitoring_enabled = config.enabled
+            alert_suppressed = config.alert_suppressed
+            monitoring_suspended = config.monitoring_suspended
+        except MonitoringConfig.DoesNotExist:
+            # Create MonitoringConfig if it doesn't exist
+            config = MonitoringConfig.objects.create(server=server)
+            monitoring_enabled = config.enabled
+            alert_suppressed = config.alert_suppressed
+            monitoring_suspended = config.monitoring_suspended
+        except AttributeError:
+            # Handle case where monitoring_config is None
             monitoring_enabled = False
             alert_suppressed = False
             monitoring_suspended = False
         
-        # Calculate status with 30-second offline detection
-        # CRITICAL: If monitoring is disabled or suspended, skip all checks
-        status = "offline"  # Default fallback
-        previous_connection_state = None
+        # Calculate server status based on heartbeat
+        status = _calculate_server_status(server)
         
-        # Check if monitoring is enabled first
-        if not monitoring_enabled:
-            # Monitoring disabled - skip all checks, show as disabled
-            status = "disabled"
-            # Don't count in any category
-            # Don't update connection state
-            # Don't send any alerts
-        elif monitoring_suspended:
-            # Monitoring suspended - skip checks, show as suspended
-            # CRITICAL: Don't update connection state or send alerts when suspended
-            status = "suspended"
-            # Don't count in any category
-            # Don't update connection state cache
-            # Don't send any alerts
-            # CRITICAL: Clear connection state cache to prevent any alerts
-            connection_state_key = f"connection_state:{server.id}"
-            cache.delete(connection_state_key)
-            # Keep the last known status visually, but don't process it
+        # Update counts
+        if status == "online":
+            online_count += 1
+        elif status == "warning":
+            warning_count += 1
         else:
-            # Monitoring is active - proceed with status checks
-            # Get previous connection state from cache
-            connection_state_key = f"connection_state:{server.id}"
-            previous_connection_state = cache.get(connection_state_key, None)
-            
-            # CRITICAL: Only check status if we have metrics
-            # If no metrics exist, server is offline (can't collect = offline)
-            if latest_metric:
-                # Calculate time difference
-                time_diff = timezone.now() - latest_metric.timestamp
-                time_diff_seconds = time_diff.total_seconds()
-                
-                # Offline detection threshold
-                # Use 2x the collection interval, with minimum of 60 seconds
-                # This prevents false positives when collection interval is longer
-                try:
-                    collection_interval = server.monitoring_config.collection_interval_seconds or 30
-                    # Use 2x collection interval, but at least 60 seconds
-                    OFFLINE_THRESHOLD_SECONDS = max(collection_interval * 2, 60)
-                except:
-                    # Fallback to 60 seconds if config not available
-                    OFFLINE_THRESHOLD_SECONDS = 60
-                
-                if time_diff_seconds <= OFFLINE_THRESHOLD_SECONDS:
-                    # Server is online - metrics are recent (within 30 seconds)
-                    cpu = latest_metric.cpu_percent or 0
-                    memory = latest_metric.memory_percent or 0
-                    
-                    # Determine status based on resource usage
-                    if cpu > 80 or memory > 85:
-                        status = "warning"
-                        warning_count += 1
-                    else:
-                        status = "online"
-                        online_count += 1
-                    
-                    # Update connection state cache ONLY if state changed
-                    # This prevents unnecessary cache writes
-                    current_connection_state = "online"
-                    if previous_connection_state != "online":
-                        cache.set(connection_state_key, current_connection_state, timeout=3600)
-                    
-                    # Check if state changed from offline to online
-                    # Only send alert if we had a previous offline state
-                    # DOUBLE CHECK: Verify monitoring is still active before sending alert
-                    if previous_connection_state == "offline":
-                        # Check if we just resumed monitoring (within last 60 seconds)
-                        resume_timestamp_key = f"resume_timestamp:{server.id}"
-                        resume_timestamp = cache.get(resume_timestamp_key)
-                        if resume_timestamp:
-                            # Just resumed - skip alert to prevent false positives
-                            print(f"[STATUS] Skipping online alert for {server.name} - monitoring just resumed")
-                        else:
-                            # Refresh server config to ensure monitoring is still active
-                            server.refresh_from_db()
-                            if (server.monitoring_config.enabled and 
-                                not server.monitoring_config.monitoring_suspended):
-                                # Server came back online - send resolved alert
-                                print(f"[STATUS] Server {server.name} came back online, sending alert")
-                                _send_connection_alert(server, "online")
-                    
-                else:
-                    # Metrics are older than 30 seconds - server is offline
-                    # This means the server is not responding to metric collection
-                    status = "offline"
-                    offline_count += 1
-                    
-                    # Update connection state cache ONLY if state changed
-                    current_connection_state = "offline"
-                    if previous_connection_state != "offline":
-                        cache.set(connection_state_key, current_connection_state, timeout=3600)
-                    
-                    # Check if state changed from online to offline
-                    # CRITICAL: Only send alert if state actually changed from "online" to "offline"
-                    # Don't send alert if previous state was None (first check) or "offline" (already offline)
-                    # DOUBLE CHECK: Verify monitoring is still active before sending alert
-                    if previous_connection_state == "online":
-                        # Check if we just suspended or resumed monitoring (within last 60 seconds)
-                        suspend_timestamp_key = f"suspend_timestamp:{server.id}"
-                        resume_timestamp_key = f"resume_timestamp:{server.id}"
-                        suspend_timestamp = cache.get(suspend_timestamp_key)
-                        resume_timestamp = cache.get(resume_timestamp_key)
-                        if suspend_timestamp or resume_timestamp:
-                            # Just suspended or resumed - skip alert to prevent false positives
-                            print(f"[STATUS] Skipping offline alert for {server.name} - monitoring just suspended/resumed")
-                        else:
-                            # Refresh server config to ensure monitoring is still active
-                            server.refresh_from_db()
-                            if (server.monitoring_config.enabled and 
-                                not server.monitoring_config.monitoring_suspended):
-                                # Server went offline - send alert
-                                print(f"[STATUS] Server {server.name} went offline, sending alert")
-                                _send_connection_alert(server, "offline")
-            else:
-                # No metrics at all - server is offline
-                # This means metric collection has never succeeded or has stopped
-                status = "offline"
-                offline_count += 1
-                
-                # Update connection state cache ONLY if state changed
-                current_connection_state = "offline"
-                if previous_connection_state != "offline":
-                    cache.set(connection_state_key, current_connection_state, timeout=3600)
-                
-                # Check if state changed from online to offline
-                # CRITICAL: Only send alert if state actually changed from "online" to "offline"
-                # Don't send alert if previous state was None (first check) or "offline" (already offline)
-                # DOUBLE CHECK: Verify monitoring is still active before sending alert
-                if previous_connection_state == "online":
-                    # Check if we just suspended or resumed monitoring (within last 60 seconds)
-                    suspend_timestamp_key = f"suspend_timestamp:{server.id}"
-                    resume_timestamp_key = f"resume_timestamp:{server.id}"
-                    suspend_timestamp = cache.get(suspend_timestamp_key)
-                    resume_timestamp = cache.get(resume_timestamp_key)
-                    if suspend_timestamp or resume_timestamp:
-                        # Just suspended or resumed - skip alert to prevent false positives
-                        print(f"[STATUS] Skipping offline alert for {server.name} - monitoring just suspended/resumed")
-                    else:
-                        # Refresh server config to ensure monitoring is still active
-                        server.refresh_from_db()
-                        if (server.monitoring_config.enabled and 
-                            not server.monitoring_config.monitoring_suspended):
-                            # Server went offline - send alert
-                            print(f"[STATUS] Server {server.name} went offline (no metrics), sending alert")
-                            _send_connection_alert(server, "offline")
+            offline_count += 1
         
-        # Calculate uptime (time since first metric or server creation)
+        # Calculate uptime (actual system uptime from server)
         uptime_days = 0
         uptime_hours = 0
         uptime_minutes = 0
+        uptime_formatted = "—"
         
         if latest_metric:
-            first_metric = SystemMetric.objects.filter(server=server).order_by("timestamp").first()
-            if first_metric:
-                uptime_delta = latest_metric.timestamp - first_metric.timestamp
-                total_seconds = int(uptime_delta.total_seconds())
+            # Try to get actual system uptime from the latest metric
+            system_uptime_seconds = getattr(latest_metric, 'system_uptime_seconds', None)
+            
+            if system_uptime_seconds is not None and system_uptime_seconds > 0:
+                # Use actual system uptime
+                total_seconds = system_uptime_seconds
                 uptime_days = total_seconds // 86400
                 uptime_hours = (total_seconds % 86400) // 3600
                 uptime_minutes = (total_seconds % 3600) // 60
+                
+                # Format uptime string
+                if uptime_days > 0:
+                    uptime_formatted = f"{uptime_days}d {uptime_hours}h {uptime_minutes}m"
+                elif uptime_hours > 0:
+                    uptime_formatted = f"{uptime_hours}h {uptime_minutes}m"
+                elif uptime_minutes > 0:
+                    uptime_formatted = f"{uptime_minutes}m"
+                else:
+                    uptime_formatted = f"{total_seconds}s"
+            else:
+                # Fallback: Use time since first metric (for old data or if uptime not collected)
+                first_metric = SystemMetric.objects.filter(server=server).order_by("timestamp").first()
+                if first_metric:
+                    uptime_delta = latest_metric.timestamp - first_metric.timestamp
+                    total_seconds = int(uptime_delta.total_seconds())
+                    uptime_days = total_seconds // 86400
+                    uptime_hours = (total_seconds % 86400) // 3600
+                    uptime_minutes = (total_seconds % 3600) // 60
+                    
+                    # Format uptime string
+                    if uptime_days > 0:
+                        uptime_formatted = f"{uptime_days}d {uptime_hours}h {uptime_minutes}m"
+                    elif uptime_hours > 0:
+                        uptime_formatted = f"{uptime_hours}h {uptime_minutes}m"
+                    elif uptime_minutes > 0:
+                        uptime_formatted = f"{uptime_minutes}m"
+                    else:
+                        uptime_formatted = f"{total_seconds}s"
         
         # Derived metrics from latest sample
         network_download = 0
@@ -903,29 +975,37 @@ def monitoring_dashboard(request):
                 except Exception:
                     disk_percent = 0
 
-        # Calculate server status for this specific server
-        # Consider server online if metrics are within last 15 minutes (3x typical collection interval)
-        calculated_status = "offline"
-        if latest_metric:
-            time_diff = timezone.now() - latest_metric.timestamp
-            if time_diff < timedelta(minutes=15):
-                cpu = latest_metric.cpu_percent or 0
-                memory = latest_metric.memory_percent or 0
-                if cpu > 80 or memory > 85:
-                    calculated_status = "warning"
-                else:
-                    calculated_status = "online"
-            else:
-                calculated_status = "offline"
+        # Calculate server status based on heartbeat
+        calculated_status = _calculate_server_status(server)
 
+        # Create a wrapper object for latest_metric with uptime_formatted
+        class MetricWrapper:
+            def __init__(self, metric, uptime_str):
+                self.metric = metric
+                self.uptime_formatted = uptime_str
+                # Proxy other attributes to the original metric
+                if metric:
+                    self.cpu_percent = metric.cpu_percent
+                    self.memory_percent = metric.memory_percent
+                    self.disk_io_read = metric.disk_io_read
+                    self.net_io_sent = metric.net_io_sent
+                else:
+                    self.cpu_percent = None
+                    self.memory_percent = None
+                    self.disk_io_read = None
+                    self.net_io_sent = None
+        
+        latest_metric_wrapper = MetricWrapper(latest_metric, uptime_formatted)
+        
         servers_data.append({
             "server": server,
             "server_status": calculated_status,
-            "latest_metric": latest_metric,
+            "latest_metric": latest_metric_wrapper,
             "status": status,
             "uptime_days": uptime_days,
             "uptime_hours": uptime_hours,
             "uptime_minutes": uptime_minutes,
+            "uptime_formatted": uptime_formatted,
             "network_download": network_download,
             "network_upload": network_upload,
             "active_anomalies": active_anomalies.count(),
@@ -1020,20 +1100,20 @@ def add_server(request):
             # Install psutil on the server
             psutil_success, psutil_message, psutil_details = _install_psutil_on_server(server)
             
-            # Trigger immediate metrics collection in background (only if psutil is installed)
+            # Trigger immediate metrics collection (only if psutil is installed)
             if psutil_success:
-                def collect_metrics_async():
-                    try:
-                        _collect_metrics_for_server(server)
-                    except Exception as e:
-                        # Log error but don't fail the request
-                        print(f"Failed to collect initial metrics for {server.name}: {e}")
+                # Collect metrics immediately (not in background) to ensure it happens
+                try:
+                    collection_success = _collect_metrics_for_server(server)
+                    if collection_success:
+                        messages.success(request, f'Server "{name}" added successfully! SSH key deployed. {psutil_message}. Initial metrics collected.')
+                    else:
+                        messages.success(request, f'Server "{name}" added successfully! SSH key deployed. {psutil_message}. Metrics collection will start automatically.')
+                except Exception as e:
+                    # Log error but don't fail the request - scheduler will pick it up
+                    error_logger.error(f"Failed to collect initial metrics for {server.name}: {e}")
+                    messages.success(request, f'Server "{name}" added successfully! SSH key deployed. {psutil_message}. Metrics collection will start automatically.')
                 
-                thread = threading.Thread(target=collect_metrics_async)
-                thread.daemon = True
-                thread.start()
-                
-                messages.success(request, f'Server "{name}" added successfully! SSH key deployed. {psutil_message}. Metrics collection started.')
                 return redirect('server_list')
             else:
                 messages.success(request, f'Server "{name}" added successfully! SSH key deployed. However, {psutil_message}. Please install psutil manually to enable metrics collection.')
@@ -1056,6 +1136,123 @@ def add_server(request):
         error_logger.error(f"ADD_SERVER error: {str(e)}")
         messages.error(request, f'Failed to add server: {str(e)}')
         return render(request, "core/add_server.html", {"show_sidebar": True})
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def add_server_api(request):
+    """API endpoint for adding server with progress updates"""
+    from .utils import has_privilege
+    from django.http import JsonResponse
+    import json as json_module
+    
+    if not has_privilege(request.user, 'add_server'):
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    
+    try:
+        data = json_module.loads(request.body)
+        name = data.get('name', '').strip()
+        ip_address = data.get('ip_address', '').strip()
+        port = int(data.get('port', 22))
+        username = data.get('username', 'root').strip()
+        password = data.get('password', '').strip()
+        
+        progress = []
+        
+        # Validate required fields
+        if not all([name, ip_address, username, password]):
+            return JsonResponse({"success": False, "error": "All fields are required"})
+        
+        # Validate port range
+        if port < 1 or port > 65535:
+            return JsonResponse({"success": False, "error": "Port must be between 1 and 65535"})
+        
+        # Step 1: Create server object
+        server = Server(
+            name=name,
+            ip_address=ip_address,
+            port=port,
+            username=username
+        )
+        server.save()
+        progress.append({"step": "Creating server record", "status": "completed", "message": "Server record created"})
+        
+        # Step 2: Create monitoring configuration
+        MonitoringConfig.objects.get_or_create(
+            server=server,
+            defaults={
+                "enabled": True,
+                "collection_interval_seconds": 60,
+                "adaptive_collection_enabled": False,
+                "use_adtk": True,
+                "use_isolation_forest": False,
+                "use_llm_explanation": True,
+                "retention_period_days": 30,
+                "aggregation_enabled": True,
+            }
+        )
+        progress.append({"step": "Creating monitoring configuration", "status": "completed", "message": "Monitoring config created"})
+        
+        # Step 3: Deploy SSH key
+        try:
+            progress.append({"step": "Connecting via SSH", "status": "in_progress", "message": "Establishing SSH connection..."})
+            _deploy_ssh_key(server, password)
+            server.ssh_key_deployed = True
+            server.ssh_key_deployed_at = timezone.now()
+            server.save(update_fields=["ssh_key_deployed", "ssh_key_deployed_at"])
+            progress.append({"step": "Connecting via SSH", "status": "completed", "message": "SSH connection successful"})
+            progress.append({"step": "Deploying SSH key", "status": "completed", "message": "SSH key deployed successfully"})
+            
+            # Step 4: Check requirements / Install psutil
+            progress.append({"step": "Checking requirements", "status": "in_progress", "message": "Checking Python and dependencies..."})
+            psutil_success, psutil_message, psutil_details = _install_psutil_on_server(server)
+            if psutil_success:
+                progress.append({"step": "Checking requirements", "status": "completed", "message": psutil_message})
+            else:
+                progress.append({"step": "Checking requirements", "status": "warning", "message": psutil_message})
+            
+            # Step 5: Collect initial metrics
+            if psutil_success:
+                progress.append({"step": "Collecting initial metrics", "status": "in_progress", "message": "Collecting system metrics..."})
+                try:
+                    collection_success = _collect_metrics_for_server(server)
+                    if collection_success:
+                        progress.append({"step": "Collecting initial metrics", "status": "completed", "message": "Initial metrics collected successfully"})
+                    else:
+                        progress.append({"step": "Collecting initial metrics", "status": "warning", "message": "Metrics collection will start automatically"})
+                except Exception as e:
+                    error_logger.error(f"Failed to collect initial metrics for {server.name}: {e}")
+                    progress.append({"step": "Collecting initial metrics", "status": "warning", "message": "Metrics collection will start automatically"})
+            
+            progress.append({"step": "Setup complete", "status": "completed", "message": f'Server "{name}" added successfully!'})
+            
+            return JsonResponse({
+                "success": True,
+                "server_id": server.id,
+                "server_name": server.name,
+                "progress": progress,
+                "message": f'Server "{name}" added successfully!'
+            })
+        except Exception as e:
+            # Clean up if SSH deployment fails
+            server.delete()
+            progress.append({"step": "Connecting via SSH", "status": "failed", "message": str(e)})
+            _log_user_action(request, "ADD_SERVER", f"Failed: SSH key deployment error - {str(e)}")
+            error_logger.error(f"ADD_SERVER failed: {str(e)}")
+            return JsonResponse({
+                "success": False,
+                "error": f'SSH key deployment failed: {str(e)}',
+                "progress": progress
+            }, status=500)
+            
+    except ValueError as e:
+        _log_user_action(request, "ADD_SERVER", f"Failed: Invalid input - {str(e)}")
+        error_logger.error(f"ADD_SERVER validation error: {str(e)}")
+        return JsonResponse({"success": False, "error": f'Invalid input: {str(e)}'}, status=400)
+    except Exception as e:
+        _log_user_action(request, "ADD_SERVER", f"Failed: {str(e)}")
+        error_logger.error(f"ADD_SERVER error: {str(e)}")
+        return JsonResponse({"success": False, "error": f'Failed to add server: {str(e)}'}, status=500)
 
 
 def _deploy_ssh_key(server, password):
@@ -1269,52 +1466,51 @@ def _collect_metrics_for_server(server):
     try:
         monitoring_config = server.monitoring_config
         if not monitoring_config.enabled:
-            print(f"[METRICS] Skipping metric collection for {server.name} - monitoring disabled")
+            error_logger.warning(f"[METRICS] Skipping metric collection for {server.name} - monitoring disabled")
             return False
         if monitoring_config.monitoring_suspended:
-            print(f"[METRICS] Skipping metric collection for {server.name} - monitoring suspended")
+            error_logger.warning(f"[METRICS] Skipping metric collection for {server.name} - monitoring suspended")
             return False
-    except:
+    except Exception as e:
         # If no config exists, allow collection (for new servers)
-        pass
+        error_logger.warning(f"[METRICS] No monitoring config for {server.name}, attempting collection anyway: {e}")
     
     # Use the management command to collect metrics
     # This ensures we use the same logic as the scheduled collection
     try:
-        # Call the collect_metrics command programmatically
-        # We'll use subprocess to call it for the specific server
-        # But first, let's try a simpler approach - directly call the collection logic
+        # Directly call the collection logic
         from core.management.commands.collect_metrics import Command
         cmd = Command()
         metrics = cmd._collect_metrics(server)
         
         if metrics:
             # Filter out fields that don't exist in SystemMetric model
-            metric_fields = {k: v for k, v in metrics.items() 
-                           if k not in ['disk_count', 'raid_info']}
+            # Remove internal/temporary fields (starting with _) and other non-model fields
+            from core.models import SystemMetric
+            valid_fields = {f.name for f in SystemMetric._meta.get_fields() if hasattr(f, 'name')}
+            # Filter: must be in valid_fields AND not start with underscore
+            metric_fields = {}
+            for k, v in metrics.items():
+                if k in valid_fields and not k.startswith('_'):
+                    metric_fields[k] = v
+            
+            # Create the metric record
             SystemMetric.objects.create(server=server, **metric_fields)
             
             # Also cache in Redis
             redis_key = f"metrics:{server.id}:latest"
             cache.set(redis_key, json.dumps(metrics), timeout=300)  # 5 min TTL
             
+            app_logger.info(f"[METRICS] Successfully collected initial metrics for {server.name}")
             return True
+        else:
+            error_logger.warning(f"[METRICS] Collection returned no metrics for {server.name}")
+            return False
     except Exception as e:
-        # If direct call fails, try using subprocess to call the management command
-        try:
-            result = subprocess.run(
-                ['python', '/app/manage.py', 'collect_metrics'],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd='/app'
-            )
-            if result.returncode == 0:
-                return True
-        except Exception as subprocess_error:
-            print(f"Failed to collect metrics via subprocess: {subprocess_error}")
-    
-    return False
+        error_logger.error(f"[METRICS] Failed to collect metrics for {server.name}: {e}")
+        import traceback
+        error_logger.error(traceback.format_exc())
+        return False
 
 
 @staff_member_required
@@ -1354,7 +1550,7 @@ def alert_config(request):
         config = EmailAlertConfig.objects.first()
         context = {
             'config': config,
-            'show_sidebar': False,  # Alert Config is in sidebar, so no full sidebar here
+            'show_sidebar': True,  # Match add_server page layout with sidebar
         }
         return render(request, "core/alert_config.html", context)
     else:
@@ -1364,6 +1560,46 @@ def alert_config(request):
 
 import logging
 logger = logging.getLogger(__name__)
+
+def _smtp_login_if_supported(server, username, password):
+    """
+    Attempt SMTP login only if AUTH is supported by the server.
+    Returns True if login succeeded, False if AUTH not supported, raises exception on other errors.
+    """
+    if not username or not password:
+        return False  # No credentials provided, skip authentication
+    
+    # Remove spaces from password (Gmail App Passwords have no spaces)
+    password_clean = password.strip().replace(' ', '')
+    
+    try:
+        # Check if server supports AUTH extension
+        if hasattr(server, 'ehlo_resp') and server.ehlo_resp:
+            # Check if AUTH is in the EHLO response
+            if 'AUTH' in str(server.ehlo_resp):
+                server.login(username, password_clean)
+                return True
+        # Try to use has_extn if available
+        elif hasattr(server, 'has_extn') and server.has_extn('AUTH'):
+            server.login(username, password_clean)
+            return True
+        else:
+            # Try login anyway - some servers support AUTH but don't advertise it properly
+            try:
+                server.login(username, password_clean)
+                return True
+            except smtplib.SMTPNotSupportedError:
+                # AUTH not supported, skip authentication (common for port 25)
+                return False
+    except smtplib.SMTPNotSupportedError:
+        # AUTH extension not supported by server (e.g., port 25)
+        return False
+    except smtplib.SMTPAuthenticationError:
+        # Authentication failed - re-raise to show proper error
+        raise
+    except Exception:
+        # Other errors - re-raise
+        raise
 
 @staff_member_required
 @require_http_methods(["POST"])
@@ -1376,21 +1612,40 @@ def save_alert_config(request):
         use_tls = request.POST.get('use_tls') == 'on'
         use_ssl = request.POST.get('use_ssl') == 'on'
         username = request.POST.get('username', '').strip()
-        password = request.POST.get('password', '').strip()
+        # Strip and remove spaces from password (Gmail App Passwords have no spaces)
+        password = request.POST.get('password', '').strip().replace(' ', '') if request.POST.get('password') else ''
         from_email = request.POST.get('from_email', '').strip()
+        to_email = request.POST.get('to_email', '').strip()
+
+        # Check if this is an update (config exists) or new config
+        existing_config = EmailAlertConfig.objects.first()
 
         # Validate required fields based on provider
         if provider == 'custom':
-            if not smtp_host or not smtp_port or not username or not password or not from_email:
+            if not smtp_host or not smtp_port or not username or not from_email:
                 try:
-                    messages.error(request, 'All fields are required for custom SMTP configuration')
+                    messages.error(request, 'SMTP host, port, username, and from email are required for custom SMTP configuration')
+                except:
+                    pass  # Messages middleware not available in test environment
+                return redirect('alert_config')
+            # Password is required for new custom configs, optional for updates
+            if not existing_config and not password:
+                try:
+                    messages.error(request, 'Password is required for new custom SMTP configuration')
                 except:
                     pass  # Messages middleware not available in test environment
                 return redirect('alert_config')
         else:
-            if not username or not password or not from_email:
+            if not username or not from_email:
                 try:
-                    messages.error(request, 'Username, password, and from email are required')
+                    messages.error(request, 'Username and from email are required')
+                except:
+                    pass  # Messages middleware not available in test environment
+                return redirect('alert_config')
+            # Password is required for new configs, optional for updates
+            if not existing_config and not password:
+                try:
+                    messages.error(request, 'Password is required for new email configuration')
                 except:
                     pass  # Messages middleware not available in test environment
                 return redirect('alert_config')
@@ -1407,6 +1662,7 @@ def save_alert_config(request):
                 'username': username,
                 'password': password,  # In production, encrypt this
                 'from_email': from_email,
+                'to_email': to_email,
                 'enabled': True
             }
         )
@@ -1422,6 +1678,7 @@ def save_alert_config(request):
             if password:  # Only update password if provided
                 config.password = password
             config.from_email = from_email
+            config.to_email = to_email
             config.enabled = True
             config.save()
 
@@ -1442,33 +1699,183 @@ def save_alert_config(request):
 
 @staff_member_required
 @require_http_methods(["POST"])
-def test_alert_config(request):
-    """Test email alert configuration"""
-    from .utils import test_email_config
+def clear_alert_config(request):
+    """Clear/delete email alert configuration"""
     try:
-        config_data = {
-            'smtp_host': request.POST.get('smtp_host', '').strip(),
-            'smtp_port': request.POST.get('smtp_port', '').strip(),
-            'use_tls': request.POST.get('use_tls') == 'on',
-            'use_ssl': request.POST.get('use_ssl') == 'on',
-            'username': request.POST.get('username', '').strip(),
-            'password': request.POST.get('password', '').strip(),
-            'from_email': request.POST.get('from_email', '').strip(),
-            'test_recipient': request.POST.get('test_recipient', '').strip(),
-        }
+        config = EmailAlertConfig.objects.filter(id=1).first()
+        if config:
+            config.delete()
+            try:
+                messages.success(request, 'Email alert configuration cleared successfully!')
+            except:
+                pass  # Messages middleware not available in test environment
+        else:
+            try:
+                messages.info(request, 'No email alert configuration found to clear.')
+            except:
+                pass  # Messages middleware not available in test environment
+        return redirect('alert_config')
 
-        if not all([config_data['smtp_host'], config_data['smtp_port'],
-                   config_data['username'], config_data['password'],
-                   config_data['from_email'], config_data['test_recipient']]):
-            messages.error(request, 'All fields are required to send a test email')
+    except Exception as e:
+        logger.error(f"Failed to clear alert config: {str(e)}")
+        try:
+            messages.error(request, f'Failed to clear configuration: {str(e)}')
+        except:
+            pass  # Messages middleware not available in test environment
+        return redirect('alert_config')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def test_alert_config(request):
+    """Test email alert configuration - uses saved config values from database"""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    try:
+        # Get saved configuration from database
+        saved_config = EmailAlertConfig.objects.first()
+        
+        if not saved_config:
+            messages.error(request, 'No saved configuration found. Please save your email configuration first.')
+            return redirect('alert_config')
+        
+        # Use saved configuration values
+        smtp_host = saved_config.smtp_host or ''
+        smtp_port = str(saved_config.smtp_port) if saved_config.smtp_port else ''
+        use_tls = saved_config.use_tls
+        use_ssl = saved_config.use_ssl
+        username = saved_config.username or ''
+        # Strip and remove all spaces from password (Gmail App Passwords are 16 chars, no spaces)
+        password = (saved_config.password or '').strip().replace(' ', '')
+        from_email = saved_config.from_email or ''
+        test_recipient = saved_config.to_email or ''
+
+        # Validate required fields
+        if not all([smtp_host, smtp_port, username, from_email]):
+            messages.error(request, 'SMTP host, port, username, and from email are required in saved configuration.')
+            return redirect('alert_config')
+        
+        if not password:
+            messages.error(request, 'Password is required for testing. Please save your configuration with a password first.')
+            return redirect('alert_config')
+        
+        if not test_recipient:
+            messages.error(request, 'To email address is required for testing. Please save configuration with a valid "To Email" address first.')
             return redirect('alert_config')
 
-        success, message = test_email_config(config_data)
-
-        if success:
-            messages.success(request, message)
-        else:
-            messages.error(request, message)
+        # Create test email
+        msg = MIMEMultipart()
+        msg['From'] = from_email
+        msg['To'] = test_recipient
+        msg['Subject'] = 'Test Alert - Server Monitoring System'
+        body = 'This is a test email from the Server Monitoring System. If you receive this, your email configuration is working correctly.'
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Connect and send
+        server = None
+        try:
+            if use_ssl:
+                # SSL connection (port 465)
+                server = smtplib.SMTP_SSL(smtp_host, int(smtp_port), timeout=30)
+                server.set_debuglevel(0)
+                server.ehlo()  # Identify ourselves
+                # Attempt login only if AUTH is supported
+                _smtp_login_if_supported(server, username, password)
+            elif use_tls:
+                # TLS connection (port 587)
+                server = smtplib.SMTP(smtp_host, int(smtp_port), timeout=30)
+                server.set_debuglevel(0)
+                server.ehlo()  # Identify ourselves to the SMTP server
+                server.starttls()  # Secure the connection
+                server.ehlo()  # Re-identify ourselves after TLS
+                # Attempt login only if AUTH is supported
+                _smtp_login_if_supported(server, username, password)
+            else:
+                # Plain connection (port 25 or other unencrypted ports)
+                server = smtplib.SMTP(smtp_host, int(smtp_port), timeout=30)
+                server.set_debuglevel(0)
+                server.ehlo()  # Identify ourselves
+                # Attempt login only if AUTH is supported (many port 25 servers don't support AUTH)
+                _smtp_login_if_supported(server, username, password)
+            
+            server.send_message(msg)
+            server.quit()
+            server = None  # Mark as closed
+            
+            messages.success(request, f'Test email sent successfully to {test_recipient}!')
+            
+        except smtplib.SMTPNotSupportedError as e:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+            error_str = str(e)
+            error_msg = f'SMTP AUTH extension not supported by server: {error_str}. This is normal for port 25 servers. Email will be sent without authentication.'
+            messages.warning(request, error_msg)
+            # Continue to send email even without authentication
+            try:
+                server.send_message(msg)
+                server.quit()
+                messages.success(request, f'Test email sent successfully to {test_recipient} (without authentication, as AUTH is not supported by this server)!')
+            except Exception as send_error:
+                messages.error(request, f'Failed to send email: {str(send_error)}')
+            return redirect('alert_config')
+        except smtplib.SMTPAuthenticationError as e:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+            error_str = str(e)
+            # Check for rate limiting
+            if 'Too many login attempts' in error_str or '4.7.0' in error_str:
+                error_msg = f'Gmail has temporarily blocked login attempts due to too many failed attempts. Please wait 10-30 minutes before trying again. Error: {error_str}'
+            else:
+                error_msg = f'Authentication failed: {error_str}. Please check your username and password (use App Password for Gmail/Outlook).'
+            messages.error(request, error_msg)
+        except smtplib.SMTPServerDisconnected as e:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+            error_str = str(e)
+            # This often happens after a rate limit error or wrong credentials
+            error_msg = f'Connection was closed by the server: {error_str}. This may be due to too many login attempts (wait 10-30 minutes) or incorrect App Password. Please verify your App Password at https://myaccount.google.com/apppasswords.'
+            messages.error(request, error_msg)
+        except smtplib.SMTPException as e:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+            error_str = str(e)
+            # Provide helpful guidance for common errors
+            if 'Connection unexpectedly closed' in error_str or 'Connection closed' in error_str:
+                error_msg = f'SMTP error: {error_str}. This often occurs with Gmail when not using an App Password. Please generate an App Password at https://myaccount.google.com/apppasswords (requires 2-Step Verification) and use it instead of your regular password.'
+            else:
+                error_msg = f'SMTP error: {error_str}'
+            messages.error(request, error_msg)
+        except (ConnectionError, OSError) as e:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+            messages.error(request, f'Connection error: {str(e)}. Please check your SMTP settings and network connection.')
+        except Exception as e:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+            import traceback
+            error_msg = str(e)
+            logger.error(f"Test email error: {error_msg}\n{traceback.format_exc()}")
+            messages.error(request, f'Error sending test email: {error_msg}')
 
         return redirect('alert_config')
 
@@ -1490,7 +1897,7 @@ def test_email_connection(request):
         data = json.loads(request.body)
         
         # Validate required fields
-        required_fields = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'from_email', 'alert_recipients']
+        required_fields = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'from_email', 'to_email']
         for field in required_fields:
             if not data.get(field):
                 return JsonResponse({
@@ -1504,7 +1911,7 @@ def test_email_connection(request):
         smtp_username = data['smtp_username']
         smtp_password = data['smtp_password']
         from_email = data['from_email']
-        recipients = [r.strip() for r in data['alert_recipients'].split(',')]
+        recipients = [r.strip() for r in data.get('to_email', '').split(',')] if data.get('to_email') else []
         
         # Create test email
         msg = MIMEMultipart()
@@ -1560,6 +1967,11 @@ def _check_and_send_alerts(server, metric):
         server.refresh_from_db()
         config = server.monitoring_config
         
+        # Check if monitoring is suspended - if so, skip all alerts
+        if config.monitoring_suspended:
+            print(f"[ALERT] Monitoring suspended for {server.name}, skipping alert checks")
+            return
+        
         # Check if alerts are suppressed for this server
         if config.alert_suppressed:
             print(f"[ALERT] Alerts suppressed for {server.name}, skipping alert checks")
@@ -1579,7 +1991,9 @@ def _check_and_send_alerts(server, metric):
         current_state = {
             'CPU': False,
             'Memory': False,
-            'Disk': {}
+            'Disk': {},
+            'DiskIO': False,
+            'NetworkIO': False
         }
         
         alerts = []
@@ -1661,6 +2075,82 @@ def _check_and_send_alerts(server, metric):
             except Exception as disk_error:
                 print(f"[ALERT] Error parsing disk data: {disk_error}")
         
+        # Check Disk I/O thresholds
+        if hasattr(config, 'disk_io_threshold') and config.disk_io_threshold:
+            disk_io_read_mb = 0
+            disk_io_write_mb = 0
+            if metric.disk_io_read:
+                disk_io_read_mb = float(metric.disk_io_read) / (1024 * 1024)  # Convert bytes/sec to MB/s
+            if metric.disk_io_write:
+                disk_io_write_mb = float(metric.disk_io_write) / (1024 * 1024)  # Convert bytes/sec to MB/s
+            
+            threshold_mb = float(config.disk_io_threshold)  # Threshold in MB/s
+            disk_io_read_above = disk_io_read_mb >= threshold_mb
+            disk_io_write_above = disk_io_write_mb >= threshold_mb
+            disk_io_above = disk_io_read_above or disk_io_write_above
+            current_state['DiskIO'] = disk_io_above
+            
+            if disk_io_above:
+                io_details = []
+                if disk_io_read_above:
+                    io_details.append(f"read: {disk_io_read_mb:.2f} MB/s")
+                if disk_io_write_above:
+                    io_details.append(f"write: {disk_io_write_mb:.2f} MB/s")
+                
+                alerts.append({
+                    'type': 'DiskIO',
+                    'value': max(disk_io_read_mb, disk_io_write_mb),
+                    'threshold': threshold_mb,
+                    'message': f"Disk I/O exceeded threshold: {', '.join(io_details)} (threshold: {threshold_mb} MB/s)"
+                })
+                print(f"[ALERT] Disk I/O threshold exceeded: {', '.join(io_details)} >= {threshold_mb} MB/s")
+            elif previous_state.get('DiskIO', False):
+                resolved_alerts.append({
+                    'type': 'DiskIO',
+                    'value': max(disk_io_read_mb, disk_io_write_mb),
+                    'threshold': threshold_mb,
+                    'message': f"Disk I/O returned to normal: read {disk_io_read_mb:.2f} MB/s, write {disk_io_write_mb:.2f} MB/s (threshold: {threshold_mb} MB/s)"
+                })
+                print(f"[ALERT] Disk I/O threshold resolved: < {threshold_mb} MB/s")
+        
+        # Check Network I/O thresholds
+        if hasattr(config, 'network_io_threshold') and config.network_io_threshold:
+            net_io_sent_mb = 0
+            net_io_recv_mb = 0
+            if metric.net_io_sent:
+                net_io_sent_mb = float(metric.net_io_sent) / (1024 * 1024)  # Convert bytes/sec to MB/s
+            if metric.net_io_recv:
+                net_io_recv_mb = float(metric.net_io_recv) / (1024 * 1024)  # Convert bytes/sec to MB/s
+            
+            threshold_mb = float(config.network_io_threshold)  # Threshold in MB/s
+            net_io_sent_above = net_io_sent_mb >= threshold_mb
+            net_io_recv_above = net_io_recv_mb >= threshold_mb
+            net_io_above = net_io_sent_above or net_io_recv_above
+            current_state['NetworkIO'] = net_io_above
+            
+            if net_io_above:
+                io_details = []
+                if net_io_sent_above:
+                    io_details.append(f"sent: {net_io_sent_mb:.2f} MB/s")
+                if net_io_recv_above:
+                    io_details.append(f"received: {net_io_recv_mb:.2f} MB/s")
+                
+                alerts.append({
+                    'type': 'NetworkIO',
+                    'value': max(net_io_sent_mb, net_io_recv_mb),
+                    'threshold': threshold_mb,
+                    'message': f"Network I/O exceeded threshold: {', '.join(io_details)} (threshold: {threshold_mb} MB/s)"
+                })
+                print(f"[ALERT] Network I/O threshold exceeded: {', '.join(io_details)} >= {threshold_mb} MB/s")
+            elif previous_state.get('NetworkIO', False):
+                resolved_alerts.append({
+                    'type': 'NetworkIO',
+                    'value': max(net_io_sent_mb, net_io_recv_mb),
+                    'threshold': threshold_mb,
+                    'message': f"Network I/O returned to normal: sent {net_io_sent_mb:.2f} MB/s, received {net_io_recv_mb:.2f} MB/s (threshold: {threshold_mb} MB/s)"
+                })
+                print(f"[ALERT] Network I/O threshold resolved: < {threshold_mb} MB/s")
+        
         # Send email if new alerts exist
         if alerts:
             print(f"[ALERT] Sending {len(alerts)} alert(s) for {server.name}")
@@ -1674,7 +2164,7 @@ def _check_and_send_alerts(server, metric):
                     value=alert['value'],
                     threshold=alert['threshold'],
                     message=alert['message'],
-                    recipients=email_config.alert_recipients
+                    recipients=email_config.to_email or ''
                 )
                 app_logger.info(f"Alert sent: {server.name} - {alert['type']} - {alert['message']}")
         
@@ -1691,7 +2181,7 @@ def _check_and_send_alerts(server, metric):
                     value=alert['value'],
                     threshold=alert['threshold'],
                     message=alert['message'],
-                    recipients=email_config.alert_recipients,
+                    recipients=email_config.to_email or '',
                     resolved_at=timezone.now()
                 )
                 app_logger.info(f"Alert resolved: {server.name} - {alert['type']} - {alert['message']}")
@@ -1711,7 +2201,7 @@ def _check_and_send_alerts(server, metric):
 def _send_resolved_alert_email(email_config, server, resolved_alerts):
     """Send resolved alert email when metrics return to normal"""
     try:
-        recipients = [email.strip() for email in email_config.alert_recipients.split(',')]
+        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
         
         # Create email content
         subject = f"✅ Resolved: {server.name} - Threshold Returned to Normal"
@@ -1736,13 +2226,22 @@ The resource usage has returned to normal levels.
             # STARTTLS (port 587)
             print(f"[ALERT] Using STARTTLS on {email_config.smtp_host}:{email_config.smtp_port}")
             server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+            server_smtp.ehlo()
             server_smtp.starttls()
-            server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            server_smtp.ehlo()
+            # Attempt login only if AUTH is supported
+            _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
         else:
-            # SSL (port 465)
-            print(f"[ALERT] Using SSL on {email_config.smtp_host}:{email_config.smtp_port}")
-            server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
-            server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            # SSL (port 465) or plain (port 25)
+            if email_config.use_ssl:
+                print(f"[ALERT] Using SSL on {email_config.smtp_host}:{email_config.smtp_port}")
+                server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+            else:
+                print(f"[ALERT] Using plain SMTP on {email_config.smtp_host}:{email_config.smtp_port}")
+                server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+            server_smtp.ehlo()
+            # Attempt login only if AUTH is supported
+            _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
         
         msg = MIMEMultipart()
         msg['From'] = email_config.from_email
@@ -1796,7 +2295,7 @@ def _send_connection_alert(server, state):
             print(f"[CONNECTION_ALERT] No email config found for {server.name}")
             return
         
-        recipients = [email.strip() for email in email_config.alert_recipients.split(',')]
+        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
         
         if state == "offline":
             subject = f"🔴 Server Offline: {server.name}"
@@ -1837,13 +2336,24 @@ The server connection has been restored and is responding normally.
         
         # Send email
         try:
+            # Remove spaces from password (Gmail App Passwords have no spaces)
+            password_clean = (email_config.password or '').strip().replace(' ', '')
+            
             if email_config.use_tls:
                 server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                server_smtp.ehlo()
                 server_smtp.starttls()
-                server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+                server_smtp.ehlo()
+                # Attempt login only if AUTH is supported
+                _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
             else:
-                server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
-                server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+                if email_config.use_ssl:
+                    server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+                else:
+                    server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                server_smtp.ehlo()
+                # Attempt login only if AUTH is supported
+                _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
             
             msg = MIMEMultipart()
             msg['From'] = email_config.from_email
@@ -1958,18 +2468,16 @@ def _check_service_status(server, service):
             cache.set(failure_count_key, failure_count, 300)  # 5 min TTL
             cache.set(last_status_key, "failed" if is_failed else "inactive", 300)
             
-            # Send alert if:
-            # 1. Service is in failed state (immediate alert)
-            # 2. OR service has been down for 2 consecutive checks
+            # Send alert after 2 consecutive failures (60 seconds: 2 checks * 30 seconds)
             should_alert = False
             if is_failed:
                 # Service is in failed state - send alert immediately
                 should_alert = True
                 print(f"[SERVICE_ALERT] Service {service.name} on {server.name} is in FAILED state")
             elif failure_count >= 2:
-                # Service has been down for 2 consecutive checks
+                # Service has been down for 2 consecutive checks (60 seconds)
                 should_alert = True
-                print(f"[SERVICE_ALERT] Service {service.name} on {server.name} is down (2 consecutive failures)")
+                print(f"[SERVICE_ALERT] Service {service.name} on {server.name} is down (2 consecutive failures = 60 seconds)")
             
             if should_alert:
                 # Check if we already sent an alert for this failure
@@ -1977,7 +2485,7 @@ def _check_service_status(server, service):
                 if not alert_sent:
                     # Send alert
                     _send_service_alert(server, service, "triggered")
-                    cache.set(alert_sent_key, True, 300)  # Prevent duplicate alerts
+                    cache.set(alert_sent_key, True, 3600)  # Prevent duplicate alerts for 1 hour
         
         # Update service status in database
         # Use the is_failed status we already checked above
@@ -2017,7 +2525,11 @@ def _send_service_alert(server, service, status):
             print(f"[SERVICE_ALERT] No email config found, skipping alert for {service.name} on {server.name}")
             return
         
-        recipients = [email.strip() for email in email_config.alert_recipients.split(',')]
+        # Use to_email as recipient
+        if not email_config.to_email:
+            print(f"[SERVICE_ALERT] No to_email configured, skipping alert for {service.name} on {server.name}")
+            return
+        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
         
         if status == "triggered":
             subject = f"🚨 Service Alert: {service.name} is DOWN on {server.name}"
@@ -2029,7 +2541,7 @@ Server: {server.name} ({server.ip_address})
 Status: DOWN
 Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-The service has been down for 2 consecutive checks (2 minutes).
+The service has been down for 60 seconds (2 consecutive checks at 30-second intervals).
 
 Please investigate and restore the service.
 """
@@ -2057,11 +2569,18 @@ The service has been restored and is now running.
         try:
             if email_config.use_tls:
                 server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                server_smtp.ehlo()
                 server_smtp.starttls()
+                server_smtp.ehlo()
             else:
-                server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+                if email_config.use_ssl:
+                    server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+                else:
+                    server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                server_smtp.ehlo()
             
-            server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            # Attempt login only if AUTH is supported
+            _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
             server_smtp.send_message(msg)
             server_smtp.quit()
             
@@ -2075,7 +2594,7 @@ The service has been restored and is now running.
                 value=0.0,
                 threshold=2.0,
                 message=f"Service {service.name} is {'DOWN' if status == 'triggered' else 'UP'}",
-                recipients=email_config.alert_recipients
+                recipients=email_config.to_email or ''
             )
             
         except Exception as e:
@@ -2091,7 +2610,7 @@ The service has been restored and is now running.
 def _send_alert_email(email_config, server, alerts):
     """Send alert email using configured SMTP settings"""
     try:
-        recipients = [email.strip() for email in email_config.alert_recipients.split(',')]
+        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
         
         # Create email content
         subject = f"🚨 Alert: {server.name} - Threshold Exceeded"
@@ -2116,13 +2635,22 @@ Please check the server immediately.
             # STARTTLS (port 587)
             print(f"[ALERT] Using STARTTLS on {email_config.smtp_host}:{email_config.smtp_port}")
             server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+            server_smtp.ehlo()
             server_smtp.starttls()
-            server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            server_smtp.ehlo()
+            # Attempt login only if AUTH is supported
+            _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
         else:
-            # SSL (port 465)
-            print(f"[ALERT] Using SSL on {email_config.smtp_host}:{email_config.smtp_port}")
-            server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
-            server_smtp.login(email_config.smtp_username, email_config.smtp_password)
+            # SSL (port 465) or plain (port 25)
+            if email_config.use_ssl:
+                print(f"[ALERT] Using SSL on {email_config.smtp_host}:{email_config.smtp_port}")
+                server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+            else:
+                print(f"[ALERT] Using plain SMTP on {email_config.smtp_host}:{email_config.smtp_port}")
+                server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+            server_smtp.ehlo()
+            # Attempt login only if AUTH is supported
+            _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
         
         msg = MIMEMultipart()
         msg['From'] = email_config.from_email
@@ -2156,25 +2684,62 @@ Please check the server immediately.
 def update_thresholds(request, server_id):
     """Update alert thresholds for a server"""
     try:
+        import json
         server = Server.objects.get(id=server_id)
         config = server.monitoring_config
         
-        cpu_threshold = request.POST.get('cpu_threshold')
-        memory_threshold = request.POST.get('memory_threshold')
-        disk_threshold = request.POST.get('disk_threshold')
+        # Handle JSON POST data
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
         
-        if cpu_threshold:
-            config.cpu_threshold = float(cpu_threshold)
-        if memory_threshold:
-            config.memory_threshold = float(memory_threshold)
-        if disk_threshold:
-            config.disk_threshold = float(disk_threshold)
+        if 'cpu_threshold' in data:
+            config.cpu_threshold = float(data['cpu_threshold'])
+        if 'memory_threshold' in data:
+            config.memory_threshold = float(data['memory_threshold'])
+        if 'disk_threshold' in data:
+            config.disk_threshold = float(data['disk_threshold'])
+        if 'disk_io_threshold' in data:
+            config.disk_io_threshold = float(data['disk_io_threshold'])
+        if 'network_io_threshold' in data:
+            config.network_io_threshold = float(data['network_io_threshold'])
         
         config.save()
         
         return JsonResponse({
             'success': True,
             'message': 'Thresholds updated successfully'
+        })
+    except Server.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Server not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def update_monitored_disks(request, server_id):
+    """Update monitored disk partitions for a server"""
+    try:
+        import json
+        server = Server.objects.get(id=server_id)
+        config = server.monitoring_config
+        
+        data = json.loads(request.body)
+        disks = data.get('disks', [])
+        
+        # Ensure / is always included
+        if '/' not in disks:
+            disks.insert(0, '/')
+        
+        config.monitored_disks = disks
+        config.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Monitored disks updated successfully',
+            'disks': config.monitored_disks
         })
     except Server.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Server not found'}, status=404)
@@ -2436,6 +3001,128 @@ def create_admin_user_api(request):
 
 
 @staff_member_required
+def alert_history(request):
+    """View page to display and manage alert history (including anomalies)"""
+    # Get query parameters for filtering
+    server_id = request.GET.get('server_id', '').strip()
+    alert_type = request.GET.get('alert_type', '').strip()
+    status = request.GET.get('status', '').strip()  # Default to empty (all alerts)
+    
+    # Build AlertHistory query
+    alert_history_query = AlertHistory.objects.all().select_related('server')
+    
+    # Build Anomaly query
+    anomaly_query = Anomaly.objects.all().select_related('server', 'metric')
+    
+    if server_id:
+        try:
+            server_id_int = int(server_id)
+            alert_history_query = alert_history_query.filter(server_id=server_id_int)
+            anomaly_query = anomaly_query.filter(server_id=server_id_int)
+        except (ValueError, TypeError):
+            pass  # Invalid server_id, ignore filter
+    
+    if alert_type:
+        # Validate alert_type - can be from AlertHistory or Anomaly metric_type
+        valid_alert_types = [choice[0] for choice in AlertHistory.AlertType.choices]
+        valid_anomaly_types = ['cpu', 'memory', 'disk', 'network']
+        
+        if alert_type in valid_alert_types:
+            alert_history_query = alert_history_query.filter(alert_type=alert_type)
+        if alert_type.upper() in [t.upper() for t in valid_anomaly_types]:
+            # Map alert type to anomaly metric_type (CPU -> cpu, MEMORY -> memory, etc.)
+            type_map = {'CPU': 'cpu', 'MEMORY': 'memory', 'DISK': 'disk', 'NETWORK': 'network'}
+            anomaly_type = type_map.get(alert_type.upper(), alert_type.lower())
+            anomaly_query = anomaly_query.filter(metric_type=anomaly_type)
+    
+    if status:
+        # Validate status is in choices
+        valid_statuses = [choice[0] for choice in AlertHistory.AlertStatus.choices]
+        if status in valid_statuses:
+            if status == 'triggered':
+                alert_history_query = alert_history_query.filter(status='triggered')
+                anomaly_query = anomaly_query.filter(resolved=False)
+            elif status == 'resolved':
+                alert_history_query = alert_history_query.filter(status='resolved')
+                anomaly_query = anomaly_query.filter(resolved=True)
+    
+    # Get alerts ordered by most recent first
+    alerts_list = list(alert_history_query.order_by('-sent_at')[:500])
+    
+    # Get anomalies ordered by most recent first
+    anomalies_list = list(anomaly_query.order_by('-timestamp')[:500])
+    
+    # Combine alerts and anomalies into unified list with type indicators
+    # Use a list of dicts with 'type' field to distinguish
+    unified_items = []
+    
+    # Add alerts with type='alert'
+    for alert in alerts_list:
+        unified_items.append({
+            'type': 'alert',
+            'object': alert,
+            'timestamp': alert.sent_at,
+        })
+    
+    # Add anomalies with type='anomaly'
+    for anomaly in anomalies_list:
+        unified_items.append({
+            'type': 'anomaly',
+            'object': anomaly,
+            'timestamp': anomaly.timestamp,
+        })
+    
+    # Sort unified list by timestamp (most recent first)
+    unified_items.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    # Limit to 500 most recent items
+    unified_items = unified_items[:500]
+    
+    # Get filter options
+    servers = Server.objects.all().order_by('name')
+    alert_types = AlertHistory.AlertType.choices
+    alert_statuses = AlertHistory.AlertStatus.choices
+    
+    # Counts for summary cards (all alerts and anomalies, not filtered)
+    total_alerts = AlertHistory.objects.count()
+    triggered_alerts = AlertHistory.objects.filter(status='triggered').count()
+    resolved_alerts = AlertHistory.objects.filter(status='resolved').count()
+    
+    total_anomalies = Anomaly.objects.count()
+    unresolved_anomalies = Anomaly.objects.filter(resolved=False).count()
+    resolved_anomalies = Anomaly.objects.filter(resolved=True).count()
+    
+    # Combined counts
+    total_items = total_alerts + total_anomalies
+    active_items = triggered_alerts + unresolved_anomalies
+    resolved_items = resolved_alerts + resolved_anomalies
+    
+    # Filtered count
+    filtered_count = len(unified_items)
+    
+    context = {
+        'unified_items': unified_items,  # Combined list with type indicators
+        'alerts': alerts_list,  # Keep for backward compatibility if needed
+        'anomalies': anomalies_list,  # Keep for reference
+        'servers': servers,
+        'alert_types': alert_types,
+        'alert_statuses': alert_statuses,
+        'selected_server_id': server_id,
+        'selected_alert_type': alert_type,
+        'selected_status': status,
+        'total_alerts': total_items,  # Combined total
+        'triggered_count': active_items,  # Combined active
+        'resolved_count': resolved_items,  # Combined resolved
+        'filtered_count': filtered_count,
+        'total_anomalies': total_anomalies,
+        'unresolved_anomalies': unresolved_anomalies,
+        'show_sidebar': True,
+    }
+    
+    return render(request, 'core/alert_history.html', context)
+
+
+@staff_member_required
 @require_http_methods(["GET"])
 def alert_history_api(request):
     """API endpoint to fetch alert history"""
@@ -2487,6 +3174,92 @@ def alert_history_api(request):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def resolve_alert(request, alert_id):
+    """Mark an alert as resolved"""
+    try:
+        alert = get_object_or_404(AlertHistory, id=alert_id)
+        
+        # Only resolve if currently triggered
+        if alert.status != 'triggered':
+            return JsonResponse({
+                'success': False,
+                'error': f'Alert is already {alert.status}'
+            }, status=400)
+        
+        # Mark as resolved
+        alert.status = AlertHistory.AlertStatus.RESOLVED
+        alert.resolved_at = timezone.now()
+        alert.save()
+        
+        _log_user_action(request, "RESOLVE_ALERT", 
+                        f"Alert ID: {alert_id} on server {alert.server.name}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Alert marked as resolved',
+            'alert': {
+                'id': alert.id,
+                'status': alert.status,
+                'resolved_at': alert.resolved_at.isoformat(),
+            }
+        })
+    except Exception as e:
+        error_logger.error(f"RESOLVE_ALERT error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def bulk_resolve_alerts(request):
+    """Bulk resolve multiple alerts"""
+    try:
+        import json
+        data = json.loads(request.body)
+        alert_ids = data.get('alert_ids', [])
+        
+        if not alert_ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'No alert IDs provided'
+            }, status=400)
+        
+        if not isinstance(alert_ids, list):
+            return JsonResponse({
+                'success': False,
+                'error': 'alert_ids must be a list'
+            }, status=400)
+        
+        # Get alerts and resolve them
+        alerts = AlertHistory.objects.filter(id__in=alert_ids, status='triggered')
+        resolved_count = 0
+        
+        for alert in alerts:
+            alert.status = AlertHistory.AlertStatus.RESOLVED
+            alert.resolved_at = timezone.now()
+            alert.save()
+            resolved_count += 1
+        
+        _log_user_action(request, "BULK_RESOLVE_ALERTS", 
+                        f"Resolved {resolved_count} alerts: {alert_ids}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully resolved {resolved_count} alert(s)',
+            'resolved_count': resolved_count,
+            'requested_count': len(alert_ids)
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        error_logger.error(f"BULK_RESOLVE_ALERTS error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
 @ensure_csrf_cookie
 @require_http_methods(["POST"])
 def toggle_alert_suppression(request, server_id, action):
@@ -2498,21 +3271,25 @@ def toggle_alert_suppression(request, server_id, action):
         if action not in ["suppress", "resume"]:
             return JsonResponse({"success": False, "error": "Invalid action. Use 'suppress' or 'resume'."}, status=400)
 
+        # Get or create monitoring config
+        from .models import MonitoringConfig
+        config, created = MonitoringConfig.objects.get_or_create(server=server)
+
         # Update the state based on action
         if action == "suppress":
-            server.suppress_alerts = True
+            config.alert_suppressed = True
             action_text = "suppressed"
         else:  # resume
-            server.suppress_alerts = False
+            config.alert_suppressed = False
             action_text = "resumed"
 
-        server.save(update_fields=["suppress_alerts"])
+        config.save(update_fields=["alert_suppressed"])
         _log_user_action(request, f"ALERT_{action.upper()}", f"Server: {server.name} (ID: {server_id})")
 
         return JsonResponse({
             "success": True,
             "message": f"Alert suppression {action_text} for {server.name}",
-            "new_state": server.suppress_alerts
+            "new_state": config.alert_suppressed
         })
     except Exception as e:
         error_logger.error(f"TOGGLE_ALERT_SUPPRESSION error: {str(e)}")
@@ -2531,9 +3308,13 @@ def toggle_monitoring(request, server_id, action):
         if action not in ["suspend", "resume"]:
             return JsonResponse({"success": False, "error": "Invalid action. Use 'suspend' or 'resume'."}, status=400)
 
+        # Get or create monitoring config
+        from .models import MonitoringConfig
+        config, created = MonitoringConfig.objects.get_or_create(server=server)
+
         # Update the state based on action
         if action == "suspend":
-            server.suspend_monitoring = True
+            config.monitoring_suspended = True
             action_text = "suspended"
             # CRITICAL: Clear connection state cache when suspending to prevent false offline alerts
             connection_state_key = f"connection_state:{server_id}"
@@ -2542,7 +3323,7 @@ def toggle_monitoring(request, server_id, action):
             suspend_timestamp_key = f"suspend_timestamp:{server_id}"
             cache.set(suspend_timestamp_key, timezone.now().isoformat(), timeout=60)
         else:  # resume
-            server.suspend_monitoring = False
+            config.monitoring_suspended = False
             action_text = "resumed"
             # CRITICAL: When resuming, clear cache to prevent false alerts on first check after resume
             # This ensures we don't send alerts based on stale state from before suspension
@@ -2552,17 +3333,482 @@ def toggle_monitoring(request, server_id, action):
             resume_timestamp_key = f"resume_timestamp:{server_id}"
             cache.set(resume_timestamp_key, timezone.now().isoformat(), timeout=60)
 
-        server.save(update_fields=["suspend_monitoring"])
+        config.save(update_fields=["monitoring_suspended"])
         _log_user_action(request, f"MONITORING_{action.upper()}", f"Server: {server.name} (ID: {server_id})")
 
         return JsonResponse({
             "success": True,
             "message": f"Monitoring {action_text} for {server.name}",
-            "new_state": server.suspend_monitoring
+            "new_state": config.monitoring_suspended
         })
     except Exception as e:
         error_logger.error(f"TOGGLE_MONITORING error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@require_http_methods(["GET"])
+def server_metrics_api(request, server_id):
+    """
+    API endpoint for retrieving server metrics data for charts.
+
+    Returns time-series data for CPU, memory, disk, and network metrics
+    for visualization in the server details page.
+
+    Args:
+        request: Django HTTP request
+        server_id: Integer server ID
+
+    Query Parameters:
+        range: Time range (1h, 24h, 7d, 30d, 90d) - default: 1h
+
+    Returns:
+        JsonResponse: Metrics data or error response
+
+    Example Response:
+        {
+            "cpu": [{"timestamp": "2024-01-01T12:00:00Z", "value": 45.2}, ...],
+            "memory": [{"timestamp": "2024-01-01T12:00:00Z", "value": 62.1}, ...],
+            "disk": [{"timestamp": "2024-01-01T12:00:00Z", "value": 78.3}, ...],
+            "network": [
+                {"timestamp": "2024-01-01T12:00:00Z", "rx": 103200, "tx": 93200},
+                ...
+            ],
+            "suspended": false
+        }
+    """
+    try:
+        # Get server or return 404
+        try:
+            server = Server.objects.get(id=server_id)
+        except Server.DoesNotExist:
+            return JsonResponse(
+                {"error": "Server not found"},
+                status=404
+            )
+
+        # Check if monitoring is suspended
+        from .models import MonitoringConfig
+        try:
+            is_suspended = server.monitoring_config.monitoring_suspended
+        except (AttributeError, MonitoringConfig.DoesNotExist):
+            is_suspended = False
+
+        # Parse range parameter
+        range_param = request.GET.get('range', '1h').lower()
+
+        # Calculate time range
+        now = timezone.now()
+        if range_param == '1h':
+            since = now - timedelta(hours=1)
+            max_points = 60  # ~1 point per minute
+        elif range_param == '24h':
+            since = now - timedelta(hours=24)
+            max_points = 144  # ~1 point per 10 minutes
+        elif range_param == '7d':
+            since = now - timedelta(days=7)
+            max_points = 168  # ~1 point per hour
+        elif range_param == '30d':
+            since = now - timedelta(days=30)
+            max_points = 120  # ~1 point per 6 hours
+        elif range_param == '90d':
+            since = now - timedelta(days=90)
+            max_points = 180  # ~1 point per 12 hours
+        else:
+            # Default to 1h
+            since = now - timedelta(hours=1)
+            max_points = 60
+
+        # If suspended, return empty data
+        if is_suspended:
+            return JsonResponse({
+                "cpu": [],
+                "memory": [],
+                "disk": [],
+                "network": [],
+                "suspended": True
+            })
+
+        # Query SystemMetric for this server in the time range
+        metrics_qs = (
+            SystemMetric.objects
+            .filter(server=server, timestamp__gte=since)
+            .order_by("timestamp")
+            .only("timestamp", "cpu_percent", "memory_percent", "disk_usage", "network_io")
+        )
+
+        metrics_list = list(metrics_qs)
+
+        # Down-sample if too many points
+        if len(metrics_list) > max_points:
+            step = max(1, len(metrics_list) // max_points)
+            metrics_list = metrics_list[::step]
+
+        # Initialize data structures
+        cpu_data = []
+        memory_data = []
+        disk_data = []
+        network_data = []
+
+        # Process metrics
+        prev_network = None
+        for i, metric in enumerate(metrics_list):
+            timestamp_str = metric.timestamp.isoformat()
+
+            # CPU data
+            cpu_val = float(metric.cpu_percent) if metric.cpu_percent is not None else None
+            if cpu_val is not None:
+                cpu_data.append({
+                    "timestamp": timestamp_str,
+                    "value": cpu_val
+                })
+
+            # Memory data
+            memory_val = float(metric.memory_percent) if metric.memory_percent is not None else None
+            if memory_val is not None:
+                memory_data.append({
+                    "timestamp": timestamp_str,
+                    "value": memory_val
+                })
+
+            # Disk data - use highest partition percentage
+            disk_val = None
+            if metric.disk_usage:
+                try:
+                    if isinstance(metric.disk_usage, str):
+                        disk_data_dict = json.loads(metric.disk_usage)
+                    else:
+                        disk_data_dict = metric.disk_usage
+
+                    max_percent = 0.0
+                    for mount, usage in disk_data_dict.items():
+                        if isinstance(usage, dict):
+                            percent = usage.get("percent", 0.0)
+                        else:
+                            percent = float(usage) if isinstance(usage, (int, float)) else 0.0
+                        max_percent = max(max_percent, float(percent))
+
+                    if max_percent > 0:
+                        disk_val = max_percent
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    disk_val = None
+
+            if disk_val is not None:
+                disk_data.append({
+                    "timestamp": timestamp_str,
+                    "value": disk_val
+                })
+
+            # Network data - calculate throughput (bytes/sec)
+            network_entry = None
+            if metric.network_io:
+                try:
+                    if isinstance(metric.network_io, str):
+                        network_data_dict = json.loads(metric.network_io)
+                    else:
+                        network_data_dict = metric.network_io
+
+                    # Sum all interfaces
+                    total_rx = 0
+                    total_tx = 0
+                    for interface, io_data in network_data_dict.items():
+                        if isinstance(io_data, dict):
+                            total_rx += io_data.get("bytes_recv", 0) or 0
+                            total_tx += io_data.get("bytes_sent", 0) or 0
+
+                    # Calculate throughput if we have previous data
+                    if prev_network and i > 0:
+                        time_diff = (metric.timestamp - metrics_list[i-1].timestamp).total_seconds()
+                        if time_diff > 0:
+                            rx_throughput = (total_rx - prev_network['rx']) / time_diff
+                            tx_throughput = (total_tx - prev_network['tx']) / time_diff
+                            network_entry = {
+                                "timestamp": timestamp_str,
+                                "rx": rx_throughput,
+                                "tx": tx_throughput
+                            }
+
+                    prev_network = {'rx': total_rx, 'tx': total_tx}
+
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    pass
+
+            if network_entry:
+                network_data.append(network_entry)
+
+        # Calculate server status
+        server_status = _calculate_server_status(server)
+        
+        # Build response
+        response_data = {
+            "cpu": cpu_data,
+            "memory": memory_data,
+            "disk": disk_data,
+            "network": network_data,
+            "suspended": False,
+            "status": server_status
+        }
+
+        return JsonResponse(response_data, safe=False)
+
+    except Exception as e:
+        # Log error and return error response
+        app_logger.error(f"Error in server_metrics_api for server {server_id}: {e}")
+        return JsonResponse(
+            {"error": "Internal server error", "message": str(e)},
+            status=500
+        )
+
+
+@require_http_methods(["GET"])
+def disk_io_api(request, server_id):
+    """
+    API endpoint for retrieving disk I/O metrics for charts.
+
+    Returns time-series data for disk read/write rates in bytes/second
+    for visualization in the server details page.
+
+    Args:
+        request: Django HTTP request
+        server_id: Integer server ID
+
+    Query Parameters:
+        range: Time range (1h, 24h, 7d) - default: 1h
+
+    Returns:
+        JsonResponse: Disk I/O data or error response
+
+    Example Response:
+        {
+            "read": [{"timestamp": "2024-01-01T12:00:00Z", "value": 1024000}, ...],
+            "write": [{"timestamp": "2024-01-01T12:00:00Z", "value": 512000}, ...],
+            "suspended": false
+        }
+    """
+    try:
+        # Get server or return 404
+        try:
+            server = Server.objects.get(id=server_id)
+        except Server.DoesNotExist:
+            return JsonResponse(
+                {"error": "Server not found"},
+                status=404
+            )
+
+        # Check if monitoring is suspended
+        from .models import MonitoringConfig
+        try:
+            is_suspended = server.monitoring_config.monitoring_suspended
+        except (AttributeError, MonitoringConfig.DoesNotExist):
+            is_suspended = False
+
+        # Parse range parameter
+        range_param = request.GET.get('range', '1h').lower()
+
+        # Calculate time range
+        now = timezone.now()
+        if range_param == '1h':
+            since = now - timedelta(hours=1)
+            max_points = 60
+        elif range_param == '24h':
+            since = now - timedelta(hours=24)
+            max_points = 144
+        elif range_param == '7d':
+            since = now - timedelta(days=7)
+            max_points = 168
+        else:
+            # Default to 1h
+            since = now - timedelta(hours=1)
+            max_points = 60
+
+        # If suspended, return empty data
+        if is_suspended:
+            return JsonResponse({
+                "read": [],
+                "write": [],
+                "suspended": True
+            })
+
+        # Query SystemMetric for this server in the time range
+        metrics_qs = (
+            SystemMetric.objects
+            .filter(server=server, timestamp__gte=since)
+            .order_by("timestamp")
+            .only("timestamp", "disk_io_read", "disk_io_write")
+        )
+
+        metrics_list = list(metrics_qs)
+
+        # Down-sample if too many points
+        if len(metrics_list) > max_points:
+            step = max(1, len(metrics_list) // max_points)
+            metrics_list = metrics_list[::step]
+
+        # Initialize data structures
+        read_data = []
+        write_data = []
+
+        # Process metrics
+        for metric in metrics_list:
+            timestamp_str = metric.timestamp.isoformat()
+
+            # Disk read data
+            read_val = float(metric.disk_io_read) if metric.disk_io_read is not None else None
+            if read_val is not None and read_val >= 0:
+                read_data.append({
+                    "timestamp": timestamp_str,
+                    "value": read_val
+                })
+
+            # Disk write data
+            write_val = float(metric.disk_io_write) if metric.disk_io_write is not None else None
+            if write_val is not None and write_val >= 0:
+                write_data.append({
+                    "timestamp": timestamp_str,
+                    "value": write_val
+                })
+
+        # Build response
+        response_data = {
+            "read": read_data,
+            "write": write_data,
+            "suspended": False
+        }
+
+        return JsonResponse(response_data, safe=False)
+
+    except Exception as e:
+        # Log error and return error response
+        app_logger.error(f"Error in disk_io_api for server {server_id}: {e}")
+        return JsonResponse(
+            {"error": "Internal server error", "message": str(e)},
+            status=500
+        )
+
+
+@require_http_methods(["GET"])
+def network_io_api(request, server_id):
+    """
+    API endpoint for retrieving network I/O metrics for charts.
+
+    Returns time-series data for network sent/received rates in bytes/second
+    for visualization in the server details page.
+
+    Args:
+        request: Django HTTP request
+        server_id: Integer server ID
+
+    Query Parameters:
+        range: Time range (1h, 24h, 7d) - default: 1h
+
+    Returns:
+        JsonResponse: Network I/O data or error response
+
+    Example Response:
+        {
+            "sent": [{"timestamp": "2024-01-01T12:00:00Z", "value": 512000}, ...],
+            "recv": [{"timestamp": "2024-01-01T12:00:00Z", "value": 1024000}, ...],
+            "suspended": false
+        }
+    """
+    try:
+        # Get server or return 404
+        try:
+            server = Server.objects.get(id=server_id)
+        except Server.DoesNotExist:
+            return JsonResponse(
+                {"error": "Server not found"},
+                status=404
+            )
+
+        # Check if monitoring is suspended
+        from .models import MonitoringConfig
+        try:
+            is_suspended = server.monitoring_config.monitoring_suspended
+        except (AttributeError, MonitoringConfig.DoesNotExist):
+            is_suspended = False
+
+        # Parse range parameter
+        range_param = request.GET.get('range', '1h').lower()
+
+        # Calculate time range
+        now = timezone.now()
+        if range_param == '1h':
+            since = now - timedelta(hours=1)
+            max_points = 60
+        elif range_param == '24h':
+            since = now - timedelta(hours=24)
+            max_points = 144
+        elif range_param == '7d':
+            since = now - timedelta(days=7)
+            max_points = 168
+        else:
+            # Default to 1h
+            since = now - timedelta(hours=1)
+            max_points = 60
+
+        # If suspended, return empty data
+        if is_suspended:
+            return JsonResponse({
+                "sent": [],
+                "recv": [],
+                "suspended": True
+            })
+
+        # Query SystemMetric for this server in the time range
+        metrics_qs = (
+            SystemMetric.objects
+            .filter(server=server, timestamp__gte=since)
+            .order_by("timestamp")
+            .only("timestamp", "net_io_sent", "net_io_recv")
+        )
+
+        metrics_list = list(metrics_qs)
+
+        # Down-sample if too many points
+        if len(metrics_list) > max_points:
+            step = max(1, len(metrics_list) // max_points)
+            metrics_list = metrics_list[::step]
+
+        # Initialize data structures
+        sent_data = []
+        recv_data = []
+
+        # Process metrics
+        for metric in metrics_list:
+            timestamp_str = metric.timestamp.isoformat()
+
+            # Network sent data
+            sent_val = float(metric.net_io_sent) if metric.net_io_sent is not None else None
+            if sent_val is not None and sent_val >= 0:
+                sent_data.append({
+                    "timestamp": timestamp_str,
+                    "value": sent_val
+                })
+
+            # Network received data
+            recv_val = float(metric.net_io_recv) if metric.net_io_recv is not None else None
+            if recv_val is not None and recv_val >= 0:
+                recv_data.append({
+                    "timestamp": timestamp_str,
+                    "value": recv_val
+                })
+
+        # Build response
+        response_data = {
+            "sent": sent_data,
+            "recv": recv_data,
+            "suspended": False
+        }
+
+        return JsonResponse(response_data, safe=False)
+
+    except Exception as e:
+        # Log error and return error response
+        app_logger.error(f"Error in network_io_api for server {server_id}: {e}")
+        return JsonResponse(
+            {"error": "Internal server error", "message": str(e)},
+            status=500
+        )
 
 
 @staff_member_required
@@ -3035,31 +4281,95 @@ def get_server_services(request, server_id):
                             'unit_name': unit_name
                         })
 
+            # Get existing Service records from database to include IDs and monitoring status
+            from .models import Service
+            existing_services = {s.name: s for s in Service.objects.filter(server=server)}
+            current_time = timezone.now()
+            
+            # Update or create Service records and add IDs/monitoring status to response
+            for service in all_services:
+                service_name = service['name']
+                if service_name in existing_services:
+                    # Update existing service status
+                    db_service = existing_services[service_name]
+                    db_service.status = service['status']
+                    db_service.last_checked = current_time
+                    db_service.save()
+                    # Add ID and monitoring status
+                    service['id'] = db_service.id
+                    service['monitoring_enabled'] = db_service.monitoring_enabled if db_service.monitoring_enabled is not None else False
+                else:
+                    # Create new service record
+                    new_service = Service.objects.create(
+                        server=server,
+                        name=service_name,
+                        status=service['status'],
+                        service_type='systemd',
+                        last_checked=current_time,
+                        monitoring_enabled=False
+                    )
+                    service['id'] = new_service.id
+                    service['monitoring_enabled'] = False
+            
             # Categorize services
             monitored_services = set(monitoring_config.monitored_services or [])
             critical = []
             running = []
             stopped = []
             failed = []
+            
+            # Critical service patterns (same as in get_active_services)
+            critical_patterns = [
+                'apache', 'httpd', 'nginx', 'web', 'www',
+                'mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb', 'redis', 'db',
+                'mail', 'postfix', 'sendmail', 'dovecot', 'exim', 'smtp', 'imap', 'pop',
+                'php', 'python', 'node', 'java', 'tomcat', 'jetty', 'gunicorn',
+                'cpanel', 'whm', 'lsws', 'openlitespeed',
+                'docker', 'containerd', 'kube',
+                'elasticsearch', 'kibana', 'logstash',
+                'rabbitmq', 'activemq', 'kafka'
+            ]
 
             for service in all_services:
+                service_name_lower = service['name'].lower()
+                is_critical_service = False
+                
+                # Check if it's in monitored services
                 if service['name'] in monitored_services:
+                    is_critical_service = True
+                else:
+                    # Check if it matches critical patterns
+                    for pattern in critical_patterns:
+                        if pattern in service_name_lower:
+                            is_critical_service = True
+                            break
+                
+                # Add is_critical flag to service
+                service['is_critical'] = is_critical_service
+                
+                if is_critical_service:
                     critical.append(service)
-                elif service['status'] == 'running':
+                
+                # Also categorize by status
+                if service['status'] == 'running':
                     running.append(service)
                 elif service['status'] == 'stopped':
                     stopped.append(service)
                 elif service['status'] == 'failed':
                     failed.append(service)
 
+            # Separate monitored services (enabled) from all critical services
+            monitored = [s for s in all_services if s.get('monitoring_enabled', False)]
+            
             return JsonResponse({
                 "success": True,
                 "critical": critical,
+                "monitored": monitored,  # Services with monitoring enabled
                 "running": running,
                 "stopped": stopped,
                 "failed": failed,
                 "all": all_services,
-                "monitored_count": len(critical),
+                "monitored_count": len(monitored),
                 "total_count": len(all_services)
             })
 
@@ -3139,6 +4449,60 @@ def update_service_thresholds(request, server_id):
         logger.error(f"Failed to update service thresholds: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+def server_anomalies_log(request, server_id):
+    """View page to display and manage anomalies for a specific server"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+    except Server.DoesNotExist:
+        from django.http import Http404
+        raise Http404("Server not found")
+    
+    # Get query parameters for filtering
+    status_filter = request.GET.get('status', '').strip()
+    severity_filter = request.GET.get('severity', '').strip()
+    
+    # Build query for anomalies
+    anomalies_query = Anomaly.objects.filter(server=server).select_related('metric').order_by('-timestamp')
+    
+    # Apply filters
+    if status_filter == 'resolved':
+        anomalies_query = anomalies_query.filter(resolved=True)
+    elif status_filter == 'unresolved':
+        anomalies_query = anomalies_query.filter(resolved=False)
+    
+    if severity_filter:
+        valid_severities = [choice[0] for choice in Anomaly.Severity.choices]
+        if severity_filter in valid_severities:
+            anomalies_query = anomalies_query.filter(severity=severity_filter)
+    
+    anomalies = list(anomalies_query[:500])  # Limit to 500 most recent
+    
+    # Counts for summary
+    total_anomalies = Anomaly.objects.filter(server=server).count()
+    unresolved_count = Anomaly.objects.filter(server=server, resolved=False).count()
+    resolved_count = Anomaly.objects.filter(server=server, resolved=True).count()
+    
+    # Severity counts
+    severity_counts = {}
+    for severity_code, severity_label in Anomaly.Severity.choices:
+        severity_counts[severity_code] = Anomaly.objects.filter(server=server, severity=severity_code).count()
+    
+    context = {
+        'server': server,
+        'anomalies': anomalies,
+        'total_anomalies': total_anomalies,
+        'unresolved_count': unresolved_count,
+        'resolved_count': resolved_count,
+        'severity_counts': severity_counts,
+        'selected_status': status_filter,
+        'selected_severity': severity_filter,
+        'severity_choices': Anomaly.Severity.choices,
+        'show_sidebar': True,
+    }
+    
+    return render(request, 'core/server_anomalies_log.html', context)
 
 
 @staff_member_required
@@ -3415,6 +4779,335 @@ def toggle_service_monitoring(request, server_id, service_id):
 
 
 @staff_member_required
+@require_http_methods(["GET"])
+def dashboard_news_feed_api(request):
+    """
+    API endpoint for dashboard news ticker feed.
+    Returns recent events (alerts, anomalies, status changes) in a news-like format.
+    """
+    try:
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Get events from the last 24 hours
+        since = timezone.now() - timedelta(hours=24)
+        news_items = []
+        
+        # 1. Recent alerts (triggered and resolved)
+        recent_alerts = AlertHistory.objects.filter(
+            sent_at__gte=since
+        ).select_related('server').order_by('-sent_at')[:50]
+        
+        for alert in recent_alerts:
+            if alert.status == 'triggered':
+                time_ago = timezone.now() - alert.sent_at
+                if time_ago < timedelta(minutes=1):
+                    time_str = "just now"
+                elif time_ago < timedelta(hours=1):
+                    minutes = int(time_ago.total_seconds() / 60)
+                    time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+                elif time_ago < timedelta(hours=12):
+                    hours = int(time_ago.total_seconds() / 3600)
+                    time_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
+                else:
+                    time_str = alert.sent_at.strftime("%I:%M %p")
+                
+                news_items.append({
+                    'type': 'alert',
+                    'icon': '🔴',
+                    'severity': 'high',
+                    'text': f"{alert.server.name}: {alert.message} ({time_str})",
+                    'timestamp': alert.sent_at.isoformat(),
+                    'server_name': alert.server.name,
+                })
+            elif alert.status == 'resolved' and alert.resolved_at:
+                time_ago = timezone.now() - alert.resolved_at
+                if time_ago < timedelta(minutes=1):
+                    time_str = "just now"
+                elif time_ago < timedelta(hours=1):
+                    minutes = int(time_ago.total_seconds() / 60)
+                    time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+                else:
+                    time_str = alert.resolved_at.strftime("%I:%M %p")
+                
+                news_items.append({
+                    'type': 'resolved',
+                    'icon': '✅',
+                    'severity': 'info',
+                    'text': f"{alert.server.name}: {alert.alert_type} alert resolved ({time_str})",
+                    'timestamp': alert.resolved_at.isoformat(),
+                    'server_name': alert.server.name,
+                })
+        
+        # 2. Recent anomalies (unresolved)
+        recent_anomalies = Anomaly.objects.filter(
+            timestamp__gte=since,
+            resolved=False
+        ).select_related('server', 'metric').order_by('-timestamp')[:30]
+        
+        for anomaly in recent_anomalies:
+            time_ago = timezone.now() - anomaly.timestamp
+            if time_ago < timedelta(minutes=1):
+                time_str = "just now"
+            elif time_ago < timedelta(hours=1):
+                minutes = int(time_ago.total_seconds() / 60)
+                time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+            elif time_ago < timedelta(hours=12):
+                hours = int(time_ago.total_seconds() / 3600)
+                time_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
+            else:
+                time_str = anomaly.timestamp.strftime("%I:%M %p")
+            
+            severity_icon = {
+                'LOW': '🟡',
+                'MEDIUM': '🟠',
+                'HIGH': '🔴',
+                'CRITICAL': '🚨'
+            }.get(anomaly.severity, '⚠️')
+            
+            news_items.append({
+                'type': 'anomaly',
+                'icon': severity_icon,
+                'severity': anomaly.severity.lower(),
+                'text': f"{anomaly.server.name}: {anomaly.metric_type.upper()} anomaly detected - {anomaly.metric_name} = {anomaly.metric_value:.1f}% ({time_str})",
+                'timestamp': anomaly.timestamp.isoformat(),
+                'server_name': anomaly.server.name,
+            })
+        
+        # 3. Add current system status summary
+        total_servers = Server.objects.count()
+        online_servers = sum(1 for s in Server.objects.all() if _calculate_server_status(s) == 'online')
+        warning_servers = sum(1 for s in Server.objects.all() if _calculate_server_status(s) == 'warning')
+        offline_servers = total_servers - online_servers - warning_servers
+        
+        active_alerts = AlertHistory.objects.filter(status='triggered').count()
+        active_anomalies = Anomaly.objects.filter(resolved=False).count()
+        
+        # Add status summary as first item (if no recent events, show current status)
+        if len(news_items) == 0 or online_servers == total_servers:
+            news_items.insert(0, {
+                'type': 'status',
+                'icon': '📊',
+                'severity': 'info',
+                'text': f"All systems operational: {online_servers}/{total_servers} servers online, {active_alerts} active alerts, {active_anomalies} active anomalies",
+                'timestamp': timezone.now().isoformat(),
+                'server_name': 'System',
+            })
+        else:
+            # Add current status as context
+            if warning_servers > 0 or offline_servers > 0:
+                news_items.insert(0, {
+                    'type': 'status',
+                    'icon': '⚠️',
+                    'severity': 'warning',
+                    'text': f"System Status: {online_servers} online, {warning_servers} warning, {offline_servers} offline",
+                    'timestamp': timezone.now().isoformat(),
+                    'server_name': 'System',
+                })
+        
+        # Sort by timestamp (most recent first)
+        news_items.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Limit to 100 items
+        news_items = news_items[:100]
+        
+        return JsonResponse({
+            'success': True,
+            'news_items': news_items,
+            'count': len(news_items),
+            'generated_at': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_NEWS_FEED_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+def log_troubleshooting_config(request):
+    """
+    Log troubleshooting configuration page.
+    Allows users to configure log monitoring for servers and services.
+    """
+    servers = Server.objects.all().order_by('name')
+    monitored_logs = MonitoredLog.objects.all().select_related('server').order_by('-id')
+    
+    # Get service choices
+    service_choices = MonitoredLog.ServiceChoices.choices
+    
+    context = {
+        'servers': servers,
+        'monitored_logs': monitored_logs,
+        'service_choices': service_choices,
+        'show_sidebar': True,
+    }
+    context.update(admin.site.each_context(request))
+    
+    return render(request, 'core/log_troubleshooting_config.html', context)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def log_troubleshooting_add(request):
+    """API endpoint to add/configure log troubleshooting"""
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        server_id = data.get('server_id')
+        service_type = data.get('service_type')
+        log_path = data.get('log_path', '').strip()
+        application_name = data.get('application_name', '').strip()
+        enabled = data.get('enabled', True)
+        
+        if not server_id:
+            return JsonResponse({'success': False, 'error': 'Server is required'}, status=400)
+        
+        server = get_object_or_404(Server, id=server_id)
+        
+        # Determine log path based on service type
+        if not log_path:
+            defaults = {
+                'apache': '/var/log/apache2/error.log',
+                'nginx': '/var/log/nginx/error.log',
+                'exim': '/var/log/exim4/mainlog',
+                'postfix': '/var/log/mail.log',
+                'mysql': '/var/log/mysql/error.log',
+                'mariadb': '/var/log/mysql/error.log',
+            }
+            log_path = defaults.get(service_type, '')
+        
+        if not log_path:
+            return JsonResponse({'success': False, 'error': 'Log path is required'}, status=400)
+        
+        # Determine parser type based on service
+        parser_map = {
+            'apache': MonitoredLog.ParserChoices.APACHE_ERROR,
+            'nginx': MonitoredLog.ParserChoices.NGINX_ERROR,
+            'exim': MonitoredLog.ParserChoices.EXIM_ERROR,
+            'postfix': MonitoredLog.ParserChoices.POSTFIX_ERROR,
+            'mysql': MonitoredLog.ParserChoices.MYSQL_ERROR,
+            'mariadb': MonitoredLog.ParserChoices.MARIADB_ERROR,
+            'custom': MonitoredLog.ParserChoices.CUSTOM_APP,
+        }
+        parser_type = parser_map.get(service_type, MonitoredLog.ParserChoices.GENERIC_ERROR)
+        
+        # Default application name
+        if not application_name:
+            application_name = service_type.upper() if service_type != 'custom' else 'Custom App'
+        
+        # Create or update MonitoredLog
+        monitored_log, created = MonitoredLog.objects.update_or_create(
+            server=server,
+            log_path=log_path,
+            defaults={
+                'application_name': application_name,
+                'service_type': service_type,
+                'parser_type': parser_type,
+                'enabled': enabled,
+            }
+        )
+        
+        _log_user_action(request, "LOG_TROUBLESHOOTING_ADD", 
+                        f"{'Created' if created else 'Updated'} log monitoring: {server.name} - {log_path}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f"Log troubleshooting {'configured' if created else 'updated'} successfully",
+            'monitored_log_id': monitored_log.id
+        })
+    except Exception as e:
+        error_logger.error(f"LOG_TROUBLESHOOTING_ADD error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def log_troubleshooting_results(request):
+    """
+    Display log troubleshooting results - detected errors and issues
+    """
+    # Get all log events grouped by monitored log
+    log_events = LogEvent.objects.select_related(
+        'monitored_log', 
+        'monitored_log__server'
+    ).order_by('-last_seen', '-event_count')
+    
+    # Filter by server if provided
+    server_id = request.GET.get('server_id')
+    if server_id:
+        log_events = log_events.filter(monitored_log__server_id=server_id)
+    
+    # Get events with solutions from AnalysisRule
+    events_with_solutions = []
+    for event in log_events[:100]:  # Limit to 100 most recent
+        # Check if there's an AnalysisRule that matches this log message
+        matching_rule = AnalysisRule.objects.filter(
+            pattern_to_match__icontains=event.message[:100]  # Match on first 100 chars
+        ).first()
+        
+        events_with_solutions.append({
+            'event': event,
+            'solution': matching_rule.solution if matching_rule else None,
+            'rule': matching_rule,
+        })
+    
+    context = {
+        'events_with_solutions': events_with_solutions,
+        'total_events': log_events.count(),
+        'show_sidebar': True,
+    }
+    context.update(admin.site.each_context(request))
+    
+    return render(request, 'core/log_troubleshooting_results.html', context)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def log_troubleshooting_create_solution(request):
+    """API endpoint to create AnalysisRule solution from log error"""
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        event_id = data.get('event_id')
+        pattern = data.get('pattern', '').strip()
+        name = data.get('name', '').strip()
+        explanation = data.get('explanation', '').strip()
+        solution = data.get('solution', '').strip()
+        
+        if not all([event_id, pattern, name, explanation, solution]):
+            return JsonResponse({'success': False, 'error': 'All fields are required'}, status=400)
+        
+        # Get the log event
+        try:
+            log_event = LogEvent.objects.get(id=event_id)
+        except LogEvent.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Log event not found'}, status=404)
+        
+        # Create AnalysisRule
+        analysis_rule = AnalysisRule.objects.create(
+            name=name,
+            pattern_to_match=pattern,
+            explanation=explanation,
+            solution=solution,
+            recommendation=AnalysisRule.ActionType.INVESTIGATE,
+            llm_generated=False
+        )
+        
+        _log_user_action(request, "LOG_TROUBLESHOOTING_CREATE_SOLUTION", 
+                        f"Created solution for log event {event_id}: {name}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Solution created successfully',
+            'rule_id': analysis_rule.id
+        })
+    except Exception as e:
+        error_logger.error(f"LOG_TROUBLESHOOTING_CREATE_SOLUTION error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
 def help_docs(request):
     """
     Help documentation page.
@@ -3615,8 +5308,298 @@ def delete_role(request, role_id):
 
 def demo_dashboard(request):
     """
-    Demo dashboard showcasing all UI components from the design system
+    Demo dashboard showcasing IBM Carbon Design System components
     """
+    # Return the IBM Carbon demo page content directly
+    from django.http import HttpResponse
+
+    html_content = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBM Carbon Design System Demo - StackSense</title>
+
+    <!-- IBM Carbon Design System -->
+    <link rel="stylesheet" href="https://unpkg.com/carbon-components@10.58.0/css/carbon-components.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/@carbon/icons@10.49.2/css/carbon-icons.min.css">
+    <script src="https://unpkg.com/carbon-components@10.58.0/scripts/carbon-components.min.js"></script>
+
+    <style>
+        /* IBM Carbon Design System CSS Variables from design.json */
+        :root {
+            --cds-color-blue-50: #f0f9ff;
+            --cds-color-blue-60: #0ea5e9;
+            --cds-color-blue-70: #0369a1;
+            --cds-color-gray-10: #f8fafc;
+            --cds-color-gray-20: #e2e8f0;
+            --cds-color-gray-50: #64748b;
+            --cds-color-gray-70: #334155;
+            --cds-color-gray-100: #0f172a;
+            --cds-color-green-50: #f0fdf4;
+            --cds-color-green-60: #22c55e;
+            --cds-color-yellow-50: #fffbeb;
+            --cds-color-yellow-60: #f59e0b;
+            --cds-color-red-50: #fef2f2;
+            --cds-color-red-60: #ef4444;
+            --cds-color-white: #ffffff;
+            --cds-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            font-family: var(--cds-font-family);
+            margin: 0;
+            padding: 0;
+            background-color: var(--cds-color-gray-10);
+        }
+
+        .demo-header {
+            background: linear-gradient(135deg, var(--cds-color-blue-50) 0%, var(--cds-color-white) 100%);
+            border-bottom: 1px solid var(--cds-color-gray-20);
+            padding: 3rem 0;
+            text-align: center;
+        }
+
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .demo-title {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--cds-color-gray-100);
+            margin-bottom: 1rem;
+        }
+
+        .demo-subtitle {
+            font-size: 1.125rem;
+            color: var(--cds-color-gray-70);
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .demo-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .demo-section {
+            margin-bottom: 3rem;
+        }
+
+        .demo-section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--cds-color-gray-100);
+            margin-bottom: 1.5rem;
+        }
+
+        .demo-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .demo-footer {
+            background: var(--cds-color-gray-10);
+            border-top: 1px solid var(--cds-color-gray-20);
+            padding: 2rem 0;
+            margin-top: 3rem;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .demo-stats {
+                grid-template-columns: 1fr;
+            }
+            .demo-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="demo-header">
+        <div class="demo-container">
+            <h1 class="demo-title">✅ IBM Carbon Design System Demo</h1>
+            <p class="demo-subtitle">
+                Professional monitoring interface built with IBM Carbon components. Clean, accessible, and enterprise-grade design system.
+            </p>
+            <div class="demo-actions">
+                <button class="bx--btn bx--btn--primary">Explore Components</button>
+                <button class="bx--btn bx--btn--secondary">View Guidelines</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="demo-container">
+        <!-- Statistics Cards -->
+        <div class="demo-stats">
+            <div class="bx--tile">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 2rem; font-weight: 600; color: #0ea5e9;">8</h4>
+                        <p style="margin: 0.5rem 0 0 0; color: #64748b;">Active Servers</p>
+                    </div>
+                    <svg width="32" height="32" fill="#0ea5e9" viewBox="0 0 24 24">
+                        <path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="bx--tile">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 2rem; font-weight: 600; color: #22c55e;">156</h4>
+                        <p style="margin: 0.5rem 0 0 0; color: #64748b;">Total Metrics</p>
+                    </div>
+                    <svg width="32" height="32" fill="#22c55e" viewBox="0 0 24 24">
+                        <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="bx--tile">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 2rem; font-weight: 600; color: #ef4444;">3</h4>
+                        <p style="margin: 0.5rem 0 0 0; color: #64748b;">Active Alerts</p>
+                    </div>
+                    <svg width="32" height="32" fill="#ef4444" viewBox="0 0 24 24">
+                        <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="bx--tile">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 2rem; font-weight: 600; color: #f59e0b;">98.5%</h4>
+                        <p style="margin: 0.5rem 0 0 0; color: #64748b;">System Uptime</p>
+                    </div>
+                    <svg width="32" height="32" fill="#f59e0b" viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Color Palette Section -->
+        <div class="demo-section">
+            <h2 class="demo-section-title">🎨 IBM Carbon Color Palette</h2>
+            <p>Enterprise-grade color system with semantic meanings and accessibility compliance.</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                <div class="bx--tile" style="background: #0ea5e9; color: white; border: none; text-align: center; padding: 1rem;">
+                    <strong>Primary Blue</strong><br>
+                    <small>#0ea5e9</small>
+                </div>
+                <div class="bx--tile" style="background: #22c55e; color: white; border: none; text-align: center; padding: 1rem;">
+                    <strong>Success Green</strong><br>
+                    <small>#22c55e</small>
+                </div>
+                <div class="bx--tile" style="background: #f59e0b; color: white; border: none; text-align: center; padding: 1rem;">
+                    <strong>Warning Amber</strong><br>
+                    <small>#f59e0b</small>
+                </div>
+                <div class="bx--tile" style="background: #ef4444; color: white; border: none; text-align: center; padding: 1rem;">
+                    <strong>Danger Red</strong><br>
+                    <small>#ef4444</small>
+                </div>
+                <div class="bx--tile" style="background: #64748b; color: white; border: none; text-align: center; padding: 1rem;">
+                    <strong>Secondary Gray</strong><br>
+                    <small>#64748b</small>
+                </div>
+                <div class="bx--tile" style="background: #ffffff; color: #000; border: 1px solid #e2e8f0; text-align: center; padding: 1rem;">
+                    <strong>White</strong><br>
+                    <small>#ffffff</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Components Section -->
+        <div class="demo-section">
+            <h2 class="demo-section-title">🧩 IBM Carbon Components</h2>
+            <p>Professional UI components designed for enterprise applications.</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                <!-- Buttons -->
+                <div class="bx--tile">
+                    <h4>Action Buttons</h4>
+                    <p>Primary actions and secondary options</p>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button class="bx--btn bx--btn--primary bx--btn--sm">Primary Action</button>
+                        <button class="bx--btn bx--btn--secondary bx--btn--sm">Secondary</button>
+                        <button class="bx--btn bx--btn--ghost bx--btn--sm">Ghost Button</button>
+                        <button class="bx--btn bx--btn--danger bx--btn--sm">Danger</button>
+                    </div>
+                </div>
+
+                <!-- Form Elements -->
+                <div class="bx--tile">
+                    <h4>Form Controls</h4>
+                    <p>Accessible input components</p>
+                    <div class="bx--form-item" style="margin-bottom: 1rem;">
+                        <label class="bx--label">Server Name</label>
+                        <input type="text" class="bx--text-input" placeholder="web-server-01">
+                    </div>
+                    <div class="bx--form-item">
+                        <div class="bx--checkbox-wrapper">
+                            <input type="checkbox" class="bx--checkbox" id="monitoring-enabled" checked>
+                            <label class="bx--checkbox-label" for="monitoring-enabled">Enable monitoring</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Indicators -->
+                <div class="bx--tile">
+                    <h4>Status Tags</h4>
+                    <p>Semantic status indicators</p>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <span class="bx--tag bx--tag--green">Operational</span>
+                        <span class="bx--tag bx--tag--yellow">Warning</span>
+                        <span class="bx--tag bx--tag--red">Critical</span>
+                        <span class="bx--tag bx--tag--gray">Maintenance</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="demo-footer">
+        <div class="demo-container">
+            <h3 style="margin-bottom: 1rem; color: #0f172a;">🎨 IBM Carbon Design System</h3>
+            <p style="color: #64748b; margin-bottom: 2rem;">
+                Enterprise-grade design system powering StackSense monitoring platform.
+                Built with accessibility, scalability, and professional aesthetics in mind.
+            </p>
+            <div class="demo-actions">
+                <a href="/monitoring/" class="bx--btn bx--btn--secondary">← Back to Dashboard</a>
+                <button class="bx--btn bx--btn--primary">🔄 Refresh Demo</button>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Carbon Components
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('✅ IBM Carbon Design System Demo Loaded Successfully!');
+        });
+    </script>
+</body>
+</html>"""
+
+    return HttpResponse(html_content, content_type='text/html')
     context = {
         'page_title': 'Design System Demo',
         'demo_data': {

@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}StackSense - Monitoring Dashboard{% endblock %}</title>
+
+    <!-- Tailwind CSS (compiled) -->
+    <link rel="stylesheet" href="{% static 'core/css/main.css' %}">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Favicon -->
+    <link rel="icon" href="{% static 'core/img/logo.svg' %}" type="image/svg+xml">
+
+    {% block extrahead %}{% endblock %}
+</head>
+
+<body class="bg-background text-foreground flex h-screen overflow-hidden font-sans">
+
+    <!-- Sidebar -->
+    {% if show_sidebar %}
+    {% include "core/sidebar.html" %}
+    {% endif %}
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col h-screen overflow-hidden relative">
+
+        <!-- Top Header -->
+        <header
+            class="h-16 bg-card border-b border-border flex items-center px-8 justify-between sticky top-0 z-10 shrink-0">
+            <h1 class="text-lg font-semibold text-foreground">StackWatch Dashboard</h1>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm text-muted-foreground">Admin</span>
+                <div
+                    class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
+                    A
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Scrollable Content -->
+        <main class="flex-1 overflow-y-auto bg-background p-8">
+            <!-- Back button for non-sidebar pages -->
+            {% if not show_sidebar %}
+            <div class="mb-6">
+                <a href="/monitoring/"
+                    class="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back to Dashboard
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="max-w-7xl mx-auto w-full">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- JavaScript -->
+    {% block extrajs %}{% endblock %}
+</body>
+
+</html>
