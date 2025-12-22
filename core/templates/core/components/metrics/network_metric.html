@@ -1,0 +1,58 @@
+{% comment %}
+Network Metric Component Template
+
+Required variables:
+- server_id: Server ID
+- metric_data: Dictionary with net_io_sent, net_io_recv
+- compact_mode: Boolean for compact display (default: False)
+- show_header: Boolean to show header (default: True)
+{% endcomment %}
+
+{% load static %}
+
+<div class="metric-component{% if compact_mode %} compact{% endif %}" 
+     id="metric-network-{{ server_id }}"
+     data-metric-type="network"
+     data-server-id="{{ server_id }}">
+    
+    {% if show_header|default:True %}
+    <h2 class="metric-component-header">Network</h2>
+    {% endif %}
+    
+    <div class="metric-content">
+        {% if compact_mode %}
+            <!-- Compact mode for dashboard cards -->
+            <div class="metric-main-value" id="network-main-{{ server_id }}">
+                {{ metric_data.net_io_sent|default:"--"|floatformat:"0" }} KB/s
+            </div>
+        {% else %}
+            <!-- Full mode for server details page -->
+            <div class="metric-sub-grid">
+                <div class="metric-sub-item">
+                    <div class="metric-sub-label">Sent</div>
+                    <div class="metric-sub-value" id="network-sent-{{ server_id }}">
+                        {{ metric_data.net_io_sent|default:"--"|floatformat:"0" }} KB/s
+                    </div>
+                </div>
+                <div class="metric-sub-item">
+                    <div class="metric-sub-label">Received</div>
+                    <div class="metric-sub-value" id="network-recv-{{ server_id }}">
+                        {{ metric_data.net_io_recv|default:"--"|floatformat:"0" }} KB/s
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    <div class="metric-loading" id="metric-loading-network-{{ server_id }}" style="display: none;">
+        Loading...
+    </div>
+    
+    <div class="metric-error" id="metric-error-network-{{ server_id }}" style="display: none;">
+        <span id="metric-error-message-network-{{ server_id }}"></span>
+    </div>
+</div>
+
+
+
+

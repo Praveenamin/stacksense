@@ -1,0 +1,57 @@
+{% comment %}
+Summary Metrics Card Component
+
+Required variables:
+- component_id: Unique identifier
+- title: Card title
+- icon: Optional icon
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-summary-metrics">
+    <div class="dashboard-component-header">
+        <h3 class="dashboard-component-title">Summary Metrics</h3>
+    </div>
+    <div class="dashboard-component-content" id="dashboard-content-summary-metrics">
+        <div class="dashboard-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="summary-metric-card" id="summary-total-vms">
+                <div class="summary-metric-value" id="total-vms-value">0</div>
+                <div class="summary-metric-label">Total Monitored VMs</div>
+                <div class="summary-metric-trend" id="total-vms-trend">
+                    <span>—</span>
+                </div>
+            </div>
+            <div class="summary-metric-card warning" id="summary-active-alerts">
+                <div class="summary-metric-value" id="active-alerts-value">0</div>
+                <div class="summary-metric-label">Active Alerts</div>
+                <div class="summary-metric-trend" id="active-alerts-trend">
+                    <span>—</span>
+                </div>
+            </div>
+            <div class="summary-metric-card danger" id="summary-critical-vms">
+                <div class="summary-metric-value" id="critical-vms-value">0</div>
+                <div class="summary-metric-label">Critical VM Count</div>
+                <div class="summary-metric-trend">
+                    <span>—</span>
+                </div>
+            </div>
+            <div class="summary-metric-card success" id="summary-sla-compliance">
+                <div class="summary-metric-value" id="sla-compliance-value">0%</div>
+                <div class="summary-metric-label">SLA Compliance</div>
+                <div class="summary-metric-trend" id="sla-compliance-trend">
+                    <span>—</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-summary-metrics" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-summary-metrics" style="display: none;">
+        <span id="dashboard-error-message-summary-metrics"></span>
+    </div>
+</div>
+
+

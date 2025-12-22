@@ -1,0 +1,41 @@
+{% comment %}
+CPU Usage Trend Chart Component (24h)
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-cpu-trend">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">📊</span>
+        <h3 class="dashboard-component-title">CPU Usage Trend (24h)</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Real-time CPU utilization monitoring</p>
+    <div class="dashboard-component-content" id="dashboard-content-cpu-trend">
+        <div class="chart-container">
+            <canvas id="cpu-trend-chart"></canvas>
+        </div>
+        <div class="chart-summary">
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Current</div>
+                <div class="chart-summary-value" id="cpu-current">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Peak</div>
+                <div class="chart-summary-value" id="cpu-peak">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Average</div>
+                <div class="chart-summary-value" id="cpu-average">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-cpu-trend" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-cpu-trend" style="display: none;">
+        <span id="dashboard-error-message-cpu-trend"></span>
+    </div>
+</div>
+
+

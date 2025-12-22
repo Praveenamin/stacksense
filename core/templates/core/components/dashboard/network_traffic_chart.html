@@ -1,0 +1,52 @@
+{% comment %}
+Network Traffic Chart Component (24h) - Stacked Area
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-network-traffic">
+    <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px);">
+            <span class="dashboard-component-icon">🌐</span>
+            <h3 class="dashboard-component-title">Network Traffic (24h)</h3>
+        </div>
+        <div class="dashboard-filter-selector" id="network-traffic-filter-container">
+            <button class="dashboard-filter-button" id="network-traffic-filter-button" type="button">
+                <span class="filter-icon" style="font-size: 11px;">⚙</span>
+                <span class="chart-icon" style="font-size: 13px;">📊</span>
+                <span class="filter-text" id="network-traffic-filter-text">All VMs (Average)</span>
+                <span class="filter-arrow">▼</span>
+            </button>
+            <div class="dashboard-filter-dropdown" id="network-traffic-filter-dropdown" style="display: none;">
+                <div class="filter-option" data-value="all">
+                    <span>All VMs (Average)</span>
+                    <span class="filter-check" style="display: none;">✓</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="dashboard-component-subtitle">Inbound and outbound traffic in MB/s</p>
+    <div class="dashboard-component-content" id="dashboard-content-network-traffic">
+
+        <div class="chart-container">
+            <canvas id="network-traffic-chart"></canvas>
+        </div>
+        <div class="chart-summary" id="network-traffic-legend">
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Inbound</div>
+                <div class="chart-summary-value" id="network-inbound">— MB/s</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Outbound</div>
+                <div class="chart-summary-value" id="network-outbound">— MB/s</div>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-network-traffic" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-network-traffic" style="display: none;">
+        <span id="dashboard-error-message-network-traffic"></span>
+    </div>
+</div>

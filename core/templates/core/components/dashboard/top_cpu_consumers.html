@@ -1,0 +1,27 @@
+{% comment %}
+Top 5 CPU Consumers Component
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-top-cpu-consumers">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">🔥</span>
+        <h3 class="dashboard-component-title">Top 5 CPU Consumers</h3>
+    </div>
+    <p class="dashboard-component-subtitle">VMs with highest CPU utilization</p>
+    <div class="dashboard-component-content" id="dashboard-content-top-cpu-consumers">
+        <ul class="top-consumers-list" id="top-cpu-consumers-list">
+            <li style="padding: var(--cds-spacing-4, 16px); text-align: center; color: var(--cds-color-gray-70, #64748b);">
+                Loading...
+            </li>
+        </ul>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-top-cpu-consumers" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-top-cpu-consumers" style="display: none;">
+        <span id="dashboard-error-message-top-cpu-consumers"></span>
+    </div>
+</div>

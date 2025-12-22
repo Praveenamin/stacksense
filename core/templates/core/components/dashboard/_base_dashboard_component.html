@@ -1,0 +1,47 @@
+{% comment %}
+Base Dashboard Component Template
+Provides consistent structure for all dashboard components
+
+Required variables:
+- component_id: Unique identifier for the component
+- title: Component title
+- show_header: Boolean to show/hide header (default: True)
+- compact: Boolean for compact display (default: False)
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component{% if compact %} compact{% endif %}" 
+     id="dashboard-{{ component_id }}"
+     data-component-id="{{ component_id }}">
+    
+    {% if show_header|default:True %}
+    <div class="dashboard-component-header">
+        {% if icon %}
+        <span class="dashboard-component-icon">{{ icon }}</span>
+        {% endif %}
+        <h3 class="dashboard-component-title">{{ title }}</h3>
+    </div>
+    {% endif %}
+    
+    {% if subtitle %}
+    <p class="dashboard-component-subtitle">{{ subtitle }}</p>
+    {% endif %}
+    
+    <div class="dashboard-component-content" id="dashboard-content-{{ component_id }}">
+        {% block component_content %}
+        <!-- Content will be provided by child templates -->
+        {% endblock %}
+    </div>
+    
+    <div class="dashboard-loading" id="dashboard-loading-{{ component_id }}" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    
+    <div class="dashboard-error" id="dashboard-error-{{ component_id }}" style="display: none;">
+        <span id="dashboard-error-message-{{ component_id }}"></span>
+    </div>
+</div>
+
+

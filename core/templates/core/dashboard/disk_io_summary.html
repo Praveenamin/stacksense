@@ -1,0 +1,60 @@
+{% comment %}
+Disk I/O Summary Component
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-disk-io-summary">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">💿</span>
+        <h3 class="dashboard-component-title">Disk I/O Summary</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Current disk read/write operations per second</p>
+    <div class="dashboard-component-content" id="dashboard-content-disk-io-summary">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--cds-spacing-4, 16px); margin-bottom: var(--cds-spacing-4, 16px);">
+            <div style="padding: var(--cds-spacing-4, 16px); background-color: #dbeafe; border-radius: var(--cds-border-radius, 8px);">
+                <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px); margin-bottom: var(--cds-spacing-2, 8px);">
+                    <span style="width: 12px; height: 12px; background-color: #3b82f6; border-radius: 50%;"></span>
+                    <span style="font-weight: 500; color: var(--cds-color-gray-100, #0f172a);">Read Operations</span>
+                </div>
+                <div style="font-size: 32px; font-weight: 700; color: #3b82f6;" id="disk-read-iops">0</div>
+                <div style="font-size: 14px; color: var(--cds-color-gray-70, #64748b);">IOPS</div>
+            </div>
+            <div style="padding: var(--cds-spacing-4, 16px); background-color: #fee2e2; border-radius: var(--cds-border-radius, 8px);">
+                <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px); margin-bottom: var(--cds-spacing-2, 8px);">
+                    <span style="width: 12px; height: 12px; background-color: #ef4444; border-radius: 50%;"></span>
+                    <span style="font-weight: 500; color: var(--cds-color-gray-100, #0f172a);">Write Operations</span>
+                </div>
+                <div style="font-size: 32px; font-weight: 700; color: #ef4444;" id="disk-write-iops">0</div>
+                <div style="font-size: 14px; color: var(--cds-color-gray-70, #64748b);">IOPS</div>
+            </div>
+        </div>
+        <div style="margin-bottom: var(--cds-spacing-4, 16px);">
+            <canvas id="disk-io-bar-chart" style="height: 200px;"></canvas>
+        </div>
+        <div class="chart-summary">
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Total IOPS</div>
+                <div class="chart-summary-value" id="disk-total-iops">0</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Read/Write Ratio</div>
+                <div class="chart-summary-value" id="disk-rw-ratio">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Read Percentage</div>
+                <div class="chart-summary-value" id="disk-read-percent">—%</div>
+            </div>
+        </div>
+        <div class="forecast-warning" id="disk-io-status" style="display: none;">
+            <span id="disk-io-status-message"></span>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-disk-io-summary" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-disk-io-summary" style="display: none;">
+        <span id="dashboard-error-message-disk-io-summary"></span>
+    </div>
+</div>

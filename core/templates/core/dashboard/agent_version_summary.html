@@ -1,0 +1,31 @@
+{% comment %}
+Agent Version Summary Component
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-agent-versions">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">📊</span>
+        <h3 class="dashboard-component-title">Agent Version Summary</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Distribution of monitoring agent versions</p>
+    <div class="dashboard-component-content" id="dashboard-content-agent-versions">
+        <div id="agent-versions-list">
+            <div style="padding: var(--cds-spacing-4, 16px); text-align: center; color: var(--cds-color-gray-70, #64748b);">
+                Loading...
+            </div>
+        </div>
+        <div class="version-summary-box" id="agent-version-summary" style="display: none;">
+            <span>✓</span>
+            <span id="agent-version-summary-text">—</span>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-agent-versions" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-agent-versions" style="display: none;">
+        <span id="dashboard-error-message-agent-versions"></span>
+    </div>
+</div>

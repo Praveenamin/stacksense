@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -4919,6 +4919,696 @@ def dashboard_news_feed_api(request):
         })
     except Exception as e:
         error_logger.error(f"DASHBOARD_NEWS_FEED_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_summary_stats_api(request):
+    """API endpoint for dashboard summary statistics"""
+    try:
+        from datetime import datetime, timedelta
+        
+        total_servers = Server.objects.count()
+        active_alerts = AlertHistory.objects.filter(status='triggered').count()
+        active_anomalies = Anomaly.objects.filter(resolved=False).count()
+        
+        # Count critical servers (warning or offline status)
+        critical_count = 0
+        online_count = 0
+        for server in Server.objects.all():
+            status = _calculate_server_status(server)
+            if status in ['warning', 'offline']:
+                critical_count += 1
+            elif status == 'online':
+                online_count += 1
+        
+        # Calculate SLA compliance (online servers / total servers * 100)
+        sla_compliance = (online_count / total_servers * 100) if total_servers > 0 else 100.0
+        
+        # Calculate trends (compare with yesterday)
+        yesterday = timezone.now() - timedelta(days=1)
+        yesterday_servers = Server.objects.filter(created_at__lt=yesterday).count() if hasattr(Server, 'created_at') else total_servers
+        server_trend = total_servers - yesterday_servers if yesterday_servers > 0 else 0
+        
+        yesterday_alerts = AlertHistory.objects.filter(status='triggered', sent_at__lt=yesterday).count()
+        alert_trend = active_alerts - yesterday_alerts
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'total_vms': total_servers,
+                'server_trend': server_trend,
+                'active_alerts': active_alerts + active_anomalies,
+                'alert_trend': alert_trend,
+                'critical_vms': critical_count,
+                'sla_compliance': round(sla_compliance, 1),
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_SUMMARY_STATS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_cpu_trend_api(request):
+    """API endpoint for 24-hour CPU trend data"""
+    try:
+        from datetime import timedelta
+        
+        hours = int(request.GET.get('hours', 24))
+        server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
+        since = timezone.now() - timedelta(hours=hours)
+        
+        data_points = []
+        
+        # Filter by server if specified
+        if server_id and server_id != 'all':
+            try:
+                server = Server.objects.get(id=int(server_id))
+                metrics_filter = SystemMetric.objects.filter(
+                    server=server,
+                    timestamp__gte=since
+                )
+            except (Server.DoesNotExist, ValueError):
+                return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+        else:
+            # Get average of all servers
+            metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
+        
+        # Aggregate CPU metrics by hour
+        metrics = metrics_filter.order_by('timestamp').values('timestamp', 'cpu_percent', 'server_id')
+        
+        # Group by hour and calculate average
+        hourly_data = {}
+        for metric in metrics:
+            hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
+            if hour_key not in hourly_data:
+                hourly_data[hour_key] = []
+            hourly_data[hour_key].append(metric['cpu_percent'] or 0)
+        
+        # Calculate averages and prepare data
+        for hour, values in sorted(hourly_data.items()):
+            avg_cpu = sum(values) / len(values) if values else 0
+            data_points.append({
+                'timestamp': hour.isoformat(),
+                'value': round(avg_cpu, 2)
+            })
+        
+        # Calculate current, peak, and average
+        current_cpu = data_points[-1]['value'] if data_points else 0
+        peak_cpu = max([d['value'] for d in data_points]) if data_points else 0
+        avg_cpu = sum([d['value'] for d in data_points]) / len(data_points) if data_points else 0
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'points': data_points,
+                'current': round(current_cpu, 1),
+                'peak': round(peak_cpu, 1),
+                'average': round(avg_cpu, 1)
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_CPU_TREND_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_memory_trend_api(request):
+    """API endpoint for 24-hour memory trend data"""
+    try:
+        from datetime import timedelta
+        
+        hours = int(request.GET.get('hours', 24))
+        server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
+        since = timezone.now() - timedelta(hours=hours)
+        
+        # Filter by server if specified
+        if server_id and server_id != 'all':
+            try:
+                server = Server.objects.get(id=int(server_id))
+                metrics_filter = SystemMetric.objects.filter(
+                    server=server,
+                    timestamp__gte=since
+                )
+            except (Server.DoesNotExist, ValueError):
+                return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+        else:
+            # Get average of all servers
+            metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
+        
+        metrics = metrics_filter.order_by('timestamp').values('timestamp', 'memory_percent', 'server_id')
+        
+        hourly_data = {}
+        for metric in metrics:
+            hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
+            if hour_key not in hourly_data:
+                hourly_data[hour_key] = []
+            hourly_data[hour_key].append(metric['memory_percent'] or 0)
+        
+        data_points = []
+        for hour, values in sorted(hourly_data.items()):
+            avg_memory = sum(values) / len(values) if values else 0
+            data_points.append({
+                'timestamp': hour.isoformat(),
+                'value': round(avg_memory, 2)
+            })
+        
+        current_memory = data_points[-1]['value'] if data_points else 0
+        peak_memory = max([d['value'] for d in data_points]) if data_points else 0
+        avg_memory = sum([d['value'] for d in data_points]) / len(data_points) if data_points else 0
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'points': data_points,
+                'current': round(current_memory, 1),
+                'peak': round(peak_memory, 1),
+                'average': round(avg_memory, 1)
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_MEMORY_TREND_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_network_trend_api(request):
+    """API endpoint for 24-hour network trend data (inbound/outbound)"""
+    try:
+        from datetime import timedelta
+        import json
+        
+        hours = int(request.GET.get('hours', 24))
+        server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
+        since = timezone.now() - timedelta(hours=hours)
+        
+        # Filter by server if specified
+        if server_id and server_id != 'all':
+            try:
+                server = Server.objects.get(id=int(server_id))
+                metrics_filter = SystemMetric.objects.filter(
+                    server=server,
+                    timestamp__gte=since
+                )
+            except (Server.DoesNotExist, ValueError):
+                return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+        else:
+            # Get average of all servers
+            metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
+        
+        metrics = metrics_filter.order_by('timestamp').values('timestamp', 'network_io', 'server_id')
+        
+        hourly_inbound = {}
+        hourly_outbound = {}
+        
+        for metric in metrics:
+            hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
+            network_data = metric.get('network_io')
+            
+            if network_data:
+                try:
+                    if isinstance(network_data, str):
+                        network_data = json.loads(network_data)
+                    
+                    total_recv = 0
+                    total_sent = 0
+                    if isinstance(network_data, dict):
+                        for interface, data in network_data.items():
+                            if isinstance(data, dict):
+                                total_recv += data.get('bytes_recv', 0)
+                                total_sent += data.get('bytes_sent', 0)
+                    
+                    # Convert to MB/s (assuming 1 hour intervals, divide by 3600 and 1024*1024)
+                    recv_mb = total_recv / (1024 * 1024) if total_recv > 0 else 0
+                    sent_mb = total_sent / (1024 * 1024) if total_sent > 0 else 0
+                    
+                    if hour_key not in hourly_inbound:
+                        hourly_inbound[hour_key] = []
+                        hourly_outbound[hour_key] = []
+                    hourly_inbound[hour_key].append(recv_mb)
+                    hourly_outbound[hour_key].append(sent_mb)
+                except:
+                    pass
+        
+        data_points = []
+        for hour in sorted(set(list(hourly_inbound.keys()) + list(hourly_outbound.keys()))):
+            avg_inbound = sum(hourly_inbound.get(hour, [0])) / len(hourly_inbound.get(hour, [1]))
+            avg_outbound = sum(hourly_outbound.get(hour, [0])) / len(hourly_outbound.get(hour, [1]))
+            data_points.append({
+                'timestamp': hour.isoformat(),
+                'inbound': round(avg_inbound, 2),
+                'outbound': round(avg_outbound, 2)
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'points': data_points
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_NETWORK_TREND_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_disk_io_summary_api(request):
+    """API endpoint for disk I/O summary statistics"""
+    try:
+        server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
+        
+        # Filter by server if specified
+        if server_id and server_id != 'all':
+            try:
+                servers = [Server.objects.get(id=int(server_id))]
+            except (Server.DoesNotExist, ValueError):
+                return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+        else:
+            # Get all servers for average
+            servers = Server.objects.all()
+        
+        total_read_iops = 0
+        total_write_iops = 0
+        
+        for server in servers:
+            latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
+            if latest_metric:
+                # Convert KB/s to IOPS (approximate: assume 4KB average I/O size)
+                read_iops = (latest_metric.disk_io_read or 0) / 4 if latest_metric.disk_io_read else 0
+                write_iops = (latest_metric.disk_io_write or 0) / 4 if latest_metric.disk_io_write else 0
+                total_read_iops += read_iops
+                total_write_iops += write_iops
+        
+        total_iops = total_read_iops + total_write_iops
+        read_write_ratio = f"{int(total_read_iops / total_write_iops)}:1" if total_write_iops > 0 else "N/A"
+        read_percentage = (total_read_iops / total_iops * 100) if total_iops > 0 else 0
+        
+        # Determine status message
+        if total_iops < 1000:
+            status_message = "Low I/O Load - Optimal performance"
+            status_class = "success"
+        elif total_iops < 5000:
+            status_message = "Normal I/O Load"
+            status_class = "info"
+        else:
+            status_message = "High I/O Load - Monitor closely"
+            status_class = "warning"
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'read_iops': round(total_read_iops),
+                'write_iops': round(total_write_iops),
+                'total_iops': round(total_iops),
+                'read_write_ratio': read_write_ratio,
+                'read_percentage': round(read_percentage, 1),
+                'status_message': status_message,
+                'status_class': status_class
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_DISK_IO_SUMMARY_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_top_cpu_consumers_api(request):
+    """API endpoint for top 5 CPU consumers"""
+    try:
+        servers = Server.objects.all()
+        server_cpu_data = []
+        
+        for server in servers:
+            latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
+            if latest_metric and latest_metric.cpu_percent is not None:
+                status = _calculate_server_status(server)
+                cpu_percent = latest_metric.cpu_percent
+                
+                # Determine status tag
+                if cpu_percent >= 85 or status == 'warning':
+                    status_tag = 'critical'
+                elif cpu_percent >= 70:
+                    status_tag = 'warning'
+                else:
+                    status_tag = 'normal'
+                
+                server_cpu_data.append({
+                    'server_name': server.name,
+                    'server_id': server.id,
+                    'cpu_percent': round(cpu_percent, 1),
+                    'status_tag': status_tag
+                })
+        
+        # Sort by CPU and take top 5
+        top_5 = sorted(server_cpu_data, key=lambda x: x['cpu_percent'], reverse=True)[:5]
+        
+        return JsonResponse({
+            'success': True,
+            'data': top_5,
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_TOP_CPU_CONSUMERS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_top_memory_consumers_api(request):
+    """API endpoint for top 5 memory consumers"""
+    try:
+        servers = Server.objects.all()
+        server_memory_data = []
+        
+        for server in servers:
+            latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
+            if latest_metric and latest_metric.memory_percent is not None:
+                status = _calculate_server_status(server)
+                memory_percent = latest_metric.memory_percent
+                
+                # Determine status tag
+                if memory_percent >= 90 or status == 'warning':
+                    status_tag = 'critical'
+                elif memory_percent >= 80:
+                    status_tag = 'warning'
+                else:
+                    status_tag = 'normal'
+                
+                server_memory_data.append({
+                    'server_name': server.name,
+                    'server_id': server.id,
+                    'memory_percent': round(memory_percent, 1),
+                    'status_tag': status_tag
+                })
+        
+        # Sort by memory and take top 5
+        top_5 = sorted(server_memory_data, key=lambda x: x['memory_percent'], reverse=True)[:5]
+        
+        return JsonResponse({
+            'success': True,
+            'data': top_5,
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_TOP_MEMORY_CONSUMERS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_health_status_api(request):
+    """API endpoint for health status distribution"""
+    try:
+        servers = Server.objects.all()
+        healthy_count = 0
+        warning_count = 0
+        critical_count = 0
+        offline_count = 0
+        
+        for server in servers:
+            status = _calculate_server_status(server)
+            if status == 'online':
+                healthy_count += 1
+            elif status == 'warning':
+                warning_count += 1
+            elif status == 'offline':
+                offline_count += 1
+            else:
+                critical_count += 1
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'healthy': healthy_count,
+                'warning': warning_count,
+                'critical': critical_count,
+                'offline': offline_count,
+                'total': servers.count()
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_HEALTH_STATUS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_recent_alerts_api(request):
+    """API endpoint for recent alert timeline (last 20 alerts)"""
+    try:
+        limit = int(request.GET.get('limit', 20))
+        
+        # Get recent alerts and anomalies
+        alerts = AlertHistory.objects.select_related('server').order_by('-sent_at')[:limit]
+        
+        alert_list = []
+        for alert in alerts:
+            time_ago = timezone.now() - alert.sent_at
+            if time_ago < timedelta(minutes=1):
+                time_str = "just now"
+            elif time_ago < timedelta(hours=1):
+                minutes = int(time_ago.total_seconds() / 60)
+                time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+            elif time_ago < timedelta(days=1):
+                hours = int(time_ago.total_seconds() / 3600)
+                time_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
+            else:
+                days = int(time_ago.total_seconds() / 86400)
+                time_str = f"{days} day{'s' if days != 1 else ''} ago"
+            
+            # Determine severity
+            severity = 'critical' if alert.status == 'triggered' else 'resolved'
+            
+            alert_list.append({
+                'id': alert.id,
+                'title': f"{alert.alert_type} Alert",
+                'host': alert.server.name,
+                'description': alert.message,
+                'timestamp': alert.sent_at.isoformat(),
+                'time_ago': time_str,
+                'severity': severity,
+                'status': alert.status
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': alert_list,
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_RECENT_ALERTS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_ai_recommendations_api(request):
+    """API endpoint for AI recommendations (rule-based)"""
+    try:
+        from .utils.recommendation_engine import generate_recommendations
+        
+        recommendations = generate_recommendations()
+        
+        return JsonResponse({
+            'success': True,
+            'data': recommendations,
+            'timestamp': timezone.now().isoformat()
+        })
+    except ImportError:
+        # If recommendation engine doesn't exist yet, return empty list
+        return JsonResponse({
+            'success': True,
+            'data': [],
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_AI_RECOMMENDATIONS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_disk_forecast_api(request, server_id, mount_point):
+    """API endpoint for 30-day disk space forecast"""
+    try:
+        from .utils.forecast_engine import forecast_disk_usage
+        
+        server = get_object_or_404(Server, id=server_id)
+        forecast_data = forecast_disk_usage(server, mount_point)
+        
+        return JsonResponse({
+            'success': True,
+            'data': forecast_data,
+            'timestamp': timezone.now().isoformat()
+        })
+    except ImportError:
+        # If forecast engine doesn't exist yet, return placeholder
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'current_usage': 0,
+                'forecast': [],
+                'warning': None
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_DISK_FORECAST_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_agent_versions_api(request):
+    """API endpoint for agent version distribution"""
+    try:
+        # Get all agent versions
+        from django.db.models import Count, Max
+        versions = AgentVersion.objects.values('version').annotate(
+            count=Count('id'),
+            latest_seen=Max('last_seen')
+        ).order_by('-latest_seen')
+        
+        total_agents = AgentVersion.objects.values('server').distinct().count()
+        version_list = []
+        
+        for v in versions:
+            version_list.append({
+                'version': v['version'],
+                'count': v['count'],
+                'percentage': round((v['count'] / total_agents * 100) if total_agents > 0 else 0, 1)
+            })
+        
+        # Determine latest version (most recent)
+        latest_version = version_list[0]['version'] if version_list else None
+        latest_count = version_list[0]['count'] if version_list else 0
+        latest_percentage = (latest_count / total_agents * 100) if total_agents > 0 else 0
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'versions': version_list,
+                'total_agents': total_agents,
+                'latest_version': latest_version,
+                'latest_percentage': round(latest_percentage, 1)
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_AGENT_VERSIONS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_servers_list_api(request):
+    """API endpoint for getting list of all servers (for dropdowns)"""
+    try:
+        servers = Server.objects.all().order_by('name')
+        server_list = [{'id': s.id, 'name': s.name} for s in servers]
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'servers': server_list
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_SERVERS_LIST_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_disk_mount_points_api(request, server_id):
+    """API endpoint for getting disk mount points for a server"""
+    try:
+        import json
+        server = get_object_or_404(Server, id=server_id)
+        
+        # Get latest metric with disk usage data
+        latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
+        
+        mount_points = []
+        if latest_metric and latest_metric.disk_usage:
+            try:
+                disk_data = json.loads(latest_metric.disk_usage) if isinstance(latest_metric.disk_usage, str) else latest_metric.disk_usage
+                if isinstance(disk_data, dict):
+                    mount_points = list(disk_data.keys())
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                pass
+        
+        # If no mount points found, return common defaults
+        if not mount_points:
+            mount_points = ['/']
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'mount_points': mount_points
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_DISK_MOUNT_POINTS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_login_activity_api(request):
+    """API endpoint for recent login activity"""
+    try:
+        limit = int(request.GET.get('limit', 10))
+        
+        login_activities = LoginActivity.objects.select_related('user').order_by('-timestamp')[:limit]
+        
+        activity_list = []
+        for activity in login_activities:
+            time_ago = timezone.now() - activity.timestamp
+            if time_ago < timedelta(minutes=1):
+                time_str = "just now"
+            elif time_ago < timedelta(hours=1):
+                minutes = int(time_ago.total_seconds() / 60)
+                time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+            elif time_ago < timedelta(days=1):
+                hours = int(time_ago.total_seconds() / 3600)
+                time_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
+            else:
+                days = int(time_ago.total_seconds() / 86400)
+                time_str = f"{days} day{'s' if days != 1 else ''} ago"
+            
+            activity_list.append({
+                'id': activity.id,
+                'email': activity.email,
+                'location': activity.location or 'Unknown',
+                'status': activity.status,
+                'timestamp': activity.timestamp.isoformat(),
+                'time_ago': time_str,
+                'ip_address': str(activity.ip_address)
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': activity_list,
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_LOGIN_ACTIVITY_API error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

@@ -1,0 +1,23 @@
+{% comment %}
+Alerts Banner Component
+{% endcomment %}
+
+{% load static %}
+
+<div class="alerts-banner" id="dashboard-alerts-banner" style="display: none;">
+    <div class="alerts-banner-content">
+        <span class="alerts-banner-icon">⚠️</span>
+        <span class="alerts-banner-text" id="alerts-banner-text">
+            <span id="alerts-count">0</span> active alerts require attention. 
+            <span id="critical-count">0</span> are critical priority.
+        </span>
+    </div>
+    <a href="{% url 'alert_history' %}" class="alerts-banner-link">View all alerts →</a>
+</div>
+
+<div class="dashboard-loading" id="dashboard-loading-alerts-banner" style="display: none;">
+    <div class="loading-spinner"></div>
+    <span>Loading...</span>
+</div>
+
+

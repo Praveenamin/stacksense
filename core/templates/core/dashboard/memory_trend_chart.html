@@ -1,0 +1,41 @@
+{% comment %}
+Memory Usage Trend Chart Component (24h)
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-memory-trend">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">💾</span>
+        <h3 class="dashboard-component-title">Memory Usage Trend (24h)</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Real-time memory utilization monitoring</p>
+    <div class="dashboard-component-content" id="dashboard-content-memory-trend">
+        <div class="chart-container">
+            <canvas id="memory-trend-chart"></canvas>
+        </div>
+        <div class="chart-summary">
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Current</div>
+                <div class="chart-summary-value" id="memory-current">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Peak</div>
+                <div class="chart-summary-value" id="memory-peak">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Average</div>
+                <div class="chart-summary-value" id="memory-average">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-memory-trend" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-memory-trend" style="display: none;">
+        <span id="dashboard-error-message-memory-trend"></span>
+    </div>
+</div>
+
+

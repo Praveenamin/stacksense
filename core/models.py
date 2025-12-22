@@ -585,3 +585,50 @@ class ServerHeartbeat(models.Model):
     
     def __str__(self):
         return f"Heartbeat for {self.server.name} - {self.last_heartbeat}"
+
+
+class AgentVersion(models.Model):
+    """Track monitoring agent versions per server"""
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="agent_versions")
+    version = models.CharField(max_length=50, help_text="Agent version string (e.g., 'v2.4.1')")
+    last_seen = models.DateTimeField(default=timezone.now, db_index=True, help_text="Last time this version was reported")
+    
+    class Meta:
+        verbose_name = "Agent Version"
+        verbose_name_plural = "Agent Versions"
+        unique_together = [["server", "version"]]
+        indexes = [
+            models.Index(fields=["-last_seen"]),
+            models.Index(fields=["version"]),
+        ]
+        ordering = ["-last_seen"]
+    
+    def __str__(self):
+        return f"{self.server.name} - {self.version}"
+
+
+class LoginActivity(models.Model):
+    """Track user login/authentication events"""
+    class StatusChoices(models.TextChoices):
+        SUCCESS = "success", "Success"
+        FAILED = "failed", "Failed"
+    
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="login_activities")
+    email = models.CharField(max_length=255, help_text="Email address used for login attempt")
+    ip_address = models.GenericIPAddressField(help_text="IP address of the login attempt")
+    location = models.CharField(max_length=255, blank=True, null=True, help_text="Geographical location (e.g., 'San Francisco, US')")
+    status = models.CharField(max_length=20, choices=StatusChoices.choices, help_text="Login attempt status")
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True, help_text="When the login attempt occurred")
+    
+    class Meta:
+        verbose_name = "Login Activity"
+        verbose_name_plural = "Login Activities"
+        indexes = [
+            models.Index(fields=["-timestamp"]),
+            models.Index(fields=["status", "-timestamp"]),
+            models.Index(fields=["email", "-timestamp"]),
+        ]
+        ordering = ["-timestamp"]
+    
+    def __str__(self):
+        return f"{self.email} - {self.status} - {self.timestamp}"

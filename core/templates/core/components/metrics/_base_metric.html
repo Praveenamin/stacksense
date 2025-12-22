@@ -1,0 +1,40 @@
+{% comment %}
+Base Metric Component Template
+Provides consistent structure for all metric components
+
+Required variables:
+- metric_type: Type identifier (e.g., "cpu", "memory")
+- server_id: Server ID for unique element IDs
+- metric_data: Dictionary containing metric values (optional)
+- show_header: Boolean to show/hide component header (default: True)
+- compact_mode: Boolean for compact display (default: False)
+- title: Custom title for the component (optional)
+{% endcomment %}
+
+{% load static %}
+
+<div class="metric-component{% if compact_mode %} compact{% endif %}" 
+     id="metric-{{ metric_type }}-{{ server_id }}"
+     data-metric-type="{{ metric_type }}"
+     data-server-id="{{ server_id }}">
+    
+    {% if show_header|default:True %}
+    <h2 class="metric-component-header">
+        {{ title|default:metric_type|title }}
+    </h2>
+    {% endif %}
+    
+    <div class="metric-content">
+        {% block metric_content %}
+        <!-- Content will be provided by child templates -->
+        {% endblock %}
+    </div>
+    
+    <div class="metric-loading" id="metric-loading-{{ metric_type }}-{{ server_id }}" style="display: none;">
+        Loading...
+    </div>
+    
+    <div class="metric-error" id="metric-error-{{ metric_type }}-{{ server_id }}" style="display: none;">
+        <span id="metric-error-message-{{ metric_type }}-{{ server_id }}"></span>
+    </div>
+</div>

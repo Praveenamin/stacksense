@@ -1,0 +1,27 @@
+{% comment %}
+AI Recommendations Component
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-ai-recommendations">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">⚡</span>
+        <h3 class="dashboard-component-title">AI Recommendations</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Intelligent insights and optimization suggestions</p>
+    <div class="dashboard-component-content" id="dashboard-content-ai-recommendations">
+        <div id="recommendations-list">
+            <div style="padding: var(--cds-spacing-4, 16px); text-align: center; color: var(--cds-color-gray-70, #64748b);">
+                Loading recommendations...
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-ai-recommendations" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-ai-recommendations" style="display: none;">
+        <span id="dashboard-error-message-ai-recommendations"></span>
+    </div>
+</div>

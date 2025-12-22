@@ -1,0 +1,49 @@
+{% comment %}
+Health Status by VM Component (Donut Chart)
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-health-status">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">🛡️</span>
+        <h3 class="dashboard-component-title">Health Status by VM</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Overall system health distribution</p>
+    <div class="dashboard-component-content" id="dashboard-content-health-status">
+        <div style="display: flex; align-items: center; gap: var(--cds-spacing-6, 24px);">
+            <div style="flex: 1; max-width: 300px;">
+                <canvas id="health-status-donut-chart"></canvas>
+            </div>
+            <div class="health-status-legend" id="health-status-legend">
+                <div class="health-status-legend-item">
+                    <span class="health-status-dot healthy"></span>
+                    <span class="health-status-label">Healthy</span>
+                    <span class="health-status-count" id="health-count-healthy">0</span>
+                </div>
+                <div class="health-status-legend-item">
+                    <span class="health-status-dot warning"></span>
+                    <span class="health-status-label">Warning</span>
+                    <span class="health-status-count" id="health-count-warning">0</span>
+                </div>
+                <div class="health-status-legend-item">
+                    <span class="health-status-dot critical"></span>
+                    <span class="health-status-label">Critical</span>
+                    <span class="health-status-count" id="health-count-critical">0</span>
+                </div>
+                <div class="health-status-legend-item">
+                    <span class="health-status-dot offline"></span>
+                    <span class="health-status-label">Offline</span>
+                    <span class="health-status-count" id="health-count-offline">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-health-status" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-health-status" style="display: none;">
+        <span id="dashboard-error-message-health-status"></span>
+    </div>
+</div>

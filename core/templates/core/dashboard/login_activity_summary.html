@@ -1,0 +1,27 @@
+{% comment %}
+Login Activity Summary Component
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-login-activity">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">👥</span>
+        <h3 class="dashboard-component-title">Login Activity Summary</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Recent user authentication events</p>
+    <div class="dashboard-component-content" id="dashboard-content-login-activity">
+        <div class="login-activity-list" id="login-activity-list">
+            <div style="padding: var(--cds-spacing-4, 16px); text-align: center; color: var(--cds-color-gray-70, #64748b);">
+                Loading...
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-login-activity" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-login-activity" style="display: none;">
+        <span id="dashboard-error-message-login-activity"></span>
+    </div>
+</div>

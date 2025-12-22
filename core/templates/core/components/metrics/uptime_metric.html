@@ -1,0 +1,39 @@
+{% comment %}
+Uptime Metric Component Template
+
+Required variables:
+- server_id: Server ID
+- metric_data: Dictionary with uptime_formatted or system_uptime_seconds
+- compact_mode: Boolean for compact display (default: False)
+- show_header: Boolean to show header (default: True)
+{% endcomment %}
+
+{% load static %}
+
+<div class="metric-component{% if compact_mode %} compact{% endif %}" 
+     id="metric-uptime-{{ server_id }}"
+     data-metric-type="uptime"
+     data-server-id="{{ server_id }}">
+    
+    {% if show_header|default:True %}
+    <h2 class="metric-component-header">Uptime</h2>
+    {% endif %}
+    
+    <div class="metric-content">
+        <div class="metric-main-value" id="uptime-main-{{ server_id }}">
+            {{ metric_data.uptime_formatted|default:"--" }}
+        </div>
+    </div>
+    
+    <div class="metric-loading" id="metric-loading-uptime-{{ server_id }}" style="display: none;">
+        Loading...
+    </div>
+    
+    <div class="metric-error" id="metric-error-uptime-{{ server_id }}" style="display: none;">
+        <span id="metric-error-message-uptime-{{ server_id }}"></span>
+    </div>
+</div>
+
+
+
+

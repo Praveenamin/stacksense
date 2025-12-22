@@ -1,0 +1,68 @@
+{% comment %}
+Disk Metric Component Template
+
+Required variables:
+- server_id: Server ID
+- metric_data: Dictionary with disk_io_read, disk_io_write, disks (list of disk objects)
+- compact_mode: Boolean for compact display (default: False)
+- show_header: Boolean to show header (default: True)
+{% endcomment %}
+
+{% load static %}
+
+<div class="metric-component{% if compact_mode %} compact{% endif %}" 
+     id="metric-disk-{{ server_id }}"
+     data-metric-type="disk"
+     data-server-id="{{ server_id }}">
+    
+    {% if show_header|default:True %}
+    <h2 class="metric-component-header">Disk Usage</h2>
+    {% endif %}
+    
+    <div class="metric-content">
+        {% if compact_mode %}
+            <!-- Compact mode for dashboard cards -->
+            <div class="metric-main-value" id="disk-main-{{ server_id }}">
+                {{ metric_data.disk_io_read|default:"--"|floatformat:"0" }} KB/s
+            </div>
+        {% else %}
+            <!-- Full mode for server details page -->
+            <div id="disk-list-{{ server_id }}">
+                {% if metric_data.disks %}
+                    {% for disk in metric_data.disks %}
+                    <div style="padding: var(--cds-spacing-3, 12px); background-color: var(--cds-color-gray-10, #f8fafc); border-radius: var(--cds-border-radius, 6px); margin-bottom: var(--cds-spacing-2, 8px);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-2, 8px);">
+                            <div style="font-weight: var(--cds-font-weight-medium, 500); color: var(--cds-color-gray-100, #0f172a);">
+                                {{ disk.mount_point }}{% if disk.mount_point == "/" %} (Root){% endif %}
+                            </div>
+                            <div style="font-size: var(--cds-font-size-sm, 14px); color: var(--cds-color-gray-70, #64748b);">
+                                {{ disk.percent|default:0|floatformat:1 }}%
+                            </div>
+                        </div>
+                        <div style="height: 8px; background-color: var(--cds-color-gray-20, #e2e8f0); border-radius: 4px; overflow: hidden;">
+                            <div style="height: 100%; background-color: var(--cds-color-blue-60, #0ea5e9); width: {{ disk.percent|default:0 }}%; transition: width 0.3s ease;"></div>
+                        </div>
+                        <div style="font-size: var(--cds-font-size-xs, 12px); color: var(--cds-color-gray-70, #64748b); margin-top: var(--cds-spacing-1, 4px);">
+                            {{ disk.used|filesizeformat }} / {{ disk.total|filesizeformat }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="metric-process-item">Loading...</div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+    
+    <div class="metric-loading" id="metric-loading-disk-{{ server_id }}" style="display: none;">
+        Loading...
+    </div>
+    
+    <div class="metric-error" id="metric-error-disk-{{ server_id }}" style="display: none;">
+        <span id="metric-error-message-disk-{{ server_id }}"></span>
+    </div>
+</div>
+
+
+
+

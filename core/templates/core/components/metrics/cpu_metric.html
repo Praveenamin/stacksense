@@ -1,0 +1,81 @@
+{% comment %}
+CPU Metric Component Template
+
+Required variables:
+- server_id: Server ID
+- metric_data: Dictionary with cpu_percent, cpu_count, cpu_load_avg_1m, top_processes (optional)
+- compact_mode: Boolean for compact display (default: False)
+- show_header: Boolean to show header (default: True)
+{% endcomment %}
+
+{% load static %}
+
+<div class="metric-component{% if compact_mode %} compact{% endif %}" 
+     id="metric-cpu-{{ server_id }}"
+     data-metric-type="cpu"
+     data-server-id="{{ server_id }}">
+    
+    {% if show_header|default:True %}
+    <h2 class="metric-component-header">CPU</h2>
+    {% endif %}
+    
+    <div class="metric-content">
+        {% if compact_mode %}
+            <!-- Compact mode for dashboard cards -->
+            <div class="metric-main-value" id="cpu-main-{{ server_id }}">
+                {{ metric_data.cpu_percent|default:"--"|floatformat:"0" }}%
+            </div>
+        {% else %}
+            <!-- Full mode for server details page -->
+            <div class="metric-sub-grid">
+                <div class="metric-sub-item">
+                    <div class="metric-sub-label">CPU Usage</div>
+                    <div class="metric-sub-value" id="cpu-percent-{{ server_id }}">
+                        {{ metric_data.cpu_percent|default:"--"|floatformat:1 }}%
+                    </div>
+                </div>
+                <div class="metric-sub-item">
+                    <div class="metric-sub-label">Cores</div>
+                    <div class="metric-sub-value" id="cpu-cores-{{ server_id }}">
+                        {{ metric_data.cpu_count|default:"--" }}
+                    </div>
+                </div>
+                <div class="metric-sub-item">
+                    <div class="metric-sub-label">Load Average (1m)</div>
+                    <div class="metric-sub-value" id="cpu-load-avg-{{ server_id }}">
+                        {{ metric_data.cpu_load_avg_1m|default:"--"|floatformat:2 }}
+                    </div>
+                </div>
+            </div>
+            
+            {% if metric_data.top_processes %}
+            <div class="metric-processes">
+                <div class="metric-processes-title">Top 3 CPU Processes</div>
+                <div class="metric-process-list" id="top-cpu-processes-{{ server_id }}">
+                    {% for process in metric_data.top_processes|slice:":3" %}
+                    <div class="metric-process-item">
+                        <span class="metric-process-name">{{ process.name|truncatechars:40 }}</span>
+                        <span class="metric-process-value">{{ process.cpu|floatformat:1 }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <div class="metric-processes">
+                <div class="metric-processes-title">Top 3 CPU Processes</div>
+                <div class="metric-process-list" id="top-cpu-processes-{{ server_id }}">
+                    <div class="metric-process-item">Loading...</div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+    
+    <div class="metric-loading" id="metric-loading-cpu-{{ server_id }}" style="display: none;">
+        Loading...
+    </div>
+    
+    <div class="metric-error" id="metric-error-cpu-{{ server_id }}" style="display: none;">
+        <span id="metric-error-message-cpu-{{ server_id }}"></span>
+    </div>
+</div>

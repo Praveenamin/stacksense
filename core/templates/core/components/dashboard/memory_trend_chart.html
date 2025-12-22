@@ -1,0 +1,58 @@
+{% comment %}
+Memory Usage Trend Chart Component (24h)
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-memory-trend">
+    <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px);">
+            <span class="dashboard-component-icon">💾</span>
+            <h3 class="dashboard-component-title">Memory Usage Trend (24h)</h3>
+        </div>
+        <div class="dashboard-filter-selector" id="memory-trend-filter-container">
+            <button class="dashboard-filter-button" id="memory-trend-filter-button" type="button">
+                <span class="filter-icon" style="font-size: 11px;">⚙</span>
+                <span class="chart-icon" style="font-size: 13px;">📊</span>
+                <span class="filter-text" id="memory-trend-filter-text">All VMs (Average)</span>
+                <span class="filter-arrow">▼</span>
+            </button>
+            <div class="dashboard-filter-dropdown" id="memory-trend-filter-dropdown" style="display: none;">
+                <div class="filter-option" data-value="all">
+                    <span>All VMs (Average)</span>
+                    <span class="filter-check" style="display: none;">✓</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="dashboard-component-subtitle">Real-time memory utilization monitoring</p>
+    <div class="dashboard-component-content" id="dashboard-content-memory-trend">
+
+        <div class="chart-container">
+            <canvas id="memory-trend-chart"></canvas>
+        </div>
+        <div class="chart-summary">
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Current</div>
+                <div class="chart-summary-value" id="memory-current">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Peak</div>
+                <div class="chart-summary-value" id="memory-peak">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Average</div>
+                <div class="chart-summary-value" id="memory-average">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-memory-trend" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-memory-trend" style="display: none;">
+        <span id="dashboard-error-message-memory-trend"></span>
+    </div>
+</div>
+
+

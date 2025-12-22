@@ -1,0 +1,45 @@
+{% comment %}
+Disk Space Forecast Component
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-disk-forecast">
+    <div class="dashboard-component-header">
+        <span class="dashboard-component-icon">📈</span>
+        <h3 class="dashboard-component-title">Disk Space Forecast</h3>
+    </div>
+    <p class="dashboard-component-subtitle">Predicted disk usage for the next 30 days</p>
+    <div class="dashboard-component-content" id="dashboard-content-disk-forecast">
+        <div style="margin-bottom: var(--cds-spacing-4, 16px);">
+            <select id="disk-forecast-server-select" style="width: 100%; padding: var(--cds-spacing-2, 8px); border: 1px solid var(--cds-color-gray-20, #e2e8f0); border-radius: var(--cds-border-radius, 6px);">
+                <option value="">Select a server...</option>
+            </select>
+        </div>
+        <div id="disk-selector-container" style="display: none;">
+            <div class="disk-selector" id="disk-selector">
+                <!-- Disk buttons will be populated dynamically -->
+            </div>
+        </div>
+        <div id="disk-forecast-info" style="display: none;">
+            <div class="disk-info">
+                <div class="disk-mount-point" id="disk-mount-point">—</div>
+                <div class="disk-size" id="disk-size">—</div>
+                <div class="disk-usage-percent" id="disk-current-usage">—%</div>
+            </div>
+            <div class="chart-container">
+                <canvas id="disk-forecast-chart"></canvas>
+            </div>
+            <div class="forecast-warning" id="disk-forecast-warning" style="display: none;">
+                <span id="disk-forecast-warning-message"></span>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-loading" id="dashboard-loading-disk-forecast" style="display: none;">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+    </div>
+    <div class="dashboard-error" id="dashboard-error-disk-forecast" style="display: none;">
+        <span id="dashboard-error-message-disk-forecast"></span>
+    </div>
+</div>
