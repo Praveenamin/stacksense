@@ -1,0 +1,218 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load timezone_tags %}
+
+{% block title %}Settings - StackSense{% endblock %}
+
+{% block extrahead %}
+<style>
+    .form-card {
+        background-color: var(--cds-color-white);
+        border: 1px solid var(--cds-color-gray-20);
+        border-radius: var(--cds-border-radius-lg);
+        padding: var(--cds-spacing-8);
+        box-shadow: var(--cds-shadow-md);
+        margin-bottom: var(--cds-spacing-6);
+    }
+    .form-title {
+        font-size: var(--cds-font-size-2xl);
+        font-weight: var(--cds-font-weight-semibold);
+        color: var(--cds-color-gray-100);
+        margin: 0 0 var(--cds-spacing-2) 0;
+    }
+    .form-subtitle {
+        font-size: var(--cds-font-size-base);
+        color: var(--cds-color-gray-70);
+        margin: 0 0 var(--cds-spacing-6) 0;
+    }
+    .form-group {
+        margin-bottom: var(--cds-spacing-6);
+    }
+    .form-label {
+        display: block;
+        font-size: var(--cds-font-size-base);
+        font-weight: var(--cds-font-weight-medium);
+        color: var(--cds-color-gray-100);
+        margin-bottom: var(--cds-spacing-2);
+    }
+    .form-select {
+        width: 100%;
+        padding: var(--cds-spacing-3) var(--cds-spacing-4);
+        font-size: var(--cds-font-size-base);
+        color: var(--cds-color-gray-100);
+        background-color: var(--cds-color-white);
+        border: 1px solid var(--cds-color-gray-30);
+        border-radius: var(--cds-border-radius-md);
+        transition: all 150ms ease;
+        box-sizing: border-box;
+    }
+    .form-select:focus {
+        outline: none;
+        border-color: var(--cds-color-blue-60);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    }
+    .timezone-info {
+        background-color: var(--cds-color-gray-10);
+        border: 1px solid var(--cds-color-gray-20);
+        border-radius: var(--cds-border-radius-md);
+        padding: var(--cds-spacing-4);
+        margin-top: var(--cds-spacing-4);
+    }
+    .timezone-info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: var(--cds-spacing-2) 0;
+        border-bottom: 1px solid var(--cds-color-gray-20);
+    }
+    .timezone-info-item:last-child {
+        border-bottom: none;
+    }
+    .timezone-info-label {
+        font-size: var(--cds-font-size-sm);
+        color: var(--cds-color-gray-70);
+        font-weight: var(--cds-font-weight-medium);
+    }
+    .timezone-info-value {
+        font-size: var(--cds-font-size-sm);
+        color: var(--cds-color-gray-100);
+        font-weight: var(--cds-font-weight-semibold);
+    }
+    .btn-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--cds-spacing-3) var(--cds-spacing-6);
+        font-size: var(--cds-font-size-base);
+        font-weight: var(--cds-font-weight-medium);
+        color: var(--cds-color-white);
+        background-color: var(--cds-color-blue-60);
+        border: none;
+        border-radius: var(--cds-border-radius-md);
+        cursor: pointer;
+        transition: background-color 150ms ease;
+        width: 100%;
+    }
+    .btn-submit:hover {
+        background-color: var(--cds-color-blue-70);
+    }
+    .alert {
+        padding: var(--cds-spacing-4);
+        border-radius: var(--cds-border-radius-md);
+        margin-bottom: var(--cds-spacing-4);
+    }
+    .alert-success {
+        background-color: var(--cds-color-green-50);
+        border: 1px solid var(--cds-color-green-60);
+        color: var(--cds-color-green-70);
+    }
+    .alert-error {
+        background-color: var(--cds-color-red-50);
+        border: 1px solid var(--cds-color-red-60);
+        color: var(--cds-color-red-70);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto; padding: var(--cds-spacing-8);">
+    <div style="margin-bottom: var(--cds-spacing-8);">
+        <h1 class="form-title">Application Settings</h1>
+        <p class="form-subtitle">Configure timezone and language settings for the application</p>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="form-card">
+        <form method="post" action="{% url 'app_config' %}">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="timezone" class="form-label">
+                    Display Timezone <span class="required">*</span>
+                </label>
+                <select name="timezone" id="timezone" class="form-select" required>
+                    {% for tz_value, tz_label in common_timezones %}
+                    <option value="{{ tz_value }}" {% if current_timezone == tz_value %}selected{% endif %}>
+                        {{ tz_label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-hint" style="margin-top: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+                    All timestamps (logs, metrics, anomalies, alerts, graphs) will be displayed in the selected timezone.
+                    Data is stored in UTC and converted at display time.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="language" class="form-label">
+                    Language <span class="required">*</span>
+                </label>
+                <select name="language" id="language" class="form-select" required>
+                    {% for lang_value, lang_label in available_languages %}
+                    <option value="{{ lang_value }}" {% if current_language == lang_value %}selected{% endif %}>
+                        {{ lang_label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-hint" style="margin-top: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+                    Select the language for the application interface. Currently only English is supported.
+                </div>
+            </div>
+
+            <div class="timezone-info">
+                <div class="timezone-info-item">
+                    <span class="timezone-info-label">Current Timezone:</span>
+                    <span class="timezone-info-value">{{ current_timezone }}</span>
+                </div>
+                <div class="timezone-info-item">
+                    <span class="timezone-info-label">Timezone Offset:</span>
+                    <span class="timezone-info-value">{{ timezone_offset }}</span>
+                </div>
+                <div class="timezone-info-item">
+                    <span class="timezone-info-label">Abbreviation:</span>
+                    <span class="timezone-info-value">{{ timezone_abbrev }}</span>
+                </div>
+                <div class="timezone-info-item">
+                    <span class="timezone-info-label">Current Time:</span>
+                    <span class="timezone-info-value">{% now "M d, Y H:i:s" %}</span>
+                </div>
+            </div>
+
+            <div style="margin-top: var(--cds-spacing-6);">
+                <button type="submit" class="btn-submit">Save Settings</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="form-card" style="background-color: var(--cds-color-gray-10);">
+        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">
+            About Settings
+        </h3>
+        <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-relaxed);">
+            <p style="margin: 0 0 var(--cds-spacing-3) 0;">
+                <strong>Data Storage:</strong> All timestamps are stored in UTC (Coordinated Universal Time) in the database. 
+                This ensures consistency regardless of server timezones or timezone changes.
+            </p>
+            <p style="margin: 0 0 var(--cds-spacing-3) 0;">
+                <strong>Display Conversion:</strong> Timestamps are automatically converted from UTC to your selected 
+                display timezone when shown in the UI, API responses, and charts.
+            </p>
+            <p style="margin: 0 0 var(--cds-spacing-3) 0;">
+                <strong>Changing Timezone:</strong> You can change the timezone at any time. All existing and new timestamps 
+                will immediately display in the new timezone. No data migration is required.
+            </p>
+            <p style="margin: 0;">
+                <strong>Language:</strong> Currently only English is supported. Additional languages will be available in future updates.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

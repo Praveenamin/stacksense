@@ -4,11 +4,14 @@ from django.contrib import admin, messages
 from django.contrib.auth.models import User
 from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
+from django.db.models import Q
 from datetime import timedelta
 from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity
+from .service_latency import measure_service_latency
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
+from core.utils import convert_to_display_timezone
 import paramiko
 import os
 from django.conf import settings
@@ -232,7 +235,7 @@ def get_live_metrics(request):
                 "disk_percent": disk_percent,
                 "disk_io_read": disk_io_read_kb,
                 "net_io_sent": net_io_sent_kb,
-                "timestamp": latest_metric.timestamp.isoformat(),
+                "timestamp": convert_to_display_timezone(latest_metric.timestamp).isoformat() if latest_metric.timestamp else None,
                 "status": status,
             })
     
@@ -274,7 +277,7 @@ def heartbeat_api(request, server_id):
         "server_id": server.id,
         "server_name": server.name,
         "heartbeat_received": True,
-        "timestamp": heartbeat.last_heartbeat.isoformat(),
+        "timestamp": convert_to_display_timezone(heartbeat.last_heartbeat).isoformat() if heartbeat.last_heartbeat else None,
     })
 
 
@@ -416,7 +419,12 @@ def metric_history_api(request, server_id):
         disk_values = []
         
         for metric in metrics_list:
-            timestamps.append(metric.timestamp.isoformat())
+            # Convert UTC timestamp to display timezone
+            if metric.timestamp:
+                display_timestamp = convert_to_display_timezone(metric.timestamp)
+                timestamps.append(display_timestamp.isoformat() if display_timestamp else metric.timestamp.isoformat())
+            else:
+                timestamps.append(None)
             # Ensure we're using the actual values, not None
             cpu_val = float(metric.cpu_percent) if metric.cpu_percent is not None else 0.0
             memory_val = float(metric.memory_percent) if metric.memory_percent is not None else 0.0
@@ -455,13 +463,23 @@ def metric_history_api(request, server_id):
         # Extract anomaly points
         anomaly_points = []
         for anomaly in anomalies_qs:
+            # Convert UTC timestamp to display timezone
+            if anomaly.timestamp:
+                display_timestamp = convert_to_display_timezone(anomaly.timestamp)
+                timestamp_str = display_timestamp.isoformat() if display_timestamp else anomaly.timestamp.isoformat()
+            else:
+                timestamp_str = None
             anomaly_points.append({
-                "timestamp": anomaly.timestamp.isoformat(),
+                "timestamp": timestamp_str,
                 "metric_name": anomaly.metric_name,
                 "metric_type": anomaly.metric_type,
                 "severity": anomaly.severity,
                 "metric_value": float(anomaly.metric_value) if anomaly.metric_value is not None else 0.0,
             })
+        
+        # Get timezone info for client-side conversion
+        from core.utils import get_display_timezone
+        display_tz = get_display_timezone()
         
         # Build response
         response_data = {
@@ -469,7 +487,8 @@ def metric_history_api(request, server_id):
             "cpu": cpu_values,
             "memory": memory_values,
             "disk": disk_values,
-            "anomalies": anomaly_points
+            "anomalies": anomaly_points,
+            "timezone": display_tz,  # Include timezone info for client
         }
         
         return JsonResponse(response_data, safe=False)
@@ -728,12 +747,16 @@ def server_details(request, server_id):
     # Get monitored disks from config (default to ["/"] if not set)
     monitored_disks = server.monitoring_config.monitored_disks if hasattr(server, 'monitoring_config') and server.monitoring_config.monitored_disks else ["/"]
     
+    # Get monitored services for latency display (services with monitoring_enabled=True)
+    monitored_services = all_services.filter(monitoring_enabled=True)
+    
     context = {
         "server": server,
         "server_status": server_status,
         "latest_metric": latest_metric,
         "recent_metrics": recent_metrics,
         "all_services": all_services,
+        "monitored_services": monitored_services,
         "recent_anomalies": recent_anomalies,
         "disk_summary": disk_summary,
         "disk_data": disk_data,
@@ -759,11 +782,15 @@ def server_list(request):
         return redirect('monitoring_dashboard')
 
     servers = Server.objects.all().select_related("monitoring_config").order_by("name")
+    import json
+    from django.core.cache import cache
+    from datetime import datetime, timedelta
 
-    # Calculate server status based on heartbeat
-    servers_with_status = []
+    # Calculate server status based on heartbeat and get metrics
+    servers_with_data = []
     for server in servers:
         server.status = _calculate_server_status(server)
+        
         # Get last heartbeat timestamp if available
         try:
             from .models import ServerHeartbeat
@@ -771,10 +798,98 @@ def server_list(request):
             server.last_checkin = heartbeat.last_heartbeat if heartbeat else None
         except:
             server.last_checkin = None
-        servers_with_status.append(server)
+        
+        # Get latest metrics
+        server.cpu_percent = None
+        server.memory_percent = None
+        server.memory_used = None
+        server.memory_total = None
+        server.disk_percent = None
+        server.network_sent = None
+        server.network_recv = None
+        server.uptime_seconds = None
+        server.agent_installed = False
+        
+        # Try Redis first
+        redis_key = f"metrics:{server.id}:latest"
+        cached_metric = cache.get(redis_key)
+        
+        if cached_metric:
+            try:
+                metric = json.loads(cached_metric) if isinstance(cached_metric, str) else cached_metric
+                server.cpu_percent = metric.get("cpu_percent")
+                server.memory_percent = metric.get("memory_percent")
+                # Convert bytes to GB
+                memory_used_bytes = metric.get("memory_used", 0)
+                memory_total_bytes = metric.get("memory_total", 0)
+                server.memory_used = memory_used_bytes / (1024 ** 3) if memory_used_bytes else None
+                server.memory_total = memory_total_bytes / (1024 ** 3) if memory_total_bytes else None
+                server.disk_percent = metric.get("disk_percent")
+                server.network_sent = metric.get("net_io_sent", 0) / (1024 * 1024)  # Convert to MB/s
+                server.network_recv = metric.get("net_io_recv", 0) / (1024 * 1024)  # Convert to MB/s
+                server.uptime_seconds = metric.get("system_uptime_seconds")
+            except:
+                pass
+        
+        # Fallback to PostgreSQL
+        if server.cpu_percent is None:
+            latest_metric = SystemMetric.objects.filter(server=server).order_by("-timestamp").first()
+            if latest_metric:
+                server.cpu_percent = latest_metric.cpu_percent
+                server.memory_percent = latest_metric.memory_percent
+                # Convert bytes to GB
+                memory_used_bytes = latest_metric.memory_used or 0
+                memory_total_bytes = latest_metric.memory_total or 0
+                server.memory_used = memory_used_bytes / (1024 ** 3) if memory_used_bytes else None
+                server.memory_total = memory_total_bytes / (1024 ** 3) if memory_total_bytes else None
+                server.uptime_seconds = latest_metric.system_uptime_seconds
+                
+                # Calculate disk percent from root partition
+                if latest_metric.disk_usage:
+                    try:
+                        disk_data = json.loads(latest_metric.disk_usage) if isinstance(latest_metric.disk_usage, str) else latest_metric.disk_usage
+                        if isinstance(disk_data, dict) and '/' in disk_data:
+                            server.disk_percent = disk_data['/'].get('percent', 0)
+                    except:
+                        pass
+                
+                # Network I/O
+                if latest_metric.net_io_sent:
+                    server.network_sent = latest_metric.net_io_sent / (1024 * 1024)  # MB/s
+                if latest_metric.net_io_recv:
+                    server.network_recv = latest_metric.net_io_recv / (1024 * 1024)  # MB/s
+        
+        # Check if agent is installed (has recent metrics or heartbeat)
+        server.agent_installed = server.last_checkin is not None or server.cpu_percent is not None
+        
+        # Get alert and monitoring suppression status
+        try:
+            from .models import MonitoringConfig
+            config = MonitoringConfig.objects.filter(server=server).first()
+            server.alert_suppressed = config.alert_suppressed if config else False
+            server.monitoring_suspended = config.monitoring_suspended if config else False
+        except:
+            server.alert_suppressed = False
+            server.monitoring_suspended = False
+        
+        # Format uptime
+        if server.uptime_seconds:
+            days = int(server.uptime_seconds // 86400)
+            hours = int((server.uptime_seconds % 86400) // 3600)
+            minutes = int((server.uptime_seconds % 3600) // 60)
+            if days > 0:
+                server.uptime_display = f"{days}d {hours}h {minutes}m"
+            elif hours > 0:
+                server.uptime_display = f"{hours}h {minutes}m"
+            else:
+                server.uptime_display = f"{minutes}m"
+        else:
+            server.uptime_display = "0m"
+        
+        servers_with_data.append(server)
 
     context = {
-        'servers': servers_with_status,
+        'servers': servers_with_data,
         'show_sidebar': True,
     }
     return render(request, "core/server_list.html", context)
@@ -1543,6 +1658,112 @@ def remove_server(request, server_id):
 
 @staff_member_required
 @require_http_methods(["GET", "POST"])
+def app_config(request):
+    """Application configuration page (timezone and language settings)"""
+    from .models import AppConfig
+    import pytz
+    
+    if request.method == "GET":
+        config = AppConfig.get_config()
+        
+        # Get list of common timezones
+        common_timezones = [
+            ('UTC', 'UTC (Coordinated Universal Time)'),
+            ('Asia/Kolkata', 'Asia/Kolkata (IST - Indian Standard Time)'),
+            ('America/New_York', 'America/New_York (EST/EDT - Eastern Time)'),
+            ('America/Chicago', 'America/Chicago (CST/CDT - Central Time)'),
+            ('America/Denver', 'America/Denver (MST/MDT - Mountain Time)'),
+            ('America/Los_Angeles', 'America/Los_Angeles (PST/PDT - Pacific Time)'),
+            ('Europe/London', 'Europe/London (GMT/BST - British Time)'),
+            ('Europe/Paris', 'Europe/Paris (CET/CEST - Central European Time)'),
+            ('Europe/Berlin', 'Europe/Berlin (CET/CEST - Central European Time)'),
+            ('Asia/Tokyo', 'Asia/Tokyo (JST - Japan Standard Time)'),
+            ('Asia/Shanghai', 'Asia/Shanghai (CST - China Standard Time)'),
+            ('Australia/Sydney', 'Australia/Sydney (AEST/AEDT - Australian Eastern Time)'),
+            ('America/Sao_Paulo', 'America/Sao_Paulo (BRT - Brazil Time)'),
+        ]
+        
+        # Get available languages
+        available_languages = AppConfig.LanguageChoices.choices
+        
+        # Get current timezone info
+        current_tz_name = config.display_timezone
+        try:
+            tz = pytz.timezone(current_tz_name)
+            now = timezone.now()
+            tz_now = now.astimezone(tz)
+            offset = tz_now.strftime('%z')
+            offset_formatted = f"{offset[:3]}:{offset[3:]}" if len(offset) == 5 else offset
+            abbrev = tz_now.strftime('%Z') or current_tz_name.split('/')[-1][:3].upper()
+        except Exception:
+            offset_formatted = "+00:00"
+            abbrev = "UTC"
+        
+        context = {
+            'config': config,
+            'current_timezone': current_tz_name,
+            'current_language': config.language,
+            'timezone_offset': offset_formatted,
+            'timezone_abbrev': abbrev,
+            'common_timezones': common_timezones,
+            'available_languages': available_languages,
+            'show_sidebar': True,
+        }
+        return render(request, "core/app_config.html", context)
+    elif request.method == "POST":
+        try:
+            new_timezone = request.POST.get('timezone', '').strip()
+            new_language = request.POST.get('language', '').strip()
+            
+            # Validate timezone
+            if new_timezone:
+                try:
+                    pytz.timezone(new_timezone)
+                except pytz.UnknownTimeZoneError:
+                    messages.error(request, f"Invalid timezone: {new_timezone}")
+                    return redirect('app_config')
+            
+            # Validate language
+            if new_language:
+                valid_languages = [choice[0] for choice in AppConfig.LanguageChoices.choices]
+                if new_language not in valid_languages:
+                    messages.error(request, f"Invalid language: {new_language}")
+                    return redirect('app_config')
+            
+            # Update config
+            config = AppConfig.get_config()
+            if new_timezone:
+                config.display_timezone = new_timezone
+            if new_language:
+                config.language = new_language
+            config.save()
+            
+            # Invalidate cache
+            try:
+                from django.core.cache import cache
+                cache.delete('app_display_timezone')
+            except Exception:
+                pass
+            
+            if new_timezone and new_language:
+                messages.success(request, f"Settings updated: Timezone={new_timezone}, Language={new_language}")
+            elif new_timezone:
+                messages.success(request, f"Timezone updated to {new_timezone}")
+            elif new_language:
+                messages.success(request, f"Language updated to {new_language}")
+            else:
+                messages.info(request, "No changes made")
+            
+            return redirect('app_config')
+        except Exception as e:
+            error_logger.error(f"APP_CONFIG save error: {str(e)}")
+            messages.error(request, f"Failed to update settings: {str(e)}")
+            return redirect('app_config')
+    else:
+        messages.error(request, "Method not allowed")
+        return redirect('app_config')
+
+
 @staff_member_required
 def alert_config(request):
     """Email alert configuration page"""
@@ -1600,6 +1821,182 @@ def _smtp_login_if_supported(server, username, password):
     except Exception:
         # Other errors - re-raise
         raise
+
+@staff_member_required
+@require_http_methods(["GET"])
+def disk_alerts_config_api(request):
+    """API endpoint to get disk alert configuration"""
+    try:
+        # Get default thresholds from MonitoringConfig or use defaults
+        from .models import MonitoringConfig, Server
+        default_config = MonitoringConfig.objects.first()
+        
+        # Get all servers with their monitored disks
+        servers = Server.objects.all().select_related('monitoring_config').order_by('name')
+        servers_data = []
+        for server in servers:
+            config = server.monitoring_config if hasattr(server, 'monitoring_config') else None
+            monitored_disks = config.monitored_disks if config and config.monitored_disks else []
+            servers_data.append({
+                'id': server.id,
+                'name': server.name,
+                'monitored_disks': monitored_disks if isinstance(monitored_disks, list) else []
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'disk_threshold': default_config.disk_threshold if default_config else 90.0,
+            'disk_io_threshold': default_config.disk_io_threshold if default_config else 1000.0,
+            'servers': servers_data,
+        })
+    except Exception as e:
+        error_logger.error(f"DISK_ALERTS_CONFIG_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def save_disk_alerts_config(request):
+    """Save disk alert configuration"""
+    try:
+        import json
+        disk_threshold = float(request.POST.get('disk_threshold', 90.0))
+        disk_io_threshold = float(request.POST.get('disk_io_threshold', 1000.0))
+        
+        # Update all monitoring configs with new thresholds
+        from .models import MonitoringConfig
+        MonitoringConfig.objects.all().update(
+            disk_threshold=disk_threshold,
+            disk_io_threshold=disk_io_threshold
+        )
+        
+        messages.success(request, f"Disk alert thresholds updated: Usage={disk_threshold}%, I/O={disk_io_threshold}MB/s")
+        return redirect('alert_config')
+    except Exception as e:
+        error_logger.error(f"SAVE_DISK_ALERTS_CONFIG error: {str(e)}")
+        messages.error(request, f"Failed to save disk alert configuration: {str(e)}")
+        return redirect('alert_config')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def save_monitored_disks(request, server_id):
+    """Save monitored disk partitions for a server"""
+    try:
+        import json
+        server = get_object_or_404(Server, id=server_id)
+        
+        # Get selected partitions from POST data
+        selected_partitions = request.POST.getlist('partitions[]')
+        
+        # Get or create monitoring config
+        from .models import MonitoringConfig
+        config, created = MonitoringConfig.objects.get_or_create(server=server)
+        
+        # Update monitored disks
+        config.monitored_disks = selected_partitions
+        config.save(update_fields=['monitored_disks'])
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Monitored disks updated for {server.name}',
+            'monitored_disks': selected_partitions
+        })
+    except Exception as e:
+        error_logger.error(f"SAVE_MONITORED_DISKS error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def service_alerts_config_api(request):
+    """API endpoint to get service alert configuration"""
+    try:
+        from .models import Service, Server
+        # Get all servers with their services
+        servers = Server.objects.all().order_by('name')
+        servers_data = []
+        
+        for server in servers:
+            services = Service.objects.filter(server=server).order_by('name')
+            services_data = []
+            for service in services:
+                services_data.append({
+                    'id': service.id,
+                    'name': service.name,
+                    'status': service.status,
+                    'service_type': service.service_type,
+                    'monitoring_enabled': service.monitoring_enabled,
+                })
+            
+            servers_data.append({
+                'id': server.id,
+                'name': server.name,
+                'services': services_data
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'servers': servers_data,
+        })
+    except Exception as e:
+        error_logger.error(f"SERVICE_ALERTS_CONFIG_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def server_services_api(request, server_id):
+    """API endpoint to get services for a specific server"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        services = Service.objects.filter(server=server).order_by('name')
+        
+        services_data = []
+        for service in services:
+            services_data.append({
+                'id': service.id,
+                'name': service.name,
+                'status': service.status,
+                'service_type': service.service_type,
+                'port': service.port,
+                'monitoring_enabled': service.monitoring_enabled,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'services': services_data,
+        })
+    except Exception as e:
+        error_logger.error(f"SERVER_SERVICES_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def save_service_monitoring(request, server_id):
+    """Save service monitoring configuration for a server"""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        
+        # Get selected service IDs from POST data
+        selected_service_ids = [int(id) for id in request.POST.getlist('services[]')]
+        
+        # Update monitoring_enabled for all services on this server
+        from .models import Service
+        Service.objects.filter(server=server).update(monitoring_enabled=False)
+        if selected_service_ids:
+            Service.objects.filter(server=server, id__in=selected_service_ids).update(monitoring_enabled=True)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Service monitoring updated for {server.name}',
+            'monitored_services': selected_service_ids
+        })
+    except Exception as e:
+        error_logger.error(f"SAVE_SERVICE_MONITORING error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
 
 @staff_member_required
 @require_http_methods(["POST"])
@@ -2151,22 +2548,32 @@ def _check_and_send_alerts(server, metric):
                 })
                 print(f"[ALERT] Network I/O threshold resolved: < {threshold_mb} MB/s")
         
+        # Map alert types to valid AlertHistory types (DiskIO and NetworkIO -> Disk)
+        def map_alert_type(alert_type):
+            """Map alert type to valid AlertHistory.AlertType choice"""
+            type_mapping = {
+                'DiskIO': 'Disk',
+                'NetworkIO': 'Disk',  # Map NetworkIO to Disk as closest match
+            }
+            return type_mapping.get(alert_type, alert_type)
+        
         # Send email if new alerts exist
         if alerts:
             print(f"[ALERT] Sending {len(alerts)} alert(s) for {server.name}")
             _send_alert_email(email_config, server, alerts)
             # Log to AlertHistory
             for alert in alerts:
+                mapped_type = map_alert_type(alert['type'])
                 AlertHistory.objects.create(
                     server=server,
-                    alert_type=alert['type'],
+                    alert_type=mapped_type,
                     status=AlertHistory.AlertStatus.TRIGGERED,
                     value=alert['value'],
                     threshold=alert['threshold'],
                     message=alert['message'],
                     recipients=email_config.to_email or ''
                 )
-                app_logger.info(f"Alert sent: {server.name} - {alert['type']} - {alert['message']}")
+                app_logger.info(f"Alert sent: {server.name} - {mapped_type} - {alert['message']}")
         
         # Send email if resolved alerts exist
         if resolved_alerts:
@@ -2174,9 +2581,10 @@ def _check_and_send_alerts(server, metric):
             _send_resolved_alert_email(email_config, server, resolved_alerts)
             # Log to AlertHistory
             for alert in resolved_alerts:
+                mapped_type = map_alert_type(alert['type'])
                 AlertHistory.objects.create(
                     server=server,
-                    alert_type=alert['type'],
+                    alert_type=mapped_type,
                     status=AlertHistory.AlertStatus.RESOLVED,
                     value=alert['value'],
                     threshold=alert['threshold'],
@@ -2184,7 +2592,7 @@ def _check_and_send_alerts(server, metric):
                     recipients=email_config.to_email or '',
                     resolved_at=timezone.now()
                 )
-                app_logger.info(f"Alert resolved: {server.name} - {alert['type']} - {alert['message']}")
+                app_logger.info(f"Alert resolved: {server.name} - {mapped_type} - {alert['message']}")
         
         # Update cache with current state (store for 24 hours)
         cache.set(cache_key, current_state, 86400)
@@ -2437,6 +2845,14 @@ def _check_service_status(server, service):
                 # Service came back online - send resolved alert
                 _send_service_alert(server, service, "resolved")
                 cache.delete(alert_sent_key)
+            
+            # Measure latency for monitored services
+            if service.monitoring_enabled:
+                try:
+                    measure_service_latency(server, service)
+                except Exception as latency_error:
+                    # Log error but don't fail the service check
+                    error_logger.warning(f"Latency measurement failed for {service.name} on {server.name}: {str(latency_error)}")
         else:
             # Service is down - check if it's in failed state immediately
             # First, check if service is in failed state
@@ -3000,19 +3416,102 @@ def create_admin_user_api(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+def _group_alerts_by_incident(alerts_list, time_window_minutes=5):
+    """
+    Group alerts by incident (same server, within time window).
+    Returns a list of groups, where each group contains alerts from the same incident.
+    """
+    if not alerts_list:
+        return []
+    
+    from datetime import timedelta
+    
+    # Sort alerts by timestamp (oldest first for grouping)
+    sorted_alerts = sorted(alerts_list, key=lambda x: x.sent_at)
+    
+    groups = []
+    current_group = []
+    current_group_time = None
+    
+    for alert in sorted_alerts:
+        # If no current group, start one
+        if not current_group:
+            current_group = [alert]
+            current_group_time = alert.sent_at
+            continue
+        
+        # Check if this alert belongs to the current group
+        # (same server and within time window)
+        time_diff = (alert.sent_at - current_group_time).total_seconds() / 60
+        same_server = alert.server_id == current_group[0].server_id
+        
+        if same_server and time_diff <= time_window_minutes:
+            # Add to current group
+            current_group.append(alert)
+            # Update group time to latest alert in group
+            if alert.sent_at > current_group_time:
+                current_group_time = alert.sent_at
+        else:
+            # Start a new group
+            groups.append(current_group)
+            current_group = [alert]
+            current_group_time = alert.sent_at
+    
+    # Add the last group
+    if current_group:
+        groups.append(current_group)
+    
+    # Sort groups by most recent alert first
+    groups.sort(key=lambda g: max(a.sent_at for a in g), reverse=True)
+    
+    return groups
+
+
 @staff_member_required
 def alert_history(request):
     """View page to display and manage alert history (including anomalies)"""
+    from datetime import datetime, timedelta
+    from django.utils import timezone as django_timezone
+    
     # Get query parameters for filtering
     server_id = request.GET.get('server_id', '').strip()
     alert_type = request.GET.get('alert_type', '').strip()
     status = request.GET.get('status', '').strip()  # Default to empty (all alerts)
+    time_range = request.GET.get('time_range', '24h').strip()
+    acknowledged = request.GET.get('acknowledged', '').strip()
+    instance = request.GET.get('instance', '').strip()
+    group_by_incident = request.GET.get('group', 'false').lower() == 'true' or request.GET.get('group_by_incident', 'false').lower() == 'true'
     
     # Build AlertHistory query
     alert_history_query = AlertHistory.objects.all().select_related('server')
     
     # Build Anomaly query
     anomaly_query = Anomaly.objects.all().select_related('server', 'metric')
+    
+    # Time range filtering
+    now = django_timezone.now()
+    if time_range == '24h':
+        time_threshold = now - timedelta(hours=24)
+        alert_history_query = alert_history_query.filter(sent_at__gte=time_threshold)
+        anomaly_query = anomaly_query.filter(timestamp__gte=time_threshold)
+    elif time_range == '7d':
+        time_threshold = now - timedelta(days=7)
+        alert_history_query = alert_history_query.filter(sent_at__gte=time_threshold)
+        anomaly_query = anomaly_query.filter(timestamp__gte=time_threshold)
+    elif time_range == '30d':
+        time_threshold = now - timedelta(days=30)
+        alert_history_query = alert_history_query.filter(sent_at__gte=time_threshold)
+        anomaly_query = anomaly_query.filter(timestamp__gte=time_threshold)
+    # 'all' means no time filter
+    
+    # Instance filtering (by server name or IP)
+    if instance:
+        alert_history_query = alert_history_query.filter(
+            models.Q(server__name__icontains=instance) | models.Q(server__ip_address__icontains=instance)
+        )
+        anomaly_query = anomaly_query.filter(
+            models.Q(server__name__icontains=instance) | models.Q(server__ip_address__icontains=instance)
+        )
     
     if server_id:
         try:
@@ -3036,15 +3535,24 @@ def alert_history(request):
             anomaly_query = anomaly_query.filter(metric_type=anomaly_type)
     
     if status:
-        # Validate status is in choices
+        # Validate status is in choices (status values are still 'triggered'/'resolved' internally)
         valid_statuses = [choice[0] for choice in AlertHistory.AlertStatus.choices]
         if status in valid_statuses:
-            if status == 'triggered':
+            if status == 'triggered':  # Unacknowledged
                 alert_history_query = alert_history_query.filter(status='triggered')
                 anomaly_query = anomaly_query.filter(resolved=False)
-            elif status == 'resolved':
+            elif status == 'resolved':  # Acknowledged
                 alert_history_query = alert_history_query.filter(status='resolved')
                 anomaly_query = anomaly_query.filter(resolved=True)
+    
+    # Handle acknowledged filter (maps to resolved/triggered)
+    if acknowledged:
+        if acknowledged == 'true':  # Acknowledged = resolved
+            alert_history_query = alert_history_query.filter(status='resolved')
+            anomaly_query = anomaly_query.filter(resolved=True)
+        elif acknowledged == 'false':  # Unacknowledged = triggered
+            alert_history_query = alert_history_query.filter(status='triggered')
+            anomaly_query = anomaly_query.filter(resolved=False)
     
     # Get alerts ordered by most recent first
     alerts_list = list(alert_history_query.order_by('-sent_at')[:500])
@@ -3052,28 +3560,61 @@ def alert_history(request):
     # Get anomalies ordered by most recent first
     anomalies_list = list(anomaly_query.order_by('-timestamp')[:500])
     
+    # Group alerts by incident if requested
+    alert_groups = None
+    if group_by_incident and alerts_list:
+        alert_groups = _group_alerts_by_incident(alerts_list, time_window_minutes=5)
+    
     # Combine alerts and anomalies into unified list with type indicators
     # Use a list of dicts with 'type' field to distinguish
     unified_items = []
     
-    # Add alerts with type='alert'
+    # Add alerts with type='alert' and calculate duration
+    now = django_timezone.now()
     for alert in alerts_list:
+        # Calculate duration
+        if alert.status == 'triggered':
+            duration_seconds = (now - alert.sent_at).total_seconds()
+        elif alert.resolved_at:
+            duration_seconds = (alert.resolved_at - alert.sent_at).total_seconds()
+        else:
+            duration_seconds = 0
+        
         unified_items.append({
             'type': 'alert',
             'object': alert,
             'timestamp': alert.sent_at,
+            'duration_seconds': duration_seconds,
         })
     
-    # Add anomalies with type='anomaly'
+    # Add anomalies with type='anomaly' and calculate duration
     for anomaly in anomalies_list:
+        # Calculate duration
+        if not anomaly.resolved:
+            duration_seconds = (now - anomaly.timestamp).total_seconds()
+        elif anomaly.resolved_at:
+            duration_seconds = (anomaly.resolved_at - anomaly.timestamp).total_seconds()
+        else:
+            duration_seconds = 0
+        
         unified_items.append({
             'type': 'anomaly',
             'object': anomaly,
             'timestamp': anomaly.timestamp,
+            'duration_seconds': duration_seconds,
         })
     
-    # Sort unified list by timestamp (most recent first)
-    unified_items.sort(key=lambda x: x['timestamp'], reverse=True)
+    # Sort unified list: triggered/unresolved first, then by timestamp (most recent first)
+    def sort_key(item):
+        # Check if it's an alert or anomaly and if it's active
+        if item['type'] == 'alert':
+            is_active = item['object'].status == 'triggered'
+        else:  # anomaly
+            is_active = not item['object'].resolved
+        # Return tuple: (not is_active, -timestamp) so active items come first, then sorted by timestamp desc
+        return (not is_active, -item['timestamp'].timestamp() if item['timestamp'] else 0)
+    
+    unified_items.sort(key=sort_key)
     
     # Limit to 500 most recent items
     unified_items = unified_items[:500]
@@ -3081,21 +3622,42 @@ def alert_history(request):
     # Get filter options
     servers = Server.objects.all().order_by('name')
     alert_types = AlertHistory.AlertType.choices
-    alert_statuses = AlertHistory.AlertStatus.choices
+    # Map status choices to Acknowledged/Unacknowledged terminology
+    alert_statuses = [
+        ('triggered', 'Unacknowledged'),
+        ('resolved', 'Acknowledged'),
+    ]
     
     # Counts for summary cards (all alerts and anomalies, not filtered)
-    total_alerts = AlertHistory.objects.count()
-    triggered_alerts = AlertHistory.objects.filter(status='triggered').count()
-    resolved_alerts = AlertHistory.objects.filter(status='resolved').count()
+    # Apply time range to counts if specified
+    base_query_alerts = AlertHistory.objects.all()
+    base_query_anomalies = Anomaly.objects.all()
     
-    total_anomalies = Anomaly.objects.count()
-    unresolved_anomalies = Anomaly.objects.filter(resolved=False).count()
-    resolved_anomalies = Anomaly.objects.filter(resolved=True).count()
+    if time_range == '24h':
+        time_threshold = now - timedelta(hours=24)
+        base_query_alerts = base_query_alerts.filter(sent_at__gte=time_threshold)
+        base_query_anomalies = base_query_anomalies.filter(timestamp__gte=time_threshold)
+    elif time_range == '7d':
+        time_threshold = now - timedelta(days=7)
+        base_query_alerts = base_query_alerts.filter(sent_at__gte=time_threshold)
+        base_query_anomalies = base_query_anomalies.filter(timestamp__gte=time_threshold)
+    elif time_range == '30d':
+        time_threshold = now - timedelta(days=30)
+        base_query_alerts = base_query_alerts.filter(sent_at__gte=time_threshold)
+        base_query_anomalies = base_query_anomalies.filter(timestamp__gte=time_threshold)
     
-    # Combined counts
-    total_items = total_alerts + total_anomalies
-    active_items = triggered_alerts + unresolved_anomalies
-    resolved_items = resolved_alerts + resolved_anomalies
+    triggered_alerts = base_query_alerts.filter(status='triggered').count()
+    resolved_alerts = base_query_alerts.filter(status='resolved').count()
+    
+    unresolved_anomalies = base_query_anomalies.filter(resolved=False).count()
+    resolved_anomalies = base_query_anomalies.filter(resolved=True).count()
+    
+    # Combined counts for summary cards
+    # Map: Triggered = Unacknowledged, Resolved = Acknowledged
+    unacknowledged_items = triggered_alerts + unresolved_anomalies  # Unacknowledged Alerts
+    acknowledged_items = resolved_alerts + resolved_anomalies  # Acknowledged Alerts (resolved)
+    total_critical = unacknowledged_items  # Total Critical Alerts (unacknowledged)
+    critical_severity_count = total_critical  # Critical Severity (same as total critical for now)
     
     # Filtered count
     filtered_count = len(unified_items)
@@ -3103,6 +3665,8 @@ def alert_history(request):
     context = {
         'unified_items': unified_items,  # Combined list with type indicators
         'alerts': alerts_list,  # Keep for backward compatibility if needed
+        'alert_groups': alert_groups,  # Grouped alerts by incident
+        'group_by_incident': group_by_incident,  # Whether grouping is enabled
         'anomalies': anomalies_list,  # Keep for reference
         'servers': servers,
         'alert_types': alert_types,
@@ -3110,12 +3674,14 @@ def alert_history(request):
         'selected_server_id': server_id,
         'selected_alert_type': alert_type,
         'selected_status': status,
-        'total_alerts': total_items,  # Combined total
-        'triggered_count': active_items,  # Combined active
-        'resolved_count': resolved_items,  # Combined resolved
+        'selected_time_range': time_range,
+        'selected_acknowledged': acknowledged,
+        'selected_instance': instance,
+        'triggered_count': total_critical,  # Total Critical Alerts (unacknowledged)
+        'acknowledged_count': acknowledged_items,  # Acknowledged Alerts
+        'unacknowledged_count': unacknowledged_items,  # Unacknowledged Alerts
+        'critical_severity_count': critical_severity_count,
         'filtered_count': filtered_count,
-        'total_anomalies': total_anomalies,
-        'unresolved_anomalies': unresolved_anomalies,
         'show_sidebar': True,
     }
     
@@ -3159,8 +3725,8 @@ def alert_history_api(request):
                 'threshold': alert.threshold,
                 'message': alert.message,
                 'recipients': alert.recipients,
-                'sent_at': alert.sent_at.isoformat(),
-                'resolved_at': alert.resolved_at.isoformat() if alert.resolved_at else None,
+                'sent_at': convert_to_display_timezone(alert.sent_at).isoformat() if alert.sent_at else None,
+                'resolved_at': convert_to_display_timezone(alert.resolved_at).isoformat() if alert.resolved_at else None,
             })
         
         return JsonResponse({
@@ -3201,7 +3767,7 @@ def resolve_alert(request, alert_id):
             'alert': {
                 'id': alert.id,
                 'status': alert.status,
-                'resolved_at': alert.resolved_at.isoformat(),
+                'resolved_at': convert_to_display_timezone(alert.resolved_at).isoformat() if alert.resolved_at else None,
             }
         })
     except Exception as e:
@@ -4536,7 +5102,7 @@ def anomaly_detail_api(request, anomaly_id):
                 "id": anomaly.server.id,
                 "name": anomaly.server.name
             },
-            "timestamp": anomaly.timestamp.isoformat(),
+            "timestamp": convert_to_display_timezone(anomaly.timestamp).isoformat() if anomaly.timestamp else None,
             "metric_type": anomaly.metric_type,
             "metric_name": anomaly.metric_name,
             "metric_value": anomaly.metric_value,
@@ -4546,7 +5112,7 @@ def anomaly_detail_api(request, anomaly_id):
             "llm_generated": anomaly.llm_generated,
             "acknowledged": anomaly.acknowledged,
             "resolved": anomaly.resolved,
-            "resolved_at": anomaly.resolved_at.isoformat() if anomaly.resolved_at else None,
+            "resolved_at": convert_to_display_timezone(anomaly.resolved_at).isoformat() if anomaly.resolved_at else None,
         }
         
         # If explanation is empty and LLM is enabled, generate it
@@ -5126,12 +5692,23 @@ def dashboard_network_trend_api(request):
         
         metrics = metrics_filter.order_by('timestamp').values('timestamp', 'network_io', 'server_id')
         
+        # Store previous values per server to calculate differences
+        prev_values = {}  # {server_id: {recv: int, sent: int, timestamp: datetime}}
+        
         hourly_inbound = {}
         hourly_outbound = {}
         
         for metric in metrics:
-            hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
+            # Ensure timestamp is timezone-aware datetime
+            timestamp = metric['timestamp']
+            # Timestamps from the database should already be timezone-aware, but handle edge cases
+            if hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is None:
+                from django.utils import timezone as tz
+                timestamp = tz.make_aware(timestamp)
+            
+            hour_key = timestamp.replace(minute=0, second=0, microsecond=0)
             network_data = metric.get('network_io')
+            server_id = metric['server_id']
             
             if network_data:
                 try:
@@ -5146,26 +5723,58 @@ def dashboard_network_trend_api(request):
                                 total_recv += data.get('bytes_recv', 0)
                                 total_sent += data.get('bytes_sent', 0)
                     
-                    # Convert to MB/s (assuming 1 hour intervals, divide by 3600 and 1024*1024)
-                    recv_mb = total_recv / (1024 * 1024) if total_recv > 0 else 0
-                    sent_mb = total_sent / (1024 * 1024) if total_sent > 0 else 0
+                    # Calculate difference from previous measurement for this server
+                    if server_id in prev_values:
+                        prev = prev_values[server_id]
+                        time_diff = (timestamp - prev['timestamp']).total_seconds()
+                        
+                        if time_diff > 0:  # Avoid division by zero
+                            # Calculate bytes per second, then convert to MB/s
+                            # Handle counter rollover (if new value is less than prev, assume rollover)
+                            recv_diff = total_recv - prev['recv']
+                            sent_diff = total_sent - prev['sent']
+                            
+                            # Only process if differences are positive (ignore rollovers for now)
+                            if recv_diff >= 0 and sent_diff >= 0:
+                                recv_bytes_per_sec = recv_diff / time_diff
+                                sent_bytes_per_sec = sent_diff / time_diff
+                                
+                                # Convert bytes/sec to MB/s
+                                recv_mb_per_sec = recv_bytes_per_sec / (1024 * 1024)
+                                sent_mb_per_sec = sent_bytes_per_sec / (1024 * 1024)
+                                
+                                # For hourly aggregation, we want average MB/s for that hour
+                                if hour_key not in hourly_inbound:
+                                    hourly_inbound[hour_key] = []
+                                    hourly_outbound[hour_key] = []
+                                hourly_inbound[hour_key].append(recv_mb_per_sec)
+                                hourly_outbound[hour_key].append(sent_mb_per_sec)
                     
-                    if hour_key not in hourly_inbound:
-                        hourly_inbound[hour_key] = []
-                        hourly_outbound[hour_key] = []
-                    hourly_inbound[hour_key].append(recv_mb)
-                    hourly_outbound[hour_key].append(sent_mb)
-                except:
+                    # Update previous values for this server
+                    prev_values[server_id] = {
+                        'recv': total_recv,
+                        'sent': total_sent,
+                        'timestamp': timestamp
+                    }
+                except Exception as e:
+                    error_logger.error(f"Network trend calculation error: {str(e)}")
                     pass
         
         data_points = []
         for hour in sorted(set(list(hourly_inbound.keys()) + list(hourly_outbound.keys()))):
-            avg_inbound = sum(hourly_inbound.get(hour, [0])) / len(hourly_inbound.get(hour, [1]))
-            avg_outbound = sum(hourly_outbound.get(hour, [0])) / len(hourly_outbound.get(hour, [1]))
+            inbound_list = hourly_inbound.get(hour, [])
+            outbound_list = hourly_outbound.get(hour, [])
+            
+            # Calculate average, avoiding division by zero
+            avg_inbound = sum(inbound_list) / len(inbound_list) if inbound_list else 0.0
+            avg_outbound = sum(outbound_list) / len(outbound_list) if outbound_list else 0.0
+            
+            # Round to 6 decimal places to preserve very small values for frontend scaling
+            # The frontend will handle appropriate display precision
             data_points.append({
                 'timestamp': hour.isoformat(),
-                'inbound': round(avg_inbound, 2),
-                'outbound': round(avg_outbound, 2)
+                'inbound': round(avg_inbound, 6),
+                'outbound': round(avg_outbound, 6)
             })
         
         return JsonResponse({
@@ -5203,9 +5812,13 @@ def dashboard_disk_io_summary_api(request):
         for server in servers:
             latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
             if latest_metric:
-                # Convert KB/s to IOPS (approximate: assume 4KB average I/O size)
-                read_iops = (latest_metric.disk_io_read or 0) / 4 if latest_metric.disk_io_read else 0
-                write_iops = (latest_metric.disk_io_write or 0) / 4 if latest_metric.disk_io_write else 0
+                # disk_io_read and disk_io_write are in bytes/second
+                # Convert bytes/sec to IOPS: assume 4KB (4096 bytes) average I/O size
+                # IOPS = (bytes/sec) / (bytes per I/O) = (bytes/sec) / 4096
+                read_bytes_per_sec = latest_metric.disk_io_read or 0
+                write_bytes_per_sec = latest_metric.disk_io_write or 0
+                read_iops = read_bytes_per_sec / 4096 if read_bytes_per_sec > 0 else 0
+                write_iops = write_bytes_per_sec / 4096 if write_bytes_per_sec > 0 else 0
                 total_read_iops += read_iops
                 total_write_iops += write_iops
         
@@ -5392,21 +6005,23 @@ def dashboard_recent_alerts_api(request):
             # Determine severity
             severity = 'critical' if alert.status == 'triggered' else 'resolved'
             
+            display_timestamp = convert_to_display_timezone(alert.sent_at)
             alert_list.append({
                 'id': alert.id,
                 'title': f"{alert.alert_type} Alert",
                 'host': alert.server.name,
                 'description': alert.message,
-                'timestamp': alert.sent_at.isoformat(),
+                'timestamp': display_timestamp.isoformat() if display_timestamp else alert.sent_at.isoformat(),
                 'time_ago': time_str,
                 'severity': severity,
                 'status': alert.status
             })
         
+        current_time = convert_to_display_timezone(timezone.now())
         return JsonResponse({
             'success': True,
             'data': alert_list,
-            'timestamp': timezone.now().isoformat()
+            'timestamp': current_time.isoformat() if current_time else timezone.now().isoformat()
         })
     except Exception as e:
         error_logger.error(f"DASHBOARD_RECENT_ALERTS_API error: {str(e)}")
@@ -5445,6 +6060,10 @@ def dashboard_disk_forecast_api(request, server_id, mount_point):
     """API endpoint for 30-day disk space forecast"""
     try:
         from .utils.forecast_engine import forecast_disk_usage
+        from urllib.parse import unquote
+        
+        # Decode URL-encoded mount point (e.g., %2Fhome -> /home)
+        mount_point = unquote(mount_point)
         
         server = get_object_or_404(Server, id=server_id)
         forecast_data = forecast_disk_usage(server, mount_point)
@@ -5540,21 +6159,55 @@ def dashboard_disk_mount_points_api(request, server_id):
         import json
         server = get_object_or_404(Server, id=server_id)
         
+        # Virtual filesystem types to exclude (same as in collect_metrics.py)
+        IGNORED_FSTYPES = {
+            'squashfs', 'tmpfs', 'devtmpfs', 'proc', 'sysfs',
+            'cgroup', 'cgroup2', 'ramfs', 'overlay', 'udev'
+        }
+        
         # Get latest metric with disk usage data
         latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
         
         mount_points = []
-        if latest_metric and latest_metric.disk_usage:
-            try:
-                disk_data = json.loads(latest_metric.disk_usage) if isinstance(latest_metric.disk_usage, str) else latest_metric.disk_usage
-                if isinstance(disk_data, dict):
-                    mount_points = list(disk_data.keys())
-            except (json.JSONDecodeError, TypeError, AttributeError):
-                pass
+        if latest_metric:
+            if latest_metric.disk_usage:
+                try:
+                    # Handle both string and dict formats
+                    if isinstance(latest_metric.disk_usage, str):
+                        disk_data = json.loads(latest_metric.disk_usage)
+                    else:
+                        disk_data = latest_metric.disk_usage
+                    
+                    # Extract mount points from dict, filtering out virtual filesystems
+                    if isinstance(disk_data, dict):
+                        for mount_point, disk_info in disk_data.items():
+                            if not mount_point:
+                                continue
+                            
+                            # Check if this is a virtual filesystem
+                            fstype = None
+                            if isinstance(disk_info, dict):
+                                fstype = disk_info.get('fstype', '').lower()
+                            
+                            # Skip virtual filesystems
+                            if fstype and fstype in IGNORED_FSTYPES:
+                                continue
+                            
+                            mount_points.append(mount_point)
+                        
+                        # Sort mount points, with '/' first
+                        mount_points = sorted(mount_points, key=lambda x: (x != '/', x))
+                except (json.JSONDecodeError, TypeError, AttributeError) as e:
+                    error_logger.warning(f"DASHBOARD_DISK_MOUNT_POINTS_API: Error parsing disk_usage for server {server_id}: {str(e)}")
+            else:
+                error_logger.warning(f"DASHBOARD_DISK_MOUNT_POINTS_API: No disk_usage data for server {server_id}")
+        else:
+            error_logger.warning(f"DASHBOARD_DISK_MOUNT_POINTS_API: No metrics found for server {server_id}")
         
         # If no mount points found, return common defaults
         if not mount_points:
             mount_points = ['/']
+            error_logger.info(f"DASHBOARD_DISK_MOUNT_POINTS_API: Using default mount point '/' for server {server_id}")
         
         return JsonResponse({
             'success': True,
@@ -5597,18 +6250,268 @@ def dashboard_login_activity_api(request):
                 'email': activity.email,
                 'location': activity.location or 'Unknown',
                 'status': activity.status,
-                'timestamp': activity.timestamp.isoformat(),
+                'timestamp': convert_to_display_timezone(activity.timestamp).isoformat() if activity.timestamp else None,
                 'time_ago': time_str,
                 'ip_address': str(activity.ip_address)
             })
         
+        current_time = convert_to_display_timezone(timezone.now())
         return JsonResponse({
             'success': True,
             'data': activity_list,
-            'timestamp': timezone.now().isoformat()
+            'timestamp': current_time.isoformat() if current_time else timezone.now().isoformat()
         })
     except Exception as e:
         error_logger.error(f"DASHBOARD_LOGIN_ACTIVITY_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_sli_compliance_api(request):
+    """API endpoint for overall SLI/SLO compliance summary for dashboard"""
+    try:
+        from core.models import SLIMeasurement
+        from django.db.models import Count, Q, Avg
+        
+        # Get latest measurements for each server and metric type
+        servers = Server.objects.all()
+        metric_types = ['UPTIME', 'CPU', 'MEMORY', 'DISK', 'NETWORK', 'RESPONSE_TIME', 'ERROR_RATE']
+        
+        total_servers = servers.count()
+        compliant_servers = 0
+        by_metric = {}
+        
+        # Calculate overall compliance per metric type
+        for metric_type in metric_types:
+            # Get latest measurement for each server for this metric
+            latest_measurements = SLIMeasurement.objects.filter(
+                metric_type=metric_type
+            ).order_by('server', '-time_window_end').distinct('server')
+            
+            compliant_count = latest_measurements.filter(is_compliant=True).count()
+            total_count = latest_measurements.count()
+            
+            compliance_percentage = (compliant_count / total_count * 100) if total_count > 0 else 0.0
+            
+            by_metric[metric_type] = {
+                'compliant_servers': compliant_count,
+                'total_servers': total_count,
+                'compliance_percentage': round(compliance_percentage, 2)
+            }
+        
+        # Calculate overall compliance (servers that are compliant for all metrics)
+        # This is simplified - in reality, you might want different logic
+        overall_compliance = 0.0
+        if by_metric:
+            avg_compliance = sum(m['compliance_percentage'] for m in by_metric.values()) / len(by_metric)
+            overall_compliance = round(avg_compliance, 2)
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'total_servers': total_servers,
+                'compliant_servers': compliant_servers,
+                'compliance_percentage': overall_compliance,
+                'by_metric': by_metric
+            }
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_SLI_COMPLIANCE_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def server_sli_compliance_api(request, server_id):
+    """API endpoint for per-server SLI/SLO compliance details"""
+    try:
+        from core.models import SLIMeasurement, ServiceLatencyMeasurement
+        from core.sli_utils import get_slo_config
+        
+        server = get_object_or_404(Server, id=server_id)
+        
+        # Get latest measurements for each metric type
+        metric_types = ['UPTIME', 'CPU', 'MEMORY', 'DISK', 'NETWORK', 'RESPONSE_TIME', 'ERROR_RATE']
+        metrics_data = []
+        
+        for metric_type in metric_types:
+            # Get latest measurement
+            latest = SLIMeasurement.objects.filter(
+                server=server,
+                metric_type=metric_type
+            ).order_by('-time_window_end').first()
+            
+            if latest:
+                metrics_data.append({
+                    'metric_type': metric_type,
+                    'sli_value': latest.sli_value,
+                    'slo_target': latest.slo_target,
+                    'is_compliant': latest.is_compliant,
+                    'compliance_percentage': latest.compliance_percentage,
+                    'time_window_end': latest.time_window_end.isoformat() if latest.time_window_end else None
+                })
+            else:
+                # No measurement yet, get SLO config to show target
+                slo_config = get_slo_config(server, metric_type)
+                if slo_config:
+                    metrics_data.append({
+                        'metric_type': metric_type,
+                        'sli_value': None,
+                        'slo_target': slo_config.target_value,
+                        'is_compliant': None,
+                        'compliance_percentage': None,
+                        'time_window_end': None
+                    })
+        
+        # For RESPONSE_TIME, get service latency measurements (only for services with monitoring_enabled=True)
+        service_latencies = []
+        if any(m['metric_type'] == 'RESPONSE_TIME' for m in metrics_data):
+            monitored_services = Service.objects.filter(
+                server=server,
+                monitoring_enabled=True
+            )
+            
+            for service in monitored_services:
+                latest_latency = ServiceLatencyMeasurement.objects.filter(
+                    service=service,
+                    success=True
+                ).order_by('-timestamp').first()
+                
+                if latest_latency:
+                    service_latencies.append({
+                        'service_id': service.id,
+                        'service_name': service.name,
+                        'latency_ms': latest_latency.latency_ms,
+                        'timestamp': latest_latency.timestamp.isoformat() if latest_latency.timestamp else None
+                    })
+        
+        # Calculate overall compliance
+        compliant_metrics = sum(1 for m in metrics_data if m.get('is_compliant') is True)
+        total_metrics = sum(1 for m in metrics_data if m.get('is_compliant') is not None)
+        overall_compliance = (compliant_metrics / total_metrics * 100) if total_metrics > 0 else 0.0
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'server_id': server.id,
+                'server_name': server.name,
+                'metrics': metrics_data,
+                'service_latencies': service_latencies,
+                'overall_compliance': round(overall_compliance, 2)
+            }
+        })
+    except Exception as e:
+        error_logger.error(f"SERVER_SLI_COMPLIANCE_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET", "POST"])
+def server_slo_config_api(request, server_id):
+    """API endpoint for SLO configuration: GET to retrieve, POST to update"""
+    try:
+        from core.models import SLOConfig
+        import json
+        
+        server = get_object_or_404(Server, id=server_id)
+        
+        if request.method == "GET":
+            # Get all SLO configs for this server (including global defaults)
+            slo_configs = SLOConfig.objects.filter(
+                Q(server=server) | Q(server=None)
+            ).order_by('metric_type')
+            
+            configs_list = []
+            for config in slo_configs:
+                configs_list.append({
+                    'id': config.id,
+                    'server_id': config.server.id if config.server else None,
+                    'metric_type': config.metric_type,
+                    'target_value': config.target_value,
+                    'target_operator': config.target_operator,
+                    'time_window_days': config.time_window_days,
+                    'enabled': config.enabled,
+                    'is_global': config.server is None
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'data': configs_list
+            })
+        
+        elif request.method == "POST":
+            # Update or create SLO config
+            data = json.loads(request.body)
+            metric_type = data.get('metric_type')
+            target_value = data.get('target_value')
+            target_operator = data.get('target_operator', 'gte')
+            time_window_days = data.get('time_window_days')
+            enabled = data.get('enabled', True)
+            
+            if not metric_type or target_value is None:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'metric_type and target_value are required'
+                }, status=400)
+            
+            # Update or create
+            slo_config, created = SLOConfig.objects.update_or_create(
+                server=server,
+                metric_type=metric_type,
+                defaults={
+                    'target_value': float(target_value),
+                    'target_operator': target_operator,
+                    'time_window_days': int(time_window_days) if time_window_days else None,
+                    'enabled': enabled
+                }
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'created': created,
+                'data': {
+                    'id': slo_config.id,
+                    'server_id': slo_config.server.id if slo_config.server else None,
+                    'metric_type': slo_config.metric_type,
+                    'target_value': slo_config.target_value,
+                    'target_operator': slo_config.target_operator,
+                    'time_window_days': slo_config.time_window_days,
+                    'enabled': slo_config.enabled
+                }
+            })
+    
+    except Exception as e:
+        error_logger.error(f"SERVER_SLO_CONFIG_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["DELETE"])
+def server_slo_config_delete_api(request, server_id, metric_type):
+    """API endpoint to delete server-specific SLO config (revert to global default)"""
+    try:
+        from core.models import SLOConfig
+        
+        server = get_object_or_404(Server, id=server_id)
+        
+        # Find server-specific SLO config
+        try:
+            slo_config = SLOConfig.objects.get(server=server, metric_type=metric_type)
+            slo_config.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'SLO config for {metric_type} deleted. Server will use global default.'
+            })
+        except SLOConfig.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'SLO config not found'
+            }, status=404)
+    
+    except Exception as e:
+        error_logger.error(f"SERVER_SLO_CONFIG_DELETE_API error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

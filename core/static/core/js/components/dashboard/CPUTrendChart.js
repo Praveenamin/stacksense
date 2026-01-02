@@ -37,10 +37,19 @@ class CPUTrendChart extends BaseDashboardComponent {
         const dropdown = document.getElementById('cpu-trend-filter-dropdown');
         if (!dropdown) return;
         
-        // Clear existing options (except "All VMs")
-        const allOption = dropdown.querySelector('[data-value="all"]');
+        // Clear existing options
         dropdown.innerHTML = '';
-        if (allOption) dropdown.appendChild(allOption);
+        
+        // Create "All VMs" option with click handler
+        const allOption = document.createElement('div');
+        allOption.className = 'filter-option';
+        allOption.setAttribute('data-value', 'all');
+        allOption.innerHTML = `
+            <span>All VMs (Average)</span>
+            <span class="filter-check" style="display: none;">✓</span>
+        `;
+        allOption.addEventListener('click', () => this.selectServer('all', 'All VMs (Average)'));
+        dropdown.appendChild(allOption);
         
         // Add individual servers
         this.servers.forEach(server => {
@@ -55,8 +64,20 @@ class CPUTrendChart extends BaseDashboardComponent {
             dropdown.appendChild(option);
         });
         
-        // Mark "All VMs" as selected by default
-        this.selectServer('all', 'All VMs (Average)');
+        // Restore saved selection or default to "All VMs"
+        const savedServerId = localStorage.getItem('cpu-trend-selected-server');
+        if (savedServerId) {
+            const savedServer = this.servers.find(s => String(s.id) === savedServerId);
+            if (savedServer) {
+                this.selectServer(savedServerId, savedServer.name);
+            } else if (savedServerId === 'all') {
+                this.selectServer('all', 'All VMs (Average)');
+            } else {
+                this.selectServer('all', 'All VMs (Average)');
+            }
+        } else {
+            this.selectServer('all', 'All VMs (Average)');
+        }
     }
     setupEventListeners() {
         const button = document.getElementById('cpu-trend-filter-button');
@@ -84,6 +105,9 @@ class CPUTrendChart extends BaseDashboardComponent {
     selectServer(serverId, serverName) {
         this.currentServerId = serverId;
         
+        // Save selection to localStorage
+        localStorage.setItem('cpu-trend-selected-server', String(serverId));
+        
         // Update button text
         const textEl = document.getElementById('cpu-trend-filter-text');
         if (textEl) textEl.textContent = serverId === 'all' ? 'All VMs (Average)' : serverName;
@@ -91,10 +115,13 @@ class CPUTrendChart extends BaseDashboardComponent {
         // Update selected state in dropdown
         const options = document.querySelectorAll('#cpu-trend-filter-dropdown .filter-option');
         options.forEach(opt => {
+            const checkMark = opt.querySelector('.filter-check');
             if (opt.getAttribute('data-value') === String(serverId)) {
                 opt.classList.add('selected');
+                if (checkMark) checkMark.style.display = 'inline';
             } else {
                 opt.classList.remove('selected');
+                if (checkMark) checkMark.style.display = 'none';
             }
         });
         

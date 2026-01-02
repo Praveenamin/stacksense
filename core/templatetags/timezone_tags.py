@@ -2,7 +2,19 @@
 Django template tags for timezone-aware datetime formatting and anomaly explanations.
 """
 from django import template
-from core.utils import format_datetime_for_display
+# Import from the actual utils.py file, not the package __init__.py
+import sys
+import os
+_core_dir = os.path.dirname(os.path.dirname(__file__))
+utils_file_path = os.path.join(_core_dir, 'utils.py')
+if os.path.exists(utils_file_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_core_utils_for_tags", utils_file_path)
+    _utils_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_utils_module)
+    format_datetime_for_display = _utils_module.format_datetime_for_display
+else:
+    from core.utils import format_datetime_for_display
 from django.conf import settings
 import re
 
@@ -35,7 +47,49 @@ def display_timezone():
         {% display_timezone as tz %}
         <span>Times shown in {{ tz }}</span>
     """
-    return getattr(settings, 'DISPLAY_TIME_ZONE', settings.TIME_ZONE)
+    from core.utils import get_display_timezone
+    return get_display_timezone()
+
+
+@register.filter(name='timezone_abbrev')
+def timezone_abbrev(value):
+    """
+    Get timezone abbreviation (e.g., 'IST', 'EST', 'UTC').
+    
+    Usage in template:
+        {{ alert.sent_at|timezone_abbrev }}
+    """
+    if value is None:
+        return ""
+    from core.utils import convert_to_display_timezone
+    from datetime import datetime
+    import pytz
+    
+    dt = convert_to_display_timezone(value)
+    if dt is None:
+        return ""
+    
+    try:
+        # Get timezone abbreviation
+        tz = dt.tzinfo
+        if hasattr(tz, 'zone'):
+            # Use pytz timezone
+            tz_obj = pytz.timezone(tz.zone)
+            abbrev = dt.strftime('%Z')
+            if not abbrev or abbrev == dt.strftime('%z'):
+                # Fallback: try to get abbreviation from timezone name
+                try:
+                    # Get abbreviation from timezone
+                    now = datetime.now(tz_obj)
+                    abbrev = now.strftime('%Z')
+                    if not abbrev:
+                        abbrev = tz.zone.split('/')[-1][:3].upper()
+                except:
+                    abbrev = tz.zone.split('/')[-1][:3].upper()
+            return abbrev
+        return dt.strftime('%Z') or 'UTC'
+    except Exception:
+        return 'UTC'
 
 
 @register.filter(name='parse_anomaly_explanation')

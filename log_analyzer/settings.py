@@ -75,10 +75,13 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"  # Core application timezone (for calculations, storage)
-DISPLAY_TIME_ZONE = os.environ.get("DISPLAY_TIME_ZONE", "UTC")  # Display timezone (for UI only)
+TIME_ZONE = "UTC"  # Core application timezone (for calculations, storage) - DO NOT CHANGE
+# DISPLAY_TIME_ZONE: Display timezone for UI (fallback if AppConfig not set)
+# AppConfig model in database takes precedence over this setting
+# Can be changed via admin UI at /config/timezone/
+DISPLAY_TIME_ZONE = os.environ.get("DISPLAY_TIME_ZONE", "UTC")  # Display timezone (for UI only, fallback)
 USE_I18N = True
-USE_TZ = True
+USE_TZ = True  # REQUIRED: Must be True for timezone support
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
@@ -185,15 +188,21 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = "DENY"
 
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:8000").split(",")]
+# CSRF Trusted Origins - must include all domains accessing the site
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:8000,https://localhost:8000").split(",") if origin.strip()]
 
 # Trust proxy headers for HTTPS behind reverse proxy
 USE_TLS = os.environ.get("USE_TLS", "False") == "True"
-if USE_TLS:
+# Auto-detect HTTPS if behind reverse proxy (Nginx)
+# If X-Forwarded-Proto header is present, assume HTTPS
+if USE_TLS or os.environ.get("BEHIND_PROXY", "False") == "True":
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = False  # Nginx handles redirect
+else:
+    # Even without USE_TLS, if we're behind Nginx with HTTPS, trust the proxy
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Jazzmin Configuration
 JAZZMIN_SETTINGS = {

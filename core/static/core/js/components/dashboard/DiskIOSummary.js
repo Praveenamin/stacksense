@@ -35,9 +35,22 @@ class DiskIOSummary extends BaseDashboardComponent {
     populateServerDropdown() {
         const dropdown = document.getElementById('disk-io-filter-dropdown');
         if (!dropdown) return;
-        const allOption = dropdown.querySelector('[data-value="all"]');
+        
+        // Clear existing options
         dropdown.innerHTML = '';
-        if (allOption) dropdown.appendChild(allOption);
+        
+        // Create "All VMs" option with click handler
+        const allOption = document.createElement('div');
+        allOption.className = 'filter-option';
+        allOption.setAttribute('data-value', 'all');
+        allOption.innerHTML = `
+            <span>All VMs (Average)</span>
+            <span class="filter-check" style="display: none;">✓</span>
+        `;
+        allOption.addEventListener('click', () => this.selectServer('all', 'All VMs (Average)'));
+        dropdown.appendChild(allOption);
+        
+        // Add individual servers
         this.servers.forEach(server => {
             const option = document.createElement('div');
             option.className = 'filter-option';
@@ -46,7 +59,21 @@ class DiskIOSummary extends BaseDashboardComponent {
             option.addEventListener('click', () => this.selectServer(server.id, server.name));
             dropdown.appendChild(option);
         });
-        this.selectServer('all', 'All VMs (Average)');
+        
+        // Restore saved selection or default to "All VMs"
+        const savedServerId = localStorage.getItem('disk-io-selected-server');
+        if (savedServerId) {
+            const savedServer = this.servers.find(s => String(s.id) === savedServerId);
+            if (savedServer) {
+                this.selectServer(savedServerId, savedServer.name);
+            } else if (savedServerId === 'all') {
+                this.selectServer('all', 'All VMs (Average)');
+            } else {
+                this.selectServer('all', 'All VMs (Average)');
+            }
+        } else {
+            this.selectServer('all', 'All VMs (Average)');
+        }
     }
     setupEventListeners() {
         const button = document.getElementById('disk-io-filter-button');
@@ -73,14 +100,21 @@ class DiskIOSummary extends BaseDashboardComponent {
     }
     selectServer(serverId, serverName) {
         this.currentServerId = serverId;
+        
+        // Save selection to localStorage
+        localStorage.setItem('disk-io-selected-server', String(serverId));
+        
         const textEl = document.getElementById('disk-io-filter-text');
         if (textEl) textEl.textContent = serverId === 'all' ? 'All VMs (Average)' : serverName;
         const options = document.querySelectorAll('#disk-io-filter-dropdown .filter-option');
         options.forEach(opt => {
+            const checkMark = opt.querySelector('.filter-check');
             if (opt.getAttribute('data-value') === String(serverId)) {
                 opt.classList.add('selected');
+                if (checkMark) checkMark.style.display = 'inline';
             } else {
                 opt.classList.remove('selected');
+                if (checkMark) checkMark.style.display = 'none';
             }
         });
         this.closeDropdown();

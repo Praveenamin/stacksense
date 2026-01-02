@@ -85,6 +85,14 @@
     </div>
 </div>
 
+<!-- SLI/SLO Compliance Section -->
+<div class="mb-8">
+    <h2 class="text-lg font-semibold tracking-tight mb-4">SLO Compliance</h2>
+    <div id="sli-compliance-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Cards will be populated by JavaScript -->
+    </div>
+</div>
+
 <!-- Server Grid -->
 <h2 class="text-lg font-semibold tracking-tight mb-4">Infrastructure Status</h2>
 
@@ -146,6 +154,7 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block extrajs %}
 <script src="{% static 'core/js/dashboard.js' %}"></script>
+<script src="{% static 'core/js/components/dashboard/SLIComplianceCards.js' %}"></script>
 {% endblock %}

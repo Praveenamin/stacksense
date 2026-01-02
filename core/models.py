@@ -399,6 +399,68 @@ class EmailAlertConfig(models.Model):
         return f"Email Alert Config ({self.provider})"
 
 
+class AppConfig(models.Model):
+    """Application-wide configuration settings (single instance)"""
+    class LanguageChoices(models.TextChoices):
+        ENGLISH = "en", "English"
+    
+    display_timezone = models.CharField(
+        max_length=100,
+        default="UTC",
+        help_text="Timezone for displaying all timestamps (e.g., 'Asia/Kolkata', 'America/New_York')"
+    )
+    language = models.CharField(
+        max_length=10,
+        choices=LanguageChoices.choices,
+        default=LanguageChoices.ENGLISH,
+        help_text="Application language"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Application Configuration"
+        verbose_name_plural = "Application Configuration"
+    
+    def clean(self):
+        """Validate timezone name"""
+        from django.core.exceptions import ValidationError
+        import pytz
+        try:
+            pytz.timezone(self.display_timezone)
+        except pytz.UnknownTimeZoneError:
+            raise ValidationError(f"Invalid timezone: {self.display_timezone}")
+    
+    def save(self, *args, **kwargs):
+        """Override save to ensure single instance and validate timezone"""
+        self.full_clean()  # Run validation
+        # Force id=1 for single instance pattern
+        self.id = 1
+        super().save(*args, **kwargs)
+        # Invalidate cache when timezone changes (gracefully handle cache errors)
+        try:
+            from django.core.cache import cache
+            cache.delete('app_display_timezone')
+        except Exception:
+            # If cache fails (e.g., Redis not available), continue without cache
+            pass
+    
+    @classmethod
+    def get_config(cls):
+        """Get or create the single AppConfig instance"""
+        config, created = cls.objects.get_or_create(
+            id=1,
+            defaults={
+                'display_timezone': 'UTC',
+                'language': cls.LanguageChoices.ENGLISH
+            }
+        )
+        return config
+    
+    def __str__(self):
+        return f"App Config (Timezone: {self.display_timezone}, Language: {self.language})"
+
+
 class AlertHistory(models.Model):
     """History of alerts sent and resolved"""
     class AlertType(models.TextChoices):
@@ -632,3 +694,228 @@ class LoginActivity(models.Model):
     
     def __str__(self):
         return f"{self.email} - {self.status} - {self.timestamp}"
+
+
+class SLIConfig(models.Model):
+    """Configuration for Service Level Indicator (SLI) metric definitions"""
+    class MetricType(models.TextChoices):
+        UPTIME = "UPTIME", "Uptime"
+        CPU = "CPU", "CPU"
+        MEMORY = "MEMORY", "Memory"
+        DISK = "DISK", "Disk"
+        NETWORK = "NETWORK", "Network"
+        RESPONSE_TIME = "RESPONSE_TIME", "Response Time"
+        ERROR_RATE = "ERROR_RATE", "Error Rate"
+    
+    metric_type = models.CharField(
+        max_length=50,
+        choices=MetricType.choices,
+        unique=True,
+        help_text="Type of metric for this SLI"
+    )
+    calculation_method = models.CharField(
+        max_length=50,
+        default="percentage",
+        help_text="How to calculate this SLI (e.g., 'percentage', 'average', 'percentile')"
+    )
+    time_window_days = models.IntegerField(
+        default=7,
+        help_text="Default time window in days for measurement (7, 30, 90)"
+    )
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Whether this SLI is enabled"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Human-readable description of this SLI"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "SLI Configuration"
+        verbose_name_plural = "SLI Configurations"
+        ordering = ['metric_type']
+    
+    def __str__(self):
+        return f"{self.get_metric_type_display()} SLI"
+
+
+class SLOConfig(models.Model):
+    """Service Level Objective (SLO) configuration with global defaults and per-server overrides"""
+    class MetricType(models.TextChoices):
+        UPTIME = "UPTIME", "Uptime"
+        CPU = "CPU", "CPU"
+        MEMORY = "MEMORY", "Memory"
+        DISK = "DISK", "Disk"
+        NETWORK = "NETWORK", "Network"
+        RESPONSE_TIME = "RESPONSE_TIME", "Response Time"
+        ERROR_RATE = "ERROR_RATE", "Error Rate"
+    
+    class TargetOperator(models.TextChoices):
+        GTE = "gte", "Greater than or equal (≥)"
+        LTE = "lte", "Less than or equal (≤)"
+        EQ = "eq", "Equal (=)"
+    
+    server = models.ForeignKey(
+        Server,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="slo_configs",
+        help_text="Server for this SLO override (null for global default)"
+    )
+    metric_type = models.CharField(
+        max_length=50,
+        choices=MetricType.choices,
+        help_text="Type of metric for this SLO"
+    )
+    target_value = models.FloatField(
+        help_text="Target value (e.g., 99.9 for 99.9% uptime, 200 for 200ms response time)"
+    )
+    target_operator = models.CharField(
+        max_length=10,
+        choices=TargetOperator.choices,
+        default=TargetOperator.GTE,
+        help_text="Comparison operator (e.g., 'gte' for uptime >= 99.9%)"
+    )
+    time_window_days = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Time window in days for this SLO (overrides SLIConfig default if set)"
+    )
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Whether this SLO is enabled"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "SLO Configuration"
+        verbose_name_plural = "SLO Configurations"
+        unique_together = [["server", "metric_type"]]
+        indexes = [
+            models.Index(fields=["server", "metric_type"]),
+            models.Index(fields=["metric_type"]),
+        ]
+        ordering = ['metric_type']
+    
+    def __str__(self):
+        server_name = self.server.name if self.server else "Global"
+        return f"{server_name} - {self.get_metric_type_display()} SLO ({self.target_value})"
+
+
+class ServiceLatencyMeasurement(models.Model):
+    """Latency measurements for monitored services"""
+    class MeasurementType(models.TextChoices):
+        HTTP = "HTTP", "HTTP"
+        MYSQL = "MYSQL", "MySQL"
+        OTHER = "OTHER", "Other"
+    
+    service = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name="latency_measurements",
+        help_text="Service for which latency is measured"
+    )
+    latency_ms = models.FloatField(
+        help_text="Measured latency in milliseconds"
+    )
+    timestamp = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        help_text="When measurement was taken"
+    )
+    success = models.BooleanField(
+        default=True,
+        help_text="Whether measurement succeeded"
+    )
+    error_message = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Error details if measurement failed"
+    )
+    measurement_type = models.CharField(
+        max_length=20,
+        choices=MeasurementType.choices,
+        default=MeasurementType.HTTP,
+        help_text="How latency was measured"
+    )
+    
+    class Meta:
+        verbose_name = "Service Latency Measurement"
+        verbose_name_plural = "Service Latency Measurements"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["service", "-timestamp"]),
+            models.Index(fields=["timestamp"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.service.name} - {self.latency_ms}ms at {self.timestamp}"
+
+
+class SLIMeasurement(models.Model):
+    """Calculated SLI values and compliance status"""
+    class MetricType(models.TextChoices):
+        UPTIME = "UPTIME", "Uptime"
+        CPU = "CPU", "CPU"
+        MEMORY = "MEMORY", "Memory"
+        DISK = "DISK", "Disk"
+        NETWORK = "NETWORK", "Network"
+        RESPONSE_TIME = "RESPONSE_TIME", "Response Time"
+        ERROR_RATE = "ERROR_RATE", "Error Rate"
+    
+    server = models.ForeignKey(
+        Server,
+        on_delete=models.CASCADE,
+        related_name="sli_measurements",
+        help_text="Server for this measurement"
+    )
+    metric_type = models.CharField(
+        max_length=50,
+        choices=MetricType.choices,
+        help_text="Type of metric"
+    )
+    time_window_start = models.DateTimeField(
+        help_text="Start of time window for this measurement"
+    )
+    time_window_end = models.DateTimeField(
+        db_index=True,
+        help_text="End of time window for this measurement"
+    )
+    sli_value = models.FloatField(
+        help_text="Calculated SLI value"
+    )
+    slo_target = models.FloatField(
+        help_text="Target value from SLOConfig"
+    )
+    is_compliant = models.BooleanField(
+        default=False,
+        help_text="Whether sli_value meets SLO target"
+    )
+    compliance_percentage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Compliance percentage (e.g., 98.5)"
+    )
+    calculated_at = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        help_text="When this measurement was calculated"
+    )
+    
+    class Meta:
+        verbose_name = "SLI Measurement"
+        verbose_name_plural = "SLI Measurements"
+        ordering = ["-time_window_end", "-calculated_at"]
+        indexes = [
+            models.Index(fields=["server", "metric_type", "-time_window_end"]),
+            models.Index(fields=["server", "-time_window_end"]),
+            models.Index(fields=["metric_type", "-time_window_end"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.server.name} - {self.get_metric_type_display()} SLI: {self.sli_value} (target: {self.slo_target})"

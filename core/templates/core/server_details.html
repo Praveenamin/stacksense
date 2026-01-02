@@ -182,6 +182,14 @@
     </div>
 </div>
 
+<!-- SLO Configuration and Compliance Section -->
+<div id="slo-configuration-section" style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
+    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">SLO Configuration & Compliance</h2>
+    <div id="slo-configuration-container">
+        <!-- SLO configuration will be loaded here by JavaScript -->
+    </div>
+</div>
+
 <!-- Services Status Section -->
 <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
@@ -258,6 +266,7 @@
 
 {% block extrajs %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="{% static 'core/js/components/server/SLOConfiguration.js' %}"></script>
 <script>
     const serverId = document.getElementById('server-id').value;
     let refreshInterval;
@@ -268,6 +277,10 @@
         loadTopProcesses();
         loadServices('enabled');
         initializeCharts();
+        // Initialize SLO Configuration
+        if (typeof window.initSLOConfiguration !== 'undefined') {
+            window.initSLOConfiguration(serverId);
+        }
         fetchMetrics();
         
         const toggle = document.getElementById('auto-refresh-toggle');

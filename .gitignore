@@ -4,152 +4,71 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
+env/
+venv/
+ENV/
+.venv
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-*.manifest
-*.spec
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-.hypothesis/
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.pyre/
-.pytype/
-cython_debug/
+dist/
+build/
 
 # Django
 *.log
-local_settings.py
 db.sqlite3
 db.sqlite3-journal
-/media
-/staticfiles
-/static
+/staticfiles/
+/media/
 *.pot
 *.pyc
 *.pyo
 
-# Environment variables
+# Environment
 .env
 .env.local
 .env.*.local
-.venv
-venv/
-ENV/
-env/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
-*.sublime-project
-*.sublime-workspace
-
-# Docker
-docker-compose.override.yml
-.dockerignore
-
-# SSH Keys (IMPORTANT: Never commit private keys!)
-ssh_keys/id_rsa
-ssh_keys/id_rsa.pub
-ssh_keys/*.pem
-*.key
-*.pem
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-Desktop.ini
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Backup files
+*.bak
+*.backup
+*.sql
+*.tar.gz
+*.zip
+
+# Logs
+*.log
+logs/
 
 # Temporary files
 *.tmp
 *.temp
-*.bak
-*.backup
-*.swp
-*~
-
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# Redis
-dump.rdb
-
-# Node (if any frontend build tools)
-node_modules/
-npm-debug.log
-yarn-error.log
-
-# Project specific
-collect_metrics_fixed.py
-=0.4.3
-testapp/
-container_proj/
-
-# Local development files
-*.local
-local_settings.py
-
-# Keep .env.example but ignore .env
-!.env.example
-.env
-.env.local
-.env.production
-.env.development
-
+tmp/
+temp/

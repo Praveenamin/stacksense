@@ -14,7 +14,14 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
-from core.utils import get_app_heartbeat_timestamp
+
+# Try to import get_app_heartbeat_timestamp, fallback to direct implementation if import fails
+try:
+    from core.utils import get_app_heartbeat_timestamp
+except ImportError:
+    # Fallback implementation
+    def get_app_heartbeat_timestamp():
+        return timezone.now().isoformat()
 
 
 class Command(BaseCommand):
@@ -43,3 +50,4 @@ class Command(BaseCommand):
         
         if options.get('verbosity', 1) >= 2:
             self.stdout.write(f"App heartbeat recorded: {now}")
+

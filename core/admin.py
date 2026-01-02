@@ -51,7 +51,8 @@ class ServerAdmin(admin.ModelAdmin):
         if not obj.pk:
             return "Pending"
         if obj.ssh_key_deployed:
-            return mark_safe("✅ Deployed" + (f" ({obj.ssh_key_deployed_at.strftime("%Y-%m-%d %H:%M")})" if obj.ssh_key_deployed_at else ""))
+            timestamp = f' ({obj.ssh_key_deployed_at.strftime("%Y-%m-%d %H:%M")})' if obj.ssh_key_deployed_at else ""
+            return mark_safe(f"✅ Deployed{timestamp}")
         return "❌ Not Deployed"
     ssh_key_status.short_description = "SSH Key Status"
 

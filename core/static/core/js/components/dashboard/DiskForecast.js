@@ -18,12 +18,13 @@ class DiskForecast extends BaseDashboardComponent {
             const response = await fetch('/api/dashboard/servers-list/');
             if (!response.ok) throw new Error('Failed to load servers');
             const data = await response.json();
-            if (data.success && data.servers) {
-                this.servers = data.servers;
+            if (data.success && data.data && data.data.servers) {
+                this.servers = data.data.servers;
                 this.populateServerDropdown();
             }
         } catch (error) {
             console.error('DiskForecast.loadServers error:', error);
+            this.showError('Failed to load servers list');
         }
     }
     populateServerDropdown() {
@@ -52,31 +53,79 @@ class DiskForecast extends BaseDashboardComponent {
         }
     }
     async loadDiskMountPoints(serverId) {
+        // Hide previous forecast info
+        const forecastInfo = document.getElementById('disk-forecast-info');
+        if (forecastInfo) forecastInfo.style.display = 'none';
+        
+        // Hide disk selector initially
+        const container = document.getElementById('disk-selector-container');
+        if (container) container.style.display = 'none';
+        
         try {
+            console.log('DiskForecast: Loading mount points for server:', serverId);
+            this.showLoading();
+            this.hideError();
+            
             const response = await fetch(`/api/dashboard/disk-mount-points/${serverId}/`);
-            if (!response.ok) throw new Error('Failed to load disk mount points');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: Failed to load disk mount points`);
+            }
             const data = await response.json();
-            if (data.success && data.mount_points) {
-                this.populateDiskSelector(data.mount_points, serverId);
+            console.log('DiskForecast: API response:', data);
+            
+            this.hideLoading();
+            
+            if (data.success && data.data && data.data.mount_points) {
+                const mountPoints = data.data.mount_points;
+                console.log('DiskForecast: Mount points found:', mountPoints);
+                if (mountPoints && mountPoints.length > 0) {
+                    this.populateDiskSelector(mountPoints, serverId);
+                } else {
+                    console.warn('DiskForecast: No mount points in array');
+                    this.showError('No disk partitions found for this server. Please ensure metrics are being collected.');
+                }
+            } else {
+                console.warn('DiskForecast: Invalid API response structure:', data);
+                this.showError('No disk mount points found for this server');
             }
         } catch (error) {
             console.error('DiskForecast.loadDiskMountPoints error:', error);
-            this.showError('Failed to load disk mount points');
+            this.hideLoading();
+            this.showError(`Failed to load disk mount points: ${error.message}`);
         }
     }
     populateDiskSelector(mountPoints, serverId) {
+        console.log('DiskForecast: Populating disk selector with:', mountPoints);
         const container = document.getElementById('disk-selector-container');
         const selector = document.getElementById('disk-selector');
-        if (!container || !selector) return;
-        container.style.display = 'block';
+        
+        if (!container) {
+            console.error('DiskForecast: disk-selector-container element not found');
+            return;
+        }
+        if (!selector) {
+            console.error('DiskForecast: disk-selector element not found');
+            return;
+        }
+        
+        // Clear existing content
         selector.innerHTML = '';
+        
+        // Add mount point buttons
         mountPoints.forEach(mountPoint => {
             const button = document.createElement('button');
             button.className = 'disk-selector-button';
             button.textContent = mountPoint;
-            button.onclick = () => this.fetchForecast(serverId, mountPoint);
+            button.onclick = () => {
+                console.log('DiskForecast: Selected mount point:', mountPoint);
+                this.fetchForecast(serverId, mountPoint);
+            };
             selector.appendChild(button);
         });
+        
+        // Show the container
+        container.style.display = 'block';
+        console.log('DiskForecast: Disk selector populated and displayed');
     }
     async fetchForecast(serverId, mountPoint) {
         if (!serverId || !mountPoint) return;

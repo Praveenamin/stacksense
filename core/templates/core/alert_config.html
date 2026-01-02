@@ -275,7 +275,7 @@
     <!-- Page Header -->
     <div style="margin-bottom: var(--cds-spacing-8);">
         <h1 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Alert Configuration</h1>
-        <p style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-50); margin: 0;">Configure email notifications for server alerts</p>
+        <p style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-50); margin: 0;">Configure email notifications and alert thresholds for server alerts</p>
     </div>
 
     <!-- Messages -->
@@ -289,6 +289,23 @@
     </div>
     {% endif %}
 
+    <!-- Tabs -->
+    <div style="margin-bottom: var(--cds-spacing-6); border-bottom: 1px solid var(--cds-color-gray-20);">
+        <div style="display: flex; gap: var(--cds-spacing-2);">
+            <button class="tab-button active" data-tab="email-config" onclick="switchTab('email-config')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background: none; border: none; border-bottom: 2px solid var(--color-primary-interactive); cursor: pointer; transition: all 0.2s;">
+                Alert Configuration
+            </button>
+            <button class="tab-button" data-tab="disk-alerts" onclick="switchTab('disk-alerts')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
+                Configure Disk Alerts
+            </button>
+            <button class="tab-button" data-tab="service-alerts" onclick="switchTab('service-alerts')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
+                Configure Service Alerts
+            </button>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div id="email-config" class="tab-content active">
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--cds-spacing-8); align-items: start;">
         <!-- Main Configuration Form -->
         <div>
@@ -547,6 +564,34 @@
             </div>
         </div>
     </div>
+    </div>
+    <!-- End Email Config Tab -->
+
+    <!-- Disk Alerts Tab -->
+    <div id="disk-alerts" class="tab-content" style="display: none;">
+        <div class="form-card">
+            <h2 class="form-title">Configure Disk Alerts</h2>
+            <p class="form-subtitle">Set disk usage thresholds and select partitions to monitor</p>
+            
+            <div id="disk-alerts-content">
+                <p style="color: var(--cds-color-gray-70);">Loading disk alert configurations...</p>
+            </div>
+        </div>
+    </div>
+    <!-- End Disk Alerts Tab -->
+
+    <!-- Service Alerts Tab -->
+    <div id="service-alerts" class="tab-content" style="display: none;">
+        <div class="form-card">
+            <h2 class="form-title">Configure Service Alerts</h2>
+            <p class="form-subtitle">Configure monitoring and alert settings for system services</p>
+            
+            <div id="service-alerts-content">
+                <p style="color: var(--cds-color-gray-70);">Loading service alert configurations...</p>
+            </div>
+        </div>
+    </div>
+    <!-- End Service Alerts Tab -->
 
     <!-- Hidden Test Email Form -->
     <form id="test-email-form" method="post" action="/alert-config/test/" style="display: none;">
@@ -640,8 +685,622 @@ function clearConfiguration() {
     }
 }
 
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function switchTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.style.display = 'none';
+        content.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+        button.style.color = 'var(--cds-color-gray-70)';
+        button.style.borderBottomColor = 'transparent';
+    });
+    
+    // Show selected tab content
+    const selectedTab = document.getElementById(tabName);
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+        selectedTab.classList.add('active');
+    }
+    
+    // Activate selected tab button
+    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
+    if (selectedButton) {
+        selectedButton.classList.add('active');
+        selectedButton.style.color = 'var(--cds-color-gray-100)';
+        selectedButton.style.borderBottomColor = 'var(--color-primary-interactive)';
+    }
+    
+    // Load content for disk and service alerts tabs
+    if (tabName === 'disk-alerts') {
+        loadDiskAlertsConfig();
+    } else if (tabName === 'service-alerts') {
+        loadServiceAlertsConfig();
+    }
+}
+
+async function loadDiskAlertsConfig() {
+    const contentDiv = document.getElementById('disk-alerts-content');
+    try {
+        const response = await fetch('/api/alert-config/disk-alerts/');
+        const data = await response.json();
+        
+        if (data.success) {
+            const csrfToken = getCookie('csrftoken');
+            let html = '<form id="disk-alerts-form" method="post" action="/alert-config/disk-alerts/save/" onsubmit="event.preventDefault(); saveDiskAlertsConfig();">';
+            html += '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '">';
+            html += '<div class="form-group">';
+            html += '<label class="form-label">Disk Usage Threshold (%)</label>';
+            html += '<input type="number" id="disk_threshold" name="disk_threshold" class="form-input" value="' + (data.disk_threshold || 90) + '" min="0" max="100" step="0.1">';
+            html += '<div class="form-hint">Alert when disk usage exceeds this percentage</div>';
+            html += '</div>';
+            html += '<div class="form-group">';
+            html += '<label class="form-label">Disk I/O Threshold (MB/s)</label>';
+            html += '<input type="number" id="disk_io_threshold" name="disk_io_threshold" class="form-input" value="' + (data.disk_io_threshold || 1000) + '" min="0" step="0.1">';
+            html += '<div class="form-hint">Alert when disk I/O exceeds this rate</div>';
+            html += '</div>';
+            html += '<button type="submit" class="btn-submit">Save Disk Alert Settings</button>';
+            html += '</form>';
+            
+            // Server Selection and Partition Configuration
+            html += '<div style="margin-top: var(--cds-spacing-8); padding-top: var(--cds-spacing-8); border-top: 1px solid var(--cds-color-gray-20);">';
+            html += '<h3 class="form-section-title">Configure Disk Partition Monitoring</h3>';
+            html += '<div class="form-group">';
+            html += '<label class="form-label">Select Server</label>';
+            html += '<select id="disk-alerts-server-select" class="form-input" onchange="loadServerPartitions(this.value)" style="margin-bottom: var(--cds-spacing-4);">';
+            html += '<option value="">Select a server...</option>';
+            if (data.servers && data.servers.length > 0) {
+                data.servers.forEach(server => {
+                    html += '<option value="' + server.id + '">' + server.name + '</option>';
+                });
+            }
+            html += '</select>';
+            html += '</div>';
+            
+            html += '<div id="server-partitions-container" style="display: none;">';
+            html += '<div class="form-group">';
+            html += '<label class="form-label">Select Partitions to Monitor</label>';
+            html += '<div id="partitions-checkboxes" style="display: grid; gap: var(--cds-spacing-2); margin-bottom: var(--cds-spacing-4);"></div>';
+            html += '<button type="button" class="btn-submit" onclick="saveMonitoredPartitions()" style="width: auto;">Save Partition Selection</button>';
+            html += '</div>';
+            html += '</div>';
+            
+            // List of enabled partitions
+            html += '<div style="margin-top: var(--cds-spacing-8); padding-top: var(--cds-spacing-8); border-top: 1px solid var(--cds-color-gray-20);">';
+            html += '<h3 class="form-section-title">Enabled Partition Monitoring</h3>';
+            html += '<div id="enabled-partitions-list"></div>';
+            html += '</div>';
+            
+            contentDiv.innerHTML = html;
+            
+            // Store servers data for later use
+            window.diskAlertsServers = data.servers || [];
+            updateEnabledPartitionsList();
+        } else {
+            contentDiv.innerHTML = '<p style="color: var(--cds-color-red-60);">Error loading disk alert configuration</p>';
+        }
+    } catch (error) {
+        contentDiv.innerHTML = '<p style="color: var(--cds-color-red-60);">Error: ' + error.message + '</p>';
+    }
+}
+
+async function loadServerPartitions(serverId) {
+    if (!serverId) {
+        document.getElementById('server-partitions-container').style.display = 'none';
+        return;
+    }
+    
+    const container = document.getElementById('server-partitions-container');
+    const checkboxesDiv = document.getElementById('partitions-checkboxes');
+    
+    try {
+        // Get mount points for the server
+        const response = await fetch('/api/dashboard/disk-mount-points/' + serverId + '/');
+        const data = await response.json();
+        
+        if (data.success && data.data && data.data.mount_points) {
+            // Get currently monitored disks for this server
+            const server = window.diskAlertsServers.find(s => s.id == serverId);
+            const monitoredDisks = server ? (server.monitored_disks || []) : [];
+            
+            checkboxesDiv.innerHTML = '';
+            data.data.mount_points.forEach(partition => {
+                const isChecked = monitoredDisks.includes(partition);
+                const checkboxId = 'partition-' + serverId + '-' + partition.replace(/[^a-zA-Z0-9]/g, '_');
+                checkboxesDiv.innerHTML += `
+                    <label style="display: flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2); border-radius: var(--cds-border-radius); cursor: pointer; transition: background-color 0.2s;" 
+                           onmouseover="this.style.backgroundColor='var(--cds-color-gray-10)'" 
+                           onmouseout="this.style.backgroundColor='transparent'">
+                        <input type="checkbox" id="${checkboxId}" value="${partition}" ${isChecked ? 'checked' : ''} 
+                               style="width: 16px; height: 16px; cursor: pointer;">
+                        <span style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100);">${partition}</span>
+                    </label>
+                `;
+            });
+            
+            container.style.display = 'block';
+            container.setAttribute('data-server-id', serverId);
+        } else {
+            checkboxesDiv.innerHTML = '<p style="color: var(--cds-color-gray-70);">No disk partitions found for this server</p>';
+            container.style.display = 'block';
+        }
+    } catch (error) {
+        checkboxesDiv.innerHTML = '<p style="color: var(--cds-color-red-60);">Error loading partitions: ' + error.message + '</p>';
+        container.style.display = 'block';
+    }
+}
+
+async function saveMonitoredPartitions() {
+    const container = document.getElementById('server-partitions-container');
+    const serverId = container.getAttribute('data-server-id');
+    
+    if (!serverId) {
+        alert('Please select a server first');
+        return;
+    }
+    
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+    const selectedPartitions = Array.from(checkboxes).map(cb => cb.value);
+    
+    try {
+        const formData = new FormData();
+        selectedPartitions.forEach(partition => {
+            formData.append('partitions[]', partition);
+        });
+        
+        const response = await fetch('/api/alert-config/disk-alerts/save-partitions/' + serverId + '/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Partition monitoring settings saved successfully!');
+            // Update the server data
+            const server = window.diskAlertsServers.find(s => s.id == serverId);
+            if (server) {
+                server.monitored_disks = selectedPartitions;
+            }
+            updateEnabledPartitionsList();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save partition settings'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function updateEnabledPartitionsList() {
+    const listDiv = document.getElementById('enabled-partitions-list');
+    if (!listDiv || !window.diskAlertsServers) return;
+    
+    let html = '';
+    let hasEnabled = false;
+    
+    window.diskAlertsServers.forEach(server => {
+        if (server.monitored_disks && server.monitored_disks.length > 0) {
+            hasEnabled = true;
+            html += '<div style="margin-bottom: var(--cds-spacing-4); padding: var(--cds-spacing-3); background: var(--cds-color-gray-10); border-radius: var(--cds-border-radius);">';
+            html += '<div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">' + server.name + '</div>';
+            html += '<div style="display: flex; flex-wrap: wrap; gap: var(--cds-spacing-2);">';
+            server.monitored_disks.forEach(partition => {
+                html += '<span style="padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">' + partition + '</span>';
+            });
+            html += '</div>';
+            html += '</div>';
+        }
+    });
+    
+    if (!hasEnabled) {
+        html = '<p style="color: var(--cds-color-gray-70);">No partitions are currently being monitored. Select a server above to enable monitoring.</p>';
+    }
+    
+    listDiv.innerHTML = html;
+}
+
+async function saveDiskAlertsConfig() {
+    const form = document.getElementById('disk-alerts-form');
+    const formData = new FormData(form);
+    
+    try {
+        const response = await fetch('/alert-config/disk-alerts/save/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        if (response.ok) {
+            alert('Disk alert settings saved successfully!');
+            location.reload();
+        } else {
+            alert('Error saving disk alert settings');
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function loadServiceAlertsConfig() {
+    const contentDiv = document.getElementById('service-alerts-content');
+    try {
+        const response = await fetch('/api/alert-config/service-alerts/');
+        const data = await response.json();
+        
+        if (data.success) {
+            let html = '<p class="form-subtitle">Configure service monitoring and alert settings</p>';
+            
+            // Server Selection
+            html += '<div class="form-group">';
+            html += '<label class="form-label">Select Server</label>';
+            html += '<select id="service-alerts-server-select" class="form-input" onchange="loadServerServices(this.value)" style="margin-bottom: var(--cds-spacing-4);">';
+            html += '<option value="">Select a server...</option>';
+            if (data.servers && data.servers.length > 0) {
+                data.servers.forEach(server => {
+                    html += '<option value="' + server.id + '">' + server.name + '</option>';
+                });
+            }
+            html += '</select>';
+            html += '</div>';
+            
+            // Services Container
+            html += '<div id="server-services-container" style="display: none;">';
+            html += '<div class="form-group">';
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">';
+            html += '<label class="form-label" style="margin: 0;">Select Services to Monitor</label>';
+            html += '<div style="display: flex; gap: var(--cds-spacing-3); align-items: center; flex-wrap: wrap;">';
+            html += '<label style="display: flex; align-items: center; gap: var(--cds-spacing-2); cursor: pointer; font-size: var(--cds-font-size-sm);">';
+            html += '<input type="checkbox" id="show-all-services" onchange="filterServices()" style="width: 16px; height: 16px; cursor: pointer;">';
+            html += '<span style="color: var(--cds-color-gray-100);">Show All Services</span>';
+            html += '</label>';
+            html += '</div>';
+            html += '</div>';
+            html += '<div id="services-checkboxes" style="display: grid; gap: var(--cds-spacing-2); margin-bottom: var(--cds-spacing-4);"></div>';
+            html += '<button type="button" class="btn-submit" onclick="saveServiceMonitoring()" style="width: auto;">Save Service Selection</button>';
+            html += '</div>';
+            html += '</div>';
+            
+            // List of enabled services
+            html += '<div style="margin-top: var(--cds-spacing-8); padding-top: var(--cds-spacing-8); border-top: 1px solid var(--cds-color-gray-20);">';
+            html += '<h3 class="form-section-title">Enabled Service Monitoring</h3>';
+            html += '<div id="enabled-services-list"></div>';
+            html += '</div>';
+            
+            contentDiv.innerHTML = html;
+            
+            // Store servers data for later use
+            window.serviceAlertsServers = data.servers || [];
+            updateEnabledServicesList();
+        } else {
+            contentDiv.innerHTML = '<p style="color: var(--cds-color-red-60);">Error loading service alert configuration</p>';
+        }
+    } catch (error) {
+        contentDiv.innerHTML = '<p style="color: var(--cds-color-red-60);">Error: ' + error.message + '</p>';
+    }
+}
+
+async function loadServerServices(serverId) {
+    if (!serverId) {
+        const container = document.getElementById('server-services-container');
+        if (container) {
+            container.style.display = 'none';
+            // Clear old data when no server is selected
+            container.removeAttribute('data-all-services');
+            container.removeAttribute('data-server-id');
+        }
+        return;
+    }
+    
+    const container = document.getElementById('server-services-container');
+    const checkboxesDiv = document.getElementById('services-checkboxes');
+    
+    // Clear previous services immediately to prevent showing wrong server's services
+    checkboxesDiv.innerHTML = '<p style="color: var(--cds-color-gray-70);">Loading services...</p>';
+    
+    try {
+        const response = await fetch('/api/alert-config/service-alerts/server/' + serverId + '/');
+        const data = await response.json();
+        
+        if (data.success && data.services) {
+            console.log('Services loaded for server', serverId, ':', data.services.length, 'services');
+            if (data.services.length > 0) {
+                // Sort services: critical (stopped/failed) first, then running
+                const sortedServices = data.services.sort((a, b) => {
+                    const aCritical = (a.status === 'stopped' || a.status === 'failed') ? 0 : 1;
+                    const bCritical = (b.status === 'stopped' || b.status === 'failed') ? 0 : 1;
+                    if (aCritical !== bCritical) return aCritical - bCritical;
+                    return a.name.localeCompare(b.name);
+                });
+                
+                console.log('Sorted services:', sortedServices.map(s => `${s.name} (${s.status})`));
+                
+                // Store all services for filtering - CLEAR OLD DATA FIRST
+                container.removeAttribute('data-all-services');
+                container.removeAttribute('data-server-id');
+                container.setAttribute('data-all-services', JSON.stringify(sortedServices));
+                container.setAttribute('data-server-id', serverId);
+                
+                // Reset filter checkbox to default state
+                const showAllCheckbox = document.getElementById('show-all-services');
+                if (showAllCheckbox) {
+                    showAllCheckbox.checked = false; // Default: show only critical services
+                }
+                
+                // Render services (default: critical services only)
+                console.log('Rendering with default - Critical services only');
+                renderServices(sortedServices, serverId, false);
+            } else {
+                checkboxesDiv.innerHTML = '<p style="color: var(--cds-color-gray-70);">No services found for this server. Services need to be detected first.</p>';
+            }
+            
+            container.style.display = 'block';
+        } else {
+            checkboxesDiv.innerHTML = '<p style="color: var(--cds-color-gray-70);">No services found for this server</p>';
+            container.style.display = 'block';
+        }
+    } catch (error) {
+        checkboxesDiv.innerHTML = '<p style="color: var(--cds-color-red-60);">Error loading services: ' + error.message + '</p>';
+        container.style.display = 'block';
+    }
+}
+
+// Critical service keywords for identifying important services
+const CRITICAL_SERVICE_KEYWORDS = [
+    // Database
+    'mysql', 'mariadb', 'postgres', 'mongodb', 'redis', 'db', 'database',
+    // Mail
+    'exim', 'postfix', 'sendmail', 'dovecot', 'mail', 'smtp', 'imap', 'pop',
+    // Web servers
+    'apache', 'nginx', 'httpd', 'web', 'www', 'http', 'https',
+    // FTP
+    'ftp', 'vsftpd', 'proftpd', 'pure-ftpd', 'ftpd',
+    // SSH
+    'ssh', 'sshd',
+    // Panel services
+    'cpanel', 'plesk', 'webmin', 'panel', 'whm', 'lsws', 'openlitespeed',
+    // Other critical
+    'docker', 'containerd', 'kube', 'kubernetes',
+    'php', 'php-fpm', 'python', 'node', 'java', 'tomcat', 'jetty', 'gunicorn'
+];
+
+function isCriticalService(service) {
+    const nameLower = service.name.toLowerCase();
+    const typeLower = (service.service_type || '').toLowerCase();
+    
+    return CRITICAL_SERVICE_KEYWORDS.some(keyword => 
+        nameLower.includes(keyword) || typeLower.includes(keyword)
+    );
+}
+
+function renderServices(services, serverId, showAll, filterRunning, filterStopped) {
+    const checkboxesDiv = document.getElementById('services-checkboxes');
+    checkboxesDiv.innerHTML = '';
+    
+    let filteredServices;
+    
+    if (showAll) {
+        // Show all services regardless of status
+        filteredServices = services;
+        console.log('Show All: displaying', filteredServices.length, 'services');
+    } else {
+        // Filter based on Running and Stopped checkboxes
+        filteredServices = services.filter(service => {
+            if (service.status === 'running') {
+                // Show running services only if filterRunning is checked
+                return filterRunning;
+            } else if (service.status === 'stopped' || service.status === 'failed') {
+                if (filterStopped) {
+                    // If "Stopped (All)" is checked, show all stopped services
+                    return true;
+                } else {
+                    // If "Stopped (All)" is unchecked, only show critical stopped services
+                    return isCriticalService(service);
+                }
+            } else {
+                // For other statuses (unknown, etc.), don't show by default
+                return false;
+            }
+        });
+        console.log('Filtered services:', filteredServices.length, 'out of', services.length, 
+                   `(Running: ${filterRunning}, Stopped: ${filterStopped})`);
+    }
+    
+    if (filteredServices.length === 0) {
+        const criticalCount = services.filter(s => isCriticalService(s)).length;
+        checkboxesDiv.innerHTML = `<p style="color: var(--cds-color-gray-70);">No ${showAll ? '' : 'critical '}services found.<br>
+            <small style="color: var(--cds-color-gray-60);">Total: ${services.length} | Critical: ${criticalCount}</small></p>`;
+        return;
+    }
+    
+    // Sort services: critical first, then by status (running first), then by name
+    filteredServices.sort((a, b) => {
+        const aCritical = isCriticalService(a);
+        const bCritical = isCriticalService(b);
+        if (aCritical !== bCritical) return aCritical ? -1 : 1;
+        
+        const aRunning = a.status === 'running' ? 0 : 1;
+        const bRunning = b.status === 'running' ? 0 : 1;
+        if (aRunning !== bRunning) return aRunning - bRunning;
+        
+        return a.name.localeCompare(b.name);
+    });
+    
+    filteredServices.forEach(service => {
+        const checkboxId = 'service-' + serverId + '-' + service.id;
+        const statusColor = service.status === 'running' ? '#d1f7c4' : (service.status === 'stopped' ? '#ffe6cc' : '#f4f4f4');
+        const statusTextColor = service.status === 'running' ? '#0e6027' : (service.status === 'stopped' ? '#8e3b00' : '#525252');
+        const isCritical = isCriticalService(service);
+        const criticalBadge = isCritical && (service.status === 'stopped' || service.status === 'failed') 
+            ? '<span style="padding: 2px 6px; background-color: #ff6b6b; color: white; border-radius: 8px; font-size: 10px; font-weight: 600; margin-left: 4px;">CRITICAL</span>' 
+            : '';
+        
+        checkboxesDiv.innerHTML += `
+            <label class="service-checkbox-label" data-service-id="${service.id}" style="display: flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2); border-radius: var(--cds-border-radius); cursor: pointer; transition: background-color 0.2s;" 
+                   onmouseover="this.style.backgroundColor='var(--cds-color-gray-10)'" 
+                   onmouseout="this.style.backgroundColor='transparent'">
+                <input type="checkbox" id="${checkboxId}" value="${service.id}" ${service.monitoring_enabled ? 'checked' : ''} 
+                       style="width: 16px; height: 16px; cursor: pointer;">
+                <div style="flex: 1; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100); font-weight: var(--cds-font-weight-medium);">${service.name}</span>
+                        ${criticalBadge}
+                        <span style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); margin-left: var(--cds-spacing-2);">${service.service_type}</span>
+                    </div>
+                    <span style="padding: 4px 8px; background-color: ${statusColor}; color: ${statusTextColor}; border-radius: 12px; font-size: 12px; font-weight: 400;">${service.status}</span>
+                </div>
+            </label>
+        `;
+    });
+}
+
+function filterServices() {
+    const container = document.getElementById('server-services-container');
+    const serverId = container.getAttribute('data-server-id');
+    
+    if (!serverId) return;
+    
+    const allServicesJson = container.getAttribute('data-all-services');
+    if (!allServicesJson) return;
+    
+    const showAllCheckbox = document.getElementById('show-all-services');
+    const showAll = showAllCheckbox ? showAllCheckbox.checked : false;
+    
+    const allServices = JSON.parse(allServicesJson);
+    console.log('Filter state:', { showAll });
+    renderServices(allServices, serverId, showAll);
+}
+
+async function saveServiceMonitoring() {
+    const container = document.getElementById('server-services-container');
+    const serverId = container.getAttribute('data-server-id');
+    
+    if (!serverId) {
+        alert('Please select a server first');
+        return;
+    }
+    
+    // Get all checkboxes (including hidden ones) from stored data
+    const allServicesJson = container.getAttribute('data-all-services');
+    if (!allServicesJson) {
+        alert('Service data not found. Please reload the page.');
+        return;
+    }
+    
+    const allServices = JSON.parse(allServicesJson);
+    const visibleCheckboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+    const visibleCheckedIds = Array.from(visibleCheckboxes).map(cb => parseInt(cb.value));
+    
+    // Also check if there are any previously checked services that are now hidden
+    const allCheckboxes = container.querySelectorAll('input[type="checkbox"]');
+    const allCheckedIds = Array.from(allCheckboxes).map(cb => {
+        if (cb.checked) return parseInt(cb.value);
+        return null;
+    }).filter(id => id !== null);
+    
+    // Use all checked services (visible and previously checked)
+    const selectedServiceIds = Array.from(new Set([...visibleCheckedIds, ...allCheckedIds]));
+    
+    try {
+        const formData = new FormData();
+        selectedServiceIds.forEach(serviceId => {
+            formData.append('services[]', serviceId);
+        });
+        
+        const response = await fetch('/api/alert-config/service-alerts/save/' + serverId + '/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Hide the services container
+            container.style.display = 'none';
+            
+            // Reset server selection
+            const serverSelect = document.getElementById('service-alerts-server-select');
+            if (serverSelect) {
+                serverSelect.value = '';
+            }
+            
+            // Reload the service alerts config to update the enabled list
+            await loadServiceAlertsConfig();
+            
+            alert('Service monitoring settings saved successfully!');
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save service monitoring settings'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function updateEnabledServicesList() {
+    const listDiv = document.getElementById('enabled-services-list');
+    if (!listDiv || !window.serviceAlertsServers) return;
+    
+    let html = '';
+    let hasEnabled = false;
+    
+    window.serviceAlertsServers.forEach(server => {
+        const enabledServices = server.services.filter(s => s.monitoring_enabled);
+        if (enabledServices.length > 0) {
+            hasEnabled = true;
+            html += '<div style="margin-bottom: var(--cds-spacing-4); padding: var(--cds-spacing-3); background: var(--cds-color-gray-10); border-radius: var(--cds-border-radius);">';
+            html += '<div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">' + server.name + '</div>';
+            html += '<div style="display: flex; flex-wrap: wrap; gap: var(--cds-spacing-2);">';
+            enabledServices.forEach(service => {
+                const statusColor = service.status === 'running' ? '#d1f7c4' : (service.status === 'stopped' ? '#ffe6cc' : '#f4f4f4');
+                const statusTextColor = service.status === 'running' ? '#0e6027' : (service.status === 'stopped' ? '#8e3b00' : '#525252');
+                html += '<span style="padding: 4px 8px; background-color: ' + statusColor + '; color: ' + statusTextColor + '; border-radius: 12px; font-size: 12px; font-weight: 400;">' + service.name + ' (' + service.status + ')</span>';
+            });
+            html += '</div>';
+            html += '</div>';
+        }
+    });
+    
+    if (!hasEnabled) {
+        html = '<p style="color: var(--cds-color-gray-70);">No services are currently being monitored. Select a server above to enable monitoring.</p>';
+    }
+    
+    listDiv.innerHTML = html;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     updateProviderSettings();
+    
+    // Set active tab button styling
+    const activeButton = document.querySelector('.tab-button.active');
+    if (activeButton) {
+        activeButton.style.color = 'var(--cds-color-gray-100)';
+        activeButton.style.borderBottomColor = 'var(--color-primary-interactive)';
+    }
 });
 </script>
 {% endblock %}
