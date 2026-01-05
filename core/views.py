@@ -6520,6 +6520,7 @@ def log_troubleshooting_config(request):
     """
     Log troubleshooting configuration page.
     Allows users to configure log monitoring for servers and services.
+    Includes results as a tab.
     """
     servers = Server.objects.all().order_by('name')
     monitored_logs = MonitoredLog.objects.all().select_related('server').order_by('-id')
@@ -6527,10 +6528,54 @@ def log_troubleshooting_config(request):
     # Get service choices
     service_choices = MonitoredLog.ServiceChoices.choices
     
+    # Get results data for the Results tab
+    log_events = LogEvent.objects.select_related(
+        'monitored_log', 
+        'monitored_log__server'
+    ).order_by('-last_seen', '-event_count')
+    
+    # Get filter parameters for results
+    server_id = request.GET.get('server_id')
+    time_filter = request.GET.get('time_filter')  # '24h' or None
+    
+    # Apply server filter
+    if server_id:
+        try:
+            server_id_int = int(server_id)
+            log_events = log_events.filter(monitored_log__server_id=server_id_int)
+        except (ValueError, TypeError):
+            server_id = None
+    
+    # Apply time filter
+    if time_filter == '24h':
+        twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
+        log_events = log_events.filter(last_seen__gte=twenty_four_hours_ago)
+    elif time_filter == '7d':
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        log_events = log_events.filter(last_seen__gte=seven_days_ago)
+    
+    # Get events with solutions from AnalysisRule
+    events_with_solutions = []
+    for event in log_events[:100]:  # Limit to 100 most recent
+        # Check if there's an AnalysisRule that matches this log message
+        matching_rule = AnalysisRule.objects.filter(
+            pattern_to_match__icontains=event.message[:100]  # Match on first 100 chars
+        ).first()
+        
+        events_with_solutions.append({
+            'event': event,
+            'solution': matching_rule.solution if matching_rule else None,
+            'rule': matching_rule,
+        })
+    
     context = {
         'servers': servers,
         'monitored_logs': monitored_logs,
         'service_choices': service_choices,
+        'events_with_solutions': events_with_solutions,
+        'total_events': log_events.count(),
+        'selected_server_id': server_id,
+        'selected_time_filter': time_filter,
         'show_sidebar': True,
     }
     context.update(admin.site.each_context(request))
@@ -6614,21 +6659,70 @@ def log_troubleshooting_add(request):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def log_troubleshooting_delete(request):
+    """API endpoint to delete log troubleshooting configuration"""
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        monitored_log_id = data.get('monitored_log_id')
+        
+        if not monitored_log_id:
+            return JsonResponse({'success': False, 'error': 'Configuration ID is required'}, status=400)
+        
+        monitored_log = get_object_or_404(MonitoredLog, id=monitored_log_id)
+        server_name = monitored_log.server.name
+        log_path = monitored_log.log_path
+        
+        monitored_log.delete()
+        
+        _log_user_action(request, "LOG_TROUBLESHOOTING_DELETE", 
+                        f"Deleted log monitoring: {server_name} - {log_path}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Log monitoring configuration deleted successfully'
+        })
+    except Exception as e:
+        error_logger.error(f"LOG_TROUBLESHOOTING_DELETE error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
 @require_http_methods(["GET"])
 def log_troubleshooting_results(request):
     """
     Display log troubleshooting results - detected errors and issues
     """
+    # Get all servers for filter dropdown
+    servers = Server.objects.all().order_by('name')
+    
     # Get all log events grouped by monitored log
     log_events = LogEvent.objects.select_related(
         'monitored_log', 
         'monitored_log__server'
     ).order_by('-last_seen', '-event_count')
     
-    # Filter by server if provided
+    # Get filter parameters
     server_id = request.GET.get('server_id')
+    time_filter = request.GET.get('time_filter')  # '24h' or None
+    
+    # Apply server filter
     if server_id:
-        log_events = log_events.filter(monitored_log__server_id=server_id)
+        try:
+            server_id_int = int(server_id)
+            log_events = log_events.filter(monitored_log__server_id=server_id_int)
+        except (ValueError, TypeError):
+            server_id = None
+    
+    # Apply time filter
+    if time_filter == '24h':
+        twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
+        log_events = log_events.filter(last_seen__gte=twenty_four_hours_ago)
+    elif time_filter == '7d':
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        log_events = log_events.filter(last_seen__gte=seven_days_ago)
     
     # Get events with solutions from AnalysisRule
     events_with_solutions = []
@@ -6647,6 +6741,9 @@ def log_troubleshooting_results(request):
     context = {
         'events_with_solutions': events_with_solutions,
         'total_events': log_events.count(),
+        'servers': servers,
+        'selected_server_id': server_id,
+        'selected_time_filter': time_filter,
         'show_sidebar': True,
     }
     context.update(admin.site.each_context(request))
@@ -6697,6 +6794,159 @@ def log_troubleshooting_create_solution(request):
         })
     except Exception as e:
         error_logger.error(f"LOG_TROUBLESHOOTING_CREATE_SOLUTION error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def log_troubleshooting_ai_solution(request):
+    """API endpoint to generate AI solution using Ollama"""
+    try:
+        import json
+        import requests
+        data = json.loads(request.body)
+        
+        error_message = data.get('error_message', '').strip()
+        model = data.get('model', getattr(settings, 'OLLAMA_MODEL', 'llama3.2:latest')).strip()
+        
+        if not error_message:
+            return JsonResponse({'success': False, 'error': 'Error message is required'}, status=400)
+        
+        # Ollama API endpoint - use settings or default to host gateway
+        ollama_base_url = getattr(settings, 'OLLAMA_API_URL', 'http://host.docker.internal:11434')
+        ollama_url = f'{ollama_base_url}/api/generate'
+        
+        # Construct prompt
+        prompt = f"""Analyze this error log message and provide a solution in the following structured format:
+
+Error: {error_message}
+
+Please provide:
+1. Solution Name: A brief, descriptive name for the solution (e.g., "Fix 500 Internal Server Error")
+2. Explanation: A clear explanation of what causes this error
+3. Solution Steps: Step-by-step instructions to resolve the error
+
+Format your response as:
+Solution Name: [name here]
+Explanation: [explanation here]
+Solution Steps: [step-by-step solution here]"""
+        
+        # Call Ollama API
+        try:
+            response = requests.post(
+                ollama_url,
+                json={
+                    'model': model,
+                    'prompt': prompt,
+                    'stream': False
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            # Extract response text
+            ai_response = result.get('response', '').strip()
+            
+            if not ai_response:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No response from AI model'
+                }, status=500)
+            
+            # Parse the structured response
+            solution_name = ''
+            explanation = ''
+            solution_steps = ''
+            
+            # Try to parse structured format
+            lines = ai_response.split('\n')
+            current_section = None
+            current_content = []
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith('Solution Name:'):
+                    if current_section:
+                        if current_section == 'name':
+                            solution_name = '\n'.join(current_content).strip()
+                    current_section = 'name'
+                    current_content = [line.replace('Solution Name:', '').strip()]
+                elif line.startswith('Explanation:'):
+                    if current_section == 'name':
+                        solution_name = '\n'.join(current_content).strip()
+                    current_section = 'explanation'
+                    current_content = [line.replace('Explanation:', '').strip()]
+                elif line.startswith('Solution Steps:'):
+                    if current_section == 'explanation':
+                        explanation = '\n'.join(current_content).strip()
+                    current_section = 'steps'
+                    current_content = [line.replace('Solution Steps:', '').strip()]
+                elif line and current_section:
+                    current_content.append(line)
+            
+            # Finalize last section
+            if current_section == 'steps':
+                solution_steps = '\n'.join(current_content).strip()
+            elif current_section == 'explanation':
+                explanation = '\n'.join(current_content).strip()
+            elif current_section == 'name':
+                solution_name = '\n'.join(current_content).strip()
+            
+            # Fallback: if parsing failed, use the whole response
+            if not solution_name and not explanation and not solution_steps:
+                # Try to extract from unstructured response
+                parts = ai_response.split('\n\n')
+                if len(parts) >= 3:
+                    solution_name = parts[0].replace('Solution Name:', '').strip()
+                    explanation = parts[1].replace('Explanation:', '').strip()
+                    solution_steps = parts[2].replace('Solution Steps:', '').strip()
+                else:
+                    # Last resort: use first line as name, rest as steps
+                    lines = ai_response.split('\n')
+                    solution_name = lines[0].strip() if lines else 'AI Generated Solution'
+                    solution_steps = '\n'.join(lines[1:]).strip() if len(lines) > 1 else ai_response
+                    explanation = 'AI-generated explanation based on error analysis.'
+            
+            # Clean up extracted values
+            solution_name = solution_name or 'AI Generated Solution'
+            explanation = explanation or 'AI-generated explanation based on error analysis.'
+            solution_steps = solution_steps or ai_response
+            
+            return JsonResponse({
+                'success': True,
+                'solution_name': solution_name,
+                'explanation': explanation,
+                'solution_steps': solution_steps,
+                'raw_response': ai_response  # Include for debugging
+            })
+            
+        except requests.exceptions.ConnectionError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cannot connect to Ollama. Please ensure Ollama is running on localhost:11434'
+            }, status=503)
+        except requests.exceptions.Timeout:
+            return JsonResponse({
+                'success': False,
+                'error': 'Request to Ollama timed out. Please try again.'
+            }, status=504)
+        except requests.exceptions.HTTPError as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Ollama API error: {str(e)}'
+            }, status=500)
+        except Exception as e:
+            error_logger.error(f"Ollama API call error: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error calling Ollama: {str(e)}'
+            }, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON in request'}, status=400)
+    except Exception as e:
+        error_logger.error(f"LOG_TROUBLESHOOTING_AI_SOLUTION error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

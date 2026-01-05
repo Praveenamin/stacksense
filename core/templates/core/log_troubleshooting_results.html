@@ -221,6 +221,72 @@
         background-color: #e2e8f0;
         color: #0f172a;
     }
+    .filters-container {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 24px;
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .filter-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .filter-select, .filter-checkbox-container {
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        box-sizing: border-box;
+        transition: all 150ms ease;
+    }
+    .filter-select {
+        min-width: 200px;
+        cursor: pointer;
+    }
+    .filter-select:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        background-color: #ffffff;
+    }
+    .filter-checkbox-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+        min-width: 160px;
+    }
+    .filter-checkbox-container:hover {
+        background-color: #f1f5f9;
+    }
+    .filter-checkbox-container input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #0ea5e9;
+    }
+    .filter-checkbox-container label {
+        cursor: pointer;
+        font-size: 14px;
+        color: #0f172a;
+        margin: 0;
+    }
 </style>
 {% endblock %}
 
@@ -234,6 +300,28 @@
         <a href="{% url 'log_troubleshooting_config' %}" style="display: inline-flex; align-items: center; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;">
             Configure Log Monitoring →
         </a>
+    </div>
+</div>
+
+<div class="filters-container">
+    <div class="filter-group">
+        <label class="filter-label" for="server-filter">Server</label>
+        <select id="server-filter" class="filter-select" onchange="applyFilters()">
+            <option value="">All Servers</option>
+            {% for server in servers %}
+            <option value="{{ server.id }}" {% if selected_server_id|default_if_none:"" == server.id|stringformat:"s" %}selected{% endif %}>
+                {{ server.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label" for="time-filter">Time Range</label>
+        <select id="time-filter" class="filter-select" onchange="applyFilters()">
+            <option value="">All</option>
+            <option value="24h" {% if selected_time_filter == '24h' %}selected{% endif %}>Last 24 Hours</option>
+            <option value="7d" {% if selected_time_filter == '7d' %}selected{% endif %}>Last 7 Days</option>
+        </select>
     </div>
 </div>
 
@@ -344,6 +432,24 @@
 
 <script>
 let currentEventId = null;
+
+function applyFilters() {
+    const serverId = document.getElementById('server-filter').value;
+    const timeFilter = document.getElementById('time-filter').value;
+    
+    // Build URL parameters
+    const params = new URLSearchParams();
+    if (serverId) {
+        params.append('server_id', serverId);
+    }
+    if (timeFilter) {
+        params.append('time_filter', timeFilter);
+    }
+    
+    // Update URL and reload
+    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.location.href = newUrl;
+}
 
 function openCreateSolutionModal(eventId, message) {
     currentEventId = eventId;

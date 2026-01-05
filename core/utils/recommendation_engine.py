@@ -53,17 +53,13 @@ def _detect_underutilized_servers():
         avg_cpu = sum(m.cpu_percent or 0 for m in recent_metrics) / recent_metrics.count()
         
         if avg_cpu < 30:  # Underutilized threshold
-            # Estimate potential savings (rough calculation)
-            # Assuming $60/month base cost, saving 30% = $18/month
-            estimated_savings = 180  # Placeholder calculation
-            
             recommendations.append({
                 'type': 'underutilization',
                 'priority': 'medium',
-                'description': f'{server.name} has been underutilized (<30% CPU) for 7 days. Consider downsizing to save costs.',
-                'impact': f'Potential savings: ${estimated_savings}/month',
-                'action_label': 'Scale Down',
-                'action_handler': f'() => scaleDownServer({server.id})',
+                'description': f'{server.name} has been underutilized (<30% CPU) for 7 days. Consider downsizing.',
+                'impact': None,
+                'action_label': None,
+                'action_handler': None,
                 'server_id': server.id
             })
     

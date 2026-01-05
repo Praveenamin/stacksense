@@ -22,7 +22,6 @@ class AIRecommendations extends BaseDashboardComponent {
                     <span class="status-tag ${priority}">${priority}</span>
                 </div>
                 <div class="recommendation-description">${this.escapeHtml(recommendation.description)}</div>
-                ${recommendation.impact ? `<div class="recommendation-impact"><span>💰</span><span>${this.escapeHtml(recommendation.impact)}</span></div>` : ''}
                 ${recommendation.action_label ? `<button class="recommendation-action" onclick="${recommendation.action_handler || '() => {}'}">${this.escapeHtml(recommendation.action_label)}</button>` : ''}
             </div>`;
         });

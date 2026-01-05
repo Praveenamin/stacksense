@@ -97,7 +97,7 @@ class SLOConfiguration {
 
         let html = `
             <div style="margin-bottom: var(--cds-spacing-6);">
-                <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Current SLI Values & Compliance</h3>
+                <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Reliability Metrics & Status</h3>
                 <div style="background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-4);">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4);">
         `;
@@ -198,4 +198,5 @@ if (typeof window.initSLOConfiguration === 'undefined') {
         sloConfig.init();
     };
 }
+
 

@@ -67,3 +67,5 @@ echo "  3. Check logs: docker logs monitoring_web --tail=50"
 
 
 
+
+

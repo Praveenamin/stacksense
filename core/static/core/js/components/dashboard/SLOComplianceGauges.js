@@ -216,7 +216,7 @@ class SLOComplianceGauges {
             // Overall view - show aggregate metrics
             html += `
                 <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 18px; font-weight: 600; color: #0f172a; margin: 0 0 16px 0;">Current SLI Values & Compliance</h3>
+                    <h3 style="font-size: 18px; font-weight: 600; color: #0f172a; margin: 0 0 16px 0;">Reliability Metrics & Status</h3>
                     <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px;">
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
             `;
@@ -252,7 +252,7 @@ class SLOComplianceGauges {
             // Server view - show individual server metrics
             html += `
                 <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 18px; font-weight: 600; color: #0f172a; margin: 0 0 16px 0;">Current SLI Values & Compliance</h3>
+                    <h3 style="font-size: 18px; font-weight: 600; color: #0f172a; margin: 0 0 16px 0;">Reliability Metrics & Status</h3>
                     <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px;">
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
             `;

@@ -156,8 +156,12 @@ LOGGING = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # LLM Configuration
-OLLAMA_API_URL = os.environ.get("OLLAMA_API_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
+# Ollama API URL - defaults to host IP when Ollama is running on host
+# When Ollama is on host: use http://<host-ip>:11434 (default: 10.1.1.126)
+# When Ollama is a Docker service: use http://ollama:11434
+# Can be overridden via OLLAMA_API_URL environment variable
+OLLAMA_API_URL = os.environ.get("OLLAMA_API_URL", "http://10.1.1.126:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:latest")
 OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "120"))
 LLM_MAX_CALLS_PER_SCAN = int(os.environ.get("LLM_MAX_CALLS_PER_SCAN", "2"))
 LLM_DELAY_BETWEEN_CALLS = int(os.environ.get("LLM_DELAY_BETWEEN_CALLS", "10"))

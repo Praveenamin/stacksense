@@ -92,6 +92,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 16px;
     }
     .config-item-info {
         flex: 1;
@@ -106,6 +107,11 @@
         font-size: 14px;
         color: #64748b;
         margin: 0;
+    }
+    .config-item-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
     .status-badge {
         padding: 4px 12px;
@@ -122,6 +128,20 @@
         background-color: #fee2e2;
         color: #991b1b;
     }
+    .btn-delete {
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #ef4444;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+    .btn-delete:hover {
+        background-color: #dc2626;
+    }
     .alert {
         padding: 12px 16px;
         border-radius: 6px;
@@ -137,103 +157,752 @@
         border: 1px solid #fecaca;
         color: #991b1b;
     }
+    /* Tab Styles */
+    .tabs-container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .tabs-header {
+        display: flex;
+        border-bottom: 1px solid #e2e8f0;
+        background-color: #f8fafc;
+    }
+    .tab-button {
+        padding: 16px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #64748b;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: all 150ms ease;
+    }
+    .tab-button:hover {
+        color: #0f172a;
+        background-color: #ffffff;
+    }
+    .tab-button.active {
+        color: #0ea5e9;
+        border-bottom-color: #0ea5e9;
+        background-color: #ffffff;
+    }
+    .tab-content {
+        display: none;
+        padding: 32px;
+    }
+    .tab-content.active {
+        display: block;
+    }
+    /* Results Styles */
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .results-table thead {
+        background-color: #f8fafc;
+    }
+    .results-table th {
+        padding: 12px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .results-table td {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 14px;
+        color: #0f172a;
+    }
+    .results-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+    .results-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .log-level-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .log-level-error {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+    .log-level-warning {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+    .log-level-info {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+    .log-message {
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        color: #334155;
+        word-break: break-word;
+        white-space: pre-wrap;
+        max-width: 800px;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 8px;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+    }
+    .count-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        background-color: #6366f1;
+        color: white;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 8px;
+    }
+    .solution-box {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-top: 8px;
+    }
+    .solution-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #166534;
+        margin: 0 0 8px 0;
+    }
+    .solution-text {
+        font-size: 13px;
+        color: #166534;
+        margin: 0;
+        white-space: pre-wrap;
+    }
+    .btn-create-solution {
+        padding: 6px 12px;
+        background-color: #6366f1;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-top: 8px;
+    }
+    .btn-create-solution:hover {
+        background-color: #4f46e5;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 64px 32px;
+        color: #64748b;
+    }
+    .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+    }
+    .empty-state-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 8px 0;
+    }
+    .empty-state-text {
+        font-size: 14px;
+        margin: 0;
+    }
+    .filters-container {
+        background-color: #f8fafc;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 24px;
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .filter-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .filter-select, .filter-checkbox-container {
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        box-sizing: border-box;
+        transition: all 150ms ease;
+    }
+    .filter-select {
+        min-width: 200px;
+        cursor: pointer;
+    }
+    .filter-select:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    }
+    .filter-checkbox-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+        min-width: 160px;
+    }
+    .filter-checkbox-container:hover {
+        background-color: #f1f5f9;
+    }
+    .filter-checkbox-container input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #0ea5e9;
+    }
+    .filter-checkbox-container label {
+        cursor: pointer;
+        font-size: 14px;
+        color: #0f172a;
+        margin: 0;
+    }
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal.active {
+        display: flex;
+    }
+    .modal-content {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 32px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+    .modal-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 24px 0;
+    }
+    .modal-form-group {
+        margin-bottom: 20px;
+    }
+    .modal-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .modal-input, .modal-textarea {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        box-sizing: border-box;
+    }
+    .modal-textarea {
+        min-height: 120px;
+        resize: vertical;
+        font-family: inherit;
+    }
+    .modal-buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 24px;
+    }
+    .modal-btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .modal-btn-primary {
+        background-color: #0ea5e9;
+        color: white;
+    }
+    .modal-btn-secondary {
+        background-color: #e2e8f0;
+        color: #0f172a;
+    }
+    .ai-section {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+    .ai-section-header {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+    .ai-model-select {
+        padding: 8px 12px;
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        min-width: 150px;
+    }
+    .btn-ai-ask {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #6366f1;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+    .btn-ai-ask:hover:not(:disabled) {
+        background-color: #4f46e5;
+    }
+    .btn-ai-ask:disabled {
+        background-color: #94a3b8;
+        cursor: not-allowed;
+    }
+    .ai-loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+        color: #64748b;
+    }
+    .ai-loading.active {
+        display: block;
+    }
+    .ai-loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 8px;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    .ai-preview {
+        display: none;
+        background-color: #ffffff;
+        border: 1px solid #bbf7d0;
+        border-radius: 6px;
+        padding: 16px;
+        margin-top: 16px;
+    }
+    .ai-preview.active {
+        display: block;
+    }
+    .ai-preview-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #166534;
+        margin: 0 0 12px 0;
+    }
+    .ai-preview-item {
+        margin-bottom: 16px;
+    }
+    .ai-preview-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+    }
+    .ai-preview-content {
+        font-size: 14px;
+        color: #0f172a;
+        background-color: #f8fafc;
+        padding: 12px;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .btn-use-solution {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background-color: #10b981;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 12px;
+        transition: background-color 150ms ease;
+    }
+    .btn-use-solution:hover {
+        background-color: #059669;
+    }
+    .ai-error {
+        display: none;
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 16px;
+        color: #991b1b;
+        font-size: 14px;
+    }
+    .ai-error.active {
+        display: block;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <!-- Page Header -->
 <div style="margin-bottom: 32px;">
-    <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Log Troubleshooting Configuration</h1>
+    <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Log Troubleshooting</h1>
     <p style="font-size: 14px; color: #64748b; margin: 0;">Configure log monitoring for servers and services to detect and report errors</p>
 </div>
 
 <!-- Messages -->
 <div id="alert-container"></div>
 
-<!-- Configuration Form -->
-<div class="form-card">
-    <h2 class="form-title">Add Log Monitoring</h2>
-    <p class="form-subtitle">Select a server and service to begin log troubleshooting</p>
+<!-- Tabs Container -->
+<div class="tabs-container">
+    <div class="tabs-header">
+        <button class="tab-button active" id="tab-btn-config" onclick="switchTab('config')">Add Log Monitoring</button>
+        <button class="tab-button" id="tab-btn-results" onclick="switchTab('results')">Results</button>
+    </div>
 
-    <form id="log-troubleshooting-form">
-        {% csrf_token %}
-        
-        <div class="form-group">
-            <label class="form-label" for="server_id">
-                Server <span class="required">*</span>
-            </label>
-            <select id="server_id" name="server_id" class="form-select" required>
-                <option value="">Select a server...</option>
-                {% for server in servers %}
-                <option value="{{ server.id }}">{{ server.name }} ({{ server.ip_address }})</option>
+    <!-- Tab 1: Configuration -->
+    <div id="tab-config" class="tab-content active">
+        <!-- Configuration Form -->
+        <div class="form-card">
+            <h2 class="form-title">Add Log Monitoring</h2>
+            <p class="form-subtitle">Select a server and service to begin log troubleshooting</p>
+
+            <form id="log-troubleshooting-form">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label class="form-label" for="server_id">
+                        Server <span class="required">*</span>
+                    </label>
+                    <select id="server_id" name="server_id" class="form-select" required>
+                        <option value="">Select a server...</option>
+                        {% for server in servers %}
+                        <option value="{{ server.id }}">{{ server.name }} ({{ server.ip_address }})</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-hint">Choose the server to monitor logs from</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="service_type">
+                        Service Type <span class="required">*</span>
+                    </label>
+                    <select id="service_type" name="service_type" class="form-select" required>
+                        <option value="">Select service type...</option>
+                        {% for value, label in service_choices %}
+                        <option value="{{ value }}" data-log-path="{% if value == 'apache' %}/var/log/apache2/error.log{% elif value == 'nginx' %}/var/log/nginx/error.log{% elif value == 'exim' %}/var/log/exim4/mainlog{% elif value == 'postfix' %}/var/log/mail.log{% elif value == 'mysql' or value == 'mariadb' %}/var/log/mysql/error.log{% endif %}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-hint">Service type determines the default log path</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="log_path">
+                        Log File Path <span class="required">*</span>
+                    </label>
+                    <input type="text" id="log_path" name="log_path" class="form-input" 
+                           placeholder="/var/log/nginx/error.log" required>
+                    <div class="form-hint">Full path to the log file (auto-filled for known services, required for custom apps)</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="application_name">
+                        Application Name
+                    </label>
+                    <input type="text" id="application_name" name="application_name" class="form-input" 
+                           placeholder="e.g., Apache Web Server">
+                    <div class="form-hint">Optional: A friendly name for this log configuration</div>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submit-btn">
+                    Begin Troubleshooting
+                </button>
+            </form>
+        </div>
+
+        <!-- Existing Configurations -->
+        <div class="config-list">
+            <h2 style="font-size: 20px; font-weight: 600; color: #0f172a; margin: 0 0 24px 0;">Existing Configurations</h2>
+            
+            {% if monitored_logs %}
+                {% for log in monitored_logs %}
+                <div class="config-item" id="config-item-{{ log.id }}">
+                    <div class="config-item-info">
+                        <div class="config-item-title">{{ log.application_name }} on {{ log.server.name }}</div>
+                        <div class="config-item-details">
+                            Service: {{ log.get_service_type_display }} | 
+                            Path: {{ log.log_path }} | 
+                            Last Scan: {% if log.last_scan_time %}{{ log.last_scan_time|date:"Y-m-d H:i:s" }}{% else %}Never{% endif %}
+                        </div>
+                    </div>
+                    <div class="config-item-actions">
+                        <span class="status-badge {% if log.enabled %}status-enabled{% else %}status-disabled{% endif %}">
+                            {% if log.enabled %}Enabled{% else %}Disabled{% endif %}
+                        </span>
+                        <button class="btn-delete" onclick="deleteConfig({{ log.id }})">Remove</button>
+                    </div>
+                </div>
                 {% endfor %}
-            </select>
-            <div class="form-hint">Choose the server to monitor logs from</div>
+            {% else %}
+                <p style="color: #64748b; font-size: 14px;">No log configurations yet. Add one above to get started.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tab 2: Results -->
+    <div id="tab-results" class="tab-content">
+        <div style="margin-bottom: 24px;">
+            <h2 style="font-size: 20px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Log Troubleshooting Results</h2>
+            <p style="font-size: 14px; color: #64748b; margin: 0;">Detected errors and issues from monitored logs ({{ total_events }} total)</p>
         </div>
 
-        <div class="form-group">
-            <label class="form-label" for="service_type">
-                Service Type <span class="required">*</span>
-            </label>
-            <select id="service_type" name="service_type" class="form-select" required>
-                <option value="">Select service type...</option>
-                {% for value, label in service_choices %}
-                <option value="{{ value }}" data-log-path="{% if value == 'apache' %}/var/log/apache2/error.log{% elif value == 'nginx' %}/var/log/nginx/error.log{% elif value == 'exim' %}/var/log/exim4/mainlog{% elif value == 'postfix' %}/var/log/mail.log{% elif value == 'mysql' or value == 'mariadb' %}/var/log/mysql/error.log{% endif %}">{{ label }}</option>
+        <div class="filters-container">
+            <div class="filter-group">
+                <label class="filter-label" for="server-filter">Server</label>
+                <select id="server-filter" class="filter-select" onchange="applyFilters()">
+                    <option value="">All Servers</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}" {% if selected_server_id|default_if_none:"" == server.id|stringformat:"s" %}selected{% endif %}>
+                        {{ server.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="time-filter">Time Range</label>
+                <select id="time-filter" class="filter-select" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="24h" {% if selected_time_filter == '24h' %}selected{% endif %}>Last 24 Hours</option>
+                    <option value="7d" {% if selected_time_filter == '7d' %}selected{% endif %}>Last 7 Days</option>
+                </select>
+            </div>
+        </div>
+
+        {% if events_with_solutions %}
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Server / Service</th>
+                    <th>Level</th>
+                    <th>Message</th>
+                    <th>Count</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                    <th>Solution</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in events_with_solutions %}
+                <tr>
+                    <td>
+                        <strong>{{ item.event.monitored_log.server.name }}</strong><br>
+                        <small style="color: #64748b;">{{ item.event.monitored_log.application_name }}</small>
+                    </td>
+                    <td>
+                        <span class="log-level-badge log-level-{{ item.event.log_level|lower }}">
+                            {{ item.event.log_level }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="log-message">{{ item.event.message }}</div>
+                    </td>
+                    <td>
+                        {% if item.event.event_count > 1 %}
+                        <span class="count-badge">{{ item.event.event_count }}x</span>
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td>{{ item.event.first_seen|date:"Y-m-d H:i:s" }}</td>
+                    <td>{{ item.event.last_seen|date:"Y-m-d H:i:s" }}</td>
+                    <td>
+                        {% if item.solution %}
+                        <div class="solution-box">
+                            <div class="solution-title">✓ Solution Available</div>
+                            <div class="solution-text">{{ item.solution }}</div>
+                        </div>
+                        {% else %}
+                        <button class="btn-create-solution" onclick="openCreateSolutionModal('{{ item.event.id }}', `{{ item.event.message|escapejs }}`)">
+                            Create Solution
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
                 {% endfor %}
-            </select>
-            <div class="form-hint">Service type determines the default log path</div>
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <h2 class="empty-state-title">No Log Events Found</h2>
+            <p class="empty-state-text">
+                No errors have been detected yet. Configure log monitoring to start detecting issues.
+            </p>
         </div>
-
-        <div class="form-group">
-            <label class="form-label" for="log_path">
-                Log File Path <span class="required">*</span>
-            </label>
-            <input type="text" id="log_path" name="log_path" class="form-input" 
-                   placeholder="/var/log/nginx/error.log" required>
-            <div class="form-hint">Full path to the log file (auto-filled for known services, required for custom apps)</div>
-        </div>
-
-        <div class="form-group">
-            <label class="form-label" for="application_name">
-                Application Name
-            </label>
-            <input type="text" id="application_name" name="application_name" class="form-input" 
-                   placeholder="e.g., Apache Web Server">
-            <div class="form-hint">Optional: A friendly name for this log configuration</div>
-        </div>
-
-        <button type="submit" class="btn-submit" id="submit-btn">
-            Begin Troubleshooting
-        </button>
-    </form>
+        {% endif %}
+    </div>
 </div>
 
-<!-- Existing Configurations -->
-<div class="config-list">
-    <h2 style="font-size: 20px; font-weight: 600; color: #0f172a; margin: 0 0 24px 0;">Existing Configurations</h2>
-    
-    {% if monitored_logs %}
-        {% for log in monitored_logs %}
-        <div class="config-item">
-            <div class="config-item-info">
-                <div class="config-item-title">{{ log.application_name }} on {{ log.server.name }}</div>
-                <div class="config-item-details">
-                    Service: {{ log.get_service_type_display }} | 
-                    Path: {{ log.log_path }} | 
-                    Last Scan: {% if log.last_scan_time %}{{ log.last_scan_time|date:"Y-m-d H:i:s" }}{% else %}Never{% endif %}
+<!-- Create Solution Modal -->
+<div id="solution-modal" class="modal">
+    <div class="modal-content">
+        <h2 class="modal-title">Create Solution for Error</h2>
+        <form id="solution-form">
+            {% csrf_token %}
+            <input type="hidden" id="solution-event-id" name="event_id">
+            
+            <!-- AI Solution Section -->
+            <div class="ai-section">
+                <div class="ai-section-header">
+                    <button type="button" class="btn-ai-ask" id="btn-ai-ask" onclick="askAIForSolution()">
+                        Ask AI for Solution
+                    </button>
+                    <select id="ai-model-select" class="ai-model-select">
+                        <option value="phi3:latest">phi3:latest</option>
+                        <option value="llama3.2:latest">llama3.2:latest</option>
+                    </select>
+                </div>
+                
+                <div id="ai-loading" class="ai-loading">
+                    <span class="ai-loading-spinner"></span>
+                    Generating solution with AI...
+                </div>
+                
+                <div id="ai-error" class="ai-error"></div>
+                
+                <div id="ai-preview" class="ai-preview">
+                    <div class="ai-preview-title">AI Generated Solution</div>
+                    <div class="ai-preview-item">
+                        <div class="ai-preview-label">Solution Name</div>
+                        <div class="ai-preview-content" id="ai-preview-name"></div>
+                    </div>
+                    <div class="ai-preview-item">
+                        <div class="ai-preview-label">Explanation</div>
+                        <div class="ai-preview-content" id="ai-preview-explanation"></div>
+                    </div>
+                    <div class="ai-preview-item">
+                        <div class="ai-preview-label">Solution Steps</div>
+                        <div class="ai-preview-content" id="ai-preview-steps"></div>
+                    </div>
+                    <button type="button" class="btn-use-solution" onclick="useAISolution()">
+                        Use Solution
+                    </button>
                 </div>
             </div>
-            <span class="status-badge {% if log.enabled %}status-enabled{% else %}status-disabled{% endif %}">
-                {% if log.enabled %}Enabled{% else %}Disabled{% endif %}
-            </span>
-        </div>
-        {% endfor %}
-    {% else %}
-        <p style="color: #64748b; font-size: 14px;">No log configurations yet. Add one above to get started.</p>
-    {% endif %}
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-pattern">Error Pattern (Auto-filled)</label>
+                <input type="text" id="solution-pattern" name="pattern" class="modal-input" readonly>
+                <small style="color: #64748b; font-size: 12px;">This pattern will be used to match similar errors</small>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-name">Solution Name *</label>
+                <input type="text" id="solution-name" name="name" class="modal-input" required placeholder="e.g., Fix 500 Internal Server Error">
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-explanation">Explanation *</label>
+                <textarea id="solution-explanation" name="explanation" class="modal-textarea" required placeholder="Explain what causes this error..."></textarea>
+            </div>
+            
+            <div class="modal-form-group">
+                <label class="modal-label" for="solution-text">Solution Steps *</label>
+                <textarea id="solution-text" name="solution" class="modal-textarea" required placeholder="Step-by-step solution..."></textarea>
+            </div>
+            
+            <div class="modal-buttons">
+                <button type="button" class="modal-btn modal-btn-secondary" onclick="closeCreateSolutionModal()">Cancel</button>
+                <button type="submit" class="modal-btn modal-btn-primary">Save Solution</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
+// Tab switching
+function switchTab(tabName, fromEvent) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show selected tab
+    document.getElementById('tab-' + tabName).classList.add('active');
+    document.getElementById('tab-btn-' + tabName).classList.add('active');
+    
+    // Update URL without reloading if called from event
+    if (fromEvent !== false) {
+        const url = new URL(window.location);
+        url.searchParams.set('tab', tabName);
+        window.history.pushState({}, '', url);
+    }
+}
+
+// Initialize tab on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTab = urlParams.get('tab') || 'config';
+    switchTab(activeTab, false);
+});
+
+// Form handling
 document.getElementById('service_type').addEventListener('change', function() {
     const selectedOption = this.options[this.selectedIndex];
     const logPath = selectedOption.getAttribute('data-log-path');
@@ -296,6 +965,232 @@ document.getElementById('log-troubleshooting-form').addEventListener('submit', a
     }
 });
 
+// Delete configuration
+async function deleteConfig(monitoredLogId) {
+    if (!confirm('Are you sure you want to remove this log monitoring configuration?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/log-troubleshooting/delete/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ monitored_log_id: monitoredLogId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('success', data.message || 'Configuration removed successfully!');
+            // Remove the item from DOM
+            const item = document.getElementById('config-item-' + monitoredLogId);
+            if (item) {
+                item.remove();
+            }
+            // Reload page after 1 second to update counts
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAlert('error', data.error || 'Failed to remove configuration');
+        }
+    } catch (error) {
+        showAlert('error', 'An error occurred: ' + error.message);
+    }
+}
+
+// Results filters
+function applyFilters() {
+    const serverId = document.getElementById('server-filter').value;
+    const timeFilter = document.getElementById('time-filter').value;
+    
+    // Build URL parameters
+    const params = new URLSearchParams();
+    params.append('tab', 'results'); // Keep results tab active
+    if (serverId) {
+        params.append('server_id', serverId);
+    }
+    if (timeFilter) {
+        params.append('time_filter', timeFilter);
+    }
+    
+    // Update URL and reload
+    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.location.href = newUrl;
+}
+
+// Solution modal
+let currentEventId = null;
+
+function openCreateSolutionModal(eventId, message) {
+    currentEventId = eventId;
+    document.getElementById('solution-event-id').value = eventId;
+    // Use first 100 chars of message as pattern
+    document.getElementById('solution-pattern').value = message.substring(0, 100);
+    
+    // Reset AI section
+    document.getElementById('ai-preview').classList.remove('active');
+    document.getElementById('ai-loading').classList.remove('active');
+    document.getElementById('ai-error').classList.remove('active');
+    document.getElementById('btn-ai-ask').disabled = false;
+    
+    // Store error message for AI
+    document.getElementById('solution-modal').setAttribute('data-error-message', message);
+    document.getElementById('solution-modal').classList.add('active');
+}
+
+function closeCreateSolutionModal() {
+    document.getElementById('solution-modal').classList.remove('active');
+    document.getElementById('solution-form').reset();
+    
+    // Reset AI section
+    document.getElementById('ai-preview').classList.remove('active');
+    document.getElementById('ai-loading').classList.remove('active');
+    document.getElementById('ai-error').classList.remove('active');
+    document.getElementById('btn-ai-ask').disabled = false;
+    
+    currentEventId = null;
+}
+
+// AI Solution Functions
+async function askAIForSolution() {
+    const errorMessage = document.getElementById('solution-modal').getAttribute('data-error-message');
+    const model = document.getElementById('ai-model-select').value;
+    const btn = document.getElementById('btn-ai-ask');
+    const loading = document.getElementById('ai-loading');
+    const preview = document.getElementById('ai-preview');
+    const errorDiv = document.getElementById('ai-error');
+    
+    if (!errorMessage) {
+        showAIError('No error message available');
+        return;
+    }
+    
+    // Show loading, hide preview and error
+    btn.disabled = true;
+    loading.classList.add('active');
+    preview.classList.remove('active');
+    errorDiv.classList.remove('active');
+    
+    try {
+        const response = await fetch('/api/log-troubleshooting/ai-solution/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                error_message: errorMessage,
+                model: model
+            })
+        });
+        
+        const data = await response.json();
+        
+        loading.classList.remove('active');
+        btn.disabled = false;
+        
+        if (data.success) {
+            // Display AI solution in preview
+            document.getElementById('ai-preview-name').textContent = data.solution_name || 'AI Generated Solution';
+            document.getElementById('ai-preview-explanation').textContent = data.explanation || '';
+            document.getElementById('ai-preview-steps').textContent = data.solution_steps || '';
+            
+            // Store AI solution data for use
+            document.getElementById('ai-preview').setAttribute('data-ai-solution', JSON.stringify({
+                name: data.solution_name,
+                explanation: data.explanation,
+                steps: data.solution_steps
+            }));
+            
+            preview.classList.add('active');
+        } else {
+            showAIError(data.error || 'Failed to generate AI solution');
+        }
+    } catch (error) {
+        loading.classList.remove('active');
+        btn.disabled = false;
+        showAIError('Network error: ' + error.message);
+    }
+}
+
+function useAISolution() {
+    const aiDataStr = document.getElementById('ai-preview').getAttribute('data-ai-solution');
+    if (!aiDataStr) {
+        showAIError('No AI solution available to use');
+        return;
+    }
+    
+    try {
+        const aiData = JSON.parse(aiDataStr);
+        
+        // Fill form fields with AI solution
+        document.getElementById('solution-name').value = aiData.name || '';
+        document.getElementById('solution-explanation').value = aiData.explanation || '';
+        document.getElementById('solution-text').value = aiData.steps || '';
+        
+        // Hide AI preview
+        document.getElementById('ai-preview').classList.remove('active');
+        
+        // Scroll to form fields
+        document.getElementById('solution-name').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (error) {
+        showAIError('Error using AI solution: ' + error.message);
+    }
+}
+
+function showAIError(message) {
+    const errorDiv = document.getElementById('ai-error');
+    errorDiv.textContent = message;
+    errorDiv.classList.add('active');
+    
+    // Hide loading and preview
+    document.getElementById('ai-loading').classList.remove('active');
+    document.getElementById('ai-preview').classList.remove('active');
+}
+
+document.getElementById('solution-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        event_id: document.getElementById('solution-event-id').value,
+        pattern: document.getElementById('solution-pattern').value,
+        name: document.getElementById('solution-name').value,
+        explanation: document.getElementById('solution-explanation').value,
+        solution: document.getElementById('solution-text').value,
+    };
+    
+    try {
+        const response = await fetch('/api/log-troubleshooting/create-solution/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            closeCreateSolutionModal();
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to create solution'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Close modal on background click
+document.getElementById('solution-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeCreateSolutionModal();
+    }
+});
+
 function showAlert(type, message) {
     const container = document.getElementById('alert-container');
     const alert = document.createElement('div');
@@ -309,18 +1204,4 @@ function showAlert(type, message) {
     }, 5000);
 }
 </script>
-
-<div style="margin-top: 32px;">
-    <a href="{% url 'log_troubleshooting_results' %}" style="display: inline-flex; align-items: center; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;">
-        View Log Troubleshooting Results →
-    </a>
-</div>
 {% endblock %}
-
-
-
-
-
-
-
-
