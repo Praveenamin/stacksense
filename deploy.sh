@@ -294,13 +294,121 @@ docker run -d \
                python manage.py runserver 0.0.0.0:8000" > /dev/null 2>&1
 }
 
-# Wait for application to be ready
-echo -e "  Waiting for application to be ready..."
-sleep 10
+# Wait for container to start
+echo -e "  Waiting for container to start..."
+sleep 15
+
+# Fix migration 0020 issue if columns already exist
+echo -e "  Checking and fixing migrations..."
+docker exec monitoring_web python manage.py shell << 'PYTHON_EOF' > /dev/null 2>&1 || true
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'log_analyzer.settings')
+import django
+django.setup()
+
+from django.db import connection
+from django.db.migrations.recorder import MigrationRecorder
+
+cursor = connection.cursor()
+
+# Check if migration 0020 columns exist
+cursor.execute("""
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='core_monitoredlog' 
+    AND column_name IN ('enabled', 'last_scan_time', 'scan_from_days', 'service_type')
+""")
+existing_columns = [row[0] for row in cursor.fetchall()]
+
+# Check if migration 0020 is already applied
+recorder = MigrationRecorder(connection)
+applied = recorder.applied_migrations()
+migration_key = ('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more')
+
+# If columns exist but migration not applied, fake it
+if len(existing_columns) >= 3 and migration_key not in applied:
+    recorder.record_applied('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more')
+    print('Faked migration 0020 (columns already exist)')
+PYTHON_EOF
+
+# Run migrations with error handling
+echo -e "  Running database migrations..."
+MIGRATION_OUTPUT=$(docker exec monitoring_web python manage.py migrate --noinput 2>&1)
+MIGRATION_SUCCESS=0
+
+# Check if migrations succeeded
+if echo "$MIGRATION_OUTPUT" | grep -q "No migrations to apply" || echo "$MIGRATION_OUTPUT" | grep -q "Applying.*migrations"; then
+    if ! echo "$MIGRATION_OUTPUT" | grep -qE "(Error|Traceback|FieldDoesNotExist|KeyError)"; then
+        echo -e "${GREEN}✓${NC} Migrations completed successfully"
+        MIGRATION_SUCCESS=1
+    fi
+fi
+
+# If migration failed with the 0020 error, try to fix it
+if echo "$MIGRATION_OUTPUT" | grep -qE "(FieldDoesNotExist.*enabled|MonitoredLog has no field named 'enabled')"; then
+    echo -e "  ${YELLOW}⚠ Migration 0020 issue detected. Attempting to fix...${NC}"
+    
+    # Check if columns exist and fake the migration
+    docker exec monitoring_web python manage.py shell << 'PYTHON_EOF' > /dev/null 2>&1
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'log_analyzer.settings')
+import django
+django.setup()
+
+from django.db import connection
+from django.db.migrations.recorder import MigrationRecorder
+
+cursor = connection.cursor()
+cursor.execute("""
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='core_monitoredlog' 
+    AND column_name IN ('enabled', 'last_scan_time', 'scan_from_days')
+""")
+existing = [row[0] for row in cursor.fetchall()]
+
+if len(existing) >= 2:
+    recorder = MigrationRecorder(connection)
+    recorder.record_applied('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more')
+    print('Faked migration 0020')
+PYTHON_EOF
+    
+    # Retry migrations
+    MIGRATION_OUTPUT=$(docker exec monitoring_web python manage.py migrate --noinput 2>&1)
+    if ! echo "$MIGRATION_OUTPUT" | grep -qE "(Error|Traceback|FieldDoesNotExist)"; then
+        echo -e "${GREEN}✓${NC} Migrations fixed and completed"
+        MIGRATION_SUCCESS=1
+    else
+        echo -e "${YELLOW}⚠ Migration still has issues. Showing last 20 lines:${NC}"
+        echo "$MIGRATION_OUTPUT" | tail -20
+    fi
+fi
+
+# Verify django_session table exists (critical for login)
+if [ $MIGRATION_SUCCESS -eq 1 ]; then
+    echo -e "  Verifying critical tables..."
+    if docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+cursor = connection.cursor()
+cursor.execute(\"SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='django_session'\")
+exit(0 if cursor.fetchone() else 1)
+" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} Critical tables verified"
+    else
+        echo -e "${YELLOW}⚠ django_session table missing. Running migrations again...${NC}"
+        docker exec monitoring_web python manage.py migrate sessions --noinput
+    fi
+fi
+
+# Final health check
+echo -e "  Performing final health check..."
 for i in {1..30}; do
-    if docker exec monitoring_web python manage.py check > /dev/null 2>&1; then
+    if docker exec monitoring_web python manage.py check --database default > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} Application is ready"
         break
+    fi
+    if [ $i -eq 30 ]; then
+        echo -e "${YELLOW}⚠ Application may still be starting. Check logs with: docker logs monitoring_web${NC}"
     fi
     sleep 2
 done

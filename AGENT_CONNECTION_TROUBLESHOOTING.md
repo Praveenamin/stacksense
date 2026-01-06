@@ -291,3 +291,4 @@ If issues persist after following these steps:
 - Client Agent: `/home/ubuntu/stacksense-repo/agent/heartbeat_agent.py`
 - SSH Configuration: `/home/ubuntu/stacksense-repo/ssh_keys/`
 
+
