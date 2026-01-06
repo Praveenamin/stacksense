@@ -92,7 +92,16 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # Logging configuration
 LOGS_DIR = BASE_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
+try:
+    LOGS_DIR.mkdir(exist_ok=True, mode=0o755)
+    # Ensure log files exist
+    (LOGS_DIR / 'app.log').touch(exist_ok=True)
+    (LOGS_DIR / 'error.log').touch(exist_ok=True)
+except (PermissionError, OSError) as e:
+    # If we can't create logs directory, fall back to console logging only
+    import sys
+    print(f"Warning: Could not create logs directory: {e}", file=sys.stderr)
+    LOGS_DIR = None
 
 LOGGING = {
     'version': 1,
@@ -111,17 +120,25 @@ LOGGING = {
         'app_file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': LOGS_DIR / 'app.log',
+            'filename': str(LOGS_DIR / 'app.log') if LOGS_DIR else None,
             'maxBytes': 10 * 1024 * 1024,  # 10MB
             'backupCount': 5,
+            'formatter': 'verbose',
+        } if LOGS_DIR else {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
         'error_file': {
             'level': 'ERROR',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': LOGS_DIR / 'error.log',
+            'filename': str(LOGS_DIR / 'error.log') if LOGS_DIR else None,
             'maxBytes': 10 * 1024 * 1024,  # 10MB
             'backupCount': 5,
+            'formatter': 'verbose',
+        } if LOGS_DIR else {
+            'level': 'ERROR',
+            'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
         'console': {

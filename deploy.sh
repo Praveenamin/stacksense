@@ -249,6 +249,15 @@ if docker ps -a | grep -q "monitoring_web"; then
     docker rm monitoring_web > /dev/null 2>&1 || true
 fi
 
+# Create required directories with proper permissions
+echo -e "  Creating required directories..."
+mkdir -p "$APP_DIR/logs"
+mkdir -p "$APP_DIR/media"
+mkdir -p "$APP_DIR/staticfiles"
+mkdir -p "$APP_DIR/ssh_keys"
+chmod 755 "$APP_DIR/logs" "$APP_DIR/media" "$APP_DIR/staticfiles" "$APP_DIR/ssh_keys"
+chown -R 1000:1000 "$APP_DIR/logs" "$APP_DIR/media" "$APP_DIR/staticfiles" "$APP_DIR/ssh_keys" 2>/dev/null || true
+
 # Build Docker image if Dockerfile exists
 if [ -f "$APP_DIR/Dockerfile" ]; then
     echo -e "  Building Docker image..."
@@ -269,7 +278,8 @@ docker run -d \
     --env-file "$APP_DIR/.env" \
     --restart unless-stopped \
     stacksense-web:latest \
-    sh -c "python manage.py migrate --noinput && \
+    sh -c "mkdir -p /app/logs && chmod 755 /app/logs && touch /app/logs/app.log /app/logs/error.log && chmod 644 /app/logs/*.log && \
+           python manage.py migrate --noinput && \
            python manage.py collectstatic --noinput && \
            python manage.py createsuperuser --noinput || true && \
            nohup python3 metrics_scheduler.py > /tmp/metrics_scheduler.log 2>&1 & \
@@ -287,6 +297,7 @@ docker run -d \
         --restart unless-stopped \
         python:3.11-slim \
         sh -c "cd /app && pip install -r requirements.txt && \
+               mkdir -p /app/logs && chmod 755 /app/logs && touch /app/logs/app.log /app/logs/error.log && chmod 644 /app/logs/*.log && \
                python manage.py migrate --noinput && \
                python manage.py collectstatic --noinput && \
                python manage.py createsuperuser --noinput || true && \
