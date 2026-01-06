@@ -177,6 +177,12 @@ if docker ps -a | grep -q "monitoring_db"; then
     docker rm monitoring_db > /dev/null 2>&1 || true
 fi
 
+# Remove old database volume to ensure fresh start with new password
+if docker volume ls | grep -q "stacksense_postgres_data"; then
+    echo -e "  Removing old database volume to ensure password consistency..."
+    docker volume rm stacksense_postgres_data > /dev/null 2>&1 || true
+fi
+
 docker run -d \
     --name monitoring_db \
     --network "$DOCKER_NETWORK" \
