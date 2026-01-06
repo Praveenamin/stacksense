@@ -283,7 +283,7 @@ docker run -d \
            python manage.py collectstatic --noinput && \
            python manage.py createsuperuser --noinput || true && \
            nohup python3 metrics_scheduler.py > /tmp/metrics_scheduler.log 2>&1 & \
-           python manage.py runserver 0.0.0.0:8000" > /dev/null 2>&1 || {
+           gunicorn log_analyzer.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -" > /dev/null 2>&1 || {
     # Fallback: use Python image if custom image doesn't exist
     echo -e "  Using Python base image..."
     docker run -d \
@@ -302,7 +302,7 @@ docker run -d \
                python manage.py collectstatic --noinput && \
                python manage.py createsuperuser --noinput || true && \
                nohup python3 metrics_scheduler.py > /tmp/metrics_scheduler.log 2>&1 & \
-               python manage.py runserver 0.0.0.0:8000" > /dev/null 2>&1
+               gunicorn log_analyzer.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -" > /dev/null 2>&1
 }
 
 # Wait for container to start
