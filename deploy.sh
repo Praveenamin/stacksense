@@ -205,26 +205,43 @@ if [ -n "$CONTAINERS_USING_VOLUME" ]; then
     sleep 3
 fi
 
-# CRITICAL: Always remove old database volume to ensure password consistency
+# CRITICAL: ALWAYS remove old database volume to ensure password consistency
 # This prevents authentication failures due to password mismatches
 echo -e "  Removing old database volume to ensure password consistency..."
+# Stop ALL containers first
+docker ps -aq --filter name=monitoring --filter name=stacksense | xargs docker stop > /dev/null 2>&1 || true
+sleep 2
+# Remove ALL containers
+docker ps -aq --filter name=monitoring --filter name=stacksense | xargs docker rm -f > /dev/null 2>&1 || true
+sleep 2
+
+# Now remove the volume - it should be safe now
 if docker volume ls | grep -q "stacksense_postgres_data"; then
-    # Try normal removal first
     if ! docker volume rm stacksense_postgres_data > /dev/null 2>&1; then
-        echo -e "  ${YELLOW}⚠ Volume in use, forcing removal...${NC}"
-        # Find and remove any remaining containers
-        docker ps -a --format '{{.Names}}' | grep -E '(monitoring|stacksense)' | xargs docker rm -f > /dev/null 2>&1 || true
+        echo -e "  ${YELLOW}⚠ Volume still in use, using force method...${NC}"
+        # Find any container using this volume and kill it
+        docker ps -a --format '{{.ID}} {{.Names}}' | while read id name; do
+            if docker inspect "$id" 2>/dev/null | grep -q "stacksense_postgres_data"; then
+                echo "  Force removing container $name..."
+                docker rm -f "$id" > /dev/null 2>&1 || true
+            fi
+        done
         sleep 3
         # Try again
         docker volume rm stacksense_postgres_data > /dev/null 2>&1 || {
-            echo -e "  ${RED}✗${NC} Failed to remove volume. Attempting alternative method..."
-            # Last resort: prune unused volumes (only if safe)
-            docker volume prune -f > /dev/null 2>&1 || true
-            sleep 2
+            echo -e "  ${RED}✗${NC} CRITICAL: Cannot remove database volume!"
+            echo -e "  ${RED}  This will cause password mismatch errors.${NC}"
+            echo -e "  ${YELLOW}  Attempting emergency cleanup...${NC}"
+            # Emergency: stop all postgres containers
+            docker ps -a --filter ancestor=postgres --format '{{.ID}}' | xargs docker rm -f > /dev/null 2>&1 || true
+            sleep 3
+            docker volume rm stacksense_postgres_data > /dev/null 2>&1 || {
+                echo -e "  ${RED}✗${NC} FATAL: Cannot proceed without removing old volume"
+                exit 1
+            }
         }
     fi
     echo -e "${GREEN}✓${NC} Old database volume removed"
-    # Wait a moment to ensure volume is fully removed
     sleep 2
 else
     echo -e "${GREEN}✓${NC} No existing database volume found"
@@ -343,16 +360,62 @@ USE_TLS=True
 BEHIND_PROXY=True
 EOF
 
-# Verify database is still accessible before starting web container
-echo -e "  Pre-flight check: Verifying database is accessible..."
-if ! docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$POSTGRES_PASSWORD" postgres:15-alpine \
-    psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
-    echo -e "${RED}✗${NC} Database not accessible! Cannot start web container."
-    echo -e "${RED}  Please check database container logs.${NC}"
-    docker logs monitoring_db --tail 30
+# CRITICAL: Verify database is accessible with the EXACT password from .env
+# This must match what Django will use
+echo -e "  Pre-flight check: Verifying database password from .env file..."
+ENV_PASSWORD=$(grep "^POSTGRES_PASSWORD=" "$APP_DIR/.env" 2>/dev/null | cut -d'=' -f2- | tr -d ' ' || echo "")
+
+if [ -z "$ENV_PASSWORD" ]; then
+    echo -e "${RED}✗${NC} POSTGRES_PASSWORD not found in .env file!"
     exit 1
 fi
-echo -e "${GREEN}✓${NC} Database is accessible and ready"
+
+# Test connection using the password from .env file (exactly as Django will)
+if ! docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$ENV_PASSWORD" postgres:15-alpine \
+    psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
+    echo -e "${RED}✗${NC} CRITICAL: Database password from .env file does NOT work!"
+    echo -e "${RED}  Password mismatch detected!${NC}"
+    echo -e "${YELLOW}  This means the database was created with a different password.${NC}"
+    echo -e "${YELLOW}  Removing database and recreating with correct password...${NC}"
+    
+    # Emergency: Stop and remove database
+    docker stop monitoring_db > /dev/null 2>&1 || true
+    docker rm monitoring_db > /dev/null 2>&1 || true
+    docker volume rm stacksense_postgres_data > /dev/null 2>&1 || true
+    sleep 3
+    
+    # Recreate database with correct password
+    docker run -d \
+        --name monitoring_db \
+        --network "$DOCKER_NETWORK" \
+        -e POSTGRES_DB="$POSTGRES_DB" \
+        -e POSTGRES_USER="$POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$ENV_PASSWORD" \
+        -p 5433:5432 \
+        -v stacksense_postgres_data:/var/lib/postgresql/data \
+        --restart unless-stopped \
+        postgres:15-alpine > /dev/null 2>&1
+    
+    # Wait for database
+    echo -e "  Waiting for database to restart..."
+    for i in {1..60}; do
+        if docker exec monitoring_db pg_isready -U "$POSTGRES_USER" > /dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+    done
+    
+    # Verify again
+    if ! docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$ENV_PASSWORD" postgres:15-alpine \
+        psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
+        echo -e "${RED}✗${NC} FATAL: Database password still doesn't work after recreation!"
+        echo -e "${RED}  Cannot proceed. Please check the deployment.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓${NC} Database recreated and password verified"
+else
+    echo -e "${GREEN}✓${NC} Database password from .env file verified successfully"
+fi
 
 # Stop existing web container if it exists
 if docker ps -a | grep -q "monitoring_web"; then
