@@ -263,7 +263,8 @@ RETRY_COUNT=0
 CONNECTION_VERIFIED=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
+    if docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$POSTGRES_PASSWORD" postgres:15-alpine \
+        psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} Database connection verified successfully"
         CONNECTION_VERIFIED=true
         break
@@ -288,7 +289,8 @@ fi
 
 # Additional verification: test password from environment
 echo -e "  Performing final password verification..."
-TEST_RESULT=$(docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT current_database();" 2>&1)
+TEST_RESULT=$(docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$POSTGRES_PASSWORD" postgres:15-alpine \
+    psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT current_database();" 2>&1)
 if echo "$TEST_RESULT" | grep -q "FATAL.*password authentication failed"; then
     echo -e "${RED}✗${NC} Critical: Password authentication still failing!"
     echo -e "${RED}  The database was created but password doesn't match!${NC}"
@@ -343,7 +345,8 @@ EOF
 
 # Verify database is still accessible before starting web container
 echo -e "  Pre-flight check: Verifying database is accessible..."
-if ! docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
+if ! docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$POSTGRES_PASSWORD" postgres:15-alpine \
+    psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
     echo -e "${RED}✗${NC} Database not accessible! Cannot start web container."
     echo -e "${RED}  Please check database container logs.${NC}"
     docker logs monitoring_db --tail 30
