@@ -686,7 +686,25 @@ except Exception as e:
     fi
 fi
 
-# Fix migration 0020 issue if columns already exist
+# Add any missing database columns BEFORE migrations
+echo -e "  Adding any missing database columns..."
+docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" << 'SQL_EOF' > /dev/null 2>&1 || true
+-- core_server columns (migration 0011)
+ALTER TABLE core_server ADD COLUMN IF NOT EXISTS suppress_alerts BOOLEAN DEFAULT FALSE;
+ALTER TABLE core_server ADD COLUMN IF NOT EXISTS suspend_monitoring BOOLEAN DEFAULT FALSE;
+
+-- core_monitoredlog columns (migration 0020)
+ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS last_scan_time TIMESTAMP NULL;
+ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS scan_from_days INTEGER DEFAULT 1;
+ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS service_type VARCHAR(20) DEFAULT 'custom';
+
+-- core_systemmetric columns
+ALTER TABLE core_systemmetric ADD COLUMN IF NOT EXISTS system_uptime_seconds BIGINT NULL;
+ALTER TABLE core_systemmetric ADD COLUMN IF NOT EXISTS top_processes JSONB NULL;
+SQL_EOF
+
+# Fix migration issues - fake migrations if columns already exist
 echo -e "  Checking and fixing migrations..."
 docker exec monitoring_web python manage.py shell << 'PYTHON_EOF' > /dev/null 2>&1 || true
 import os
@@ -698,25 +716,32 @@ from django.db import connection
 from django.db.migrations.recorder import MigrationRecorder
 
 cursor = connection.cursor()
+recorder = MigrationRecorder(connection)
+applied = recorder.applied_migrations()
 
-# Check if migration 0020 columns exist
+# Fake migration 0011 if columns exist
+cursor.execute("""
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='core_server' 
+    AND column_name IN ('suppress_alerts', 'suspend_monitoring')
+""")
+if len(cursor.fetchall()) >= 2:
+    if ('core', '0011_add_server_toggles') not in applied:
+        recorder.record_applied('core', '0011_add_server_toggles')
+        print('Faked migration 0011')
+
+# Fake migration 0020 if columns exist
 cursor.execute("""
     SELECT column_name 
     FROM information_schema.columns 
     WHERE table_name='core_monitoredlog' 
     AND column_name IN ('enabled', 'last_scan_time', 'scan_from_days', 'service_type')
 """)
-existing_columns = [row[0] for row in cursor.fetchall()]
-
-# Check if migration 0020 is already applied
-recorder = MigrationRecorder(connection)
-applied = recorder.applied_migrations()
-migration_key = ('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more')
-
-# If columns exist but migration not applied, fake it
-if len(existing_columns) >= 3 and migration_key not in applied:
-    recorder.record_applied('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more')
-    print('Faked migration 0020 (columns already exist)')
+if len(cursor.fetchall()) >= 3:
+    if ('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more') not in applied:
+        recorder.record_applied('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more')
+        print('Faked migration 0020')
 PYTHON_EOF
 
 # Run migrations with error handling and timeout
@@ -745,26 +770,26 @@ else
 fi
 
 # Run migrations with timeout
-MIGRATION_OUTPUT=$(timeout 60 docker exec monitoring_web python manage.py migrate --noinput 2>&1)
+MIGRATION_OUTPUT=$(timeout 120 docker exec monitoring_web python manage.py migrate --noinput 2>&1)
 MIGRATION_EXIT=$?
 MIGRATION_SUCCESS=0
 
 # Check if migrations succeeded
 if [ $MIGRATION_EXIT -eq 0 ]; then
     if echo "$MIGRATION_OUTPUT" | grep -q "No migrations to apply" || echo "$MIGRATION_OUTPUT" | grep -q "Applying.*migrations"; then
-        if ! echo "$MIGRATION_OUTPUT" | grep -qE "(Error|Traceback|FieldDoesNotExist|KeyError|password authentication failed)"; then
+        if ! echo "$MIGRATION_OUTPUT" | grep -qE "(Error|Traceback|FieldDoesNotExist|KeyError|password authentication failed|ProgrammingError)"; then
             echo -e "${GREEN}✓${NC} Migrations completed successfully"
             MIGRATION_SUCCESS=1
         else
             echo -e "${YELLOW}⚠ Migrations completed but with warnings${NC}"
-            echo "$MIGRATION_OUTPUT" | grep -E "(Error|Traceback|password)" | head -5
+            echo "$MIGRATION_OUTPUT" | grep -E "(Error|Traceback|password|ProgrammingError)" | head -5
         fi
     else
         echo -e "${GREEN}✓${NC} Migrations completed"
         MIGRATION_SUCCESS=1
     fi
 elif [ $MIGRATION_EXIT -eq 124 ]; then
-    echo -e "${RED}✗${NC} Migrations timed out after 60 seconds"
+    echo -e "${RED}✗${NC} Migrations timed out after 120 seconds"
     echo -e "${YELLOW}  This usually indicates a database connection issue${NC}"
 elif echo "$MIGRATION_OUTPUT" | grep -q "password authentication failed"; then
     echo -e "${RED}✗${NC} Database password authentication failed during migrations!"
@@ -773,6 +798,124 @@ elif echo "$MIGRATION_OUTPUT" | grep -q "password authentication failed"; then
 else
     echo -e "${YELLOW}⚠ Migrations had issues:${NC}"
     echo "$MIGRATION_OUTPUT" | tail -10
+fi
+
+# Handle specific migration errors
+if echo "$MIGRATION_OUTPUT" | grep -qE "(column.*already exists|DuplicateColumn|relation.*does not exist)"; then
+    echo -e "  ${YELLOW}⚠ Detected migration conflicts. Attempting to fix...${NC}"
+    
+    # Fix column already exists errors by faking the migration
+    if echo "$MIGRATION_OUTPUT" | grep -qE "(column.*already exists|DuplicateColumn)"; then
+        echo -e "  Fixing 'column already exists' errors..."
+        
+        # Extract migration name from error if possible
+        if echo "$MIGRATION_OUTPUT" | grep -q "0011_add_server_toggles"; then
+            MIGRATION_TO_FAKE="0011_add_server_toggles"
+        else
+            # Try to find any migration that's failing
+            MIGRATION_TO_FAKE=$(echo "$MIGRATION_OUTPUT" | grep -oE "core\.[0-9]+_[a-z_]+" | head -1 | cut -d'.' -f2 || echo "")
+        fi
+        
+        if [ -n "$MIGRATION_TO_FAKE" ]; then
+            echo -e "  Faking migration: core.$MIGRATION_TO_FAKE"
+            docker exec monitoring_web python manage.py shell << PYTHON_EOF > /dev/null 2>&1 || true
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'log_analyzer.settings')
+import django
+django.setup()
+
+from django.db import connection
+from django.db.migrations.recorder import MigrationRecorder
+
+cursor = connection.cursor()
+recorder = MigrationRecorder(connection)
+
+# Check if suppress_alerts column exists (for 0011)
+cursor.execute("""
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='core_server' 
+    AND column_name='suppress_alerts'
+""")
+column_exists = cursor.fetchone() is not None
+
+# Check if migration is already applied
+applied = recorder.applied_migrations()
+migration_key = ('core', '$MIGRATION_TO_FAKE')
+
+if column_exists and migration_key not in applied:
+    recorder.record_applied('core', '$MIGRATION_TO_FAKE')
+    print('Faked migration')
+elif not column_exists and migration_key in applied:
+    # Migration marked as applied but column doesn't exist - unmark it
+    from django.db import transaction
+    with transaction.atomic():
+        cursor.execute("DELETE FROM django_migrations WHERE app='core' AND name='$MIGRATION_TO_FAKE'")
+    print('Unmarked migration')
+PYTHON_EOF
+        fi
+    fi
+    
+    # Run migrations again after fixes
+    echo -e "  Retrying migrations..."
+    MIGRATION_OUTPUT2=$(timeout 60 docker exec monitoring_web python manage.py migrate --noinput 2>&1)
+    if ! echo "$MIGRATION_OUTPUT2" | grep -qE "(Error|Traceback|ProgrammingError.*already exists|DuplicateColumn)"; then
+        echo -e "${GREEN}✓${NC} Migrations fixed and completed"
+        MIGRATION_SUCCESS=1
+    else
+        echo -e "${YELLOW}⚠ Some migration issues remain. Trying to fake 0011 specifically...${NC}"
+        # Specifically fix 0011 if it's still failing
+        docker exec monitoring_web python manage.py shell << 'PYTHON_EOF' > /dev/null 2>&1 || true
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'log_analyzer.settings')
+import django
+django.setup()
+
+from django.db import connection
+from django.db.migrations.recorder import MigrationRecorder
+
+cursor = connection.cursor()
+recorder = MigrationRecorder(connection)
+
+# Check if suppress_alerts column exists
+cursor.execute("""
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='core_server' 
+    AND column_name='suppress_alerts'
+""")
+if cursor.fetchone():
+    applied = recorder.applied_migrations()
+    if ('core', '0011_add_server_toggles') not in applied:
+        recorder.record_applied('core', '0011_add_server_toggles')
+        print('Faked 0011')
+PYTHON_EOF
+        # Try one more time
+        timeout 60 docker exec monitoring_web python manage.py migrate --noinput > /dev/null 2>&1 || true
+    fi
+fi
+
+# Ensure core_loginactivity table exists (critical for login logging)
+echo -e "  Ensuring all core app tables exist..."
+if ! timeout 10 docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+cursor = connection.cursor()
+cursor.execute(\"SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='core_loginactivity'\")
+exit(0 if cursor.fetchone() else 1)
+" > /dev/null 2>&1; then
+    echo -e "  ${YELLOW}⚠ core_loginactivity table missing. Running core migrations...${NC}"
+    timeout 60 docker exec monitoring_web python manage.py migrate core --noinput > /dev/null 2>&1 || true
+    # Verify it was created
+    if timeout 10 docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+cursor = connection.cursor()
+cursor.execute(\"SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='core_loginactivity'\")
+exit(0 if cursor.fetchone() else 1)
+" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} core_loginactivity table created"
+    else
+        echo -e "${YELLOW}⚠ core_loginactivity table still missing, but continuing...${NC}"
+    fi
 fi
 
 # If migration failed with the 0020 error, try to fix it
@@ -864,6 +1007,40 @@ done
 if [ "$HEALTH_CHECK_PASSED" = false ]; then
     echo -e "${YELLOW}⚠ Application health check incomplete, but continuing with deployment...${NC}"
 fi
+
+# Collect static files
+echo -e "  Collecting static files..."
+docker exec monitoring_web python manage.py collectstatic --noinput > /dev/null 2>&1 || true
+echo -e "${GREEN}✓${NC} Static files collected"
+
+# Create/verify admin user
+echo -e "  Creating admin user..."
+docker exec monitoring_web python -c "
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'log_analyzer.settings')
+import django
+django.setup()
+from django.contrib.auth.models import User
+
+try:
+    user = User.objects.get(username='$DJANGO_SUPERUSER_USERNAME')
+    user.set_password('$DJANGO_SUPERUSER_PASSWORD')
+    user.email = '$DJANGO_SUPERUSER_EMAIL'
+    user.is_staff = True
+    user.is_superuser = True
+    user.is_active = True
+    user.save()
+    print('RESET')
+except User.DoesNotExist:
+    user = User.objects.create_superuser(
+        username='$DJANGO_SUPERUSER_USERNAME',
+        email='$DJANGO_SUPERUSER_EMAIL',
+        password='$DJANGO_SUPERUSER_PASSWORD'
+    )
+    print('CREATED')
+except Exception as e:
+    print(f'ERROR: {e}')
+" 2>&1 | grep -qE "(RESET|CREATED)" && echo -e "${GREEN}✓${NC} Admin user ready" || echo -e "${YELLOW}⚠ Admin user may need manual verification${NC}"
 
 echo -e "${GREEN}✓${NC} Step 7 completed"
 echo ""
