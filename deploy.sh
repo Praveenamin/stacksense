@@ -207,44 +207,52 @@ fi
 
 # CRITICAL: ALWAYS remove old database volume to ensure password consistency
 # This prevents authentication failures due to password mismatches
-echo -e "  Removing old database volume to ensure password consistency..."
-# Stop ALL containers first
-docker ps -aq --filter name=monitoring --filter name=stacksense | xargs docker stop > /dev/null 2>&1 || true
-sleep 2
+# We MUST remove the volume every time to ensure the password matches
+echo -e "  Removing old database volume (MANDATORY for password consistency)..."
+# Stop ALL containers first - be very aggressive
+docker ps -aq | xargs docker stop > /dev/null 2>&1 || true
+sleep 3
 # Remove ALL containers
-docker ps -aq --filter name=monitoring --filter name=stacksense | xargs docker rm -f > /dev/null 2>&1 || true
-sleep 2
+docker ps -aq | xargs docker rm -f > /dev/null 2>&1 || true
+sleep 3
 
-# Now remove the volume - it should be safe now
-if docker volume ls | grep -q "stacksense_postgres_data"; then
-    if ! docker volume rm stacksense_postgres_data > /dev/null 2>&1; then
-        echo -e "  ${YELLOW}⚠ Volume still in use, using force method...${NC}"
-        # Find any container using this volume and kill it
-        docker ps -a --format '{{.ID}} {{.Names}}' | while read id name; do
-            if docker inspect "$id" 2>/dev/null | grep -q "stacksense_postgres_data"; then
-                echo "  Force removing container $name..."
-                docker rm -f "$id" > /dev/null 2>&1 || true
-            fi
-        done
-        sleep 3
-        # Try again
-        docker volume rm stacksense_postgres_data > /dev/null 2>&1 || {
-            echo -e "  ${RED}✗${NC} CRITICAL: Cannot remove database volume!"
-            echo -e "  ${RED}  This will cause password mismatch errors.${NC}"
-            echo -e "  ${YELLOW}  Attempting emergency cleanup...${NC}"
-            # Emergency: stop all postgres containers
+# Now remove the volume - MANDATORY, not optional
+VOLUME_REMOVED=false
+MAX_VOLUME_RETRIES=5
+VOLUME_RETRY=0
+
+while [ $VOLUME_RETRY -lt $MAX_VOLUME_RETRIES ]; do
+    if docker volume ls | grep -q "stacksense_postgres_data"; then
+        if docker volume rm stacksense_postgres_data > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Database volume removed successfully"
+            VOLUME_REMOVED=true
+            sleep 2
+            break
+        else
+            VOLUME_RETRY=$((VOLUME_RETRY + 1))
+            echo -e "  ${YELLOW}⚠ Attempt $VOLUME_RETRY/$MAX_VOLUME_RETRIES: Volume removal failed, cleaning up containers...${NC}"
+            # Find and kill ANY container that might be using this volume
+            docker ps -a --format '{{.ID}}' | while read id; do
+                if docker inspect "$id" 2>/dev/null | grep -q "stacksense_postgres_data"; then
+                    docker rm -f "$id" > /dev/null 2>&1 || true
+                fi
+            done
+            # Also kill all postgres containers
             docker ps -a --filter ancestor=postgres --format '{{.ID}}' | xargs docker rm -f > /dev/null 2>&1 || true
-            sleep 3
-            docker volume rm stacksense_postgres_data > /dev/null 2>&1 || {
-                echo -e "  ${RED}✗${NC} FATAL: Cannot proceed without removing old volume"
-                exit 1
-            }
-        }
+            sleep 5
+        fi
+    else
+        echo -e "${GREEN}✓${NC} No existing database volume found"
+        VOLUME_REMOVED=true
+        break
     fi
-    echo -e "${GREEN}✓${NC} Old database volume removed"
-    sleep 2
-else
-    echo -e "${GREEN}✓${NC} No existing database volume found"
+done
+
+if [ "$VOLUME_REMOVED" = false ]; then
+    echo -e "${RED}✗${NC} FATAL: Cannot remove database volume after $MAX_VOLUME_RETRIES attempts!"
+    echo -e "${RED}  This will cause password authentication failures.${NC}"
+    echo -e "${RED}  Please manually remove the volume: docker volume rm stacksense_postgres_data${NC}"
+    exit 1
 fi
 
 docker run -d \
@@ -311,7 +319,46 @@ TEST_RESULT=$(docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$POSTGR
 if echo "$TEST_RESULT" | grep -q "FATAL.*password authentication failed"; then
     echo -e "${RED}✗${NC} Critical: Password authentication still failing!"
     echo -e "${RED}  The database was created but password doesn't match!${NC}"
-    exit 1
+    echo -e "${YELLOW}  This indicates the volume still has old credentials.${NC}"
+    echo -e "${YELLOW}  Removing volume and recreating database...${NC}"
+    
+    # Emergency fix: Remove everything and recreate
+    docker stop monitoring_db > /dev/null 2>&1 || true
+    docker rm monitoring_db > /dev/null 2>&1 || true
+    docker volume rm stacksense_postgres_data > /dev/null 2>&1 || {
+        echo -e "${RED}✗${NC} Cannot remove volume. Manual intervention required."
+        echo -e "${YELLOW}  Run: docker volume rm stacksense_postgres_data${NC}"
+        exit 1
+    }
+    sleep 2
+    
+    # Recreate with correct password
+    docker run -d \
+        --name monitoring_db \
+        --network "$DOCKER_NETWORK" \
+        -e POSTGRES_DB="$POSTGRES_DB" \
+        -e POSTGRES_USER="$POSTGRES_USER" \
+        -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+        -p 5433:5432 \
+        -v stacksense_postgres_data:/var/lib/postgresql/data \
+        --restart unless-stopped \
+        postgres:15-alpine > /dev/null 2>&1
+    
+    # Wait and verify
+    for i in {1..60}; do
+        if docker exec monitoring_db pg_isready -U "$POSTGRES_USER" > /dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+    done
+    
+    # Final verification
+    if ! docker run --rm --network "$DOCKER_NETWORK" -e PGPASSWORD="$POSTGRES_PASSWORD" postgres:15-alpine \
+        psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
+        echo -e "${RED}✗${NC} FATAL: Password still doesn't work after recreation!"
+        exit 1
+    fi
+    echo -e "${GREEN}✓${NC} Database recreated and password verified"
 else
     echo -e "${GREEN}✓${NC} Password authentication working correctly"
 fi
@@ -342,7 +389,9 @@ echo -e "${GREEN}✓${NC} Redis is ready"
 ###############################################################################
 echo -e "${BLUE}[7/10] Building and starting Django application...${NC}"
 
-# Create .env file for Django
+# CRITICAL: Write .env file BEFORE starting web container
+# This ensures the password is consistent throughout
+echo -e "  Creating .env file with database credentials..."
 cat > "$APP_DIR/.env" << EOF
 POSTGRES_DB=$POSTGRES_DB
 POSTGRES_USER=$POSTGRES_USER
