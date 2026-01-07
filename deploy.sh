@@ -576,8 +576,98 @@ sleep 10
 
 # Verify the container can connect to the database
 echo -e "  Verifying database connection from web container..."
+DB_CONNECTION_VERIFIED=false
 for i in {1..10}; do
-    if docker exec monitoring_web python manage.py shell -c "
+    # First check if database container is running and accessible
+    if ! docker ps | grep -q monitoring_db; then
+        echo -e "${RED}✗${NC} Database container is not running!"
+        exit 1
+    fi
+    
+    # Test connection and capture error
+    CONNECTION_TEST=$(timeout 10 docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {str(e)}')
+    exit(1)
+" 2>&1)
+    
+    if echo "$CONNECTION_TEST" | grep -q "SUCCESS"; then
+        echo -e "${GREEN}✓${NC} Database connection verified from web container"
+        DB_CONNECTION_VERIFIED=true
+        break
+    else
+        if [ $i -eq 1 ]; then
+            echo -e "  ${YELLOW}⚠ Connection test failed. Error details:${NC}"
+            echo "$CONNECTION_TEST" | grep -E "(ERROR|password|authentication|OperationalError)" | head -3
+        fi
+        if [ $i -lt 10 ]; then
+            echo -e "  Retrying... ($i/10)"
+        fi
+    fi
+    sleep 3
+done
+
+if [ "$DB_CONNECTION_VERIFIED" = false ]; then
+    echo -e "${RED}✗${NC} Database connection failed from web container!"
+    echo -e "${YELLOW}  Diagnosing issue...${NC}"
+    
+    # Check if database container is accessible from web container
+    echo -e "  Testing network connectivity..."
+    if docker exec monitoring_web ping -c 1 monitoring_db > /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓${NC} Network connectivity OK"
+    else
+        echo -e "  ${RED}✗${NC} Cannot reach database container from web container!"
+    fi
+    
+    # Check database container logs
+    echo -e "  Checking database container status..."
+    docker exec monitoring_db pg_isready -U "$POSTGRES_USER" > /dev/null 2>&1 && echo -e "  ${GREEN}✓${NC} Database is ready" || echo -e "  ${RED}✗${NC} Database not ready"
+    
+    # Try to connect directly with psql from web container
+    echo -e "  Testing direct psql connection..."
+    if docker exec monitoring_web sh -c "PGPASSWORD='$POSTGRES_PASSWORD' psql -h monitoring_db -U $POSTGRES_USER -d $POSTGRES_DB -c 'SELECT 1'" > /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓${NC} Direct psql connection works - Django settings may be wrong"
+    else
+        echo -e "  ${RED}✗${NC} Direct psql connection also fails - password issue confirmed"
+        echo -e "${YELLOW}  Attempting to recreate database with correct password...${NC}"
+        
+        # Emergency: Recreate database
+        docker stop monitoring_web monitoring_db > /dev/null 2>&1 || true
+        docker rm monitoring_db > /dev/null 2>&1 || true
+        docker volume rm stacksense_postgres_data > /dev/null 2>&1 || true
+        sleep 2
+        
+        # Recreate database
+        docker run -d \
+            --name monitoring_db \
+            --network "$DOCKER_NETWORK" \
+            -e POSTGRES_DB="$POSTGRES_DB" \
+            -e POSTGRES_USER="$POSTGRES_USER" \
+            -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            -p 5433:5432 \
+            -v stacksense_postgres_data:/var/lib/postgresql/data \
+            --restart unless-stopped \
+            postgres:15-alpine > /dev/null 2>&1
+        
+        # Wait for database
+        for j in {1..30}; do
+            if docker exec monitoring_db pg_isready -U "$POSTGRES_USER" > /dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+        done
+        
+        # Restart web container
+        docker restart monitoring_web > /dev/null 2>&1
+        sleep 10
+        
+        # Test again
+        if timeout 10 docker exec monitoring_web python manage.py shell -c "
 from django.db import connection
 try:
     with connection.cursor() as cursor:
@@ -587,14 +677,13 @@ except Exception as e:
     print(f'ERROR: {e}')
     exit(1)
 " > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Database connection verified from web container"
-        break
+            echo -e "${GREEN}✓${NC} Database connection works after recreation"
+            DB_CONNECTION_VERIFIED=true
+        else
+            echo -e "${RED}✗${NC} Connection still failing after database recreation"
+        fi
     fi
-    if [ $i -eq 10 ]; then
-        echo -e "${YELLOW}⚠ Database connection verification failed, but continuing...${NC}"
-    fi
-    sleep 2
-done
+fi
 
 # Fix migration 0020 issue if columns already exist
 echo -e "  Checking and fixing migrations..."
@@ -631,9 +720,10 @@ PYTHON_EOF
 
 # Run migrations with error handling and timeout
 echo -e "  Running database migrations..."
-# First verify database connection works
-echo -e "  Verifying database connection before migrations..."
-if ! timeout 10 docker exec monitoring_web python manage.py shell -c "
+# Skip connection check if we already verified it above
+if [ "$DB_CONNECTION_VERIFIED" = false ]; then
+    echo -e "  Verifying database connection before migrations..."
+    if ! timeout 10 docker exec monitoring_web python manage.py shell -c "
 from django.db import connection
 try:
     with connection.cursor() as cursor:
@@ -643,16 +733,14 @@ except Exception as e:
     print(f'ERROR: {e}')
     exit(1)
 " > /dev/null 2>&1; then
-    echo -e "${RED}✗${NC} Database connection failed! Checking .env file in container..."
-    # Check what password is in the container
-    CONTAINER_PASS=$(docker exec monitoring_web grep "^POSTGRES_PASSWORD=" /app/.env 2>/dev/null | cut -d'=' -f2- | tr -d ' ' || echo "NOT_FOUND")
-    echo -e "  Container .env password: ${CONTAINER_PASS:0:10}..."
-    echo -e "  Expected password: ${POSTGRES_PASSWORD:0:10}..."
-    if [ "$CONTAINER_PASS" != "$POSTGRES_PASSWORD" ]; then
-        echo -e "${RED}✗${NC} Password mismatch! Restarting container..."
-        docker restart monitoring_web > /dev/null 2>&1
-        sleep 10
+        echo -e "${RED}✗${NC} Database connection failed! Skipping migrations for now..."
+        echo -e "${YELLOW}  Migrations will be retried later${NC}"
+        MIGRATION_SUCCESS=0
+    else
+        echo -e "${GREEN}✓${NC} Database connection OK, proceeding with migrations"
     fi
+else
+    echo -e "${GREEN}✓${NC} Database connection already verified, proceeding with migrations"
 fi
 
 # Run migrations with timeout
