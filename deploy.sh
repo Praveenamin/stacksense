@@ -568,6 +568,34 @@ docker run -d \
 echo -e "  Waiting for container to start..."
 sleep 15
 
+# CRITICAL: Restart web container to ensure it picks up the correct .env file
+# This is necessary because the container might have been started before .env was fully written
+echo -e "  Restarting web container to ensure .env file is loaded correctly..."
+docker restart monitoring_web > /dev/null 2>&1
+sleep 10
+
+# Verify the container can connect to the database
+echo -e "  Verifying database connection from web container..."
+for i in {1..10}; do
+    if docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+    exit(1)
+" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} Database connection verified from web container"
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        echo -e "${YELLOW}⚠ Database connection verification failed, but continuing...${NC}"
+    fi
+    sleep 2
+done
+
 # Fix migration 0020 issue if columns already exist
 echo -e "  Checking and fixing migrations..."
 docker exec monitoring_web python manage.py shell << 'PYTHON_EOF' > /dev/null 2>&1 || true
@@ -601,17 +629,61 @@ if len(existing_columns) >= 3 and migration_key not in applied:
     print('Faked migration 0020 (columns already exist)')
 PYTHON_EOF
 
-# Run migrations with error handling
+# Run migrations with error handling and timeout
 echo -e "  Running database migrations..."
-MIGRATION_OUTPUT=$(docker exec monitoring_web python manage.py migrate --noinput 2>&1)
+# First verify database connection works
+echo -e "  Verifying database connection before migrations..."
+if ! timeout 10 docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+    exit(1)
+" > /dev/null 2>&1; then
+    echo -e "${RED}✗${NC} Database connection failed! Checking .env file in container..."
+    # Check what password is in the container
+    CONTAINER_PASS=$(docker exec monitoring_web grep "^POSTGRES_PASSWORD=" /app/.env 2>/dev/null | cut -d'=' -f2- | tr -d ' ' || echo "NOT_FOUND")
+    echo -e "  Container .env password: ${CONTAINER_PASS:0:10}..."
+    echo -e "  Expected password: ${POSTGRES_PASSWORD:0:10}..."
+    if [ "$CONTAINER_PASS" != "$POSTGRES_PASSWORD" ]; then
+        echo -e "${RED}✗${NC} Password mismatch! Restarting container..."
+        docker restart monitoring_web > /dev/null 2>&1
+        sleep 10
+    fi
+fi
+
+# Run migrations with timeout
+MIGRATION_OUTPUT=$(timeout 60 docker exec monitoring_web python manage.py migrate --noinput 2>&1)
+MIGRATION_EXIT=$?
 MIGRATION_SUCCESS=0
 
 # Check if migrations succeeded
-if echo "$MIGRATION_OUTPUT" | grep -q "No migrations to apply" || echo "$MIGRATION_OUTPUT" | grep -q "Applying.*migrations"; then
-    if ! echo "$MIGRATION_OUTPUT" | grep -qE "(Error|Traceback|FieldDoesNotExist|KeyError)"; then
-        echo -e "${GREEN}✓${NC} Migrations completed successfully"
+if [ $MIGRATION_EXIT -eq 0 ]; then
+    if echo "$MIGRATION_OUTPUT" | grep -q "No migrations to apply" || echo "$MIGRATION_OUTPUT" | grep -q "Applying.*migrations"; then
+        if ! echo "$MIGRATION_OUTPUT" | grep -qE "(Error|Traceback|FieldDoesNotExist|KeyError|password authentication failed)"; then
+            echo -e "${GREEN}✓${NC} Migrations completed successfully"
+            MIGRATION_SUCCESS=1
+        else
+            echo -e "${YELLOW}⚠ Migrations completed but with warnings${NC}"
+            echo "$MIGRATION_OUTPUT" | grep -E "(Error|Traceback|password)" | head -5
+        fi
+    else
+        echo -e "${GREEN}✓${NC} Migrations completed"
         MIGRATION_SUCCESS=1
     fi
+elif [ $MIGRATION_EXIT -eq 124 ]; then
+    echo -e "${RED}✗${NC} Migrations timed out after 60 seconds"
+    echo -e "${YELLOW}  This usually indicates a database connection issue${NC}"
+elif echo "$MIGRATION_OUTPUT" | grep -q "password authentication failed"; then
+    echo -e "${RED}✗${NC} Database password authentication failed during migrations!"
+    echo -e "${YELLOW}  Output:${NC}"
+    echo "$MIGRATION_OUTPUT" | grep -A 5 "password authentication" | head -10
+else
+    echo -e "${YELLOW}⚠ Migrations had issues:${NC}"
+    echo "$MIGRATION_OUTPUT" | tail -10
 fi
 
 # If migration failed with the 0020 error, try to fix it
@@ -655,30 +727,52 @@ PYTHON_EOF
 fi
 
 # Verify django_session table exists (critical for login)
-if [ $MIGRATION_SUCCESS -eq 1 ]; then
-    echo -e "  Verifying critical tables..."
-    if docker exec monitoring_web python manage.py shell -c "
+echo -e "  Verifying critical tables..."
+if timeout 10 docker exec monitoring_web python manage.py shell -c "
 from django.db import connection
-cursor = connection.cursor()
-cursor.execute(\"SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='django_session'\")
-exit(0 if cursor.fetchone() else 1)
+try:
+    cursor = connection.cursor()
+    cursor.execute(\"SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='django_session'\")
+    exit(0 if cursor.fetchone() else 1)
+except Exception as e:
+    print(f'Error: {e}')
+    exit(1)
 " > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Critical tables verified"
-    else
-        echo -e "${YELLOW}⚠ django_session table missing. Running migrations again...${NC}"
-        docker exec monitoring_web python manage.py migrate sessions --noinput
-    fi
+    echo -e "${GREEN}✓${NC} Critical tables verified"
+else
+    echo -e "${YELLOW}⚠ django_session table check failed. Running sessions migrations...${NC}"
+    timeout 30 docker exec monitoring_web python manage.py migrate sessions --noinput > /dev/null 2>&1 || true
 fi
 
-# Final health check
+# Final health check and database connection verification
 echo -e "  Performing final health check..."
-for i in {1..30}; do
-    if docker exec monitoring_web python manage.py check --database default > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Application is ready"
-        break
+HEALTH_CHECK_PASSED=false
+for i in {1..15}; do
+    if timeout 10 docker exec monitoring_web python manage.py check --database default > /dev/null 2>&1; then
+        # Verify database connection from within the web container
+        echo -e "  Verifying database connection from web container..."
+        if timeout 10 docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+        result = cursor.fetchone()
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+    exit(1)
+" > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Application is ready and database connection verified"
+            HEALTH_CHECK_PASSED=true
+            break
+        else
+            if [ $i -lt 5 ]; then
+                echo -e "  ${YELLOW}⚠ Database connection failed, retrying... ($i/15)${NC}"
+            fi
+        fi
     fi
-    if [ $i -eq 30 ]; then
-        echo -e "${YELLOW}⚠ Application may still be starting. Check logs with: docker logs monitoring_web${NC}"
+    if [ $i -eq 15 ]; then
+        echo -e "${YELLOW}⚠ Application health check incomplete. Continuing anyway...${NC}"
     fi
     sleep 2
 done
@@ -791,6 +885,74 @@ ufw allow $NGINX_PORT/tcp > /dev/null 2>&1  # Custom HTTPS port
 echo -e "${GREEN}✓${NC} Firewall configured"
 
 ###############################################################################
+# Final Verification: Test Database Connection from Web Container
+###############################################################################
+echo ""
+echo -e "${BLUE}Final verification: Testing database connection from web container...${NC}"
+sleep 5  # Give container a moment to fully start
+
+# Verify .env file in container matches what we expect
+echo -e "  Checking .env file in container..."
+CONTAINER_ENV_PASS=$(docker exec monitoring_web grep "^POSTGRES_PASSWORD=" /app/.env 2>/dev/null | cut -d'=' -f2- | tr -d ' ' || echo "")
+if [ -z "$CONTAINER_ENV_PASS" ]; then
+    echo -e "${RED}✗${NC} WARNING: POSTGRES_PASSWORD not found in container .env file!"
+    echo -e "${YELLOW}  Copying .env file to container...${NC}"
+    docker cp "$APP_DIR/.env" monitoring_web:/app/.env > /dev/null 2>&1 || true
+    docker restart monitoring_web > /dev/null 2>&1
+    sleep 10
+elif [ "$CONTAINER_ENV_PASS" != "$POSTGRES_PASSWORD" ]; then
+    echo -e "${RED}✗${NC} WARNING: Password mismatch in container .env file!"
+    echo -e "${YELLOW}  Expected: ${POSTGRES_PASSWORD:0:10}...${NC}"
+    echo -e "${YELLOW}  Found: ${CONTAINER_ENV_PASS:0:10}...${NC}"
+    echo -e "${YELLOW}  Copying correct .env file to container...${NC}"
+    docker cp "$APP_DIR/.env" monitoring_web:/app/.env > /dev/null 2>&1 || true
+    docker restart monitoring_web > /dev/null 2>&1
+    sleep 10
+else
+    echo -e "${GREEN}✓${NC} Container .env file password matches"
+fi
+
+# Test database connection from within the web container
+echo -e "  Testing database connection..."
+if timeout 15 docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+        result = cursor.fetchone()
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+    exit(1)
+" > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Database connection verified from web container"
+else
+    echo -e "${RED}✗${NC} WARNING: Database connection failed from web container!"
+    echo -e "${YELLOW}  Attempting to fix by restarting container with correct .env...${NC}"
+    docker cp "$APP_DIR/.env" monitoring_web:/app/.env > /dev/null 2>&1 || true
+    docker restart monitoring_web > /dev/null 2>&1
+    sleep 15
+    # Test again
+    if timeout 15 docker exec monitoring_web python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+    exit(1)
+" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} Database connection verified after restart"
+    else
+        echo -e "${RED}✗${NC} Database connection still failing."
+        echo -e "${YELLOW}  You may need to manually check:${NC}"
+        echo -e "    docker exec monitoring_web cat /app/.env | grep POSTGRES_PASSWORD"
+        echo -e "    docker logs monitoring_web | tail -50"
+    fi
+fi
+
+###############################################################################
 # Deployment Complete
 ###############################################################################
 echo ""
@@ -800,11 +962,25 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "Application URL: ${BLUE}https://$DOMAIN:$NGINX_PORT${NC}"
 echo ""
-echo -e "${YELLOW}Important Information:${NC}"
-echo -e "  Database Password: ${GREEN}$POSTGRES_PASSWORD${NC}"
-echo -e "  Redis Password: ${GREEN}$REDIS_PASSWORD${NC}"
-echo -e "  Django Admin Username: ${GREEN}$DJANGO_SUPERUSER_USERNAME${NC}"
-echo -e "  Django Admin Password: ${GREEN}$DJANGO_SUPERUSER_PASSWORD${NC}"
+echo -e "${YELLOW}════════════════════════════════════════${NC}"
+echo -e "${YELLOW}  IMPORTANT: Save These Credentials!${NC}"
+echo -e "${YELLOW}════════════════════════════════════════${NC}"
+echo ""
+echo -e "${BLUE}Django Admin Login:${NC}"
+echo -e "  Username: ${GREEN}$DJANGO_SUPERUSER_USERNAME${NC}"
+echo -e "  Password: ${GREEN}$DJANGO_SUPERUSER_PASSWORD${NC}"
+echo -e "  Email: ${GREEN}$DJANGO_SUPERUSER_EMAIL${NC}"
+echo -e "  Login URL: ${BLUE}https://$DOMAIN:$NGINX_PORT/admin/${NC}"
+echo ""
+echo -e "${BLUE}Database Credentials:${NC}"
+echo -e "  Host: ${GREEN}localhost:5433${NC}"
+echo -e "  Database: ${GREEN}$POSTGRES_DB${NC}"
+echo -e "  User: ${GREEN}$POSTGRES_USER${NC}"
+echo -e "  Password: ${GREEN}$POSTGRES_PASSWORD${NC}"
+echo ""
+echo -e "${BLUE}Redis Credentials:${NC}"
+echo -e "  Host: ${GREEN}localhost:6379${NC}"
+echo -e "  Password: ${GREEN}$REDIS_PASSWORD${NC}"
 echo ""
 echo -e "${YELLOW}⚠ Note:${NC} Self-signed SSL certificate is in use."
 echo -e "  Browsers will show a security warning. Accept it to proceed."
