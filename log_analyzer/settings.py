@@ -56,12 +56,15 @@ TEMPLATES = [
 WSGI_APPLICATION = "log_analyzer.wsgi.application"
 
 # Database
+# IMPORTANT: All database connection details MUST come from environment variables
+# so they stay in sync with the values used in deploy.sh and the database container.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "monitoring_db",
-        "USER": "monitoring_user",
-        "PASSWORD": "monitoring_pass",
+        "NAME": os.environ.get("POSTGRES_DB", "monitoring_db"),
+        "USER": os.environ.get("POSTGRES_USER", "monitoring_user"),
+        # Use POSTGRES_PASSWORD from environment; default only for local/dev
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "monitoring_pass"),
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "PORT": os.environ.get("POSTGRES_PORT", "5433"),
     }
