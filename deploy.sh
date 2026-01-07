@@ -221,54 +221,61 @@ sleep 3
 echo -e "  Checking for existing database volume..."
 if docker volume ls | grep -q "stacksense_postgres_data"; then
     echo -e "  Found existing database volume, attempting removal..."
-    VOLUME_REMOVED=false
     MAX_VOLUME_RETRIES=3
     VOLUME_RETRY=0
+    VOLUME_REMOVED=false
     
     while [ $VOLUME_RETRY -lt $MAX_VOLUME_RETRIES ]; do
         # Try to remove the volume
-        if docker volume rm stacksense_postgres_data 2>&1 | grep -q "stacksense_postgres_data"; then
-            # Success - volume was removed
+        VOLUME_RM_OUTPUT=$(docker volume rm stacksense_postgres_data 2>&1)
+        VOLUME_RM_EXIT=$?
+        
+        # Check if volume still exists (this is the real test)
+        if ! docker volume ls | grep -q "stacksense_postgres_data"; then
+            # Volume doesn't exist - success!
             echo -e "${GREEN}✓${NC} Database volume removed successfully"
             VOLUME_REMOVED=true
-            sleep 2
             break
-        else
-            # Check if removal actually succeeded (volume might not exist anymore)
+        fi
+        
+        # Volume still exists, need to retry
+        VOLUME_RETRY=$((VOLUME_RETRY + 1))
+        if [ $VOLUME_RETRY -lt $MAX_VOLUME_RETRIES ]; then
+            echo -e "  ${YELLOW}⚠ Attempt $VOLUME_RETRY/$MAX_VOLUME_RETRIES: Volume removal failed, cleaning up containers...${NC}"
+            
+            # Find and kill ANY container that might be using this volume
+            docker ps -a --format '{{.ID}}' | while read id; do
+                if docker inspect "$id" 2>/dev/null | grep -q "stacksense_postgres_data"; then
+                    docker rm -f "$id" > /dev/null 2>&1 || true
+                fi
+            done
+            
+            # Also kill all postgres containers
+            docker ps -a --filter ancestor=postgres --format '{{.ID}}' | xargs docker rm -f > /dev/null 2>&1 || true
+            sleep 3
+            
+            # Check again after cleanup
             if ! docker volume ls | grep -q "stacksense_postgres_data"; then
-                echo -e "${GREEN}✓${NC} Database volume no longer exists (removed)"
+                echo -e "${GREEN}✓${NC} Database volume removed during cleanup"
                 VOLUME_REMOVED=true
                 break
-            fi
-            
-            # Volume still exists, try cleanup
-            VOLUME_RETRY=$((VOLUME_RETRY + 1))
-            if [ $VOLUME_RETRY -lt $MAX_VOLUME_RETRIES ]; then
-                echo -e "  ${YELLOW}⚠ Attempt $VOLUME_RETRY/$MAX_VOLUME_RETRIES: Cleaning up containers using volume...${NC}"
-                
-                # Find and kill ANY container that might be using this volume
-                docker ps -a --format '{{.ID}}' | while read id; do
-                    if docker inspect "$id" 2>/dev/null | grep -q "stacksense_postgres_data"; then
-                        docker rm -f "$id" > /dev/null 2>&1 || true
-                    fi
-                done
-                
-                # Also kill all postgres containers
-                docker ps -a --filter ancestor=postgres --format '{{.ID}}' | xargs docker rm -f > /dev/null 2>&1 || true
-                sleep 3
             fi
         fi
     done
     
-    # Final verification
-    if docker volume ls | grep -q "stacksense_postgres_data"; then
-        echo -e "${RED}✗${NC} FATAL: Cannot remove database volume after $MAX_VOLUME_RETRIES attempts!"
-        echo -e "${RED}  This will cause password authentication failures.${NC}"
-        echo -e "${YELLOW}  Please manually remove the volume:${NC}"
-        echo -e "    docker volume rm stacksense_postgres_data"
-        exit 1
-    else
-        echo -e "${GREEN}✓${NC} Database volume removed"
+    # Final verification - check one more time if we haven't confirmed removal
+    if [ "$VOLUME_REMOVED" = false ]; then
+        # Check one final time if volume still exists
+        if docker volume ls | grep -q "stacksense_postgres_data"; then
+            echo -e "${RED}✗${NC} FATAL: Cannot remove database volume after $MAX_VOLUME_RETRIES attempts!"
+            echo -e "${RED}  This will cause password authentication failures.${NC}"
+            echo -e "${YELLOW}  Please manually remove the volume:${NC}"
+            echo -e "    docker volume rm stacksense_postgres_data"
+            exit 1
+        else
+            # Volume was removed (maybe during cleanup), we're good
+            echo -e "${GREEN}✓${NC} Database volume removed"
+        fi
     fi
 else
     echo -e "${GREEN}✓${NC} No existing database volume found (clean state)"
