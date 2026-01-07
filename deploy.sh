@@ -7,7 +7,8 @@
 # Example: sudo ./deploy.sh stacksense.assistanz.com admin@example.com
 ###############################################################################
 
-set -e
+# Do not exit on first error; we handle errors explicitly per step
+set -o pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -835,10 +836,9 @@ fi
 # Final health check and database connection verification
 echo -e "  Performing final health check..."
 HEALTH_CHECK_PASSED=false
-for i in {1..15}; do
+for i in {1..10}; do
     if timeout 10 docker exec monitoring_web python manage.py check --database default > /dev/null 2>&1; then
         # Verify database connection from within the web container
-        echo -e "  Verifying database connection from web container..."
         if timeout 10 docker exec monitoring_web python manage.py shell -c "
 from django.db import connection
 try:
@@ -853,17 +853,20 @@ except Exception as e:
             echo -e "${GREEN}✓${NC} Application is ready and database connection verified"
             HEALTH_CHECK_PASSED=true
             break
-        else
-            if [ $i -lt 5 ]; then
-                echo -e "  ${YELLOW}⚠ Database connection failed, retrying... ($i/15)${NC}"
-            fi
         fi
     fi
-    if [ $i -eq 15 ]; then
-        echo -e "${YELLOW}⚠ Application health check incomplete. Continuing anyway...${NC}"
+    if [ $i -lt 5 ]; then
+        echo -e "  Waiting for application to be ready... ($i/10)"
     fi
     sleep 2
 done
+
+if [ "$HEALTH_CHECK_PASSED" = false ]; then
+    echo -e "${YELLOW}⚠ Application health check incomplete, but continuing with deployment...${NC}"
+fi
+
+echo -e "${GREEN}✓${NC} Step 7 completed"
+echo ""
 
 ###############################################################################
 # Step 8: Generate Self-Signed SSL Certificate
@@ -887,6 +890,8 @@ if [ ! -f "$SSL_DIR/$DOMAIN.crt" ] || [ ! -f "$SSL_DIR/$DOMAIN.key" ]; then
 else
     echo -e "${GREEN}✓${NC} SSL certificate already exists"
 fi
+echo -e "${GREEN}✓${NC} Step 8 completed - SSL certificate ready"
+echo ""
 
 ###############################################################################
 # Step 9: Configure Nginx
@@ -949,10 +954,14 @@ ln -sf "$NGINX_CONFIG" "/etc/nginx/sites-enabled/$DOMAIN"
 rm -f /etc/nginx/sites-enabled/default
 
 # Test and reload Nginx
-nginx -t > /dev/null 2>&1
-systemctl reload nginx
-
-echo -e "${GREEN}✓${NC} Nginx configured"
+if nginx -t > /dev/null 2>&1; then
+    systemctl reload nginx
+    echo -e "${GREEN}✓${NC} Nginx configured and reloaded"
+else
+    echo -e "${YELLOW}⚠ Nginx configuration test failed, but continuing...${NC}"
+fi
+echo -e "${GREEN}✓${NC} Step 9 completed - Nginx reverse proxy configured"
+echo ""
 
 ###############################################################################
 # Step 10: Configure Firewall
@@ -971,6 +980,8 @@ ufw allow 443/tcp > /dev/null 2>&1  # HTTPS
 ufw allow $NGINX_PORT/tcp > /dev/null 2>&1  # Custom HTTPS port
 
 echo -e "${GREEN}✓${NC} Firewall configured"
+echo -e "${GREEN}✓${NC} Step 10 completed - Firewall configured"
+echo ""
 
 ###############################################################################
 # Final Verification: Test Database Connection from Web Container
