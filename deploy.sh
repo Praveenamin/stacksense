@@ -217,42 +217,61 @@ docker ps -aq | xargs docker rm -f > /dev/null 2>&1 || true
 sleep 3
 
 # Now remove the volume - MANDATORY, not optional
-VOLUME_REMOVED=false
-MAX_VOLUME_RETRIES=5
-VOLUME_RETRY=0
-
-while [ $VOLUME_RETRY -lt $MAX_VOLUME_RETRIES ]; do
-    if docker volume ls | grep -q "stacksense_postgres_data"; then
-        if docker volume rm stacksense_postgres_data > /dev/null 2>&1; then
+# Check if volume exists and try to remove it
+echo -e "  Checking for existing database volume..."
+if docker volume ls | grep -q "stacksense_postgres_data"; then
+    echo -e "  Found existing database volume, attempting removal..."
+    VOLUME_REMOVED=false
+    MAX_VOLUME_RETRIES=3
+    VOLUME_RETRY=0
+    
+    while [ $VOLUME_RETRY -lt $MAX_VOLUME_RETRIES ]; do
+        # Try to remove the volume
+        if docker volume rm stacksense_postgres_data 2>&1 | grep -q "stacksense_postgres_data"; then
+            # Success - volume was removed
             echo -e "${GREEN}✓${NC} Database volume removed successfully"
             VOLUME_REMOVED=true
             sleep 2
             break
         else
+            # Check if removal actually succeeded (volume might not exist anymore)
+            if ! docker volume ls | grep -q "stacksense_postgres_data"; then
+                echo -e "${GREEN}✓${NC} Database volume no longer exists (removed)"
+                VOLUME_REMOVED=true
+                break
+            fi
+            
+            # Volume still exists, try cleanup
             VOLUME_RETRY=$((VOLUME_RETRY + 1))
-            echo -e "  ${YELLOW}⚠ Attempt $VOLUME_RETRY/$MAX_VOLUME_RETRIES: Volume removal failed, cleaning up containers...${NC}"
-            # Find and kill ANY container that might be using this volume
-            docker ps -a --format '{{.ID}}' | while read id; do
-                if docker inspect "$id" 2>/dev/null | grep -q "stacksense_postgres_data"; then
-                    docker rm -f "$id" > /dev/null 2>&1 || true
-                fi
-            done
-            # Also kill all postgres containers
-            docker ps -a --filter ancestor=postgres --format '{{.ID}}' | xargs docker rm -f > /dev/null 2>&1 || true
-            sleep 5
+            if [ $VOLUME_RETRY -lt $MAX_VOLUME_RETRIES ]; then
+                echo -e "  ${YELLOW}⚠ Attempt $VOLUME_RETRY/$MAX_VOLUME_RETRIES: Cleaning up containers using volume...${NC}"
+                
+                # Find and kill ANY container that might be using this volume
+                docker ps -a --format '{{.ID}}' | while read id; do
+                    if docker inspect "$id" 2>/dev/null | grep -q "stacksense_postgres_data"; then
+                        docker rm -f "$id" > /dev/null 2>&1 || true
+                    fi
+                done
+                
+                # Also kill all postgres containers
+                docker ps -a --filter ancestor=postgres --format '{{.ID}}' | xargs docker rm -f > /dev/null 2>&1 || true
+                sleep 3
+            fi
         fi
+    done
+    
+    # Final verification
+    if docker volume ls | grep -q "stacksense_postgres_data"; then
+        echo -e "${RED}✗${NC} FATAL: Cannot remove database volume after $MAX_VOLUME_RETRIES attempts!"
+        echo -e "${RED}  This will cause password authentication failures.${NC}"
+        echo -e "${YELLOW}  Please manually remove the volume:${NC}"
+        echo -e "    docker volume rm stacksense_postgres_data"
+        exit 1
     else
-        echo -e "${GREEN}✓${NC} No existing database volume found"
-        VOLUME_REMOVED=true
-        break
+        echo -e "${GREEN}✓${NC} Database volume removed"
     fi
-done
-
-if [ "$VOLUME_REMOVED" = false ]; then
-    echo -e "${RED}✗${NC} FATAL: Cannot remove database volume after $MAX_VOLUME_RETRIES attempts!"
-    echo -e "${RED}  This will cause password authentication failures.${NC}"
-    echo -e "${RED}  Please manually remove the volume: docker volume rm stacksense_postgres_data${NC}"
-    exit 1
+else
+    echo -e "${GREEN}✓${NC} No existing database volume found (clean state)"
 fi
 
 docker run -d \
