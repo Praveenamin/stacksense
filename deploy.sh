@@ -27,7 +27,23 @@ DOCKER_NETWORK="stacksense_network"
 # Database configuration
 POSTGRES_DB="monitoring_db"
 POSTGRES_USER="monitoring_user"
-POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(openssl rand -base64 32)}"
+
+# Check if .env exists and load existing password to maintain consistency
+# This ensures we use the same password if redeploying
+if [ -f "$APP_DIR/.env" ] && [ -r "$APP_DIR/.env" ]; then
+    EXISTING_PASSWORD=$(grep "^POSTGRES_PASSWORD=" "$APP_DIR/.env" 2>/dev/null | cut -d'=' -f2- | tr -d ' ' || echo "")
+    if [ -n "$EXISTING_PASSWORD" ]; then
+        POSTGRES_PASSWORD="$EXISTING_PASSWORD"
+        echo -e "${GREEN}✓${NC} Using existing database password from .env file"
+    else
+        # Generate new password if not set
+        POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(openssl rand -base64 32)}"
+    fi
+else
+    # Generate new password if .env doesn't exist or can't be read
+    POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(openssl rand -base64 32)}"
+fi
+
 POSTGRES_HOST="monitoring_db"
 POSTGRES_PORT=5432
 
@@ -171,16 +187,47 @@ fi
 ###############################################################################
 echo -e "${BLUE}[5/10] Setting up PostgreSQL database...${NC}"
 
-if docker ps -a | grep -q "monitoring_db"; then
-    echo -e "  Stopping existing database container..."
-    docker stop monitoring_db > /dev/null 2>&1 || true
-    docker rm monitoring_db > /dev/null 2>&1 || true
+# Stop ALL containers that might use the database (web, db, any other)
+echo -e "  Stopping all related containers..."
+docker stop monitoring_web monitoring_db > /dev/null 2>&1 || true
+sleep 2
+
+# Remove all containers
+echo -e "  Removing containers..."
+docker rm monitoring_web monitoring_db > /dev/null 2>&1 || true
+
+# Force remove any containers that might be using the database volume
+echo -e "  Checking for containers using database volume..."
+CONTAINERS_USING_VOLUME=$(docker ps -a --filter volume=stacksense_postgres_data -q 2>/dev/null || true)
+if [ -n "$CONTAINERS_USING_VOLUME" ]; then
+    echo -e "  Force removing containers using database volume..."
+    echo "$CONTAINERS_USING_VOLUME" | xargs docker rm -f > /dev/null 2>&1 || true
+    sleep 3
 fi
 
-# Remove old database volume to ensure fresh start with new password
+# CRITICAL: Always remove old database volume to ensure password consistency
+# This prevents authentication failures due to password mismatches
+echo -e "  Removing old database volume to ensure password consistency..."
 if docker volume ls | grep -q "stacksense_postgres_data"; then
-    echo -e "  Removing old database volume to ensure password consistency..."
-    docker volume rm stacksense_postgres_data > /dev/null 2>&1 || true
+    # Try normal removal first
+    if ! docker volume rm stacksense_postgres_data > /dev/null 2>&1; then
+        echo -e "  ${YELLOW}⚠ Volume in use, forcing removal...${NC}"
+        # Find and remove any remaining containers
+        docker ps -a --format '{{.Names}}' | grep -E '(monitoring|stacksense)' | xargs docker rm -f > /dev/null 2>&1 || true
+        sleep 3
+        # Try again
+        docker volume rm stacksense_postgres_data > /dev/null 2>&1 || {
+            echo -e "  ${RED}✗${NC} Failed to remove volume. Attempting alternative method..."
+            # Last resort: prune unused volumes (only if safe)
+            docker volume prune -f > /dev/null 2>&1 || true
+            sleep 2
+        }
+    fi
+    echo -e "${GREEN}✓${NC} Old database volume removed"
+    # Wait a moment to ensure volume is fully removed
+    sleep 2
+else
+    echo -e "${GREEN}✓${NC} No existing database volume found"
 fi
 
 docker run -d \
@@ -196,13 +243,59 @@ docker run -d \
 
 # Wait for database to be ready
 echo -e "  Waiting for database to be ready..."
-for i in {1..30}; do
+for i in {1..60}; do
     if docker exec monitoring_db pg_isready -U "$POSTGRES_USER" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} Database is ready"
         break
     fi
+    if [ $i -eq 60 ]; then
+        echo -e "${RED}✗${NC} Database failed to start"
+        docker logs monitoring_db --tail 30
+        exit 1
+    fi
     sleep 1
 done
+
+# Verify database connection with correct password
+echo -e "  Verifying database connection with correct password..."
+MAX_RETRIES=5
+RETRY_COUNT=0
+CONNECTION_VERIFIED=false
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} Database connection verified successfully"
+        CONNECTION_VERIFIED=true
+        break
+    else
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo -e "  ${YELLOW}⚠ Connection failed, retrying ($RETRY_COUNT/$MAX_RETRIES)...${NC}"
+            sleep 2
+        fi
+    fi
+done
+
+if [ "$CONNECTION_VERIFIED" = false ]; then
+    echo -e "${RED}✗${NC} Database connection failed after $MAX_RETRIES attempts!"
+    echo -e "${RED}  Password authentication failed - this should not happen!${NC}"
+    echo -e "${YELLOW}  Checking database logs...${NC}"
+    docker logs monitoring_db --tail 50
+    echo ""
+    echo -e "${RED}  Deployment cannot continue. Please check the error above.${NC}"
+    exit 1
+fi
+
+# Additional verification: test password from environment
+echo -e "  Performing final password verification..."
+TEST_RESULT=$(docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT current_database();" 2>&1)
+if echo "$TEST_RESULT" | grep -q "FATAL.*password authentication failed"; then
+    echo -e "${RED}✗${NC} Critical: Password authentication still failing!"
+    echo -e "${RED}  The database was created but password doesn't match!${NC}"
+    exit 1
+else
+    echo -e "${GREEN}✓${NC} Password authentication working correctly"
+fi
 
 ###############################################################################
 # Step 6: Setup Redis Container
@@ -247,6 +340,16 @@ CSRF_TRUSTED_ORIGINS=https://$DOMAIN:$NGINX_PORT,https://$DOMAIN,http://$DOMAIN:
 USE_TLS=True
 BEHIND_PROXY=True
 EOF
+
+# Verify database is still accessible before starting web container
+echo -e "  Pre-flight check: Verifying database is accessible..."
+if ! docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null 2>&1; then
+    echo -e "${RED}✗${NC} Database not accessible! Cannot start web container."
+    echo -e "${RED}  Please check database container logs.${NC}"
+    docker logs monitoring_db --tail 30
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Database is accessible and ready"
 
 # Stop existing web container if it exists
 if docker ps -a | grep -q "monitoring_web"; then

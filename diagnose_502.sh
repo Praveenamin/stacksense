@@ -130,3 +130,4 @@ echo "4. If database connection fails: Check .env file and database container"
 echo "5. Restart container: docker restart monitoring_web"
 echo "6. View full logs: docker logs monitoring_web"
 
+

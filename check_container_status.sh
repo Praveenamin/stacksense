@@ -24,3 +24,4 @@ echo ""
 echo "=== Container resource usage ==="
 docker stats monitoring_web --no-stream 2>/dev/null || echo "Container not running"
 
+
