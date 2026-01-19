@@ -5,22 +5,31 @@ Network Traffic Chart Component (24h) - Stacked Area
 {% load static %}
 
 <div class="dashboard-component" id="dashboard-network-traffic">
-    <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px);">
             <span class="dashboard-component-icon">🌐</span>
-            <h3 class="dashboard-component-title">Network Traffic (24h)</h3>
+            <h3 class="dashboard-component-title">Network Traffic</h3>
         </div>
-        <div class="dashboard-filter-selector" id="network-traffic-filter-container">
-            <button class="dashboard-filter-button" id="network-traffic-filter-button" type="button">
-                <span class="filter-icon" style="font-size: 11px;">⚙</span>
-                <span class="chart-icon" style="font-size: 13px;">📊</span>
-                <span class="filter-text" id="network-traffic-filter-text">All VMs (Average)</span>
-                <span class="filter-arrow">▼</span>
-            </button>
-            <div class="dashboard-filter-dropdown" id="network-traffic-filter-dropdown" style="display: none;">
-                <div class="filter-option" data-value="all">
-                    <span>All VMs (Average)</span>
-                    <span class="filter-check" style="display: none;">✓</span>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <!-- Time Period Filter -->
+            <div style="display: flex;">
+                <button class="chart-period-btn active" data-chart="network" data-period="24h">24h</button>
+                <button class="chart-period-btn" data-chart="network" data-period="7d">7 Days</button>
+                <button class="chart-period-btn" data-chart="network" data-period="30d">30 Days</button>
+            </div>
+            <!-- Server Filter -->
+            <div class="dashboard-filter-selector" id="network-traffic-filter-container">
+                <button class="dashboard-filter-button" id="network-traffic-filter-button" type="button">
+                    <span class="filter-icon" style="font-size: 11px;">⚙</span>
+                    <span class="chart-icon" style="font-size: 13px;">📊</span>
+                    <span class="filter-text" id="network-traffic-filter-text">All VMs (Average)</span>
+                    <span class="filter-arrow">▼</span>
+                </button>
+                <div class="dashboard-filter-dropdown" id="network-traffic-filter-dropdown" style="display: none;">
+                    <div class="filter-option" data-value="all">
+                        <span>All VMs (Average)</span>
+                        <span class="filter-check" style="display: none;">✓</span>
+                    </div>
                 </div>
             </div>
         </div>

@@ -4,6 +4,7 @@ Recommendation Engine - Rule-based AI recommendations for infrastructure optimiz
 from django.utils import timezone
 from datetime import timedelta
 from core.models import Server, SystemMetric, MonitoringConfig
+from core.trend_detection import detect_alert_patterns
 
 
 def generate_recommendations():
@@ -53,10 +54,26 @@ def _detect_underutilized_servers():
         avg_cpu = sum(m.cpu_percent or 0 for m in recent_metrics) / recent_metrics.count()
         
         if avg_cpu < 30:  # Underutilized threshold
+            # Check for CPU alert patterns before recommending downsize
+            pattern = detect_alert_patterns(server, alert_type='CPU', lookback_days=30, min_alerts=3)
+            
+            if pattern['has_pattern'] and pattern['total_alerts'] >= 3:
+                # Has recurring spikes - don't recommend pure downsize
+                description = (
+                    f"{server.name} averages <30% CPU but has recurring spikes "
+                    f"({pattern['pattern_description']}). "
+                    f"Resolve the spike pattern first, then consider downsizing."
+                )
+                priority = 'low'  # Lower priority since blocked by spike issue
+            else:
+                # No patterns - safe to recommend downsize
+                description = f'{server.name} has been underutilized (<30% CPU) for 7 days. Consider downsizing.'
+                priority = 'medium'
+            
             recommendations.append({
                 'type': 'underutilization',
-                'priority': 'medium',
-                'description': f'{server.name} has been underutilized (<30% CPU) for 7 days. Consider downsizing.',
+                'priority': priority,
+                'description': description,
                 'impact': None,
                 'action_label': None,
                 'action_handler': None,

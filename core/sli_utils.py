@@ -239,14 +239,51 @@ def calculate_response_time_sli(server, start_date, end_date):
 
 def calculate_error_rate_sli(server, start_date, end_date):
     """
-    Calculate Error Rate SLI as percentage of errors.
-    Currently returns 0.0 as error tracking from logs is not yet implemented.
+    Calculate Error Rate SLI as percentage of time alerts were triggered.
     
-    Returns: error rate percentage (0-100)
+    This measures the alert rate - the percentage of monitoring intervals
+    where at least one alert (CPU, MEMORY, DISK, SERVICE) was triggered.
+    
+    Returns: error rate percentage (0-100) - lower is better
     """
-    # TODO: Implement error rate calculation from log events
-    # For now, return 0.0
-    return 0.0
+    try:
+        from core.models import AlertHistory
+        
+        # Get total time window in hours
+        total_hours = (end_date - start_date).total_seconds() / 3600
+        
+        if total_hours <= 0:
+            return 0.0
+        
+        # Count unique hours where alerts were triggered
+        # This gives us a more accurate picture than just counting alerts
+        alerts = AlertHistory.objects.filter(
+            server=server,
+            sent_at__gte=start_date,
+            sent_at__lte=end_date,
+            status='triggered'
+        )
+        
+        total_alerts = alerts.count()
+        
+        if total_alerts == 0:
+            return 0.0
+        
+        # Count unique hours with alerts (to avoid double-counting burst alerts)
+        unique_alert_hours = set()
+        for alert in alerts.values('sent_at'):
+            # Round to nearest hour
+            hour_key = alert['sent_at'].replace(minute=0, second=0, microsecond=0)
+            unique_alert_hours.add(hour_key)
+        
+        # Calculate error rate as percentage of hours with alerts
+        # This measures "what percentage of time had issues"
+        error_rate = (len(unique_alert_hours) / total_hours) * 100
+        
+        # Cap at 100%
+        return round(min(error_rate, 100.0), 2)
+    except Exception:
+        return 0.0
 
 
 def calculate_sli_value(server, metric_type, start_date, end_date):
@@ -318,6 +355,259 @@ def check_compliance(sli_value, slo_config):
             compliance_percentage = 100.0 if is_compliant else 0.0
     
     return is_compliant, round(compliance_percentage, 2)
+
+
+def get_metric_timeseries(server, metric_type, start_date, end_date, interval='hour'):
+    """
+    Get time-series data for a metric, suitable for charting.
+    
+    Args:
+        server: Server instance (or None for all servers average)
+        metric_type: One of 'CPU', 'MEMORY', 'DISK', 'ERROR_RATE'
+        start_date: Start of time window
+        end_date: End of time window
+        interval: 'hour' or 'day' - granularity of data points
+    
+    Returns:
+        List of {'timestamp': ISO string, 'value': float}
+    """
+    from django.db.models.functions import TruncHour, TruncDay
+    from core.models import AlertHistory
+    
+    data_points = []
+    
+    # Choose truncation function based on interval
+    trunc_func = TruncHour if interval == 'hour' else TruncDay
+    
+    try:
+        if metric_type == 'CPU':
+            data_points = _get_cpu_timeseries(server, start_date, end_date, trunc_func)
+        elif metric_type == 'MEMORY':
+            data_points = _get_memory_timeseries(server, start_date, end_date, trunc_func)
+        elif metric_type == 'DISK':
+            data_points = _get_disk_timeseries(server, start_date, end_date, trunc_func)
+        elif metric_type == 'ERROR_RATE':
+            data_points = _get_error_rate_timeseries(server, start_date, end_date, trunc_func, interval)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error getting timeseries for {metric_type}: {e}")
+        return []
+    
+    return data_points
+
+
+def _get_cpu_timeseries(server, start_date, end_date, trunc_func):
+    """Get CPU usage time-series data with average and peak values."""
+    from django.db.models import Max
+    
+    query = SystemMetric.objects.filter(
+        timestamp__gte=start_date,
+        timestamp__lte=end_date
+    )
+    
+    if server:
+        query = query.filter(server=server)
+    
+    aggregated = query.annotate(
+        period=trunc_func('timestamp')
+    ).values('period').annotate(
+        avg_value=Avg('cpu_percent'),
+        max_value=Max('cpu_percent')
+    ).order_by('period')
+    
+    return [
+        {
+            'timestamp': item['period'].isoformat(),
+            'value': round(item['avg_value'] or 0, 2),
+            'peak': round(item['max_value'] or 0, 2)
+        }
+        for item in aggregated
+    ]
+
+
+def _get_memory_timeseries(server, start_date, end_date, trunc_func):
+    """Get Memory usage time-series data with average and peak values."""
+    from django.db.models import Max
+    
+    query = SystemMetric.objects.filter(
+        timestamp__gte=start_date,
+        timestamp__lte=end_date
+    )
+    
+    if server:
+        query = query.filter(server=server)
+    
+    aggregated = query.annotate(
+        period=trunc_func('timestamp')
+    ).values('period').annotate(
+        avg_value=Avg('memory_percent'),
+        max_value=Max('memory_percent')
+    ).order_by('period')
+    
+    return [
+        {
+            'timestamp': item['period'].isoformat(),
+            'value': round(item['avg_value'] or 0, 2),
+            'peak': round(item['max_value'] or 0, 2)
+        }
+        for item in aggregated
+    ]
+
+
+def _get_disk_timeseries(server, start_date, end_date, trunc_func):
+    """Get Disk usage time-series data from JSON field."""
+    query = SystemMetric.objects.filter(
+        timestamp__gte=start_date,
+        timestamp__lte=end_date
+    )
+    
+    if server:
+        query = query.filter(server=server)
+    
+    # Since disk_usage is a JSON field, we need to process it manually
+    # Group by time period
+    metrics = query.annotate(
+        period=trunc_func('timestamp')
+    ).order_by('period')
+    
+    # Aggregate manually
+    period_data = {}
+    for metric in metrics:
+        period_key = metric.period.isoformat()
+        disk_usage = metric.disk_usage or {}
+        
+        # Get root partition or average
+        disk_percent = 0
+        if isinstance(disk_usage, dict):
+            if '/' in disk_usage:
+                disk_info = disk_usage['/']
+                if isinstance(disk_info, dict) and 'percent' in disk_info:
+                    disk_percent = disk_info['percent']
+            else:
+                percents = [
+                    info.get('percent', 0)
+                    for info in disk_usage.values()
+                    if isinstance(info, dict) and 'percent' in info
+                ]
+                if percents:
+                    disk_percent = sum(percents) / len(percents)
+        
+        if period_key not in period_data:
+            period_data[period_key] = {'total': 0, 'count': 0, 'timestamp': metric.period}
+        period_data[period_key]['total'] += disk_percent
+        period_data[period_key]['count'] += 1
+    
+    # Calculate averages
+    data_points = []
+    for period_key in sorted(period_data.keys()):
+        item = period_data[period_key]
+        avg_value = item['total'] / item['count'] if item['count'] > 0 else 0
+        data_points.append({
+            'timestamp': item['timestamp'].isoformat(),
+            'value': round(avg_value, 2)
+        })
+    
+    return data_points
+
+
+def _get_error_rate_timeseries(server, start_date, end_date, trunc_func, interval):
+    """Get Error Rate time-series data based on alert frequency."""
+    from core.models import AlertHistory
+    
+    # Get all alerts in the time window
+    query = AlertHistory.objects.filter(
+        sent_at__gte=start_date,
+        sent_at__lte=end_date,
+        status='triggered'
+    )
+    
+    if server:
+        query = query.filter(server=server)
+    
+    # Count alerts per period
+    aggregated = query.annotate(
+        period=trunc_func('sent_at')
+    ).values('period').annotate(
+        alert_count=Count('id')
+    ).order_by('period')
+    
+    # Build a complete timeline with zeros for periods without alerts
+    alert_periods = {item['period'].isoformat(): item['alert_count'] for item in aggregated}
+    
+    # Generate all time periods
+    data_points = []
+    current = start_date.replace(minute=0, second=0, microsecond=0)
+    
+    if interval == 'day':
+        current = current.replace(hour=0)
+        delta = timedelta(days=1)
+    else:
+        delta = timedelta(hours=1)
+    
+    while current <= end_date:
+        period_key = current.isoformat()
+        # Convert alert count to error rate percentage (scaled)
+        # For visualization: 0 alerts = 0%, 1+ alerts = shows as percentage
+        # We use a scaling factor to make the error rate visible on the same chart
+        alert_count = alert_periods.get(period_key, 0)
+        # Scale: each alert in a period adds to the error rate (capped at 100)
+        error_rate = min(alert_count * 10, 100)  # Each alert = 10% for visibility
+        
+        data_points.append({
+            'timestamp': period_key,
+            'value': error_rate
+        })
+        current += delta
+    
+    return data_points
+
+
+def get_reliability_metrics_timeseries(server_id, period='24h'):
+    """
+    Get all reliability metrics time-series data for the dashboard chart.
+    
+    Args:
+        server_id: Server ID or 'all' for average across all servers
+        period: '24h', '7d', or '30d'
+    
+    Returns:
+        dict with 'cpu', 'memory', 'disk', 'error_rate' keys,
+        each containing list of {timestamp, value} data points
+    """
+    from core.models import Server
+    
+    end_date = timezone.now()
+    
+    # Determine time range and interval
+    if period == '24h':
+        start_date = end_date - timedelta(hours=24)
+        interval = 'hour'
+    elif period == '7d':
+        start_date = end_date - timedelta(days=7)
+        interval = 'hour'  # Still hourly for 7 days, but could be 'day' for less granularity
+    else:  # 30d
+        start_date = end_date - timedelta(days=30)
+        interval = 'day'  # Daily for 30 days to reduce data points
+    
+    # Get server if specified
+    server = None
+    if server_id and server_id != 'all':
+        try:
+            server = Server.objects.get(id=int(server_id))
+        except (Server.DoesNotExist, ValueError):
+            pass
+    
+    # Get time-series for each metric
+    return {
+        'cpu': get_metric_timeseries(server, 'CPU', start_date, end_date, interval),
+        'memory': get_metric_timeseries(server, 'MEMORY', start_date, end_date, interval),
+        'disk': get_metric_timeseries(server, 'DISK', start_date, end_date, interval),
+        'error_rate': get_metric_timeseries(server, 'ERROR_RATE', start_date, end_date, interval),
+        'period': period,
+        'interval': interval,
+        'start_date': start_date.isoformat(),
+        'end_date': end_date.isoformat()
+    }
 
 
 

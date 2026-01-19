@@ -1,0 +1,206 @@
+{% comment %}
+Trend Insights Component
+Displays detected recurring alert patterns (e.g., CPU spikes at specific times)
+{% endcomment %}
+
+{% load static %}
+
+<div class="dashboard-component" id="dashboard-trend-insights" style="margin-bottom: 24px;">
+    <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px);">
+            <span class="dashboard-component-icon">📊</span>
+            <h3 class="dashboard-component-title">Trend Insights</h3>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="trend-insights-count" class="badge" style="background: var(--cds-color-gray-20, #e2e8f0); color: var(--cds-color-gray-80, #1e293b); padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">—</span>
+            <button id="trend-insights-refresh" type="button" style="background: none; border: none; cursor: pointer; padding: 4px; color: var(--cds-color-gray-60, #475569);" title="Refresh">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6"></path>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <p class="dashboard-component-subtitle" style="color: var(--cds-color-gray-60, #64748b); font-size: 13px; margin-bottom: 16px;">
+        Automatically detected recurring patterns from alert history (last 30 days)
+    </p>
+    
+    <div class="dashboard-component-content" id="trend-insights-content">
+        <!-- Content populated by JavaScript -->
+        <div class="trend-insights-loading" style="text-align: center; padding: 24px; color: var(--cds-color-gray-60, #64748b);">
+            <div class="loading-spinner" style="width: 24px; height: 24px; border: 2px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px;"></div>
+            <span>Analyzing patterns...</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .trend-insight-card {
+        background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
+        border: 1px solid #fcd34d;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .trend-insight-card.high-confidence {
+        background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        border-color: #f87171;
+    }
+    
+    .trend-insight-card.medium-confidence {
+        background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
+        border-color: #fcd34d;
+    }
+    
+    .trend-insight-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+    
+    .trend-insight-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        color: var(--cds-color-gray-100, #0f172a);
+        font-size: 14px;
+    }
+    
+    .trend-insight-icon {
+        font-size: 18px;
+    }
+    
+    .trend-insight-badge {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+    
+    .badge-cpu {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+    
+    .badge-memory {
+        background: #dcfce7;
+        color: #15803d;
+    }
+    
+    .badge-disk {
+        background: #f3e8ff;
+        color: #7c3aed;
+    }
+    
+    .trend-insight-pattern {
+        font-size: 13px;
+        color: var(--cds-color-gray-80, #1e293b);
+        margin-bottom: 8px;
+        line-height: 1.5;
+    }
+    
+    .trend-insight-confidence {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .confidence-bar {
+        flex: 1;
+        height: 6px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .confidence-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+    
+    .confidence-fill.high {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+    }
+    
+    .confidence-fill.medium {
+        background: linear-gradient(90deg, #f59e0b, #d97706);
+    }
+    
+    .confidence-text {
+        font-size: 11px;
+        color: var(--cds-color-gray-60, #64748b);
+        min-width: 40px;
+        text-align: right;
+    }
+    
+    .trend-insight-recommendation {
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 12px;
+        color: var(--cds-color-gray-80, #334155);
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .recommendation-icon {
+        flex-shrink: 0;
+        font-size: 14px;
+    }
+    
+    .trend-insights-empty {
+        text-align: center;
+        padding: 32px 16px;
+        color: var(--cds-color-gray-60, #64748b);
+    }
+    
+    .trend-insights-empty-icon {
+        font-size: 36px;
+        margin-bottom: 12px;
+        opacity: 0.6;
+    }
+    
+    .trend-insights-empty-text {
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    
+    .trend-insights-summary {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 16px;
+        padding: 12px;
+        background: var(--cds-color-gray-10, #f8fafc);
+        border-radius: 8px;
+    }
+    
+    .summary-stat {
+        text-align: center;
+    }
+    
+    .summary-stat-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--cds-color-gray-100, #0f172a);
+    }
+    
+    .summary-stat-label {
+        font-size: 11px;
+        color: var(--cds-color-gray-60, #64748b);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+</style>

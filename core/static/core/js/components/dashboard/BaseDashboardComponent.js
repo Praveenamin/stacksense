@@ -40,8 +40,12 @@ class BaseDashboardComponent {
         this.showLoading();
         this.hideError();
         try {
+            console.log(`[${this.componentId}] Fetching: ${this.apiEndpoint}`);
             const response = await fetch(this.apiEndpoint);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+                console.error(`[${this.componentId}] HTTP ${response.status} for URL: ${this.apiEndpoint}`);
+                throw new Error(`HTTP error! status: ${response.status} for ${this.apiEndpoint}`);
+            }
             const data = await response.json();
             if (!data.success) throw new Error(data.error || 'API request failed');
             this.hideLoading();

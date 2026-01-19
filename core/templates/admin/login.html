@@ -1,183 +1,509 @@
-<!-- DEBUG: IBM CARBON ADMIN LOGIN TEMPLATE -->
-{% extends "core/base.html" %}
 {% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Stack Alert</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block title %}Login - StackSense{% endblock %}
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8f4f8 50%, #f0f9ff 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
 
-{% block extrahead %}
-<!-- IBM Carbon Design System -->
-<link rel="stylesheet" href="{% static 'core/css/design-system.css' %}">
-<style>
-    /* Full-screen login layout */
-    body {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        background: var(--cds-color-gray-10) !important;
-        display: flex !important;
-        align-items: flex-start !important;
-        justify-content: flex-start !important;
-    }
+        .login-wrapper {
+            width: 100%;
+            max-width: 440px;
+        }
 
-    /* Hide base template elements */
-    .ui-shell-header,
-    .ui-shell-left-panel,
-    .main-content,
-    .back-button-container,
-    a[href="/monitoring/"] {
-        display: none !important;
-    }
+        .login-card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 
+                        0 10px 15px -3px rgba(0, 0, 0, 0.08),
+                        0 20px 25px -5px rgba(0, 0, 0, 0.05);
+        }
 
-    /* Login container - left aligned and styled */
-    .login-container {
-        width: 400px;
-        max-width: 90vw;
-        background: var(--cds-color-white);
-        border: 1px solid var(--cds-color-gray-20);
-        border-radius: var(--cds-border-radius-lg);
-        padding: var(--cds-spacing-8);
-        box-shadow: var(--cds-shadow-lg);
-        margin: var(--cds-spacing-8);
-    }
+        /* Logo and Brand */
+        .brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 32px;
+        }
 
-    .login-header {
-        text-align: left;
-        margin-bottom: var(--cds-spacing-8);
-    }
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #4f7df3 0%, #3b5de7 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-    .login-logo {
-        margin-bottom: var(--cds-spacing-4);
-    }
+        .brand-icon svg {
+            width: 26px;
+            height: 26px;
+            color: white;
+        }
 
-    .login-title {
-        font-size: var(--cds-font-size-3xl);
-        font-weight: var(--cds-font-weight-bold);
-        color: var(--cds-color-gray-100);
-        margin-bottom: var(--cds-spacing-2);
-    }
+        .brand-name {
+            font-size: 26px;
+            font-weight: 700;
+            color: #4f7df3;
+            letter-spacing: -0.5px;
+        }
 
-    .login-subtitle {
-        font-size: var(--cds-font-size-lg);
-        color: var(--cds-color-gray-70);
-        margin: 0;
-    }
+        /* Welcome Section */
+        .welcome-section {
+            text-align: center;
+            margin-bottom: 24px;
+        }
 
-    /* Error messages */
-    .error-message {
-        background-color: var(--cds-color-red-50);
-        border: 1px solid var(--cds-color-red-20);
-        border-radius: var(--cds-border-radius-md);
-        color: var(--cds-color-red-70);
-        padding: var(--cds-spacing-4);
-        margin-bottom: var(--cds-spacing-6);
-        font-size: var(--cds-font-size-sm);
-    }
+        .welcome-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
 
-    /* Forgot password link */
-    .forgot-password {
-        text-align: center;
-        margin-top: var(--cds-spacing-6);
-        padding-top: var(--cds-spacing-4);
-        border-top: 1px solid var(--cds-color-gray-20);
-    }
+        .welcome-subtitle {
+            font-size: 15px;
+            color: #64748b;
+        }
 
-    .forgot-password a {
-        color: var(--cds-color-blue-60);
-        text-decoration: none;
-        font-size: var(--cds-font-size-sm);
-    }
+        /* Help Link */
+        .help-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 32px;
+        }
 
-    .forgot-password a:hover {
-        color: var(--cds-color-blue-70);
-        text-decoration: underline;
-    }
-</style>
-{% endblock %}
+        .help-link a {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #4f7df3;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
 
-{% block content %}
-<div class="login-container">
-    <!-- Header -->
-    <header class="login-header">
-        <div class="login-logo">
-            <svg width="64" height="48" viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#0369a1;stop-opacity:1" />
-                    </linearGradient>
-                    <linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#15803d;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-                <rect x="20" y="10" width="120" height="26" rx="13" fill="url(#lg1)" opacity="0.95"/>
-                <circle cx="35" cy="23" r="5.5" fill="#22c55e"/>
-                <rect x="20" y="45" width="120" height="26" rx="13" fill="url(#lg1)" opacity="0.95"/>
-                <circle cx="35" cy="58" r="5.5" fill="#f59e0b"/>
-                <rect x="20" y="80" width="120" height="26" rx="13" fill="url(#lg2)" opacity="0.95"/>
-                <circle cx="35" cy="93" r="5.5" fill="#ef4444"/>
-            </svg>
-        </div>
-        <h1 class="login-title">StackSense</h1>
-        <p class="login-subtitle">Welcome to StackSense</p>
-    </header>
+        .help-link a:hover {
+            color: #3b5de7;
+        }
 
-    <!-- Error Messages -->
-    {% if form.errors %}
-    <div class="bx--inline-notification bx--inline-notification--error bx--inline-notification--low-contrast" role="alert" style="margin-bottom: var(--cds-spacing-6);">
-        <div class="bx--inline-notification__details">
-            <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--inline-notification__icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M10,1c-5,0-9,4-9,9s4,9,9,9s9-4,9-9S15,1,10,1z M9,5h2v6H9V5z M9,13h2v2H9V13z"></path>
-            </svg>
-            <div class="bx--inline-notification__text-wrapper">
-                <p class="bx--inline-notification__title">Login Failed</p>
-                <p class="bx--inline-notification__subtitle">Please correct the errors below and try again.</p>
+        .help-icon {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #4f7df3;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 15px;
+            font-family: inherit;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            color: #1e293b;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4f7df3;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(79, 125, 243, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: #94a3b8;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            padding: 4px;
+        }
+
+        .password-toggle:hover {
+            color: #64748b;
+        }
+
+        /* Remember & Forgot Row */
+        .form-options {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .remember-me input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #d1d5db;
+            border-radius: 4px;
+            cursor: pointer;
+            accent-color: #4f7df3;
+        }
+
+        .remember-me span {
+            font-size: 14px;
+            color: #4b5563;
+        }
+
+        .forgot-link {
+            font-size: 14px;
+            font-weight: 500;
+            color: #4f7df3;
+            text-decoration: none;
+        }
+
+        .forgot-link:hover {
+            color: #3b5de7;
+            text-decoration: underline;
+        }
+
+        /* Submit Button */
+        .submit-btn {
+            width: 100%;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: inherit;
+            color: #ffffff;
+            background: linear-gradient(135deg, #5a67f2 0%, #4f46e5 100%);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+        }
+
+        .submit-btn:hover {
+            background: linear-gradient(135deg, #4f5de8 0%, #4338ca 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 28px 0;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        .divider span {
+            padding: 0 16px;
+            font-size: 13px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        /* Social Buttons */
+        .social-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .social-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 500;
+            font-family: inherit;
+            color: #374151;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .social-btn:hover {
+            background: #f8fafc;
+            border-color: #d1d5db;
+        }
+
+        .social-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Error Message */
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .error-message svg {
+            width: 20px;
+            height: 20px;
+            color: #ef4444;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .error-message p {
+            font-size: 14px;
+            color: #dc2626;
+            line-height: 1.5;
+        }
+
+        /* Footer */
+        .login-footer {
+            margin-top: 32px;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .footer-links a {
+            font-size: 13px;
+            color: #64748b;
+            text-decoration: none;
+        }
+
+        .footer-links a:hover {
+            color: #4f7df3;
+        }
+
+        .footer-links span {
+            color: #cbd5e1;
+        }
+
+        .copyright {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 32px 24px;
+            }
+
+            .brand-name {
+                font-size: 22px;
+            }
+
+            .welcome-title {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-card">
+            <!-- Brand -->
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                </div>
+                <span class="brand-name">Stack Alert</span>
+            </div>
+
+            <!-- Welcome Section -->
+            <div class="welcome-section">
+                <h1 class="welcome-title">Welcome to Stack Alert</h1>
+                <p class="welcome-subtitle">Monitor your infrastructure with confidence</p>
+            </div>
+
+            <!-- Help Link -->
+            <div class="help-link">
+                <a href="/help/">
+                    <span class="help-icon">?</span>
+                    Need help logging in?
+                </a>
+            </div>
+
+            <!-- Error Messages -->
+            {% if form.errors %}
+            <div class="error-message">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <p>Invalid username or password. Please try again.</p>
+            </div>
+            {% endif %}
+
+            <!-- Login Form -->
+            <form action="{% url 'admin:login' %}" method="post" id="login-form">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ next|default:'/monitoring/' }}">
+
+                <div class="form-group">
+                    <label class="form-label" for="id_username">Email or Username</label>
+                    <input type="text" name="username" id="id_username" class="form-input" placeholder="Enter your username" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="id_password">Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" name="password" id="id_password" class="form-input" placeholder="Enter your password" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                            <svg id="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="checkbox" name="remember">
+                        <span>Remember me</span>
+                    </label>
+                    <a href="/password-reset/" class="forgot-link">Forgot Password?</a>
+                </div>
+
+                <button type="submit" class="submit-btn">Sign In</button>
+            </form>
+
+            <!-- Divider -->
+            <div class="divider">
+                <span>OR</span>
+            </div>
+
+            <!-- Social Login -->
+            <div class="social-buttons">
+                <button type="button" class="social-btn" disabled title="Coming soon">
+                    <svg viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Continue with Google
+                </button>
+                <button type="button" class="social-btn" disabled title="Coming soon">
+                    <svg viewBox="0 0 24 24" fill="#333">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    Continue with GitHub
+                </button>
             </div>
         </div>
-        <button class="bx--inline-notification__close-button" type="button" aria-label="close">
-            <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M12 4.7l-.7-.7L8 7.3 4.7 4l-.7.7L7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"></path>
-            </svg>
-        </button>
+
+        <!-- Footer -->
+        <div class="login-footer">
+            <div class="footer-links">
+                <a href="#">Privacy Policy</a>
+                <span>•</span>
+                <a href="#">Terms of Use</a>
+            </div>
+            <p class="copyright">© 2024 Stack Alert. All rights reserved.</p>
+        </div>
     </div>
-    {% endif %}
 
-    <!-- Login Form -->
-    <form action="{% url 'admin:login' %}" method="post" id="login-form">
-        {% csrf_token %}
-
-        <!-- Username Field -->
-        <div class="bx--form-item" style="margin-bottom: var(--cds-spacing-6);">
-            <label class="bx--label" for="id_username">Username</label>
-            <input type="text" name="username" id="id_username" class="bx--text-input" placeholder="Enter your username" required autofocus>
-        </div>
-
-        <!-- Password Field -->
-        <div class="bx--form-item" style="margin-bottom: var(--cds-spacing-8);">
-            <label class="bx--label" for="id_password">Password</label>
-            <input type="password" name="password" id="id_password" class="bx--text-input" placeholder="Enter your password" required>
-        </div>
-
-        <!-- Hidden next field -->
-        <input type="hidden" name="next" value="{{ next|default:"/monitoring/" }}">
-
-        <!-- Submit Button -->
-        <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-end;">
-            <button type="submit" class="bx--btn bx--btn--primary bx--btn--field">Log in</button>
-        </div>
-    </form>
-
-    <!-- Forgot Password -->
-    <div class="forgot-password">
-        <a href="/password-reset/">Forgot password?</a>
-    </div>
-</div>
-
-<!-- Initialize IBM Carbon components -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('IBM Carbon Login Page Loaded');
-});
-</script>
-{% endblock %}
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('id_password');
+            const eyeIcon = document.getElementById('eye-icon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+            }
+        }
+    </script>
+</body>
+</html>

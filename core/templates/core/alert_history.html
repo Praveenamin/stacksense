@@ -114,9 +114,34 @@
 
 <!-- Alert Details Table -->
 <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <div style="margin-bottom: var(--cds-spacing-6);">
-        <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">Alert Details</h2>
-        <p style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); margin: 0;">Comprehensive view of all critical alerts in your infrastructure</p>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--cds-spacing-6);">
+        <div>
+            <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">Alert Details</h2>
+            <p style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); margin: 0;">Comprehensive view of all critical alerts in your infrastructure</p>
+        </div>
+        <!-- Bulk Actions Bar -->
+        <div id="bulk-actions-bar" style="display: none; align-items: center; gap: var(--cds-spacing-3); padding: var(--cds-spacing-3) var(--cds-spacing-4); background-color: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+            <span id="selected-count" style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: #1e40af;">0 selected</span>
+            <button onclick="bulkAcknowledgeAlerts()" style="display: inline-flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2) var(--cds-spacing-4); background-color: #22c55e; color: white; border: none; border-radius: 6px; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); cursor: pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                Mark as Acknowledged
+            </button>
+            <button onclick="bulkDeleteAlerts()" style="display: inline-flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2) var(--cds-spacing-4); background-color: #ef4444; color: white; border: none; border-radius: 6px; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); cursor: pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Delete Selected
+            </button>
+            <button onclick="clearSelection()" style="padding: var(--cds-spacing-2); background: none; border: none; color: #64748b; cursor: pointer;" title="Clear selection">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
     </div>
 
     {% if unified_items and not group_by_incident %}
@@ -125,7 +150,7 @@
             <thead>
                 <tr style="border-bottom: 1px solid #e5e7eb;">
                     <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px; width: 40px;">
-                        <input type="checkbox" id="select-all" style="cursor: pointer;">
+                        <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="cursor: pointer; width: 18px; height: 18px;">
                     </th>
                     <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px;">Alert Name</th>
                     <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px;">Affected VM</th>
@@ -140,9 +165,7 @@
                 {% with alert=item.object %}
                 <tr style="border-bottom: 1px solid #f3f4f6; transition: background-color 150ms ease;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor=''">
                     <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
-                        {% if alert.status == 'triggered' %}
-                        <input type="checkbox" class="alert-checkbox" value="{{ alert.id }}" style="cursor: pointer;">
-                        {% endif %}
+                        <input type="checkbox" class="alert-checkbox" data-status="{{ alert.status }}" value="{{ alert.id }}" onchange="updateBulkActionsBar()" style="cursor: pointer; width: 18px; height: 18px;">
                     </td>
                     <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
@@ -252,6 +275,70 @@
 </div>
 
 <script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Select All / Deselect All
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.alert-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    updateBulkActionsBar();
+}
+
+// Update bulk actions bar visibility and count
+function updateBulkActionsBar() {
+    const checked = document.querySelectorAll('.alert-checkbox:checked');
+    const bar = document.getElementById('bulk-actions-bar');
+    const countSpan = document.getElementById('selected-count');
+    const selectAllCheckbox = document.getElementById('select-all');
+    const allCheckboxes = document.querySelectorAll('.alert-checkbox');
+    
+    if (bar) {
+        if (checked.length > 0) {
+            bar.style.display = 'flex';
+            countSpan.textContent = `${checked.length} selected`;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+    
+    // Update select-all checkbox state
+    if (selectAllCheckbox && allCheckboxes.length > 0) {
+        if (checked.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checked.length === allCheckboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+}
+
+// Clear selection
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.alert-checkbox');
+    const selectAllCheckbox = document.getElementById('select-all');
+    checkboxes.forEach(cb => cb.checked = false);
+    if (selectAllCheckbox) selectAllCheckbox.checked = false;
+    updateBulkActionsBar();
+}
+
+// Resolve single alert
 function resolveAlert(alertId) {
     if (confirm('Are you sure you want to acknowledge this alert?')) {
         fetch(`/api/alerts/${alertId}/resolve/`, {
@@ -276,28 +363,15 @@ function resolveAlert(alertId) {
     }
 }
 
-function toggleSelectAll(checkbox) {
-    const checkboxes = document.querySelectorAll('.alert-checkbox');
-    checkboxes.forEach(cb => cb.checked = checkbox.checked);
-    updateBulkAcknowledgeButton();
-}
-
-function updateBulkAcknowledgeButton() {
-    const checked = document.querySelectorAll('.alert-checkbox:checked');
-    const btn = document.getElementById('bulk-acknowledge-btn');
-    if (btn) {
-        btn.style.display = checked.length > 0 ? 'inline-block' : 'none';
-    }
-}
-
+// Bulk acknowledge alerts
 function bulkAcknowledgeAlerts() {
     const checked = document.querySelectorAll('.alert-checkbox:checked');
     if (checked.length === 0) {
-        alert('Please select at least one alert to acknowledge');
+        alert('Please select at least one alert');
         return;
     }
     
-    if (confirm(`Are you sure you want to acknowledge ${checked.length} alert(s)?`)) {
+    if (confirm(`Are you sure you want to mark ${checked.length} alert(s) as acknowledged?`)) {
         const alertIds = Array.from(checked).map(cb => cb.value);
         
         fetch('/api/alerts/bulk-resolve/', {
@@ -327,19 +401,42 @@ function bulkAcknowledgeAlerts() {
     }
 }
 
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
+// Bulk delete alerts
+function bulkDeleteAlerts() {
+    const checked = document.querySelectorAll('.alert-checkbox:checked');
+    if (checked.length === 0) {
+        alert('Please select at least one alert');
+        return;
     }
-    return cookieValue;
+    
+    if (confirm(`Are you sure you want to permanently DELETE ${checked.length} alert(s)? This action cannot be undone.`)) {
+        const alertIds = Array.from(checked).map(cb => cb.value);
+        
+        fetch('/api/alerts/bulk-delete/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ alert_ids: alertIds })
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                response.json().then(data => {
+                    alert(data.error || 'Failed to delete alerts');
+                }).catch(() => {
+                    alert('Failed to delete alerts');
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to delete alerts');
+        });
+    }
 }
 
 function toggleGrouping() {
@@ -353,9 +450,9 @@ function toggleGrouping() {
     window.location = url.toString();
 }
 
-// Initialize bulk acknowledge button visibility
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    updateBulkAcknowledgeButton();
+    updateBulkActionsBar();
 });
 </script>
 {% endblock %}

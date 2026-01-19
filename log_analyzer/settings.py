@@ -175,6 +175,12 @@ LOGGING = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Email Configuration
+# Use custom email backend that reads SMTP settings from EmailAlertConfig model
+# This allows password reset and other Django emails to use the same SMTP
+# configuration as the alerts system (configured via Alerts Config page)
+EMAIL_BACKEND = "core.email_backend.DatabaseEmailBackend"
+
 # LLM Configuration
 # Ollama API URL - defaults to host IP when Ollama is running on host
 # When Ollama is on host: use http://<host-ip>:11434 (default: 10.1.1.126)
@@ -230,17 +236,17 @@ else:
 
 # Jazzmin Configuration
 JAZZMIN_SETTINGS = {
-    "site_title": "StackSense",
-    "site_header": "StackSense",
-    "site_brand": "StackSense",
+    "site_title": "Stack Alert",
+    "site_header": "Stack Alert",
+    "site_brand": "Stack Alert",
     "site_logo": "core/img/logo.svg",
     "theme": "dark",
     "login_logo": None,
     "login_logo_dark": None,
     "site_logo_classes": "img-circle",
     "site_icon": None,
-    "welcome_sign": "Welcome to StackSense",
-    "copyright": "StackSense",
+    "welcome_sign": "Welcome to Stack Alert",
+    "copyright": "Stack Alert",
     "search_model": ["auth.User", "core.Server"],
     "user_avatar": None,
     "topmenu_links": [

@@ -1,11 +1,15 @@
 import json
 import paramiko
 import os
+import re
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.conf import settings
 from core.models import Server, SystemMetric, MonitoringConfig, Anomaly, Service
 from datetime import timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -167,6 +171,14 @@ class Command(BaseCommand):
                         _check_and_send_alerts(server, metric_obj)
                     except Exception as alert_error:
                         self.stderr.write(self.style.WARNING(f"Alert check failed for {server.name}: {alert_error}"))
+                
+                # Detect listening ports and auto-create services (every collection)
+                try:
+                    detected_services = self._detect_listening_ports(server)
+                    if detected_services:
+                        self._update_detected_services(server, detected_services)
+                except Exception as port_detect_error:
+                    self.stderr.write(self.style.WARNING(f"Port detection failed for {server.name}: {port_detect_error}"))
                 
                 # Check monitored services (every minute)
                 # IMPORTANT: Services are server-specific. Only checks services for THIS server.
@@ -421,12 +433,20 @@ disk_usage = {}
 # Filesystem types to ignore (virtual filesystems)
 IGNORED_FSTYPES = {
     'squashfs', 'tmpfs', 'devtmpfs', 'proc', 'sysfs',
-    'cgroup', 'cgroup2', 'ramfs', 'overlay', 'udev'
+    'cgroup', 'cgroup2', 'ramfs', 'overlay', 'udev', 'virtfs'
 }
 
 for partition in psutil.disk_partitions():
     # Skip virtual filesystems
     if partition.fstype.lower() in IGNORED_FSTYPES:
+        continue
+    
+    # Skip virtfs mount points (e.g., /home/virtfs/... or named 'virtfs')
+    if '/virtfs/' in partition.mountpoint or partition.mountpoint == 'virtfs':
+        continue
+    
+    # Skip partitions with 'virtfs' in device name
+    if 'virtfs' in partition.device.lower():
         continue
     
     try:
@@ -606,3 +626,220 @@ print(json.dumps(metrics))
             
         finally:
             client.close()
+
+    def _detect_listening_ports(self, server):
+        """Detect listening ports and their bind addresses via SSH"""
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        # Load SSH key
+        private_key_path = getattr(settings, "SSH_PRIVATE_KEY_PATH", "/app/ssh_keys/id_rsa")
+        pkey = None
+        if os.path.exists(private_key_path):
+            try:
+                pkey = paramiko.RSAKey.from_private_key_file(private_key_path)
+            except:
+                pass
+        
+        try:
+            if pkey:
+                client.connect(
+                    hostname=server.ip_address,
+                    port=server.port,
+                    username=server.username,
+                    pkey=pkey,
+                    timeout=30,
+                )
+            else:
+                client.connect(
+                    hostname=server.ip_address,
+                    port=server.port,
+                    username=server.username,
+                    timeout=30,
+                    look_for_keys=True,
+                    allow_agent=True,
+                )
+            
+            # Get listening TCP ports with bind addresses and process names
+            # Use ss command which is more reliable than netstat
+            cmd = "ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null"
+            stdin, stdout, stderr = client.exec_command(cmd, timeout=30)
+            output = stdout.read().decode("utf-8")
+            
+            detected_services = []
+            
+            # Parse ss/netstat output
+            # ss format: LISTEN  0  128  0.0.0.0:80  0.0.0.0:*  users:(("nginx",pid=1234,fd=6))
+            # netstat format: tcp  0  0  0.0.0.0:80  0.0.0.0:*  LISTEN  1234/nginx
+            
+            for line in output.split('\n'):
+                line = line.strip()
+                if not line or 'LISTEN' not in line.upper():
+                    continue
+                
+                # Skip header lines
+                if 'Local' in line or 'Proto' in line or 'State' in line:
+                    continue
+                
+                try:
+                    # Try to parse ss format first
+                    if 'users:' in line:
+                        # ss format
+                        parts = line.split()
+                        local_addr = None
+                        process_name = None
+                        
+                        for part in parts:
+                            if ':' in part and not part.startswith('users:'):
+                                # Check if this looks like address:port
+                                if re.match(r'^[\d\.\*:]+:\d+$', part) or re.match(r'^\[.*\]:\d+$', part):
+                                    local_addr = part
+                                    break
+                        
+                        # Extract process name from users:(("name",pid=...,fd=...))
+                        match = re.search(r'users:\(\("([^"]+)"', line)
+                        if match:
+                            process_name = match.group(1)
+                        
+                        if local_addr:
+                            # Parse address and port
+                            if local_addr.startswith('['):
+                                # IPv6 format [::]:port
+                                addr_match = re.match(r'\[([^\]]*)\]:(\d+)', local_addr)
+                                if addr_match:
+                                    bind_addr = addr_match.group(1)
+                                    port = int(addr_match.group(2))
+                                else:
+                                    continue
+                            else:
+                                # IPv4 format addr:port
+                                addr_parts = local_addr.rsplit(':', 1)
+                                if len(addr_parts) == 2:
+                                    bind_addr = addr_parts[0]
+                                    port = int(addr_parts[1])
+                                else:
+                                    continue
+                            
+                            detected_services.append({
+                                'port': port,
+                                'bind_address': bind_addr,
+                                'process_name': process_name or 'unknown'
+                            })
+                    else:
+                        # Try netstat format
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            local_addr = parts[3] if 'tcp' in parts[0].lower() else parts[3]
+                            
+                            # Extract process info from last column (pid/name)
+                            process_name = 'unknown'
+                            if len(parts) >= 6:
+                                proc_part = parts[-1]
+                                if '/' in proc_part:
+                                    process_name = proc_part.split('/')[1]
+                            
+                            # Parse address:port
+                            if ':' in local_addr:
+                                addr_parts = local_addr.rsplit(':', 1)
+                                if len(addr_parts) == 2:
+                                    bind_addr = addr_parts[0]
+                                    port = int(addr_parts[1])
+                                    
+                                    detected_services.append({
+                                        'port': port,
+                                        'bind_address': bind_addr,
+                                        'process_name': process_name
+                                    })
+                except (ValueError, IndexError) as e:
+                    continue
+            
+            return detected_services
+            
+        except Exception as e:
+            logger.error(f"Failed to detect ports on {server.name}: {e}")
+            return []
+        finally:
+            client.close()
+
+    def _update_detected_services(self, server, detected_services):
+        """Create or update services based on detected ports"""
+        # Common service name mappings
+        PORT_SERVICE_NAMES = {
+            22: 'SSH',
+            80: 'HTTP (nginx/apache)',
+            443: 'HTTPS (nginx/apache)',
+            3306: 'MySQL/MariaDB',
+            5432: 'PostgreSQL',
+            6379: 'Redis',
+            27017: 'MongoDB',
+            8080: 'HTTP Alt',
+            8443: 'HTTPS Alt',
+            3000: 'Node.js',
+            5000: 'Flask/Gunicorn',
+            8000: 'Django/Gunicorn',
+            25: 'SMTP',
+            465: 'SMTPS',
+            587: 'SMTP Submission',
+            143: 'IMAP',
+            993: 'IMAPS',
+            110: 'POP3',
+            995: 'POP3S',
+            21: 'FTP',
+            53: 'DNS',
+        }
+        
+        # Ports to skip (ephemeral or internal)
+        SKIP_PORTS = {22}  # Don't monitor SSH as it's used for management
+        
+        for svc in detected_services:
+            port = svc['port']
+            bind_addr = svc['bind_address']
+            process_name = svc['process_name']
+            
+            # Skip certain ports
+            if port in SKIP_PORTS:
+                continue
+            
+            # Skip ephemeral ports (typically > 32768)
+            if port > 32768:
+                continue
+            
+            # Determine service name
+            if process_name and process_name != 'unknown':
+                service_name = f"{process_name}:{port}"
+            elif port in PORT_SERVICE_NAMES:
+                service_name = f"{PORT_SERVICE_NAMES[port]}:{port}"
+            else:
+                service_name = f"Service:{port}"
+            
+            # Check if bind_address is localhost
+            is_localhost = bind_addr in ('127.0.0.1', '::1', 'localhost')
+            
+            # Normalize bind address (* and :: mean all interfaces)
+            if bind_addr in ('*', '::', '0.0.0.0'):
+                bind_addr = '0.0.0.0'
+            
+            # Create or update service
+            service, created = Service.objects.update_or_create(
+                server=server,
+                port=port,
+                defaults={
+                    'name': service_name,
+                    'bind_address': bind_addr,
+                    'status': 'running',
+                    'service_type': 'port',
+                    'last_checked': timezone.now(),
+                    'auto_detected': True,
+                    # Auto-enable monitoring for common web services on external interfaces
+                    'monitoring_enabled': not is_localhost and port in (80, 443, 8080, 8443, 3000, 5000, 8000)
+                }
+            )
+            
+            if created:
+                self.stdout.write(f"  → Auto-detected service: {service_name} (bind: {bind_addr})")
+            else:
+                # Update bind address and status even if service existed
+                service.bind_address = bind_addr
+                service.status = 'running'
+                service.last_checked = timezone.now()
+                service.save(update_fields=['bind_address', 'status', 'last_checked'])

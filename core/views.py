@@ -2800,34 +2800,75 @@ def _check_service_status(server, service):
     
     IMPORTANT: This function checks the service on the specific server only.
     Services are server-specific - each server has its own Service records.
+    
+    Service types:
+    - Port-based services (service.port is not None): Check via TCP/HTTP connection
+    - Systemd services (service.port is None): Check via systemctl
     """
     try:
-        # SSH connection to check service status
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        is_active = False
+        is_failed = False
         
-        ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
-        private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-        
-        ssh.connect(
-            hostname=server.ip_address,
-            port=server.port,
-            username=server.username,
-            pkey=private_key,
-            timeout=10
-        )
-        
-        # Check service status using systemctl
-        command = f"systemctl is-active {service.name} 2>/dev/null"
-        stdin, stdout, stderr = ssh.exec_command(command)
-        output = stdout.read().decode('utf-8').strip()
-        errors = stderr.read().decode('utf-8').strip()
-        
-        ssh.close()
-        
-        # Service is active if output is "active"
-        is_active = output == "active"
-        is_failed = False  # Initialize variable
+        # Determine how to check this service
+        if service.port is not None:
+            # PORT-BASED SERVICE: Check via network connection (latency measurement)
+            # This includes HTTP, HTTPS, MySQL, etc. detected via listening ports
+            try:
+                result = measure_service_latency(server, service)
+                # Service is active if latency measurement succeeded
+                is_active = result is not None and result.get('success', False)
+                if is_active:
+                    print(f"[SERVICE_CHECK] Port-based service {service.name}:{service.port} on {server.name} is UP (latency: {result.get('latency_ms', 'N/A')}ms)")
+                else:
+                    print(f"[SERVICE_CHECK] Port-based service {service.name}:{service.port} on {server.name} is DOWN")
+            except Exception as latency_error:
+                error_logger.warning(f"Port check failed for {service.name}:{service.port} on {server.name}: {str(latency_error)}")
+                is_active = False
+        else:
+            # SYSTEMD SERVICE: Check via systemctl
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
+            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+            
+            ssh.connect(
+                hostname=server.ip_address,
+                port=server.port,
+                username=server.username,
+                pkey=private_key,
+                timeout=10
+            )
+            
+            # Check service status using systemctl
+            command = f"systemctl is-active {service.name} 2>/dev/null"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            output = stdout.read().decode('utf-8').strip()
+            
+            ssh.close()
+            
+            # Service is active if output is "active"
+            is_active = output == "active"
+            
+            if not is_active:
+                # Check if service is in failed state
+                try:
+                    ssh_failed = paramiko.SSHClient()
+                    ssh_failed.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh_failed.connect(
+                        hostname=server.ip_address,
+                        port=server.port,
+                        username=server.username,
+                        pkey=private_key,
+                        timeout=10
+                    )
+                    command_failed = f"systemctl is-failed {service.name} 2>/dev/null"
+                    stdin_failed, stdout_failed, stderr_failed = ssh_failed.exec_command(command_failed)
+                    output_failed = stdout_failed.read().decode('utf-8').strip()
+                    ssh_failed.close()
+                    is_failed = output_failed == "failed"
+                except:
+                    is_failed = False
         
         # Cache key for tracking consecutive failures
         failure_count_key = f"service_failures:{server.id}:{service.id}"
@@ -2845,39 +2886,8 @@ def _check_service_status(server, service):
                 # Service came back online - send resolved alert
                 _send_service_alert(server, service, "resolved")
                 cache.delete(alert_sent_key)
-            
-            # Measure latency for monitored services
-            if service.monitoring_enabled:
-                try:
-                    measure_service_latency(server, service)
-                except Exception as latency_error:
-                    # Log error but don't fail the service check
-                    error_logger.warning(f"Latency measurement failed for {service.name} on {server.name}: {str(latency_error)}")
         else:
-            # Service is down - check if it's in failed state immediately
-            # First, check if service is in failed state
-            try:
-                ssh_failed = paramiko.SSHClient()
-                ssh_failed.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
-                private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-                ssh_failed.connect(
-                    hostname=server.ip_address,
-                    port=server.port,
-                    username=server.username,
-                    pkey=private_key,
-                    timeout=10
-                )
-                # Check if service is failed
-                command_failed = f"systemctl is-failed {service.name} 2>/dev/null"
-                stdin_failed, stdout_failed, stderr_failed = ssh_failed.exec_command(command_failed)
-                output_failed = stdout_failed.read().decode('utf-8').strip()
-                ssh_failed.close()
-                
-                is_failed = output_failed == "failed"
-            except:
-                is_failed = False
-            
+            # Service is down
             # Increment failure count
             failure_count = cache.get(failure_count_key, 0)
             failure_count += 1
@@ -2904,11 +2914,9 @@ def _check_service_status(server, service):
                     cache.set(alert_sent_key, True, 3600)  # Prevent duplicate alerts for 1 hour
         
         # Update service status in database
-        # Use the is_failed status we already checked above
         if is_active:
             service.status = "running"
         else:
-            # Use the is_failed status from the check above
             if is_failed:
                 service.status = "failed"
             else:
@@ -3822,6 +3830,51 @@ def bulk_resolve_alerts(request):
         }, status=400)
     except Exception as e:
         error_logger.error(f"BULK_RESOLVE_ALERTS error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@ensure_csrf_cookie
+@require_http_methods(["POST"])
+def bulk_delete_alerts(request):
+    """Bulk delete multiple alerts"""
+    try:
+        import json
+        data = json.loads(request.body)
+        alert_ids = data.get('alert_ids', [])
+        
+        if not alert_ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'No alert IDs provided'
+            }, status=400)
+        
+        if not isinstance(alert_ids, list):
+            return JsonResponse({
+                'success': False,
+                'error': 'alert_ids must be a list'
+            }, status=400)
+        
+        # Delete alerts
+        deleted_result = AlertHistory.objects.filter(id__in=alert_ids).delete()
+        deleted_count = deleted_result[0] if deleted_result else 0
+        
+        _log_user_action(request, "BULK_DELETE_ALERTS", 
+                        f"Deleted {deleted_count} alerts: {alert_ids}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully deleted {deleted_count} alert(s)',
+            'deleted_count': deleted_count,
+            'requested_count': len(alert_ids)
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        error_logger.error(f"BULK_DELETE_ALERTS error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
@@ -5346,150 +5399,6 @@ def toggle_service_monitoring(request, server_id, service_id):
 
 @staff_member_required
 @require_http_methods(["GET"])
-def dashboard_news_feed_api(request):
-    """
-    API endpoint for dashboard news ticker feed.
-    Returns recent events (alerts, anomalies, status changes) in a news-like format.
-    """
-    try:
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        # Get events from the last 24 hours
-        since = timezone.now() - timedelta(hours=24)
-        news_items = []
-        
-        # 1. Recent alerts (triggered and resolved)
-        recent_alerts = AlertHistory.objects.filter(
-            sent_at__gte=since
-        ).select_related('server').order_by('-sent_at')[:50]
-        
-        for alert in recent_alerts:
-            if alert.status == 'triggered':
-                time_ago = timezone.now() - alert.sent_at
-                if time_ago < timedelta(minutes=1):
-                    time_str = "just now"
-                elif time_ago < timedelta(hours=1):
-                    minutes = int(time_ago.total_seconds() / 60)
-                    time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-                elif time_ago < timedelta(hours=12):
-                    hours = int(time_ago.total_seconds() / 3600)
-                    time_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
-                else:
-                    time_str = alert.sent_at.strftime("%I:%M %p")
-                
-                news_items.append({
-                    'type': 'alert',
-                    'icon': '🔴',
-                    'severity': 'high',
-                    'text': f"{alert.server.name}: {alert.message} ({time_str})",
-                    'timestamp': alert.sent_at.isoformat(),
-                    'server_name': alert.server.name,
-                })
-            elif alert.status == 'resolved' and alert.resolved_at:
-                time_ago = timezone.now() - alert.resolved_at
-                if time_ago < timedelta(minutes=1):
-                    time_str = "just now"
-                elif time_ago < timedelta(hours=1):
-                    minutes = int(time_ago.total_seconds() / 60)
-                    time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-                else:
-                    time_str = alert.resolved_at.strftime("%I:%M %p")
-                
-                news_items.append({
-                    'type': 'resolved',
-                    'icon': '✅',
-                    'severity': 'info',
-                    'text': f"{alert.server.name}: {alert.alert_type} alert resolved ({time_str})",
-                    'timestamp': alert.resolved_at.isoformat(),
-                    'server_name': alert.server.name,
-                })
-        
-        # 2. Recent anomalies (unresolved)
-        recent_anomalies = Anomaly.objects.filter(
-            timestamp__gte=since,
-            resolved=False
-        ).select_related('server', 'metric').order_by('-timestamp')[:30]
-        
-        for anomaly in recent_anomalies:
-            time_ago = timezone.now() - anomaly.timestamp
-            if time_ago < timedelta(minutes=1):
-                time_str = "just now"
-            elif time_ago < timedelta(hours=1):
-                minutes = int(time_ago.total_seconds() / 60)
-                time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-            elif time_ago < timedelta(hours=12):
-                hours = int(time_ago.total_seconds() / 3600)
-                time_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
-            else:
-                time_str = anomaly.timestamp.strftime("%I:%M %p")
-            
-            severity_icon = {
-                'LOW': '🟡',
-                'MEDIUM': '🟠',
-                'HIGH': '🔴',
-                'CRITICAL': '🚨'
-            }.get(anomaly.severity, '⚠️')
-            
-            news_items.append({
-                'type': 'anomaly',
-                'icon': severity_icon,
-                'severity': anomaly.severity.lower(),
-                'text': f"{anomaly.server.name}: {anomaly.metric_type.upper()} anomaly detected - {anomaly.metric_name} = {anomaly.metric_value:.1f}% ({time_str})",
-                'timestamp': anomaly.timestamp.isoformat(),
-                'server_name': anomaly.server.name,
-            })
-        
-        # 3. Add current system status summary
-        total_servers = Server.objects.count()
-        online_servers = sum(1 for s in Server.objects.all() if _calculate_server_status(s) == 'online')
-        warning_servers = sum(1 for s in Server.objects.all() if _calculate_server_status(s) == 'warning')
-        offline_servers = total_servers - online_servers - warning_servers
-        
-        active_alerts = AlertHistory.objects.filter(status='triggered').count()
-        active_anomalies = Anomaly.objects.filter(resolved=False).count()
-        
-        # Add status summary as first item (if no recent events, show current status)
-        if len(news_items) == 0 or online_servers == total_servers:
-            news_items.insert(0, {
-                'type': 'status',
-                'icon': '📊',
-                'severity': 'info',
-                'text': f"All systems operational: {online_servers}/{total_servers} servers online, {active_alerts} active alerts, {active_anomalies} active anomalies",
-                'timestamp': timezone.now().isoformat(),
-                'server_name': 'System',
-            })
-        else:
-            # Add current status as context
-            if warning_servers > 0 or offline_servers > 0:
-                news_items.insert(0, {
-                    'type': 'status',
-                    'icon': '⚠️',
-                    'severity': 'warning',
-                    'text': f"System Status: {online_servers} online, {warning_servers} warning, {offline_servers} offline",
-                    'timestamp': timezone.now().isoformat(),
-                    'server_name': 'System',
-                })
-        
-        # Sort by timestamp (most recent first)
-        news_items.sort(key=lambda x: x['timestamp'], reverse=True)
-        
-        # Limit to 100 items
-        news_items = news_items[:100]
-        
-        return JsonResponse({
-            'success': True,
-            'news_items': news_items,
-            'count': len(news_items),
-            'generated_at': timezone.now().isoformat()
-        })
-    except Exception as e:
-        error_logger.error(f"DASHBOARD_NEWS_FEED_API error: {str(e)}")
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
-
-
-@staff_member_required
-@require_http_methods(["GET"])
 def dashboard_summary_stats_api(request):
     """API endpoint for dashboard summary statistics"""
     try:
@@ -5537,14 +5446,23 @@ def dashboard_summary_stats_api(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+def _parse_period_to_hours(period):
+    """Convert period string (24h, 7d, 30d) to hours"""
+    if period.endswith('h'):
+        return int(period[:-1])
+    elif period.endswith('d'):
+        return int(period[:-1]) * 24
+    else:
+        return 24  # default to 24 hours
+
 @staff_member_required
 @require_http_methods(["GET"])
-def dashboard_cpu_trend_api(request):
-    """API endpoint for 24-hour CPU trend data"""
+def dashboard_cpu_trend_api(request, period='24h'):
+    """API endpoint for CPU trend data"""
     try:
         from datetime import timedelta
         
-        hours = int(request.GET.get('hours', 24))
+        hours = _parse_period_to_hours(period)
         server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
         since = timezone.now() - timedelta(hours=hours)
         
@@ -5567,7 +5485,7 @@ def dashboard_cpu_trend_api(request):
         # Aggregate CPU metrics by hour
         metrics = metrics_filter.order_by('timestamp').values('timestamp', 'cpu_percent', 'server_id')
         
-        # Group by hour and calculate average
+        # Group by hour and calculate average and peak
         hourly_data = {}
         for metric in metrics:
             hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
@@ -5575,13 +5493,21 @@ def dashboard_cpu_trend_api(request):
                 hourly_data[hour_key] = []
             hourly_data[hour_key].append(metric['cpu_percent'] or 0)
         
-        # Calculate averages and prepare data
+        # Calculate averages, peaks and prepare data
         for hour, values in sorted(hourly_data.items()):
             avg_cpu = sum(values) / len(values) if values else 0
-            data_points.append({
+            max_cpu = max(values) if values else 0
+            
+            point = {
                 'timestamp': hour.isoformat(),
                 'value': round(avg_cpu, 2)
-            })
+            }
+            
+            # Include peak if it's significantly higher than average (indicating a spike)
+            if max_cpu > avg_cpu + 10:  # Spike threshold: 10% above average
+                point['peak'] = round(max_cpu, 2)
+            
+            data_points.append(point)
         
         # Calculate current, peak, and average
         current_cpu = data_points[-1]['value'] if data_points else 0
@@ -5605,12 +5531,12 @@ def dashboard_cpu_trend_api(request):
 
 @staff_member_required
 @require_http_methods(["GET"])
-def dashboard_memory_trend_api(request):
-    """API endpoint for 24-hour memory trend data"""
+def dashboard_memory_trend_api(request, period='24h'):
+    """API endpoint for memory trend data"""
     try:
         from datetime import timedelta
         
-        hours = int(request.GET.get('hours', 24))
+        hours = _parse_period_to_hours(period)
         server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
         since = timezone.now() - timedelta(hours=hours)
         
@@ -5640,10 +5566,18 @@ def dashboard_memory_trend_api(request):
         data_points = []
         for hour, values in sorted(hourly_data.items()):
             avg_memory = sum(values) / len(values) if values else 0
-            data_points.append({
+            max_memory = max(values) if values else 0
+            
+            point = {
                 'timestamp': hour.isoformat(),
                 'value': round(avg_memory, 2)
-            })
+            }
+            
+            # Include peak if it's significantly higher than average (indicating a spike)
+            if max_memory > avg_memory + 10:  # Spike threshold: 10% above average
+                point['peak'] = round(max_memory, 2)
+            
+            data_points.append(point)
         
         current_memory = data_points[-1]['value'] if data_points else 0
         peak_memory = max([d['value'] for d in data_points]) if data_points else 0
@@ -5666,13 +5600,13 @@ def dashboard_memory_trend_api(request):
 
 @staff_member_required
 @require_http_methods(["GET"])
-def dashboard_network_trend_api(request):
-    """API endpoint for 24-hour network trend data (inbound/outbound)"""
+def dashboard_network_trend_api(request, period='24h'):
+    """API endpoint for network trend data (inbound/outbound)"""
     try:
         from datetime import timedelta
         import json
         
-        hours = int(request.GET.get('hours', 24))
+        hours = _parse_period_to_hours(period)
         server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
         since = timezone.now() - timedelta(hours=hours)
         
@@ -6162,7 +6096,7 @@ def dashboard_disk_mount_points_api(request, server_id):
         # Virtual filesystem types to exclude (same as in collect_metrics.py)
         IGNORED_FSTYPES = {
             'squashfs', 'tmpfs', 'devtmpfs', 'proc', 'sysfs',
-            'cgroup', 'cgroup2', 'ramfs', 'overlay', 'udev'
+            'cgroup', 'cgroup2', 'ramfs', 'overlay', 'udev', 'virtfs'
         }
         
         # Get latest metric with disk usage data
@@ -6182,6 +6116,10 @@ def dashboard_disk_mount_points_api(request, server_id):
                     if isinstance(disk_data, dict):
                         for mount_point, disk_info in disk_data.items():
                             if not mount_point:
+                                continue
+                            
+                            # Skip virtfs mount points (e.g., /home/virtfs/... or named 'virtfs')
+                            if '/virtfs/' in mount_point or mount_point == 'virtfs':
                                 continue
                             
                             # Check if this is a virtual filesystem
@@ -6403,6 +6341,296 @@ def server_sli_compliance_api(request, server_id):
         })
     except Exception as e:
         error_logger.error(f"SERVER_SLI_COMPLIANCE_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_response_time_trend_api(request, period='24h'):
+    """
+    API endpoint for response time trend data.
+    Returns latency measurements for all monitored services.
+    
+    Query params:
+        - server_id: 'all' for average across all servers, or specific server ID
+    Path params:
+        - period: time period (24h, 7d, etc.)
+    """
+    try:
+        from datetime import timedelta
+        from core.models import ServiceLatencyMeasurement, Service
+        from django.db.models import Avg
+        
+        hours = _parse_period_to_hours(period)
+        server_id = request.GET.get('server_id', 'all')
+        since = timezone.now() - timedelta(hours=hours)
+        
+        # Build query based on server filter
+        if server_id and server_id != 'all':
+            try:
+                server = Server.objects.get(id=int(server_id))
+                measurements = ServiceLatencyMeasurement.objects.filter(
+                    service__server=server,
+                    service__monitoring_enabled=True,
+                    timestamp__gte=since,
+                    success=True
+                )
+            except (Server.DoesNotExist, ValueError):
+                return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+        else:
+            measurements = ServiceLatencyMeasurement.objects.filter(
+                service__monitoring_enabled=True,
+                timestamp__gte=since,
+                success=True
+            )
+        
+        # Group by hour and calculate averages
+        hourly_data = {}
+        for m in measurements.values('timestamp', 'latency_ms'):
+            hour_key = m['timestamp'].replace(minute=0, second=0, microsecond=0)
+            if hour_key not in hourly_data:
+                hourly_data[hour_key] = []
+            if m['latency_ms'] is not None:
+                hourly_data[hour_key].append(m['latency_ms'])
+        
+        # Prepare data points
+        data_points = []
+        for hour, values in sorted(hourly_data.items()):
+            avg_latency = sum(values) / len(values) if values else 0
+            data_points.append({
+                'timestamp': hour.isoformat(),
+                'value': round(avg_latency, 2)
+            })
+        
+        # Calculate statistics
+        all_values = [p['value'] for p in data_points if p['value'] > 0]
+        current = data_points[-1]['value'] if data_points else 0
+        peak = max(all_values) if all_values else 0
+        average = sum(all_values) / len(all_values) if all_values else 0
+        
+        # Get monitored services count
+        if server_id and server_id != 'all':
+            monitored_count = Service.objects.filter(
+                server_id=int(server_id),
+                monitoring_enabled=True,
+                port__isnull=False
+            ).exclude(port=0).count()
+        else:
+            monitored_count = Service.objects.filter(
+                monitoring_enabled=True,
+                port__isnull=False
+            ).exclude(port=0).count()
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'points': data_points,
+                'current': round(current, 2),
+                'peak': round(peak, 2),
+                'average': round(average, 2),
+                'monitored_services': monitored_count,
+                'measurement_count': measurements.count()
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_RESPONSE_TIME_TREND_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_monitored_services_api(request):
+    """
+    API endpoint to get list of monitored services with their latest latency.
+    Used by the response time dashboard component.
+    """
+    try:
+        from core.models import ServiceLatencyMeasurement, Service
+        
+        server_id = request.GET.get('server_id', 'all')
+        
+        # Get monitored services
+        if server_id and server_id != 'all':
+            try:
+                services = Service.objects.filter(
+                    server_id=int(server_id),
+                    monitoring_enabled=True,
+                    port__isnull=False
+                ).exclude(port=0).select_related('server')
+            except ValueError:
+                return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+        else:
+            services = Service.objects.filter(
+                monitoring_enabled=True,
+                port__isnull=False
+            ).exclude(port=0).select_related('server')
+        
+        services_data = []
+        for service in services:
+            # Get latest measurement
+            latest = ServiceLatencyMeasurement.objects.filter(
+                service=service
+            ).order_by('-timestamp').first()
+            
+            services_data.append({
+                'id': service.id,
+                'name': service.name,
+                'port': service.port,
+                'bind_address': service.bind_address,
+                'server_id': service.server.id,
+                'server_name': service.server.name,
+                'status': service.status,
+                'is_localhost': service.bind_address in ('127.0.0.1', '::1', 'localhost') if service.bind_address else False,
+                'latest_latency': {
+                    'latency_ms': latest.latency_ms if latest else None,
+                    'success': latest.success if latest else None,
+                    'measurement_type': latest.measurement_type if latest else None,
+                    'timestamp': latest.timestamp.isoformat() if latest else None,
+                    'error_message': latest.error_message if latest else None
+                } if latest else None
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'services': services_data,
+                'total_count': len(services_data)
+            }
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_MONITORED_SERVICES_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_trend_insights_api(request):
+    """
+    API endpoint for trend insights - detects recurring alert patterns.
+    
+    Query params:
+        - lookback_days: Number of days to analyze (default: 30)
+        - alert_types: Comma-separated alert types (default: CPU,MEMORY,DISK)
+    
+    Returns detected patterns like:
+        - CPU spikes at 2AM daily
+        - Memory alerts on Fridays
+    """
+    try:
+        from core.trend_detection import get_trend_summary, detect_all_server_patterns
+        
+        lookback_days = int(request.GET.get('lookback_days', 30))
+        alert_types_param = request.GET.get('alert_types', 'CPU,MEMORY,DISK')
+        alert_types = [t.strip().upper() for t in alert_types_param.split(',')]
+        
+        # Get insights
+        insights = detect_all_server_patterns(
+            alert_types=alert_types,
+            lookback_days=lookback_days,
+            min_alerts=5
+        )
+        
+        # Format for API response
+        formatted_insights = []
+        for insight in insights:
+            pattern = insight['pattern']
+            formatted_insights.append({
+                'server_id': insight['server_id'],
+                'server_name': insight['server_name'],
+                'alert_type': insight['alert_type'],
+                'pattern_type': pattern['pattern_type'],
+                'pattern_description': pattern['pattern_description'],
+                'confidence': round(pattern['confidence'], 1),
+                'peak_hour': pattern.get('peak_hour'),
+                'peak_day': pattern.get('peak_day'),
+                'total_alerts': pattern['total_alerts'],
+                'recommendation': pattern['recommendation']
+            })
+        
+        # Count unique servers with patterns
+        servers_with_patterns = len(set(i['server_id'] for i in insights))
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'insights': formatted_insights,
+                'total_patterns': len(formatted_insights),
+                'servers_with_patterns': servers_with_patterns,
+                'analysis_period_days': lookback_days
+            }
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_TREND_INSIGHTS_API error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_reliability_metrics_api(request):
+    """
+    API endpoint for reliability metrics time-series data.
+    
+    Returns CPU, Memory, Disk, and Error Rate data over time for charting.
+    
+    Query params:
+        - period: '24h', '7d', or '30d' (default: '24h')
+        - server_id: 'all' for average across servers, or specific server ID
+    
+    Returns:
+        {
+            'success': True,
+            'data': {
+                'cpu': [{timestamp, value}, ...],
+                'memory': [{timestamp, value}, ...],
+                'disk': [{timestamp, value}, ...],
+                'error_rate': [{timestamp, value}, ...],
+                'period': '24h',
+                'interval': 'hour',
+                'start_date': ISO string,
+                'end_date': ISO string
+            }
+        }
+    """
+    try:
+        from core.sli_utils import get_reliability_metrics_timeseries
+        
+        period = request.GET.get('period', '24h')
+        server_id = request.GET.get('server_id', 'all')
+        
+        # Validate period
+        if period not in ['24h', '7d', '30d']:
+            period = '24h'
+        
+        # Get time-series data
+        data = get_reliability_metrics_timeseries(server_id, period)
+        
+        # Calculate current/average values for summary
+        def calc_stats(points):
+            if not points:
+                return {'current': 0, 'average': 0, 'peak': 0}
+            values = [p['value'] for p in points if p['value'] is not None]
+            if not values:
+                return {'current': 0, 'average': 0, 'peak': 0}
+            return {
+                'current': values[-1] if values else 0,
+                'average': round(sum(values) / len(values), 2),
+                'peak': max(values)
+            }
+        
+        data['stats'] = {
+            'cpu': calc_stats(data.get('cpu', [])),
+            'memory': calc_stats(data.get('memory', [])),
+            'disk': calc_stats(data.get('disk', [])),
+            'error_rate': calc_stats(data.get('error_rate', []))
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'data': data
+        })
+    except Exception as e:
+        error_logger.error(f"DASHBOARD_RELIABILITY_METRICS_API error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

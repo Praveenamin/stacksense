@@ -7,7 +7,20 @@ class MemoryTrendChart extends BaseDashboardComponent {
         this.chart = null;
         this.servers = [];
         this.currentServerId = 'all';
+        this.currentPeriod = '24h';
         this.filterOpen = false;
+    }
+    
+    setPeriod(period) {
+        if (!period) {
+            console.error('[MemoryTrendChart] setPeriod called with invalid period:', period);
+            return;
+        }
+        this.currentPeriod = period;
+        const serverId = this.currentServerId || 'all';
+        this.apiEndpoint = `/api/dashboard/memory-trend/${period}/?server_id=${serverId}`;
+        console.log(`[MemoryTrendChart] Setting period to ${period}, serverId: ${serverId}, API endpoint: ${this.apiEndpoint}`);
+        this.fetchData();
     }
     async init() {
         await this.loadServers();
@@ -118,7 +131,7 @@ class MemoryTrendChart extends BaseDashboardComponent {
             }
         });
         this.closeDropdown();
-        this.apiEndpoint = `/api/dashboard/memory-trend/24h/?server_id=${serverId}`;
+        this.apiEndpoint = `/api/dashboard/memory-trend/${this.currentPeriod}/?server_id=${serverId}`;
         this.fetchData();
     }
     escapeHtml(text) {
@@ -145,18 +158,41 @@ class MemoryTrendChart extends BaseDashboardComponent {
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         });
         const label = this.currentServerId === 'all' ? 'Memory % (Average)' : 'Memory %';
+        
+        // Build datasets: main line + peak markers
+        const datasets = [{
+            label: label,
+            data: data.points.map(p => p.value),
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            fill: true,
+            order: 2
+        }];
+        
+        // Add peak markers only for spikes above 85% threshold
+        const peakData = data.points.map(p => (p.peak && p.peak > 85) ? p.peak : null);
+        if (peakData.some(v => v !== null)) {
+            datasets.push({
+                label: 'Memory Spikes',
+                data: peakData,
+                borderColor: '#ef4444',
+                backgroundColor: '#ef4444',
+                pointStyle: 'triangle',
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                showLine: false,
+                order: 1,
+                clip: false  // Allow triangle to draw above chart area when at 100%
+            });
+        }
+        
         const chartData = {
             labels: labels,
-            datasets: [{
-                label: label,
-                data: data.points.map(p => p.value),
-                borderColor: '#22c55e',
-                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                fill: true
-            }]
+            datasets: datasets
         };
         if (!this.chart) {
             this.chart = ChartWrapper.createLineChart('memory-trend-chart', chartData, {
+                layout: { padding: { top: 14 } },  // Room for spike triangles at 100%
                 scales: { y: { max: 100, ticks: { callback: function(value) { return value + '%'; } } } }
             });
         } else {

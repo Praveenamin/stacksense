@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Dashboard - StackSense{% endblock %}
+{% block title %}Dashboard - Stack Alert{% endblock %}
 
 {% block extrahead %}
 <link rel="stylesheet" href="{% static 'core/css/components/dashboard.css' %}">
@@ -18,70 +18,120 @@
     .slo-view-toggle:hover {
         background-color: rgba(255, 255, 255, 0.5) !important;
     }
-</style>
-<style>
-    .news-ticker-container {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        border-radius: 8px;
-        padding: 12px 20px;
-        margin-bottom: 32px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        position: relative;
-        overflow: hidden;
+    
+    /* Time period filter buttons */
+    .reliability-period-btn, .chart-period-btn {
+        padding: 6px 12px;
+        border: 1px solid var(--cds-color-gray-20, #e2e8f0);
+        background: transparent;
+        color: var(--cds-color-gray-70, #334155);
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
-    .news-ticker-header {
-        font-size: 12px;
+    .reliability-period-btn:first-child, .chart-period-btn:first-child {
+        border-radius: 4px 0 0 4px;
+    }
+    .reliability-period-btn:last-child, .chart-period-btn:last-child {
+        border-radius: 0 4px 4px 0;
+    }
+    .reliability-period-btn:not(:last-child), .chart-period-btn:not(:last-child) {
+        border-right: none;
+    }
+    .reliability-period-btn.active, .chart-period-btn.active {
+        background: var(--cds-color-blue-60, #3b82f6);
+        color: white;
+        border-color: var(--cds-color-blue-60, #3b82f6);
+    }
+    .reliability-period-btn:hover:not(.active), .chart-period-btn:hover:not(.active) {
+        background: var(--cds-color-gray-10, #f1f5f9);
+    }
+    
+    /* Chart wrapper */
+    .reliability-chart-wrapper {
+        min-height: 280px;
+        padding: 16px 0;
+    }
+    
+    /* Stats row */
+    .reliability-stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--cds-color-gray-20, #e2e8f0);
+    }
+    
+    .reliability-stat-card {
+        background: var(--cds-color-gray-10, #f8fafc);
+        border-radius: 8px;
+        padding: 12px 16px;
+    }
+    
+    .reliability-stat-card .stat-label {
+        font-size: 13px;
         font-weight: 600;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        color: var(--cds-color-gray-80, #1e293b);
         margin-bottom: 8px;
     }
-    .news-ticker-wrapper {
-        overflow: hidden;
-        position: relative;
+    
+    .reliability-stat-card .stat-values {
+        display: flex;
+        gap: 16px;
     }
-    .news-ticker-content {
-        display: inline-flex;
-        white-space: nowrap;
-        animation: scroll-news 60s linear infinite;
+    
+    .reliability-stat-card .stat-item {
+        text-align: center;
     }
-    @keyframes scroll-news {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-50%); }
+    
+    .reliability-stat-card .stat-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--cds-color-gray-100, #0f172a);
+        display: block;
     }
-    .news-item {
-        display: inline-block;
-        padding: 4px 12px;
-        margin: 0 8px;
-        border-radius: 4px;
-        font-size: 14px;
+    
+    .reliability-stat-card .stat-value.error-value {
+        color: #ef4444;
     }
-    .news-item-high { background-color: rgba(239, 68, 68, 0.2); color: #fca5a5; }
-    .news-item-warning { background-color: rgba(245, 158, 11, 0.2); color: #fcd34d; }
-    .news-item-info { background-color: rgba(59, 130, 246, 0.2); color: #93c5fd; }
-    .news-item-separator { color: #64748b; margin: 0 4px; }
+    
+    .reliability-stat-card .stat-sublabel {
+        font-size: 10px;
+        color: var(--cds-color-gray-60, #64748b);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    @media (max-width: 768px) {
+        .reliability-stats-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-    <div class="news-ticker-container">
-        <div class="news-ticker-header">System Status News Feed</div>
-        <div class="news-ticker-wrapper">
-            <div class="news-ticker-content" id="news-ticker-content">
-                <span class="news-ticker-loading">Loading system status updates...</span>
-            </div>
-        </div>
-    </div>
-
     {% include "core/components/dashboard/alerts_banner.html" %}
     {% include "core/components/dashboard/summary_metrics_card.html" %}
     
-    <!-- SLI/SLO Compliance Section -->
+    <!-- Reliability Metrics Chart Section -->
     <div class="dashboard-component" style="margin-bottom: 32px;">
-        <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <h3 class="dashboard-component-title">Reliability Metrics & Status</h3>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <!-- Time Period Filter -->
+                <div style="display: flex;">
+                    <button class="reliability-period-btn active" data-period="24h">24h</button>
+                    <button class="reliability-period-btn" data-period="7d">7 Days</button>
+                    <button class="reliability-period-btn" data-period="30d">30 Days</button>
+                </div>
+                <!-- Overall/Server Toggle -->
                 <div style="display: flex; gap: 4px; background-color: var(--cds-color-gray-10, #f8fafc); border-radius: 4px; padding: 2px;">
                     <button id="slo-view-overall" class="slo-view-toggle active" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-100, #0f172a); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Overall</button>
                     <button id="slo-view-server" class="slo-view-toggle" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-70, #334155); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Server</button>
@@ -91,9 +141,10 @@
                 </select>
             </div>
         </div>
+        <p style="color: var(--cds-color-gray-60, #64748b); font-size: 13px; margin: 8px 0 0 0;">CPU, Memory, Disk usage and Error Rate over time</p>
         <div class="dashboard-component-content">
             <div id="slo-compliance-gauges-container">
-                <!-- Gauges will be populated by JavaScript -->
+                <!-- Chart will be populated by JavaScript -->
             </div>
         </div>
         <div class="dashboard-loading" id="dashboard-loading-sli-compliance" style="display: none;">
@@ -105,6 +156,12 @@
         </div>
     </div>
     
+    <!-- Trend Insights Section -->
+    {% include "core/components/dashboard/trend_insights.html" %}
+    
+    <!-- AI Recommendations (related to Trend Insights above) -->
+    {% include "core/components/dashboard/ai_recommendations.html" %}
+    
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/cpu_trend_chart.html" %}
         {% include "core/components/dashboard/memory_trend_chart.html" %}
@@ -112,7 +169,12 @@
     
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/network_traffic_chart.html" %}
+        {% include "core/components/dashboard/response_time_chart.html" %}
+    </div>
+    
+    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/disk_io_summary.html" %}
+        {% include "core/components/dashboard/health_status_chart.html" %}
     </div>
     
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
@@ -121,17 +183,11 @@
     </div>
     
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
-        {% include "core/components/dashboard/health_status_chart.html" %}
         {% include "core/components/dashboard/alert_timeline.html" %}
     </div>
     
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
-        {% include "core/components/dashboard/ai_recommendations.html" %}
         {% include "core/components/dashboard/disk_forecast.html" %}
-    </div>
-    
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
-        {% include "core/components/dashboard/agent_version_summary.html" %}
         {% include "core/components/dashboard/login_activity_summary.html" %}
     </div>
 
@@ -146,6 +202,7 @@
 <script src="{% static 'core/js/components/dashboard/CPUTrendChart.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/MemoryTrendChart.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/NetworkTrafficChart.js' %}"></script>
+<script src="{% static 'core/js/components/dashboard/ResponseTimeChart.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/DiskIOSummary.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/TopCPUConsumers.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/TopMemoryConsumers.js' %}"></script>
@@ -153,53 +210,47 @@
 <script src="{% static 'core/js/components/dashboard/AlertTimeline.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/AIRecommendations.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/DiskForecast.js' %}"></script>
-<script src="{% static 'core/js/components/dashboard/AgentVersionSummary.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/LoginActivitySummary.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/SLOComplianceGauges.js' %}"></script>
+<script src="{% static 'core/js/components/dashboard/TrendInsights.js' %}"></script>
 <script src="{% static 'core/js/components/DashboardManager.js' %}"></script>
 <script>
-    function loadNewsFeed() {
-        fetch('/api/dashboard/news-feed/')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.news_items && data.news_items.length > 0) {
-                    const newsContent = document.getElementById('news-ticker-content');
-                    let html = '';
-                    const items = [...data.news_items, ...data.news_items];
-                    items.forEach((item, index) => {
-                        let severityClass = '';
-                        if (item.severity === 'high' || item.severity === 'critical') {
-                            severityClass = 'news-item-high';
-                        } else if (item.severity === 'warning' || item.severity === 'medium') {
-                            severityClass = 'news-item-warning';
-                        } else {
-                            severityClass = 'news-item-info';
-                        }
-                        html += `<span class="news-item ${severityClass}">${item.icon} ${item.text}</span>`;
-                        if (index < items.length - 1) {
-                            html += '<span class="news-item-separator">•</span>';
-                        }
-                    });
-                    newsContent.innerHTML = html;
-                } else {
-                    document.getElementById('news-ticker-content').innerHTML = 
-                        '<span class="news-item-info">📊 All systems operational - No recent events to report</span>';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading news feed:', error);
-                document.getElementById('news-ticker-content').innerHTML = 
-                    '<span class="news-item-warning">⚠️ Unable to load system status updates</span>';
-            });
-    }
-    loadNewsFeed();
-    setInterval(loadNewsFeed, 30000);
     let dashboardManager;
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof DashboardManager !== 'undefined') {
             dashboardManager = new DashboardManager();
             dashboardManager.init();
         }
+        
+        // Handle period button clicks for all charts
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('chart-period-btn')) {
+                const chartType = e.target.dataset.chart;
+                const period = e.target.dataset.period;
+                
+                // Update active state for this chart's buttons
+                const chartButtons = document.querySelectorAll(`.chart-period-btn[data-chart="${chartType}"]`);
+                chartButtons.forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // Call the appropriate component's method to reload data
+                if (dashboardManager && dashboardManager.components) {
+                    const componentMap = {
+                        'cpu': 'cpuTrend',
+                        'memory': 'memoryTrend',
+                        'network': 'networkTraffic',
+                        'response': 'responseTime'
+                    };
+                    
+                    const componentName = componentMap[chartType];
+                    const component = dashboardManager.components[componentName];
+                    
+                    if (component && typeof component.setPeriod === 'function') {
+                        component.setPeriod(period);
+                    }
+                }
+            }
+        });
     });
     window.addEventListener('beforeunload', function() {
         if (dashboardManager) {

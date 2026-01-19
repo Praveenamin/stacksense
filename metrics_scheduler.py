@@ -24,9 +24,11 @@ print("Starting metrics collection scheduler (every 30 seconds)...")
 interval = 30  # 30 seconds
 anomaly_detection_interval = 300  # Run anomaly detection every 5 minutes
 log_scan_interval = 300  # Run log scanning every 5 minutes
+latency_collection_interval = 60  # Run latency collection every minute
 
 last_anomaly_check = timezone.now()
 last_log_scan = timezone.now()
+last_latency_collection = timezone.now()
 
 while running:
     try:
@@ -62,6 +64,17 @@ while running:
                 print("Log scanning completed.")
             except Exception as e:
                 print(f"Error in log scanning: {str(e)}")
+        
+        # Run service latency collection every minute
+        time_since_last_latency = (timezone.now() - last_latency_collection).total_seconds()
+        if time_since_last_latency >= latency_collection_interval:
+            try:
+                print(f"[{timezone.now().strftime("%Y-%m-%d %H:%M:%S")}] Running service latency collection...")
+                call_command("collect_service_latency", verbosity=0)
+                last_latency_collection = timezone.now()
+                print("Service latency collection completed.")
+            except Exception as e:
+                print(f"Error in service latency collection: {str(e)}")
     except Exception as e:
         print(f"Error: {str(e)}")
     

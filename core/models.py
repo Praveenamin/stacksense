@@ -240,9 +240,11 @@ class Service(models.Model):
     status = models.CharField(max_length=50, default="unknown")  # running, stopped, failed
     service_type = models.CharField(max_length=50, default="systemd")  # systemd, process, port
     port = models.IntegerField(null=True, blank=True)
+    bind_address = models.CharField(max_length=50, null=True, blank=True, help_text="IP address the service is bound to (e.g., 0.0.0.0, 127.0.0.1)")
     process_id = models.CharField(max_length=50, null=True, blank=True)
     last_checked = models.DateTimeField(default=timezone.now)
     monitoring_enabled = models.BooleanField(default=False, help_text="Whether monitoring is enabled for this service")
+    auto_detected = models.BooleanField(default=False, help_text="Whether this service was auto-detected from port scan")
     
     class Meta:
         unique_together = [["server", "name"]]
@@ -811,7 +813,9 @@ class ServiceLatencyMeasurement(models.Model):
     """Latency measurements for monitored services"""
     class MeasurementType(models.TextChoices):
         HTTP = "HTTP", "HTTP"
+        TCP = "TCP", "TCP"
         MYSQL = "MYSQL", "MySQL"
+        SSH_LOCAL = "SSH_LOCAL", "SSH Local (localhost-bound)"
         OTHER = "OTHER", "Other"
     
     service = models.ForeignKey(

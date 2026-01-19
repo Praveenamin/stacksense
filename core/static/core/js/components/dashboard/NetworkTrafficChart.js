@@ -7,7 +7,14 @@ class NetworkTrafficChart extends BaseDashboardComponent {
         this.chart = null;
         this.servers = [];
         this.currentServerId = 'all';
+        this.currentPeriod = '24h';
         this.filterOpen = false;
+    }
+    
+    setPeriod(period) {
+        this.currentPeriod = period;
+        this.apiEndpoint = `/api/dashboard/network-trend/${period}/?server_id=${this.currentServerId}`;
+        this.fetchData();
     }
     async init() {
         await this.loadServers();
@@ -118,7 +125,7 @@ class NetworkTrafficChart extends BaseDashboardComponent {
             }
         });
         this.closeDropdown();
-        this.apiEndpoint = `/api/dashboard/network-trend/24h/?server_id=${serverId}`;
+        this.apiEndpoint = `/api/dashboard/network-trend/${this.currentPeriod}/?server_id=${serverId}`;
         this.fetchData();
     }
     escapeHtml(text) {
