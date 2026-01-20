@@ -173,16 +173,12 @@
     </div>
     
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
-        {% include "core/components/dashboard/disk_io_summary.html" %}
-        {% include "core/components/dashboard/health_status_chart.html" %}
-    </div>
-    
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/top_cpu_consumers.html" %}
         {% include "core/components/dashboard/top_memory_consumers.html" %}
     </div>
     
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
+        {% include "core/components/dashboard/disk_io_summary.html" %}
         {% include "core/components/dashboard/alert_timeline.html" %}
     </div>
     
@@ -206,7 +202,6 @@
 <script src="{% static 'core/js/components/dashboard/DiskIOSummary.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/TopCPUConsumers.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/TopMemoryConsumers.js' %}"></script>
-<script src="{% static 'core/js/components/dashboard/HealthStatusChart.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/AlertTimeline.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/AIRecommendations.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/DiskForecast.js' %}"></script>

@@ -29,7 +29,6 @@ class DashboardManager {
         if (this.components.diskIOSummary.init) this.components.diskIOSummary.init();
         this.components.topCPUConsumers = new TopCPUConsumers();
         this.components.topMemoryConsumers = new TopMemoryConsumers();
-        this.components.healthStatus = new HealthStatusChart();
         this.components.alertTimeline = new AlertTimeline();
         this.components.aiRecommendations = new AIRecommendations();
         this.components.diskForecast = new DiskForecast();
