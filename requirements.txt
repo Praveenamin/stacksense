@@ -13,3 +13,4 @@ redis>=5.0.0
 django-redis>=5.4.0
 django-jazzmin>=3.0.0
 whitenoise>=6.6.0
+pytz>=2024.1

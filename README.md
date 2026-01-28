@@ -15,7 +15,15 @@ Comprehensive Linux server monitoring with anomaly detection, built with Django 
 - **Data Retention**: Automatic aggregation and cleanup of old metrics
 - **Adaptive Collection**: Configurable and adaptive metric collection frequency
 
-## Quick Start
+## Deploy on a New Server
+
+See **[DEPLOY_NEW_SERVER.md](DEPLOY_NEW_SERVER.md)** for step-by-step instructions. Summary:
+
+- **Automated**: Copy repo to `/opt/stacksense`, then `sudo ./deploy.sh YOUR_DOMAIN admin@example.com`. Access at `https://YOUR_DOMAIN:8005`.
+- **Docker Compose only**: `cp .env.example .env`, configure it, then `docker compose up -d` and create a superuser.
+- **Migration**: Fresh deploy on new server, then run `./migrate_to_new_server.sh user@old user@new`.
+
+## Quick Start (local development)
 
 1. Copy `.env.example` to `.env` and configure:
    ```bash
