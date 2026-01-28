@@ -746,10 +746,9 @@ PYTHON_EOF
 
 # Run migrations with error handling and timeout
 echo -e "  Running database migrations..."
-# Skip connection check if we already verified it above
-if [ "$DB_CONNECTION_VERIFIED" = false ]; then
-    echo -e "  Verifying database connection before migrations..."
-    if ! timeout 10 docker exec monitoring_web python manage.py shell -c "
+# Always verify DB connection before migrations
+echo -e "  Verifying database connection before migrations..."
+if ! timeout 10 docker exec monitoring_web python manage.py shell -c "
 from django.db import connection
 try:
     with connection.cursor() as cursor:
@@ -759,14 +758,9 @@ except Exception as e:
     print(f'ERROR: {e}')
     exit(1)
 " > /dev/null 2>&1; then
-        echo -e "${RED}✗${NC} Database connection failed! Skipping migrations for now..."
-        echo -e "${YELLOW}  Migrations will be retried later${NC}"
-        MIGRATION_SUCCESS=0
-    else
-        echo -e "${GREEN}✓${NC} Database connection OK, proceeding with migrations"
-    fi
-else
-    echo -e "${GREEN}✓${NC} Database connection already verified, proceeding with migrations"
+    echo -e \"${RED}✗${NC} Database connection failed! Cannot run migrations.\"
+    echo -e \"${YELLOW}  Please fix the database connection and rerun deploy.sh${NC}\"
+    exit 1
 fi
 
 # Run migrations with timeout
@@ -799,6 +793,24 @@ else
     echo -e "${YELLOW}⚠ Migrations had issues:${NC}"
     echo "$MIGRATION_OUTPUT" | tail -10
 fi
+
+# Fail fast if migrations did not succeed
+if [ "$MIGRATION_SUCCESS" -ne 1 ]; then
+    echo -e "${RED}✗${NC} FATAL: Migrations failed or were not completed successfully."
+    echo -e "${RED}  Deployment cannot continue without a fully migrated database.${NC}"
+    exit 1
+fi
+
+# Verify there are no pending migrations for core app
+echo -e "  Verifying pending migrations..."
+PENDING_MIGRATIONS=$(docker exec monitoring_web python manage.py showmigrations core 2>&1 | grep -c \"\\[ \\]\" || echo \"0\")
+if [ \"$PENDING_MIGRATIONS\" -gt 0 ]; then
+    echo -e \"${RED}✗${NC} FATAL: $PENDING_MIGRATIONS pending core migrations detected!\"
+    docker exec monitoring_web python manage.py showmigrations core | grep \"\\[ \\]\" || true
+    echo -e \"${RED}  Please resolve the migration issues and rerun deploy.sh${NC}\"
+    exit 1
+fi
+echo -e \"${GREEN}✓${NC} All core migrations applied\"
 
 # Handle specific migration errors
 if echo "$MIGRATION_OUTPUT" | grep -qE "(column.*already exists|DuplicateColumn|relation.*does not exist)"; then
