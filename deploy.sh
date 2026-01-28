@@ -686,9 +686,15 @@ except Exception as e:
     fi
 fi
 
-# Add any missing database columns BEFORE migrations
-echo -e "  Adding any missing database columns..."
-docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" << 'SQL_EOF' > /dev/null 2>&1 || true
+# Detect whether this is a fresh database (no core_server table yet)
+DB_HAS_CORE_SERVER=$(docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='core_server'" 2>/dev/null || echo "")
+
+if [ "$DB_HAS_CORE_SERVER" = "1" ]; then
+    echo -e "  Existing database detected - applying compatibility fixes..."
+
+    # Add any missing database columns BEFORE migrations
+    echo -e "  Adding any missing database columns..."
+    docker exec monitoring_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" << 'SQL_EOF' > /dev/null 2>&1 || true
 -- core_server columns (migration 0011)
 ALTER TABLE core_server ADD COLUMN IF NOT EXISTS suppress_alerts BOOLEAN DEFAULT FALSE;
 ALTER TABLE core_server ADD COLUMN IF NOT EXISTS suspend_monitoring BOOLEAN DEFAULT FALSE;
@@ -704,9 +710,9 @@ ALTER TABLE core_systemmetric ADD COLUMN IF NOT EXISTS system_uptime_seconds BIG
 ALTER TABLE core_systemmetric ADD COLUMN IF NOT EXISTS top_processes JSONB NULL;
 SQL_EOF
 
-# Fix migration issues - fake migrations if columns already exist
-echo -e "  Checking and fixing migrations..."
-docker exec monitoring_web python manage.py shell << 'PYTHON_EOF' > /dev/null 2>&1 || true
+    # Fix migration issues - fake migrations if columns already exist
+    echo -e "  Checking and fixing migrations..."
+    docker exec monitoring_web python manage.py shell << 'PYTHON_EOF' > /dev/null 2>&1 || true
 import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'log_analyzer.settings')
 import django
@@ -743,6 +749,9 @@ if len(cursor.fetchall()) >= 3:
         recorder.record_applied('core', '0020_monitoredlog_enabled_monitoredlog_last_scan_time_and_more')
         print('Faked migration 0020')
 PYTHON_EOF
+else
+    echo -e "  Fresh database detected - skipping legacy column/migration compatibility fixes"
+fi
 
 # Run migrations with error handling and timeout
 echo -e "  Running database migrations..."
