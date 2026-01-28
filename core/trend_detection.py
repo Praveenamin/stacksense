@@ -5,6 +5,9 @@ Analyzes AlertHistory to detect recurring patterns such as:
 - Daily spikes at specific hours (e.g., 2AM backups)
 - Weekly patterns (e.g., Fridays)
 - Periodic cycles
+
+Hours and weekdays use the server timezone (UTC). The description explicitly
+says "server time" so it is clear the time is not in the app's display timezone.
 """
 
 from django.utils import timezone
@@ -67,14 +70,13 @@ def detect_alert_patterns(server, alert_type='CPU', lookback_days=30, min_alerts
     if total_alerts < min_alerts:
         return result
     
-    # Analyze by hour of day
+    # Use server timezone (UTC) for hour and day
     by_hour = alerts.annotate(
         hour=ExtractHour('sent_at')
     ).values('hour').annotate(
         count=Count('id')
     ).order_by('-count')
     
-    # Analyze by day of week (1=Sunday, 7=Saturday in Django)
     by_day = alerts.annotate(
         day=ExtractWeekDay('sent_at')
     ).values('day').annotate(
@@ -144,7 +146,7 @@ def _detect_hourly_pattern(hour_data, total_alerts):
         # Format hour for display
         hour_str = _format_hour(peak_hour)
         
-        description = f"{concentration:.0f}% of {total_alerts} alerts occur around {hour_str}"
+        description = f"{concentration:.0f}% of {total_alerts} alerts occur around {hour_str} (server time)"
         
         # Generate recommendation based on hour
         if 0 <= peak_hour <= 6:
@@ -189,7 +191,7 @@ def _detect_weekly_pattern(day_data, total_alerts):
     concentration = (peak_count / total_alerts) * 100
     
     if concentration >= 50:
-        description = f"{concentration:.0f}% of {total_alerts} alerts occur on {peak_day_name}s"
+        description = f"{concentration:.0f}% of {total_alerts} alerts occur on {peak_day_name}s (server time)"
         
         # Generate recommendation based on day
         if peak_day_num in [1, 7]:  # Weekend

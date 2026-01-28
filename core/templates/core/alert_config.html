@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Alert Configuration - StackWatch{% endblock %}
+{% block title %}Email Configuration - StackWatch{% endblock %}
 
 {% block extrahead %}
 <style>
@@ -13,6 +13,17 @@
         padding: var(--cds-spacing-8);
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         margin-bottom: var(--cds-spacing-6);
+    }
+    .email-config-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--cds-spacing-8);
+        align-items: start;
+        margin-bottom: var(--cds-spacing-6);
+    }
+    .email-config-grid .form-card,
+    .email-config-grid .requirements-card {
+        margin-bottom: 0;
     }
     .form-title {
         font-size: var(--cds-font-size-lg);
@@ -274,7 +285,7 @@
 {% block content %}
     <!-- Page Header -->
     <div style="margin-bottom: var(--cds-spacing-8);">
-        <h1 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Alert Configuration</h1>
+        <h1 style="font-size: var(--cds-font-size-2xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Email Configuration</h1>
         <p style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-50); margin: 0;">Configure email notifications and alert thresholds for server alerts</p>
     </div>
 
@@ -293,7 +304,10 @@
     <div style="margin-bottom: var(--cds-spacing-6); border-bottom: 1px solid var(--cds-color-gray-20);">
         <div style="display: flex; gap: var(--cds-spacing-2);">
             <button class="tab-button active" data-tab="email-config" onclick="switchTab('email-config')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background: none; border: none; border-bottom: 2px solid var(--color-primary-interactive); cursor: pointer; transition: all 0.2s;">
-                Alert Configuration
+                Email Configuration
+            </button>
+            <button class="tab-button" data-tab="slack-config" onclick="switchTab('slack-config')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
+                Slack Configuration
             </button>
             <button class="tab-button" data-tab="disk-alerts" onclick="switchTab('disk-alerts')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
                 Configure Disk Alerts
@@ -306,15 +320,13 @@
 
     <!-- Tab Content -->
     <div id="email-config" class="tab-content active">
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--cds-spacing-8); align-items: start;">
-        <!-- Main Configuration Form -->
-        <div>
-            <form id="alert-config-form" method="post" action="/alert-config/save/">
-                {% csrf_token %}
+        <form id="alert-config-form" method="post" action="/alert-config/save/">
+            {% csrf_token %}
 
-                <!-- Email Provider Selection -->
+            <!-- Row 1: Email Configuration | Configuration Actions (aligned) -->
+            <div class="email-config-grid">
                 <div class="form-card">
-                    <h2 class="form-title">Alert Configuration</h2>
+                    <h2 class="form-title">Email Configuration</h2>
                     <p class="form-subtitle">Configure email notifications for server alerts</p>
 
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--cds-spacing-4);">
@@ -380,9 +392,34 @@
                         </label>
                     </div>
                 </div>
+                {% if config %}
+                <div class="form-card">
+                    <h2 class="form-title">Configuration Actions</h2>
+                    <p class="form-subtitle">Test your saved configuration or clear it</p>
+                    <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-start; align-items: center;">
+                        <button type="button" class="btn-secondary" onclick="testSavedConfiguration()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                                <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"></polyline>
+                            </svg>
+                            Test Saved Configuration
+                        </button>
+                        <button type="button" class="btn-secondary" onclick="clearConfiguration()"
+                                style="color: var(--cds-color-red-60); border-color: var(--cds-color-red-60);">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                            </svg>
+                            Clear Configuration
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div></div>
+                {% endif %}
+            </div>
 
-                <!-- Gmail App Password Notice -->
-                <div id="gmail-instructions" class="gmail-notice" style="display: none;">
+            <!-- Gmail App Password Notice -->
+            <div id="gmail-instructions" class="gmail-notice" style="display: none;">
                     <p class="gmail-notice-title">Gmail App Password Required</p>
                     <p class="gmail-notice-text">
                         Gmail requires an App Password for third-party apps. Generate one at
@@ -391,6 +428,8 @@
                     </p>
                 </div>
 
+            <!-- Row 2: SMTP Settings | Setup Requirements -->
+            <div class="email-config-grid">
                 <!-- SMTP Settings -->
                 <div class="form-card">
                     <h2 class="form-title">SMTP Settings</h2>
@@ -463,107 +502,59 @@
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
-                <div style="display: flex; gap: var(--cds-spacing-4); justify-content: space-between; align-items: center;">
-                    {% if config %}
-                    <button type="button" class="btn-secondary" onclick="clearConfiguration()"
-                            style="color: var(--cds-color-red-60); border-color: var(--cds-color-red-60);">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
-                            <polyline points="3,6 5,6 21,6"></polyline>
-                            <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                        </svg>
-                        Clear Configuration
-                    </button>
-                    {% else %}
-                    <div></div>
-                    {% endif %}
-
-                    <button type="submit" class="btn-submit">
-                        Save Configuration
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        {% if config %}
-        <!-- Post-Save Action Buttons -->
-        <div class="form-card" style="margin-top: var(--cds-spacing-6);">
-            <h2 class="form-title">Configuration Actions</h2>
-            <p class="form-subtitle">Test your saved configuration or clear it</p>
-            
-            <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-start; align-items: center;">
-                <button type="button" class="btn-secondary" onclick="testSavedConfiguration()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
-                        <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"></polyline>
-                    </svg>
-                    Test Saved Configuration
-                </button>
-                
-                <button type="button" class="btn-secondary" onclick="clearConfiguration()"
-                        style="color: var(--cds-color-red-60); border-color: var(--cds-color-red-60);">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
-                        <polyline points="3,6 5,6 21,6"></polyline>
-                        <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2,2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                    </svg>
-                    Clear Configuration
-                </button>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Setup Requirements/Help -->
-        <div class="requirements-card">
-            <h3 class="requirements-title">Setup Requirements</h3>
-
-            <div class="requirement-item">
-                <div class="requirement-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20,6 9,17 4,12"></polyline>
-                    </svg>
-                </div>
-                <div>
-                    <p class="requirement-text-title">Email Account</p>
-                    <p class="requirement-text-desc">Valid email account with SMTP access</p>
+                <div class="requirements-card">
+                    <h3 class="requirements-title">Setup Requirements</h3>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">Email Account</p>
+                            <p class="requirement-text-desc">Valid email account with SMTP access</p>
+                        </div>
+                    </div>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">SMTP Settings</p>
+                            <p class="requirement-text-desc">Correct SMTP server, port, and security settings</p>
+                        </div>
+                    </div>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">App Password (Gmail)</p>
+                            <p class="requirement-text-desc">Generate app password if using 2FA</p>
+                        </div>
+                    </div>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">Test Configuration</p>
+                            <p class="requirement-text-desc">Verify settings with test email before saving</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="requirement-item">
-                <div class="requirement-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20,6 9,17 4,12"></polyline>
-                    </svg>
-                </div>
-                <div>
-                    <p class="requirement-text-title">SMTP Settings</p>
-                    <p class="requirement-text-desc">Correct SMTP server, port, and security settings</p>
-                </div>
+            <div style="display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn-submit">Save Configuration</button>
             </div>
-
-            <div class="requirement-item">
-                <div class="requirement-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20,6 9,17 4,12"></polyline>
-                    </svg>
-                </div>
-                <div>
-                    <p class="requirement-text-title">App Password (Gmail)</p>
-                    <p class="requirement-text-desc">Generate app password if using 2FA</p>
-                </div>
-            </div>
-
-            <div class="requirement-item">
-                <div class="requirement-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20,6 9,17 4,12"></polyline>
-                    </svg>
-                </div>
-                <div>
-                    <p class="requirement-text-title">Test Configuration</p>
-                    <p class="requirement-text-desc">Verify settings with test email before saving</p>
-                </div>
-            </div>
-        </div>
-    </div>
+        </form>
     </div>
     <!-- End Email Config Tab -->
 
@@ -592,6 +583,146 @@
         </div>
     </div>
     <!-- End Service Alerts Tab -->
+
+    <!-- Slack Configuration Tab -->
+    <div id="slack-config" class="tab-content" style="display: none;">
+        <form id="slack-config-form" method="post" action="/alert-config/slack/save/">
+            {% csrf_token %}
+
+            <!-- Row 1: Slack Configuration | Configuration Actions (aligned) -->
+            <div class="email-config-grid">
+                <div class="form-card">
+                    <h2 class="form-title">Slack Configuration</h2>
+                    <p class="form-subtitle">Configure Slack notifications for server alerts</p>
+
+                    <div class="form-group">
+                        <label class="form-label" for="slack_webhook_url">Webhook URL <span class="required">*</span></label>
+                        <input type="url" id="slack_webhook_url" name="webhook_url" class="form-input"
+                               value="{{ slack_config.webhook_url|default:'' }}" 
+                               placeholder="https://hooks.slack.com/services/..." required>
+                        <div class="form-hint">Your Slack Incoming Webhook URL. Must start with https://hooks.slack.com/</div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="slack_channel">Channel</label>
+                            <input type="text" id="slack_channel" name="channel" class="form-input"
+                                   value="{{ slack_config.channel|default:'' }}" 
+                                   placeholder="#alerts or @username">
+                            <div class="form-hint">Optional: Override webhook's default channel</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="slack_username">Bot Username</label>
+                            <input type="text" id="slack_username" name="username" class="form-input"
+                                   value="{{ slack_config.username|default:'' }}" 
+                                   placeholder="StackWatch Bot">
+                            <div class="form-hint">Optional: Custom bot name in Slack</div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="slack_icon_emoji">Icon Emoji</label>
+                        <input type="text" id="slack_icon_emoji" name="icon_emoji" class="form-input"
+                               value="{{ slack_config.icon_emoji|default:':warning:' }}" 
+                               placeholder=":warning:">
+                        <div class="form-hint">Optional: Emoji icon for bot messages (e.g., :robot_face:, :warning:)</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="slack_enabled" name="enabled"
+                                   {% if not slack_config or slack_config.enabled %}checked{% endif %}>
+                            Enable Slack notifications
+                        </label>
+                    </div>
+                </div>
+
+                {% if slack_config %}
+                <div class="form-card">
+                    <h2 class="form-title">Configuration Actions</h2>
+                    <p class="form-subtitle">Test your saved configuration or clear it</p>
+                    
+                    <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-start; align-items: center;">
+                        <button type="button" class="btn-secondary" onclick="testSlackConfiguration()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                                <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"></polyline>
+                            </svg>
+                            Test Saved Configuration
+                        </button>
+                        
+                        <button type="button" class="btn-secondary" onclick="clearSlackConfiguration()"
+                                style="color: var(--cds-color-red-60); border-color: var(--cds-color-red-60);">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                            </svg>
+                            Clear Configuration
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div></div>
+                {% endif %}
+            </div>
+
+            <!-- Row 2: Setup Requirements -->
+            <div class="email-config-grid">
+                <div class="requirements-card">
+                    <h3 class="requirements-title">Setup Requirements</h3>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">Slack Workspace</p>
+                            <p class="requirement-text-desc">Access to a Slack workspace with permission to create webhooks</p>
+                        </div>
+                    </div>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">Incoming Webhook</p>
+                            <p class="requirement-text-desc">Create an Incoming Webhook in Slack Apps settings</p>
+                        </div>
+                    </div>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">Webhook URL</p>
+                            <p class="requirement-text-desc">Copy the webhook URL from Slack and paste it above</p>
+                        </div>
+                    </div>
+                    <div class="requirement-item">
+                        <div class="requirement-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="requirement-text-title">Test Configuration</p>
+                            <p class="requirement-text-desc">Verify settings with test message before saving</p>
+                        </div>
+                    </div>
+                </div>
+                <div></div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn-submit">Save Configuration</button>
+            </div>
+        </form>
+    </div>
+    <!-- End Slack Configuration Tab -->
 
     <!-- Hidden Test Email Form -->
     <form id="test-email-form" method="post" action="/alert-config/test/" style="display: none;">

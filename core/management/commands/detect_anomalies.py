@@ -1,8 +1,8 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from datetime import timedelta
-from core.models import SystemMetric, Anomaly, MonitoringConfig, EmailAlertConfig
-from core.views import _send_alert_email
+from core.models import SystemMetric, Anomaly, MonitoringConfig, EmailAlertConfig, SlackAlertConfig
+from core.views import _send_alert_email, _send_slack_alert
 from core.anomaly_detector import AnomalyDetector
 from core.llm_analyzer import OllamaAnalyzer
 from core.utils import collect_processes_on_demand
@@ -151,24 +151,43 @@ class Command(BaseCommand):
                         )
                     )
                 
-                # Send email alert for HIGH/CRITICAL anomalies
+                # Send email and Slack alerts for HIGH/CRITICAL anomalies
                 if anomaly_alerts:
                     try:
-                        email_config = EmailAlertConfig.objects.filter(enabled=True).first()
-                        if email_config:
-                            # Refresh server to check if alerts are suppressed
-                            metric.server.refresh_from_db()
-                            server_config = metric.server.monitoring_config
-                            if (not server_config.monitoring_suspended and 
-                                not server_config.alert_suppressed):
+                        # Refresh server to check if alerts are suppressed
+                        metric.server.refresh_from_db()
+                        server_config = metric.server.monitoring_config
+                        if (not server_config.monitoring_suspended and 
+                            not server_config.alert_suppressed):
+                            
+                            # Send email alert
+                            email_config = EmailAlertConfig.objects.filter(enabled=True).first()
+                            if email_config:
                                 _send_alert_email(email_config, metric.server, anomaly_alerts)
                                 self.stdout.write(
                                     self.style.SUCCESS(
                                         f"✓ Sent anomaly alert email for {metric.server.name}"
                                     )
                                 )
+                            
+                            # Send Slack alert
+                            slack_config = SlackAlertConfig.objects.filter(enabled=True).first()
+                            if slack_config:
+                                _send_slack_alert(
+                                    slack_config.webhook_url,
+                                    metric.server,
+                                    anomaly_alerts,
+                                    username=slack_config.username,
+                                    icon_emoji=slack_config.icon_emoji,
+                                    channel=slack_config.channel
+                                )
+                                self.stdout.write(
+                                    self.style.SUCCESS(
+                                        f"✓ Sent anomaly alert to Slack for {metric.server.name}"
+                                    )
+                                )
                     except Exception as e:
-                        self.stdout.write(self.style.WARNING(f"Failed to send anomaly alert email: {e}"))
+                        self.stdout.write(self.style.WARNING(f"Failed to send anomaly alert: {e}"))
             except Exception as e:
                 self.stderr.write(self.style.ERROR(f"Error detecting anomalies for {metric.server.name}: {e}"))
         

@@ -95,6 +95,11 @@ class LogEvent(models.Model):
     last_seen = models.DateTimeField(default=timezone.now)
     event_count = models.PositiveIntegerField(default=1)
     is_notified = models.BooleanField(default=False)
+    ip_counts = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Map of client IP to request count, e.g. {"1.2.3.4": 100, "5.6.7.8": 3}',
+    )
 
     class Meta:
         indexes = [
@@ -401,11 +406,46 @@ class EmailAlertConfig(models.Model):
         return f"Email Alert Config ({self.provider})"
 
 
+class SlackAlertConfig(models.Model):
+    """Slack configuration for sending alerts via Incoming Webhooks"""
+    webhook_url = models.CharField(
+        max_length=500,
+        help_text="Slack Incoming Webhook URL (starts with https://hooks.slack.com/)"
+    )
+    channel = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Channel to send messages to (e.g., #alerts or @username). Optional if webhook already specifies channel."
+    )
+    username = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Bot username to display in Slack (optional)"
+    )
+    icon_emoji = models.CharField(
+        max_length=50,
+        blank=True,
+        default=":warning:",
+        help_text="Emoji icon for bot messages (e.g., :robot_face:, :warning:)"
+    )
+    enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Slack Alert Config ({self.channel or 'default channel'})"
+
+
 class AppConfig(models.Model):
     """Application-wide configuration settings (single instance)"""
     class LanguageChoices(models.TextChoices):
         ENGLISH = "en", "English"
-    
+
+    class LogRetentionChoices(models.IntegerChoices):
+        DAYS_7 = 7, "7 days"
+        DAYS_15 = 15, "15 days"
+        DAYS_30 = 30, "30 days"
+
     display_timezone = models.CharField(
         max_length=100,
         default="UTC",
@@ -416,6 +456,11 @@ class AppConfig(models.Model):
         choices=LanguageChoices.choices,
         default=LanguageChoices.ENGLISH,
         help_text="Application language"
+    )
+    log_retention_days = models.PositiveSmallIntegerField(
+        choices=LogRetentionChoices.choices,
+        default=LogRetentionChoices.DAYS_30,
+        help_text="Keep Logs Analysis events for this many days; older events are deleted.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -454,7 +499,8 @@ class AppConfig(models.Model):
             id=1,
             defaults={
                 'display_timezone': 'UTC',
-                'language': cls.LanguageChoices.ENGLISH
+                'language': cls.LanguageChoices.ENGLISH,
+                'log_retention_days': cls.LogRetentionChoices.DAYS_30,
             }
         )
         return config

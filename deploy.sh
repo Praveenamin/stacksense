@@ -1111,10 +1111,10 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # Timeouts
+        # Timeouts (proxy_read_timeout 180s for AI/Ollama requests which can take 60–120s)
         proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 180s;
     }
 
     # File upload size

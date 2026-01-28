@@ -560,6 +560,19 @@
     margin-top: var(--cds-spacing-4, 16px);
 }
 
+.forecast-warning.success,
+.forecast-warning.info {
+    background-color: #dcfce7;
+    border-color: #22c55e;
+    color: #166534;
+}
+
+.forecast-warning.warning {
+    background-color: #fee2e2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
 /* Alerts Banner */
 .alerts-banner {
     padding: var(--cds-spacing-4, 16px);

@@ -6,7 +6,7 @@ from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity
 from .service_latency import measure_service_latency
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -1703,6 +1703,8 @@ def app_config(request):
             'config': config,
             'current_timezone': current_tz_name,
             'current_language': config.language,
+            'current_log_retention_days': getattr(config, 'log_retention_days', 30),
+            'log_retention_choices': [(7, '7 days'), (15, '15 days'), (30, '30 days')],
             'timezone_offset': offset_formatted,
             'timezone_abbrev': abbrev,
             'common_timezones': common_timezones,
@@ -1729,13 +1731,26 @@ def app_config(request):
                 if new_language not in valid_languages:
                     messages.error(request, f"Invalid language: {new_language}")
                     return redirect('app_config')
-            
+
+            # Validate log_retention_days
+            raw_log_retention = request.POST.get('log_retention_days', '').strip()
+            new_log_retention = None
+            if raw_log_retention:
+                try:
+                    val = int(raw_log_retention)
+                    if val in (7, 15, 30):
+                        new_log_retention = val
+                except ValueError:
+                    pass
+
             # Update config
             config = AppConfig.get_config()
             if new_timezone:
                 config.display_timezone = new_timezone
             if new_language:
                 config.language = new_language
+            if new_log_retention is not None:
+                config.log_retention_days = new_log_retention
             config.save()
             
             # Invalidate cache
@@ -1745,12 +1760,15 @@ def app_config(request):
             except Exception:
                 pass
             
-            if new_timezone and new_language:
-                messages.success(request, f"Settings updated: Timezone={new_timezone}, Language={new_language}")
-            elif new_timezone:
-                messages.success(request, f"Timezone updated to {new_timezone}")
-            elif new_language:
-                messages.success(request, f"Language updated to {new_language}")
+            parts = []
+            if new_timezone:
+                parts.append(f"Timezone={new_timezone}")
+            if new_language:
+                parts.append(f"Language={new_language}")
+            if new_log_retention is not None:
+                parts.append(f"Log retention={new_log_retention} days")
+            if parts:
+                messages.success(request, "Settings updated: " + ", ".join(parts))
             else:
                 messages.info(request, "No changes made")
             
@@ -1769,8 +1787,10 @@ def alert_config(request):
     """Email alert configuration page"""
     if request.method == "GET":
         config = EmailAlertConfig.objects.first()
+        slack_config = SlackAlertConfig.objects.first()
         context = {
             'config': config,
+            'slack_config': slack_config,
             'show_sidebar': True,  # Match add_server page layout with sidebar
         }
         return render(request, "core/alert_config.html", context)
@@ -2283,6 +2303,161 @@ def test_alert_config(request):
 
 
 @staff_member_required
+@require_http_methods(["GET", "POST"])
+def slack_config(request):
+    """Display Slack configuration page"""
+    if request.method == "GET":
+        slack_config_obj = SlackAlertConfig.objects.first()
+        context = {
+            'slack_config': slack_config_obj,
+            'show_sidebar': True,
+        }
+        return render(request, "core/alert_config.html", context)
+    else:
+        messages.error(request, "Method not allowed")
+        return redirect('alert_config')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def save_slack_config(request):
+    """Save Slack alert configuration"""
+    try:
+        webhook_url = request.POST.get('webhook_url', '').strip()
+        channel = request.POST.get('channel', '').strip()
+        username = request.POST.get('username', '').strip()
+        icon_emoji = request.POST.get('icon_emoji', '').strip()
+        enabled = request.POST.get('enabled') == 'on'
+
+        # Validate webhook URL
+        if not webhook_url:
+            messages.error(request, 'Webhook URL is required')
+            return redirect('alert_config')
+        
+        if not webhook_url.startswith('https://hooks.slack.com/'):
+            messages.error(request, 'Webhook URL must start with https://hooks.slack.com/')
+            return redirect('alert_config')
+
+        # Get or create config (only one config allowed)
+        config, created = SlackAlertConfig.objects.get_or_create(
+            id=1,  # Single instance
+            defaults={
+                'webhook_url': webhook_url,
+                'channel': channel,
+                'username': username,
+                'icon_emoji': icon_emoji or ':warning:',
+                'enabled': enabled
+            }
+        )
+
+        if not created:
+            # Update existing config
+            config.webhook_url = webhook_url
+            config.channel = channel
+            config.username = username
+            config.icon_emoji = icon_emoji or ':warning:'
+            config.enabled = enabled
+            config.save()
+
+        messages.success(request, 'Slack alert configuration saved successfully!')
+        return redirect('alert_config')
+
+    except Exception as e:
+        logger.error(f"Failed to save Slack config: {str(e)}")
+        messages.error(request, f'Failed to save configuration: {str(e)}')
+        return redirect('alert_config')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def clear_slack_config(request):
+    """Clear/delete Slack alert configuration"""
+    try:
+        config = SlackAlertConfig.objects.filter(id=1).first()
+        if config:
+            config.delete()
+            messages.success(request, 'Slack alert configuration cleared successfully!')
+        else:
+            messages.info(request, 'No Slack alert configuration found to clear.')
+        return redirect('alert_config')
+
+    except Exception as e:
+        logger.error(f"Failed to clear Slack config: {str(e)}")
+        messages.error(request, f'Failed to clear configuration: {str(e)}')
+        return redirect('alert_config')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def test_slack_config(request):
+    """Test Slack alert configuration - sends a test message"""
+    import requests
+    import json
+    
+    try:
+        # Get saved configuration from database
+        saved_config = SlackAlertConfig.objects.first()
+        
+        if not saved_config:
+            messages.error(request, 'No saved Slack configuration found. Please save your Slack configuration first.')
+            return redirect('alert_config')
+        
+        if not saved_config.enabled:
+            messages.error(request, 'Slack notifications are disabled. Enable them first.')
+            return redirect('alert_config')
+        
+        # Prepare test message
+        payload = {
+            'text': 'Test message from StackWatch',
+            'blocks': [
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': '*Test Alert from StackWatch*\n\nThis is a test message to verify your Slack webhook configuration is working correctly.'
+                    }
+                }
+            ]
+        }
+        
+        # Add optional fields
+        if saved_config.username:
+            payload['username'] = saved_config.username
+        if saved_config.icon_emoji:
+            payload['icon_emoji'] = saved_config.icon_emoji
+        if saved_config.channel:
+            payload['channel'] = saved_config.channel
+        
+        # Send test message
+        response = requests.post(
+            saved_config.webhook_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            messages.success(request, 'Test message sent successfully to Slack! Check your Slack channel.')
+        else:
+            error_msg = f"Slack API returned status {response.status_code}: {response.text}"
+            messages.error(request, f'Failed to send test message: {error_msg}')
+            logger.error(f"Slack test failed: {error_msg}")
+        
+        return redirect('alert_config')
+
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Network error: {str(e)}"
+        messages.error(request, f'Failed to send test message: {error_msg}')
+        logger.error(f"Slack test network error: {error_msg}")
+        return redirect('alert_config')
+    except Exception as e:
+        error_msg = f"Error: {str(e)}"
+        messages.error(request, f'Failed to send test message: {error_msg}')
+        logger.error(f"Slack test error: {error_msg}")
+        return redirect('alert_config')
+
+
+@staff_member_required
 @require_http_methods(["POST"])
 def test_email_connection(request):
     """Test email connection by sending a test email"""
@@ -2561,6 +2736,19 @@ def _check_and_send_alerts(server, metric):
         if alerts:
             print(f"[ALERT] Sending {len(alerts)} alert(s) for {server.name}")
             _send_alert_email(email_config, server, alerts)
+            
+            # Send Slack alert if configured
+            slack_config = SlackAlertConfig.objects.filter(enabled=True).first()
+            if slack_config:
+                _send_slack_alert(
+                    slack_config.webhook_url,
+                    server,
+                    alerts,
+                    username=slack_config.username,
+                    icon_emoji=slack_config.icon_emoji,
+                    channel=slack_config.channel
+                )
+            
             # Log to AlertHistory
             for alert in alerts:
                 mapped_type = map_alert_type(alert['type'])
@@ -2579,6 +2767,19 @@ def _check_and_send_alerts(server, metric):
         if resolved_alerts:
             print(f"[ALERT] Sending {len(resolved_alerts)} resolved alert(s) for {server.name}")
             _send_resolved_alert_email(email_config, server, resolved_alerts)
+            
+            # Send Slack resolved alert if configured
+            slack_config = SlackAlertConfig.objects.filter(enabled=True).first()
+            if slack_config:
+                _send_slack_resolved_alert(
+                    slack_config.webhook_url,
+                    server,
+                    resolved_alerts,
+                    username=slack_config.username,
+                    icon_emoji=slack_config.icon_emoji,
+                    channel=slack_config.channel
+                )
+            
             # Log to AlertHistory
             for alert in resolved_alerts:
                 mapped_type = map_alert_type(alert['type'])
@@ -2698,12 +2899,13 @@ def _send_connection_alert(server, state):
             return
         
         email_config = EmailAlertConfig.objects.filter(enabled=True).first()
+        slack_config = SlackAlertConfig.objects.filter(enabled=True).first()
         
-        if not email_config:
-            print(f"[CONNECTION_ALERT] No email config found for {server.name}")
+        if not email_config and not slack_config:
+            print(f"[CONNECTION_ALERT] No email or Slack config found for {server.name}")
             return
         
-        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
+        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config and email_config.to_email else []
         
         if state == "offline":
             subject = f"🔴 Server Offline: {server.name}"
@@ -2740,41 +2942,58 @@ Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
 The server connection has been restored and is responding normally.
             """
         
-        print(f"[CONNECTION_ALERT] Attempting to send {state} alert email to {recipients}")
-        
-        # Send email
-        try:
-            # Remove spaces from password (Gmail App Passwords have no spaces)
-            password_clean = (email_config.password or '').strip().replace(' ', '')
-            
-            if email_config.use_tls:
-                server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
-                server_smtp.ehlo()
-                server_smtp.starttls()
-                server_smtp.ehlo()
-                # Attempt login only if AUTH is supported
-                _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
-            else:
-                if email_config.use_ssl:
-                    server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
-                else:
+        # Send email if configured
+        if email_config and recipients:
+            print(f"[CONNECTION_ALERT] Attempting to send {state} alert email to {recipients}")
+            try:
+                # Remove spaces from password (Gmail App Passwords have no spaces)
+                password_clean = (email_config.password or '').strip().replace(' ', '')
+                
+                if email_config.use_tls:
                     server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
-                server_smtp.ehlo()
-                # Attempt login only if AUTH is supported
-                _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
-            
-            msg = MIMEMultipart()
-            msg['From'] = email_config.from_email
-            msg['To'] = ', '.join(recipients)
-            msg['Subject'] = subject
-            msg.attach(MIMEText(body, 'plain'))
-            
-            server_smtp.send_message(msg)
-            server_smtp.quit()
-            
-            print(f"[CONNECTION_ALERT] ✓ {state.upper()} alert email sent successfully for {server.name}")
-            
-            # Log to alert history
+                    server_smtp.ehlo()
+                    server_smtp.starttls()
+                    server_smtp.ehlo()
+                    # Attempt login only if AUTH is supported
+                    _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
+                else:
+                    if email_config.use_ssl:
+                        server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+                    else:
+                        server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                    server_smtp.ehlo()
+                    # Attempt login only if AUTH is supported
+                    _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
+                
+                msg = MIMEMultipart()
+                msg['From'] = email_config.from_email
+                msg['To'] = ', '.join(recipients)
+                msg['Subject'] = subject
+                msg.attach(MIMEText(body, 'plain'))
+                
+                server_smtp.send_message(msg)
+                server_smtp.quit()
+                
+                print(f"[CONNECTION_ALERT] ✓ {state.upper()} alert email sent successfully for {server.name}")
+                
+            except Exception as e:
+                error_msg = f"[CONNECTION_ALERT] ✗ Failed to send {state} alert email for {server.name}: {e}"
+                print(error_msg)
+                error_logger.error(error_msg)
+        
+        # Send Slack alert if configured
+        if slack_config:
+            _send_slack_connection_alert(
+                slack_config.webhook_url,
+                server,
+                state,
+                username=slack_config.username,
+                icon_emoji=slack_config.icon_emoji,
+                channel=slack_config.channel
+            )
+        
+        # Log to alert history
+        if email_config or slack_config:
             AlertHistory.objects.create(
                 server=server,
                 alert_type="CONNECTION",
@@ -2782,13 +3001,8 @@ The server connection has been restored and is responding normally.
                 value=0.0,
                 threshold=30.0,
                 message=f"Server is {state.upper()}" if state == "offline" else f"Server connection restored",
-                recipients=', '.join(recipients)
+                recipients=', '.join(recipients) if email_config and recipients else 'Slack'
             )
-            
-        except Exception as e:
-            error_msg = f"[CONNECTION_ALERT] ✗ Failed to send {state} alert for {server.name}: {e}"
-            print(error_msg)
-            error_logger.error(error_msg)
             
     except Exception as e:
         error_logger.error(f"CONNECTION_ALERT error for {server.name}: {str(e)}")
@@ -2943,17 +3157,21 @@ def _send_service_alert(server, service, status):
         if not config.enabled or config.monitoring_suspended:
             return
         
-        # Get email config
+        # Get email and Slack configs
         email_config = EmailAlertConfig.objects.filter(enabled=True).first()
-        if not email_config:
-            print(f"[SERVICE_ALERT] No email config found, skipping alert for {service.name} on {server.name}")
+        slack_config = SlackAlertConfig.objects.filter(enabled=True).first()
+        
+        if not email_config and not slack_config:
+            print(f"[SERVICE_ALERT] No email or Slack config found, skipping alert for {service.name} on {server.name}")
             return
         
-        # Use to_email as recipient
-        if not email_config.to_email:
-            print(f"[SERVICE_ALERT] No to_email configured, skipping alert for {service.name} on {server.name}")
-            return
-        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
+        # Use to_email as recipient (for email)
+        recipients = []
+        if email_config and email_config.to_email:
+            recipients = [email.strip() for email in email_config.to_email.split(',')]
+        elif not email_config:
+            # If no email config, we can still send Slack
+            recipients = []
         
         if status == "triggered":
             subject = f"🚨 Service Alert: {service.name} is DOWN on {server.name}"
@@ -2982,35 +3200,55 @@ Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
 The service has been restored and is now running.
 """
         
-        # Create email
-        msg = MIMEMultipart()
-        msg['From'] = email_config.from_email
-        msg['To'] = ', '.join(recipients)
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-        
-        # Send email
-        try:
-            if email_config.use_tls:
-                server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
-                server_smtp.ehlo()
-                server_smtp.starttls()
-                server_smtp.ehlo()
-            else:
-                if email_config.use_ssl:
-                    server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
-                else:
+        # Send email if configured
+        if email_config:
+            # Create email
+            msg = MIMEMultipart()
+            msg['From'] = email_config.from_email
+            msg['To'] = ', '.join(recipients) if recipients else ''
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'plain'))
+            
+            # Send email
+            try:
+                if email_config.use_tls:
                     server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
-                server_smtp.ehlo()
-            
-            # Attempt login only if AUTH is supported
-            _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
-            server_smtp.send_message(msg)
-            server_smtp.quit()
-            
-            print(f"[SERVICE_ALERT] ✓ Sent {status} alert for {service.name} on {server.name} to {recipients}")
-            
-            # Log to AlertHistory
+                    server_smtp.ehlo()
+                    server_smtp.starttls()
+                    server_smtp.ehlo()
+                else:
+                    if email_config.use_ssl:
+                        server_smtp = smtplib.SMTP_SSL(email_config.smtp_host, email_config.smtp_port)
+                    else:
+                        server_smtp = smtplib.SMTP(email_config.smtp_host, email_config.smtp_port)
+                    server_smtp.ehlo()
+                
+                # Attempt login only if AUTH is supported
+                _smtp_login_if_supported(server_smtp, email_config.username, email_config.password)
+                server_smtp.send_message(msg)
+                server_smtp.quit()
+                
+                print(f"[SERVICE_ALERT] ✓ Sent {status} alert email for {service.name} on {server.name} to {recipients}")
+                
+            except Exception as e:
+                error_msg = f"[SERVICE_ALERT] ✗ Failed to send {status} alert email for {service.name} on {server.name}: {e}"
+                print(error_msg)
+                error_logger.error(error_msg)
+        
+        # Send Slack alert if configured
+        if slack_config:
+            _send_slack_service_alert(
+                slack_config.webhook_url,
+                server,
+                service,
+                status,
+                username=slack_config.username,
+                icon_emoji=slack_config.icon_emoji,
+                channel=slack_config.channel
+            )
+        
+        # Log to AlertHistory
+        if email_config or slack_config:
             AlertHistory.objects.create(
                 server=server,
                 alert_type="SERVICE",
@@ -3018,13 +3256,8 @@ The service has been restored and is now running.
                 value=0.0,
                 threshold=2.0,
                 message=f"Service {service.name} is {'DOWN' if status == 'triggered' else 'UP'}",
-                recipients=email_config.to_email or ''
+                recipients=email_config.to_email if email_config else 'Slack'
             )
-            
-        except Exception as e:
-            error_msg = f"[SERVICE_ALERT] ✗ Failed to send {status} alert for {service.name} on {server.name}: {e}"
-            print(error_msg)
-            error_logger.error(error_msg)
             
     except Exception as e:
         error_logger.error(f"SERVICE_ALERT error for {service.name} on {server.name}: {str(e)}")
@@ -3101,6 +3334,331 @@ Please check the server immediately.
         print(error_msg)
         print(f"[ALERT] Traceback: {traceback.format_exc()}")
         raise Exception(error_msg)
+
+
+def _send_slack_alert(webhook_url, server, alerts, username=None, icon_emoji=None, channel=None):
+    """Send alert to Slack via webhook"""
+    import requests
+    import json
+    
+    try:
+        alert_list = "\n".join([f"• {alert['message']}" for alert in alerts])
+        
+        # Build Slack message with Block Kit
+        blocks = [
+            {
+                'type': 'header',
+                'text': {
+                    'type': 'plain_text',
+                    'text': f'🚨 Alert: {server.name}'
+                }
+            },
+            {
+                'type': 'section',
+                'fields': [
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Server:* {server.name}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*IP Address:* {server.ip_address}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Time:* {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    }
+                ]
+            },
+            {
+                'type': 'section',
+                'text': {
+                    'type': 'mrkdwn',
+                    'text': f'*Alerts:*\n{alert_list}'
+                }
+            },
+            {
+                'type': 'section',
+                'text': {
+                    'type': 'mrkdwn',
+                    'text': 'Please check the server immediately.'
+                }
+            }
+        ]
+        
+        payload = {
+            'text': f'Alert: {server.name} - Threshold Exceeded',
+            'blocks': blocks,
+            'color': 'danger'
+        }
+        
+        if username:
+            payload['username'] = username
+        if icon_emoji:
+            payload['icon_emoji'] = icon_emoji
+        if channel:
+            payload['channel'] = channel
+        
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            print(f"[SLACK] ✓ Alert sent successfully for {server.name}")
+        else:
+            print(f"[SLACK] ✗ Failed to send alert for {server.name}: {response.status_code} - {response.text}")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"[SLACK] ✗ Network error sending alert for {server.name}: {e}")
+    except Exception as e:
+        print(f"[SLACK] ✗ Error sending alert for {server.name}: {e}")
+
+
+def _send_slack_resolved_alert(webhook_url, server, resolved_alerts, username=None, icon_emoji=None, channel=None):
+    """Send resolved alert to Slack via webhook"""
+    import requests
+    import json
+    
+    try:
+        alert_list = "\n".join([f"• {alert['message']}" for alert in resolved_alerts])
+        
+        blocks = [
+            {
+                'type': 'header',
+                'text': {
+                    'type': 'plain_text',
+                    'text': f'✅ Resolved: {server.name}'
+                }
+            },
+            {
+                'type': 'section',
+                'fields': [
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Server:* {server.name}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*IP Address:* {server.ip_address}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Time:* {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    }
+                ]
+            },
+            {
+                'type': 'section',
+                'text': {
+                    'type': 'mrkdwn',
+                    'text': f'*Resolved Alerts:*\n{alert_list}'
+                }
+            }
+        ]
+        
+        payload = {
+            'text': f'Resolved: {server.name} - Metrics Returned to Normal',
+            'blocks': blocks,
+            'color': 'good'
+        }
+        
+        if username:
+            payload['username'] = username
+        if icon_emoji:
+            payload['icon_emoji'] = icon_emoji
+        if channel:
+            payload['channel'] = channel
+        
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            print(f"[SLACK] ✓ Resolved alert sent successfully for {server.name}")
+        else:
+            print(f"[SLACK] ✗ Failed to send resolved alert for {server.name}: {response.status_code} - {response.text}")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"[SLACK] ✗ Network error sending resolved alert for {server.name}: {e}")
+    except Exception as e:
+        print(f"[SLACK] ✗ Error sending resolved alert for {server.name}: {e}")
+
+
+def _send_slack_connection_alert(webhook_url, server, state, username=None, icon_emoji=None, channel=None):
+    """Send connection state alert to Slack via webhook"""
+    import requests
+    import json
+    
+    try:
+        if state == 'online':
+            emoji = '✅'
+            color = 'good'
+            title = f'{emoji} Server Online: {server.name}'
+            text = f'Server {server.name} is now online and responding.'
+        else:
+            emoji = '🔴'
+            color = 'danger'
+            title = f'{emoji} Server Offline: {server.name}'
+            text = f'Server {server.name} is offline or not responding.'
+        
+        blocks = [
+            {
+                'type': 'header',
+                'text': {
+                    'type': 'plain_text',
+                    'text': title
+                }
+            },
+            {
+                'type': 'section',
+                'fields': [
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Server:* {server.name}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*IP Address:* {server.ip_address}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Time:* {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    }
+                ]
+            },
+            {
+                'type': 'section',
+                'text': {
+                    'type': 'mrkdwn',
+                    'text': text
+                }
+            }
+        ]
+        
+        payload = {
+            'text': title,
+            'blocks': blocks,
+            'color': color
+        }
+        
+        if username:
+            payload['username'] = username
+        if icon_emoji:
+            payload['icon_emoji'] = icon_emoji
+        if channel:
+            payload['channel'] = channel
+        
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            print(f"[SLACK] ✓ Connection alert sent successfully for {server.name} ({state})")
+        else:
+            print(f"[SLACK] ✗ Failed to send connection alert for {server.name}: {response.status_code} - {response.text}")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"[SLACK] ✗ Network error sending connection alert for {server.name}: {e}")
+    except Exception as e:
+        print(f"[SLACK] ✗ Error sending connection alert for {server.name}: {e}")
+
+
+def _send_slack_service_alert(webhook_url, server, service, status, username=None, icon_emoji=None, channel=None):
+    """Send service status alert to Slack via webhook"""
+    import requests
+    import json
+    
+    try:
+        if status == 'resolved':
+            emoji = '✅'
+            color = 'good'
+            title = f'{emoji} Service Restored: {service.name} on {server.name}'
+            text = f'Service {service.name} on {server.name} has been restored and is now running.'
+        else:
+            emoji = '🚨'
+            color = 'danger'
+            title = f'{emoji} Service Alert: {service.name} on {server.name}'
+            if service.status == 'failed':
+                text = f'Service {service.name} on {server.name} is in FAILED state.'
+            else:
+                text = f'Service {service.name} on {server.name} is down (stopped).'
+        
+        blocks = [
+            {
+                'type': 'header',
+                'text': {
+                    'type': 'plain_text',
+                    'text': title
+                }
+            },
+            {
+                'type': 'section',
+                'fields': [
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Server:* {server.name}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Service:* {service.name}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Status:* {service.status}'
+                    },
+                    {
+                        'type': 'mrkdwn',
+                        'text': f'*Time:* {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    }
+                ]
+            },
+            {
+                'type': 'section',
+                'text': {
+                    'type': 'mrkdwn',
+                    'text': text
+                }
+            }
+        ]
+        
+        payload = {
+            'text': title,
+            'blocks': blocks,
+            'color': color
+        }
+        
+        if username:
+            payload['username'] = username
+        if icon_emoji:
+            payload['icon_emoji'] = icon_emoji
+        if channel:
+            payload['channel'] = channel
+        
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            print(f"[SLACK] ✓ Service alert sent successfully for {service.name} on {server.name} ({status})")
+        else:
+            print(f"[SLACK] ✗ Failed to send service alert for {service.name} on {server.name}: {response.status_code} - {response.text}")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"[SLACK] ✗ Network error sending service alert for {service.name} on {server.name}: {e}")
+    except Exception as e:
+        print(f"[SLACK] ✗ Error sending service alert for {service.name} on {server.name}: {e}")
 
 
 @staff_member_required
@@ -6761,6 +7319,10 @@ def log_troubleshooting_config(request):
         'monitored_log', 
         'monitored_log__server'
     ).order_by('-last_seen', '-event_count')
+    # Exclude "File does not exist" - not useful for analysis
+    log_events = log_events.exclude(message__icontains='File does not exist')
+    # Exclude "client denied by server configuration" (e.g. Apache AH01630)
+    log_events = log_events.exclude(message__icontains='client denied by server configuration')
     
     # Get filter parameters for results
     server_id = request.GET.get('server_id')
@@ -6782,25 +7344,38 @@ def log_troubleshooting_config(request):
         seven_days_ago = timezone.now() - timedelta(days=7)
         log_events = log_events.filter(last_seen__gte=seven_days_ago)
     
-    # Get events with solutions from AnalysisRule
+    # Get events with solutions from AnalysisRule and IP breakdown for each
     events_with_solutions = []
     for event in log_events[:100]:  # Limit to 100 most recent
         # Check if there's an AnalysisRule that matches this log message
         matching_rule = AnalysisRule.objects.filter(
             pattern_to_match__icontains=event.message[:100]  # Match on first 100 chars
         ).first()
-        
+        # Per-IP counts (from ip_counts, or backfill from ip_address for older rows)
+        data = dict(event.ip_counts) if event.ip_counts else {}
+        if not data and event.ip_address:
+            data = {str(event.ip_address): event.event_count}
+        ip_breakdown = sorted(data.items(), key=lambda x: (-x[1], x[0]))
+        ip_breakdown_json = json.dumps(ip_breakdown)
+        ip_source_text = ', '.join(f'{ip} ({c})' for ip, c in ip_breakdown[:5]) if ip_breakdown else '—'
         events_with_solutions.append({
             'event': event,
             'solution': matching_rule.solution if matching_rule else None,
             'rule': matching_rule,
+            'ip_breakdown': ip_breakdown,
+            'ip_breakdown_json': ip_breakdown_json,
+            'ip_source_text': ip_source_text,
         })
+
+    # All AnalysisRules that have a saved solution (for the "Saved solutions" list next to Results)
+    saved_solutions = AnalysisRule.objects.exclude(solution='').order_by('name')
     
     context = {
         'servers': servers,
         'monitored_logs': monitored_logs,
         'service_choices': service_choices,
         'events_with_solutions': events_with_solutions,
+        'saved_solutions': saved_solutions,
         'total_events': log_events.count(),
         'selected_server_id': server_id,
         'selected_time_filter': time_filter,
@@ -6931,6 +7506,10 @@ def log_troubleshooting_results(request):
         'monitored_log', 
         'monitored_log__server'
     ).order_by('-last_seen', '-event_count')
+    # Exclude "File does not exist" - not useful for analysis
+    log_events = log_events.exclude(message__icontains='File does not exist')
+    # Exclude "client denied by server configuration" (e.g. Apache AH01630)
+    log_events = log_events.exclude(message__icontains='client denied by server configuration')
     
     # Get filter parameters
     server_id = request.GET.get('server_id')
@@ -6952,22 +7531,35 @@ def log_troubleshooting_results(request):
         seven_days_ago = timezone.now() - timedelta(days=7)
         log_events = log_events.filter(last_seen__gte=seven_days_ago)
     
-    # Get events with solutions from AnalysisRule
+    # Get events with solutions from AnalysisRule and IP breakdown for each
     events_with_solutions = []
     for event in log_events[:100]:  # Limit to 100 most recent
         # Check if there's an AnalysisRule that matches this log message
         matching_rule = AnalysisRule.objects.filter(
             pattern_to_match__icontains=event.message[:100]  # Match on first 100 chars
         ).first()
-        
+        # Per-IP counts (from ip_counts, or backfill from ip_address for older rows)
+        data = dict(event.ip_counts) if event.ip_counts else {}
+        if not data and event.ip_address:
+            data = {str(event.ip_address): event.event_count}
+        ip_breakdown = sorted(data.items(), key=lambda x: (-x[1], x[0]))
+        ip_breakdown_json = json.dumps(ip_breakdown)
+        ip_source_text = ', '.join(f'{ip} ({c})' for ip, c in ip_breakdown[:5]) if ip_breakdown else '—'
         events_with_solutions.append({
             'event': event,
             'solution': matching_rule.solution if matching_rule else None,
             'rule': matching_rule,
+            'ip_breakdown': ip_breakdown,
+            'ip_breakdown_json': ip_breakdown_json,
+            'ip_source_text': ip_source_text,
         })
+
+    # All AnalysisRules that have a saved solution (for the "Saved solutions" list next to Results)
+    saved_solutions = AnalysisRule.objects.exclude(solution='').order_by('name')
     
     context = {
         'events_with_solutions': events_with_solutions,
+        'saved_solutions': saved_solutions,
         'total_events': log_events.count(),
         'servers': servers,
         'selected_server_id': server_id,
@@ -7059,7 +7651,8 @@ Solution Name: [name here]
 Explanation: [explanation here]
 Solution Steps: [step-by-step solution here]"""
         
-        # Call Ollama API
+        # Call Ollama API (use OLLAMA_TIMEOUT; Ollama can take 60–120s when loading a model + generating)
+        ollama_timeout = getattr(settings, 'OLLAMA_TIMEOUT', 120)
         try:
             response = requests.post(
                 ollama_url,
@@ -7068,7 +7661,7 @@ Solution Steps: [step-by-step solution here]"""
                     'prompt': prompt,
                     'stream': False
                 },
-                timeout=30
+                timeout=ollama_timeout
             )
             response.raise_for_status()
             result = response.json()
@@ -7152,12 +7745,19 @@ Solution Steps: [step-by-step solution here]"""
         except requests.exceptions.ConnectionError:
             return JsonResponse({
                 'success': False,
-                'error': 'Cannot connect to Ollama. Please ensure Ollama is running on localhost:11434'
+                'error': (
+                    'Cannot connect to Ollama. Ensure Ollama is running on the host and '
+                    'OLLAMA_API_URL in .env is reachable from the container (e.g. '
+                    'http://host.docker.internal:11434 or http://<host-ip>:11434).'
+                )
             }, status=503)
         except requests.exceptions.Timeout:
             return JsonResponse({
                 'success': False,
-                'error': 'Request to Ollama timed out. Please try again.'
+                'error': (
+                    f'Request to Ollama timed out after {ollama_timeout}s. '
+                    'Model load or generation can be slow; try increasing OLLAMA_TIMEOUT in .env (default 120).'
+                )
             }, status=504)
         except requests.exceptions.HTTPError as e:
             return JsonResponse({

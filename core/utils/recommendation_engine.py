@@ -34,6 +34,7 @@ def _detect_underutilized_servers():
     """
     Detect servers that have been underutilized (< 30% CPU) for 7+ days.
     Suggest downsizing to save costs.
+    Only suggests when the server has at least 7 days of monitoring data.
     """
     recommendations = []
     
@@ -41,6 +42,11 @@ def _detect_underutilized_servers():
     
     servers = Server.objects.all()
     for server in servers:
+        # Require at least 7 days of monitoring data before suggesting downsizing
+        oldest = SystemMetric.objects.filter(server=server).order_by('timestamp').first()
+        if not oldest or oldest.timestamp > seven_days_ago:
+            continue
+
         # Get metrics from the last 7 days
         recent_metrics = SystemMetric.objects.filter(
             server=server,

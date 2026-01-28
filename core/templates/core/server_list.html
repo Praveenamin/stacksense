@@ -76,20 +76,17 @@
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color: #525252; cursor: pointer;">
                             <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                         </svg>
-                        <div>
-                            <div style="font-size: 14px; font-weight: 400; color: #161616; margin-bottom: 2px;">{{ server.name }}</div>
-                            <div style="font-size: 12px; color: #525252; font-family: monospace;">i-{{ server.id|stringformat:"010d" }}</div>
-                        </div>
+                        <div style="font-size: 14px; font-weight: 400; color: #161616;">{{ server.name }}</div>
                     </div>
                 </td>
                 <!-- Status -->
                 <td style="padding: 12px 16px; vertical-align: middle;">
                     {% if server.status == 'online' %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">running</span>
+                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">Online</span>
                     {% elif server.status == 'warning' %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #ffe6cc; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">stopping</span>
+                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #ffe6cc; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">Warning</span>
                     {% elif server.status == 'offline' %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #f4f4f4; color: #525252; border-radius: 12px; font-size: 12px; font-weight: 400;">terminated</span>
+                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #f4f4f4; color: #525252; border-radius: 12px; font-size: 12px; font-weight: 400;">Offline</span>
                     {% else %}
                     <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #fff4e6; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">pending</span>
                     {% endif %}

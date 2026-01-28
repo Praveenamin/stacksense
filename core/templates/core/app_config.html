@@ -165,6 +165,22 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label for="log_retention_days" class="form-label">
+                    Log retention <span class="required">*</span>
+                </label>
+                <select name="log_retention_days" id="log_retention_days" class="form-select" required>
+                    {% for value, label in log_retention_choices %}
+                    <option value="{{ value }}" {% if current_log_retention_days == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-hint" style="margin-top: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+                    Logs Analysis events older than this are deleted when logs are scanned.
+                </div>
+            </div>
+
             <div class="timezone-info">
                 <div class="timezone-info-item">
                     <span class="timezone-info-label">Current Timezone:</span>

@@ -4,7 +4,7 @@ import os
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.conf import settings
-from core.models import MonitoredLog, LogEvent, Server
+from core.models import MonitoredLog, LogEvent, Server, AppConfig
 from datetime import timedelta
 import logging
 
@@ -21,7 +21,18 @@ class Command(BaseCommand):
         if not monitored_logs.exists():
             self.stdout.write(self.style.WARNING("No enabled log monitoring configurations found."))
             return
-        
+
+        # Purge LogEvents older than configured retention
+        try:
+            config = AppConfig.get_config()
+            days = getattr(config, 'log_retention_days', 30) or 30
+            cutoff = timezone.now() - timedelta(days=days)
+            deleted, _ = LogEvent.objects.filter(last_seen__lt=cutoff).delete()
+            if deleted:
+                self.stdout.write(self.style.WARNING(f"Deleted {deleted} log event(s) older than {days} days."))
+        except Exception as e:
+            logger.warning("Log retention purge failed: %s", e)
+
         self.stdout.write(f"Scanning {monitored_logs.count()} log file(s)...")
         
         for monitored_log in monitored_logs:
@@ -111,7 +122,8 @@ class Command(BaseCommand):
                 # Normalize message for deduplication (remove timestamps, IPs that vary)
                 normalized_message = self._normalize_message(log_message, monitored_log.service_type)
                 
-                # Find or create LogEvent
+                ip_key = str(ip_address) if ip_address else 'unknown'
+                # Find or create LogEvent (groups similar logs via normalized_message)
                 log_event, created = LogEvent.objects.get_or_create(
                     monitored_log=monitored_log,
                     message=normalized_message,
@@ -121,13 +133,17 @@ class Command(BaseCommand):
                         'first_seen': timezone.now(),
                         'last_seen': timezone.now(),
                         'event_count': 1,
+                        'ip_counts': {ip_key: 1},
                     }
                 )
                 
                 if not created:
-                    # Update existing event
+                    # Update existing event and per-IP counts
                     log_event.last_seen = timezone.now()
                     log_event.event_count += 1
+                    data = dict(log_event.ip_counts) if log_event.ip_counts else {}
+                    data[ip_key] = data.get(ip_key, 0) + 1
+                    log_event.ip_counts = data
                     log_event.save()
             
             # Update monitored_log with new offset and scan time
@@ -232,6 +248,14 @@ class Command(BaseCommand):
         """Determine if a log line should be skipped (unwanted logs)"""
         line_lower = line.lower()
         
+        # Skip "File does not exist" - not useful for analysis
+        if 'file does not exist' in line_lower:
+            return True
+        
+        # Skip "client denied by server configuration" (e.g. Apache AH01630) - not useful for analysis
+        if 'client denied by server configuration' in line_lower:
+            return True
+        
         # Skip access logs (unless they contain errors)
         if '[access]' in line_lower and 'error' not in line_lower:
             return True
@@ -258,12 +282,23 @@ class Command(BaseCommand):
         # Remove IP addresses (replace with placeholder)
         message = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '[IP]', message)
         
-        # Remove process IDs that vary
-        message = re.sub(r'\[pid \d+\]', '[pid]', message, flags=re.IGNORECASE)
+        # Remove client port in [client IP:port] / [client [IP]:port] so different connections group together
+        message = re.sub(r'\[client .+?:\d+\]', '[client [IP]]', message)
+        
+        # Remove process/thread IDs that vary (e.g. [pid 1467919:tid 1467919] or [pid 123])
+        message = re.sub(r'\[pid \d+(?::tid \d+)?\]', '[pid]', message, flags=re.IGNORECASE)
         
         # Remove request IDs/transaction IDs
         message = re.sub(r'\[.*?request.*?\d+.*?\]', '[REQUEST_ID]', message, flags=re.IGNORECASE)
         message = re.sub(r'\[.*?transaction.*?\d+.*?\]', '[TX_ID]', message, flags=re.IGNORECASE)
+        
+        # Apache AH01276: DirectoryIndex list can vary by version/config; normalize so same solution applies
+        message = re.sub(
+            r'No matching DirectoryIndex \([^)]+\)',
+            'No matching DirectoryIndex ([LIST])',
+            message,
+            flags=re.IGNORECASE
+        )
         
         return message.strip()
     

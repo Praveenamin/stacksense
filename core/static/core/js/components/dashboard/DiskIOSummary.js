@@ -150,7 +150,7 @@ class DiskIOSummary extends BaseDashboardComponent {
             datasets: [{
                 label: 'IOPS',
                 data: [Math.round(data.read_iops || 0), Math.round(data.write_iops || 0)],
-                backgroundColor: ['#3b82f6', '#ef4444']
+                backgroundColor: ['#3b82f6', '#a78bfa']
             }]
         };
         if (!this.chart) {

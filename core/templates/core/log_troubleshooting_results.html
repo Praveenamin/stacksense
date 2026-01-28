@@ -75,6 +75,13 @@
         background-color: #dbeafe;
         color: #1e40af;
     }
+    .ip-breakdown-link {
+        color: #0ea5e9;
+        text-decoration: none;
+    }
+    .ip-breakdown-link:hover {
+        text-decoration: underline;
+    }
     .log-message {
         font-family: 'Courier New', monospace;
         font-size: 13px;
@@ -287,10 +294,31 @@
         color: #0f172a;
         margin: 0;
     }
+    .tabs-container { background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .tabs-header { display: flex; border-bottom: 1px solid #e2e8f0; background-color: #f8fafc; }
+    .tab-button { padding: 16px 24px; font-size: 14px; font-weight: 500; color: #64748b; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tab-button:hover { color: #0f172a; background-color: #ffffff; }
+    .tab-button.active { color: #0ea5e9; border-bottom-color: #0ea5e9; background-color: #ffffff; }
+    .tab-content { display: none; padding: 32px; }
+    .tab-content.active { display: block; }
+    .saved-solutions-list { list-style: none; padding: 0; margin: 0; }
+    .saved-solutions-list li { padding: 14px 16px; margin-bottom: 12px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+    .saved-solutions-list li:hover { border-color: #0ea5e9; background-color: #f8fafc; }
+    .saved-solution-name { font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+    .saved-solution-pattern { font-size: 12px; color: #64748b; font-family: 'Courier New', monospace; word-break: break-all; line-height: 1.4; }
+    .saved-solution-text { font-size: 13px; color: #166534; margin-top: 8px; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow-y: auto; padding: 12px; background-color: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0; }
+    .saved-solutions-empty { font-size: 14px; color: #64748b; padding: 24px 0; }
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="tabs-container">
+    <div class="tabs-header">
+        <button class="tab-button active" id="tab-btn-results" onclick="switchTab('results')">Results</button>
+        <button class="tab-button" id="tab-btn-saved-solutions" onclick="switchTab('saved-solutions')">Saved solutions</button>
+    </div>
+
+    <div id="tab-results" class="tab-content active">
 <div class="results-header">
     <div>
         <h1 class="results-title">Log Troubleshooting Results</h1>
@@ -329,12 +357,10 @@
 <table class="results-table">
     <thead>
         <tr>
-            <th>Server / Service</th>
-            <th>Level</th>
-            <th>Message</th>
-            <th>Count</th>
-            <th>First Seen</th>
-            <th>Last Seen</th>
+            <th>Server</th>
+            <th>Log</th>
+            <th>Source</th>
+            <th>Date & Time</th>
             <th>Solution</th>
         </tr>
     </thead>
@@ -346,22 +372,13 @@
                 <small style="color: #64748b;">{{ item.event.monitored_log.application_name }}</small>
             </td>
             <td>
-                <span class="log-level-badge log-level-{{ item.event.log_level|lower }}">
-                    {{ item.event.log_level }}
-                </span>
-            </td>
-            <td>
+                <span class="log-level-badge log-level-{{ item.event.log_level|lower }}">{{ item.event.log_level }}</span>
                 <div class="log-message">{{ item.event.message }}</div>
             </td>
             <td>
-                {% if item.event.event_count > 1 %}
-                <span class="count-badge">{{ item.event.event_count }}x</span>
-                {% else %}
-                —
-                {% endif %}
+                {{ item.ip_source_text }}{% if item.ip_breakdown %} <a href="#" class="ip-breakdown-link" onclick="openIpBreakdownModal({{ item.event.id }}); return false;">({{ item.ip_breakdown|length }} IPs)</a>{% endif %}
             </td>
-            <td>{{ item.event.first_seen|date:"Y-m-d H:i:s" }}</td>
-            <td>{{ item.event.last_seen|date:"Y-m-d H:i:s" }}</td>
+            <td>{{ item.event.last_seen|date:"Y-m-d H:i:s" }}{% if item.event.event_count > 1 %} ({{ item.event.event_count }}×){% endif %}</td>
             <td>
                 {% if item.solution %}
                 <div class="solution-box">
@@ -392,6 +409,28 @@
     </div>
 </div>
 {% endif %}
+    </div><!-- #tab-results -->
+
+    <div id="tab-saved-solutions" class="tab-content">
+        <div style="margin-bottom: 24px;">
+            <h2 style="font-size: 20px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Saved solutions</h2>
+            <p style="font-size: 14px; color: #64748b; margin: 0;">Analysis rules with step-by-step solutions. Create new ones from log events in the Results tab. <a href="{% url 'log_troubleshooting_config' %}">Configure Log Monitoring</a></p>
+        </div>
+        {% if saved_solutions %}
+        <ul class="saved-solutions-list">
+            {% for rule in saved_solutions %}
+            <li>
+                <div class="saved-solution-name">{{ rule.name }}</div>
+                <div class="saved-solution-pattern" title="{{ rule.pattern_to_match }}">{{ rule.pattern_to_match|truncatechars:80 }}</div>
+                <details style="margin-top:8px;"><summary style="font-size:12px;color:#0ea5e9;cursor:pointer;font-weight:500;">View solution</summary><div class="saved-solution-text">{{ rule.solution }}</div></details>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="saved-solutions-empty">No saved solutions yet. Create one from a log event in the Results tab.</p>
+        {% endif %}
+    </div>
+</div><!-- .tabs-container -->
 
 <!-- Create Solution Modal -->
 <div id="solution-modal" class="modal">
@@ -430,25 +469,51 @@
     </div>
 </div>
 
+<!-- Request IPs breakdown modal -->
+<div id="ip-breakdown-modal" class="modal">
+    <div class="modal-content">
+        <h2 class="modal-title">Request IPs</h2>
+        <p style="font-size:13px;color:#64748b;margin:0 0 12px 0;">IP addresses that triggered this log (with request count)</p>
+        <table class="results-table">
+            <thead><tr><th>IP</th><th>Count</th></tr></thead>
+            <tbody id="ip-breakdown-tbody"></tbody>
+        </table>
+        <div class="modal-buttons" style="margin-top:16px">
+            <button type="button" class="modal-btn modal-btn-secondary" onclick="closeIpBreakdownModal()">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
+window.IP_BREAKDOWN = {
+    {% for item in events_with_solutions %}
+    "{{ item.event.id }}": {{ item.ip_breakdown_json|safe }}{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
 let currentEventId = null;
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+    var el = document.getElementById('tab-' + tabName);
+    var btn = document.getElementById('tab-btn-' + tabName);
+    if (el) el.classList.add('active');
+    if (btn) btn.classList.add('active');
+    var url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    window.history.pushState({}, '', url);
+}
 
 function applyFilters() {
     const serverId = document.getElementById('server-filter').value;
     const timeFilter = document.getElementById('time-filter').value;
     
-    // Build URL parameters
-    const params = new URLSearchParams();
-    if (serverId) {
-        params.append('server_id', serverId);
-    }
-    if (timeFilter) {
-        params.append('time_filter', timeFilter);
-    }
+    var params = new URLSearchParams();
+    params.set('tab', 'results');
+    if (serverId) params.append('server_id', serverId);
+    if (timeFilter) params.append('time_filter', timeFilter);
     
-    // Update URL and reload
-    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-    window.location.href = newUrl;
+    window.location.href = window.location.pathname + '?' + params.toString();
 }
 
 function openCreateSolutionModal(eventId, message) {
@@ -501,10 +566,17 @@ document.getElementById('solution-form').addEventListener('submit', async functi
 
 // Close modal on background click
 document.getElementById('solution-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeCreateSolutionModal();
-    }
+    if (e.target === this) closeCreateSolutionModal();
 });
+document.getElementById('ip-breakdown-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeIpBreakdownModal();
+});
+
+(function() {
+    var p = new URLSearchParams(window.location.search);
+    var tab = p.get('tab') || 'results';
+    if (tab === 'saved-solutions') switchTab('saved-solutions');
+})();
 </script>
 {% endblock %}
 
