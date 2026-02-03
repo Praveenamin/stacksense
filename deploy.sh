@@ -1527,4 +1527,72 @@ chmod 600 "$CREDENTIALS_FILE"
 echo -e "${GREEN}✓${NC} Credentials saved to: $CREDENTIALS_FILE"
 echo ""
 
+###############################################################################
+# Setup Cron Jobs for Metric Collection and Log Scanning
+###############################################################################
+echo -e "${BLUE}Setting up cron jobs...${NC}"
+
+# Create cron job file for stacksense
+CRON_FILE="/etc/cron.d/stacksense"
+cat > "$CRON_FILE" << 'CRON_EOF'
+# StackSense Monitoring Cron Jobs
+# Collect metrics every minute
+* * * * * root docker exec monitoring_web python manage.py collect_metrics >> /var/log/stacksense_metrics.log 2>&1
+
+# Scan logs every 5 minutes
+*/5 * * * * root docker exec monitoring_web python manage.py scan_logs >> /var/log/stacksense_logs.log 2>&1
+
+# Check server heartbeats every minute
+* * * * * root docker exec monitoring_web python manage.py check_heartbeats_ssh >> /var/log/stacksense_heartbeat.log 2>&1
+
+# Detect anomalies every 15 minutes
+*/15 * * * * root docker exec monitoring_web python manage.py detect_anomalies >> /var/log/stacksense_anomalies.log 2>&1
+
+# Clean old metrics daily at 2 AM
+0 2 * * * root docker exec monitoring_web python manage.py clean_old_metrics >> /var/log/stacksense_cleanup.log 2>&1
+CRON_EOF
+
+# Set proper permissions
+chmod 644 "$CRON_FILE"
+
+# Create log files with proper permissions
+touch /var/log/stacksense_metrics.log /var/log/stacksense_logs.log /var/log/stacksense_heartbeat.log /var/log/stacksense_anomalies.log /var/log/stacksense_cleanup.log
+chmod 644 /var/log/stacksense_metrics.log /var/log/stacksense_logs.log /var/log/stacksense_heartbeat.log /var/log/stacksense_anomalies.log /var/log/stacksense_cleanup.log
+
+# Restart cron to pick up new jobs
+systemctl restart cron 2>/dev/null || service cron restart 2>/dev/null || true
+
+echo -e "${GREEN}✓${NC} Cron jobs configured:"
+echo -e "  - Metric collection: every minute"
+echo -e "  - Log scanning: every 5 minutes"
+echo -e "  - Heartbeat check: every minute"
+echo -e "  - Anomaly detection: every 15 minutes"
+echo -e "  - Data cleanup: daily at 2 AM"
+echo ""
+
+###############################################################################
+# Final Web Container Restart
+###############################################################################
+echo -e "${BLUE}Performing final web container restart...${NC}"
+docker restart monitoring_web > /dev/null 2>&1
+sleep 10
+
+# Verify container is running and healthy
+if docker ps | grep -q "monitoring_web"; then
+    # Check if web app is responding
+    for i in {1..10}; do
+        if curl -sk "https://localhost:$NGINX_PORT/" > /dev/null 2>&1 || curl -sk "http://localhost:8000/" > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Web container restarted and responding"
+            break
+        fi
+        if [ $i -eq 10 ]; then
+            echo -e "${YELLOW}⚠${NC} Web container restarted but may need a moment to be fully ready"
+        fi
+        sleep 2
+    done
+else
+    echo -e "${RED}✗${NC} Web container is not running!"
+    echo -e "${YELLOW}  Check logs: docker logs monitoring_web${NC}"
+fi
+echo ""
 

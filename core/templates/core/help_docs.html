@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Help Documentation - Stack Alert{% endblock %}
+{% block title %}Help Documentation - StackWatch{% endblock %}
 
 {% block extrahead %}
 <style>
@@ -105,6 +105,18 @@
         color: #64748b;
         margin: 0;
     }
+    .help-note {
+        background-color: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-top: 16px;
+        font-size: 13px;
+        color: #1e40af;
+    }
+    .help-note strong {
+        color: #1e3a8a;
+    }
 </style>
 {% endblock %}
 
@@ -112,7 +124,7 @@
 <!-- Page Header -->
 <div class="page-header">
     <h1 class="page-title">Help Documentation</h1>
-    <p class="page-subtitle">Learn how to use Stack Alert monitoring features</p>
+    <p class="page-subtitle">Learn how to use StackWatch monitoring features</p>
 </div>
 
 <!-- Getting Started -->
@@ -120,7 +132,7 @@
     <div class="help-card">
         <h2 class="help-card-title">Getting Started</h2>
         <p class="help-card-description">
-            Stack Alert is a comprehensive server monitoring and infrastructure management platform. 
+            StackWatch is a comprehensive server monitoring and infrastructure management platform. 
             This guide will help you get started with the key features.
         </p>
         
@@ -135,10 +147,14 @@
                 <p>To start monitoring a server:</p>
                 <ul>
                     <li>Navigate to "Add Server" from the sidebar or server list</li>
-                    <li>Enter the server's IP address, SSH port, username, and password</li>
-                    <li>The system will automatically deploy SSH keys and install required dependencies</li>
+                    <li>Enter the server's name, IP address, SSH port, username, and password</li>
+                    <li>The system will automatically deploy SSH keys for secure, passwordless access</li>
+                    <li>Required dependencies (psutil) will be installed on the remote server</li>
                     <li>Initial metrics will be collected immediately after setup</li>
                 </ul>
+                <div class="help-note">
+                    <strong>Note:</strong> The password is used only once for initial SSH key deployment and is never stored. All subsequent connections use SSH key authentication.
+                </div>
             </div>
         </div>
 
@@ -147,15 +163,39 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                 </svg>
-                Viewing Metrics
+                Viewing the Dashboard
             </h3>
             <div class="help-item-content">
-                <p>Monitor server performance in real-time:</p>
+                <p>The main dashboard provides an overview of your infrastructure:</p>
                 <ul>
-                    <li>Click on any server from the dashboard to view detailed metrics</li>
-                    <li>View CPU, memory, disk usage, and network I/O over time</li>
-                    <li>Check service status and system uptime</li>
-                    <li>Review historical data and trends</li>
+                    <li><strong>Reliability Metrics:</strong> System uptime and SLI/SLO compliance</li>
+                    <li><strong>CPU & Memory Trends:</strong> Real-time charts with spike detection (triangle markers)</li>
+                    <li><strong>Disk I/O Summary:</strong> Read/write operations across servers</li>
+                    <li><strong>Health Status:</strong> Quick view of online, warning, and offline servers</li>
+                    <li><strong>Recent Alerts:</strong> Timeline of recent alert events</li>
+                    <li><strong>Trend Insights:</strong> AI-analyzed patterns and recommendations</li>
+                    <li><strong>AI Recommendations:</strong> Intelligent suggestions for optimization</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                </svg>
+                Server Details
+            </h3>
+            <div class="help-item-content">
+                <p>Click on any server from the dashboard or server list to view detailed metrics:</p>
+                <ul>
+                    <li>Real-time CPU, memory, disk, and network usage</li>
+                    <li>Top processes consuming CPU and memory</li>
+                    <li>Service status and monitoring controls</li>
+                    <li>Historical metrics with customizable time ranges (1h, 6h, 24h, 7d)</li>
+                    <li>Anomaly detection results and AI explanations</li>
+                    <li>Disk usage by partition with type detection (SSD/HDD/NVMe)</li>
+                    <li>System uptime and load averages</li>
                 </ul>
             </div>
         </div>
@@ -175,12 +215,13 @@
                 Server Status
             </h3>
             <div class="help-item-content">
-                <p>The system continuously monitors server connectivity through SSH heartbeat checks every 30 seconds.</p>
+                <p>The system continuously monitors server connectivity through SSH heartbeat checks:</p>
                 <ul>
                     <li><strong>Online:</strong> Server is responding and has no active alerts</li>
                     <li><strong>Warning:</strong> Server is online but has active alerts or anomalies</li>
                     <li><strong>Offline:</strong> Server is not responding or monitoring is suspended</li>
                 </ul>
+                <p>Heartbeat checks run every 30-60 seconds to ensure accurate status reporting.</p>
             </div>
         </div>
 
@@ -192,13 +233,17 @@
                 Alerts & Notifications
             </h3>
             <div class="help-item-content">
-                <p>Receive alerts when issues are detected:</p>
+                <p>Configure alerts to be notified when issues are detected:</p>
                 <ul>
-                    <li>Configure email alerts in the Alert Configuration page</li>
-                    <li>Set thresholds for CPU, memory, disk usage, and I/O metrics</li>
-                    <li>Get notified when services go down or come back online</li>
-                    <li>View and manage alert history from the Alerts page</li>
+                    <li><strong>Email Notifications:</strong> Configure SMTP settings (Gmail, Outlook, custom SMTP)</li>
+                    <li><strong>Slack Notifications:</strong> Set up Slack webhook for instant team alerts</li>
+                    <li><strong>Threshold Alerts:</strong> CPU, memory, disk usage, and I/O thresholds</li>
+                    <li><strong>Service Alerts:</strong> Get notified when monitored services go down</li>
+                    <li><strong>Connection Alerts:</strong> Alerts when servers go offline or come back online</li>
                 </ul>
+                <div class="help-note">
+                    <strong>New:</strong> CPU and Memory alerts now capture the top processes at the time of the spike, helping you identify the cause of resource issues.
+                </div>
             </div>
         </div>
 
@@ -212,10 +257,76 @@
             <div class="help-item-content">
                 <p>The system automatically detects anomalies in your server metrics:</p>
                 <ul>
-                    <li>Uses advanced algorithms to identify unusual patterns</li>
-                    <li>Generates AI-powered explanations for detected anomalies</li>
-                    <li>View anomalies on the server details page</li>
-                    <li>Mark anomalies as resolved when addressed</li>
+                    <li>Uses ADTK (Anomaly Detection Toolkit) and machine learning algorithms</li>
+                    <li>Detects threshold violations, level shifts, and volatility changes</li>
+                    <li>Severity levels: Low, Medium, High, Critical</li>
+                    <li>AI-powered explanations for detected anomalies</li>
+                    <li>View and resolve anomalies from the server details page</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
+                </svg>
+                Service Monitoring
+            </h3>
+            <div class="help-item-content">
+                <p>Monitor critical services running on your servers:</p>
+                <ul>
+                    <li>Auto-discovery of running services (Apache, Nginx, MySQL, PostgreSQL, etc.)</li>
+                    <li>Enable/disable monitoring for individual services</li>
+                    <li>Real-time service status (running/stopped/failed)</li>
+                    <li>Service latency measurements for web services</li>
+                    <li>Alerts when services go down or come back up</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log Troubleshooting -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Log Troubleshooting</h2>
+        
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Log Monitoring
+            </h3>
+            <div class="help-item-content">
+                <p>Monitor and analyze log files from your servers:</p>
+                <ul>
+                    <li>Configure log paths to monitor (e.g., /var/log/apache2/error.log)</li>
+                    <li>Automatic error detection and categorization</li>
+                    <li>View log events with source IP addresses</li>
+                    <li>Similar logs are grouped together with IP counts</li>
+                    <li>AI-powered solutions for common errors</li>
+                    <li>Save solutions for future reference</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                </svg>
+                AI Solutions
+            </h3>
+            <div class="help-item-content">
+                <p>Get AI-powered help for troubleshooting:</p>
+                <ul>
+                    <li>Click "Ask AI for Solution" on any log error</li>
+                    <li>AI analyzes the error context and provides recommendations</li>
+                    <li>Solutions include step-by-step instructions</li>
+                    <li>Save useful solutions for your team</li>
+                    <li>View saved solutions in the "Saved Solutions" tab</li>
                 </ul>
             </div>
         </div>
@@ -234,21 +345,74 @@
             </li>
             <li class="help-list-item">
                 <div class="help-list-item-title">Suspend Monitoring</div>
-                <div class="help-list-item-text">Temporarily pause monitoring, data collection, and alerts for a server without removing it from the system.</div>
+                <div class="help-list-item-text">Temporarily pause monitoring, data collection, and alerts for a server without removing it from the system. Server will show as "Offline" while suspended.</div>
             </li>
             <li class="help-list-item">
                 <div class="help-list-item-title">Suppress Alerts</div>
-                <div class="help-list-item-text">Stop receiving alert notifications while keeping monitoring active. Useful for planned maintenance.</div>
+                <div class="help-list-item-text">Stop receiving alert notifications while keeping monitoring active. Useful for planned maintenance windows.</div>
             </li>
             <li class="help-list-item">
-                <div class="help-list-item-title">Service Monitoring</div>
-                <div class="help-list-item-text">Enable or disable monitoring for specific services. Configure thresholds and get alerts when services go down.</div>
+                <div class="help-list-item-title">Configure Thresholds</div>
+                <div class="help-list-item-text">Set custom alert thresholds for CPU, memory, disk usage, and I/O metrics per server.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Manage Services</div>
+                <div class="help-list-item-text">Enable or disable monitoring for specific services. View service status and configure alert settings.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Select Monitored Disks</div>
+                <div class="help-list-item-text">Choose which disk partitions to monitor for space alerts. Exclude virtual filesystems automatically.</div>
             </li>
             <li class="help-list-item">
                 <div class="help-list-item-title">Delete Server</div>
-                <div class="help-list-item-text">Remove a server from monitoring. This action cannot be undone and will stop all data collection.</div>
+                <div class="help-list-item-text">Remove a server from monitoring. This action cannot be undone and will delete all associated metrics and alerts.</div>
             </li>
         </ul>
+    </div>
+</div>
+
+<!-- Alert Configuration -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Alert Configuration</h2>
+        
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                Email Configuration
+            </h3>
+            <div class="help-item-content">
+                <p>Set up email alerts:</p>
+                <ul>
+                    <li><strong>Gmail:</strong> Use smtp.gmail.com with an App Password (requires 2FA)</li>
+                    <li><strong>Outlook/Office 365:</strong> Use smtp.office365.com with your credentials</li>
+                    <li><strong>Custom SMTP:</strong> Configure any SMTP server with TLS/SSL options</li>
+                    <li>Test your configuration before saving</li>
+                    <li>Multiple recipients supported (comma-separated)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                Slack Configuration
+            </h3>
+            <div class="help-item-content">
+                <p>Set up Slack notifications:</p>
+                <ul>
+                    <li>Create an Incoming Webhook in your Slack workspace</li>
+                    <li>Paste the webhook URL in the configuration</li>
+                    <li>Optionally specify a channel, username, and icon</li>
+                    <li>Test the configuration to verify it works</li>
+                    <li>Alerts will be sent to Slack alongside email (if both configured)</li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -269,8 +433,9 @@
                 <ul>
                     <li>Create new users with specific roles and permissions</li>
                     <li>Edit user information, passwords, and access levels</li>
-                    <li>Deactivate or delete user accounts as needed</li>
+                    <li>Activate or deactivate user accounts</li>
                     <li>Assign roles to control what users can access</li>
+                    <li>Superusers have full access to all features</li>
                 </ul>
             </div>
         </div>
@@ -286,9 +451,76 @@
                 <p>Control access with role-based permissions:</p>
                 <ul>
                     <li>Create custom roles with specific privileges</li>
-                    <li>Assign privileges like viewing servers, managing users, or configuring alerts</li>
+                    <li>Available privileges: view servers, manage servers, manage users, configure alerts, etc.</li>
                     <li>Edit or delete roles (except protected system roles)</li>
                     <li>View which users are assigned to each role</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Settings</h2>
+        
+        <ul class="help-list">
+            <li class="help-list-item">
+                <div class="help-list-item-title">Timezone</div>
+                <div class="help-list-item-text">Set the display timezone for all timestamps in the application. All data is stored in UTC and converted for display.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Language</div>
+                <div class="help-list-item-text">Choose the interface language for the application.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Log Retention</div>
+                <div class="help-list-item-text">Configure how long log events are retained (7, 15, or 30 days). Older logs are automatically purged.</div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- Data Collection -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Data Collection & Security</h2>
+        
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                How Data is Collected
+            </h3>
+            <div class="help-item-content">
+                <p>StackWatch collects metrics using read-only operations:</p>
+                <ul>
+                    <li>A lightweight Python script is uploaded to <code>/tmp/collect_metrics.py</code> on each monitored server</li>
+                    <li>The script uses psutil to read system metrics (CPU, memory, disk, network)</li>
+                    <li>No data is modified on client servers - all operations are read-only</li>
+                    <li>Connections are made via SSH using key-based authentication</li>
+                    <li>Metrics are collected every 1-5 minutes depending on server load</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+                Security Practices
+            </h3>
+            <div class="help-item-content">
+                <p>StackWatch follows security best practices:</p>
+                <ul>
+                    <li>Server passwords are never stored - only used once for SSH key deployment</li>
+                    <li>SSH key authentication is used for all subsequent connections</li>
+                    <li>No destructive operations are performed on monitored servers</li>
+                    <li>The monitoring script is read-only (no service restarts, no file modifications)</li>
+                    <li>All communication is encrypted via SSH</li>
                 </ul>
             </div>
         </div>
@@ -302,20 +534,58 @@
         
         <ul class="help-list">
             <li class="help-list-item">
-                <div class="help-list-item-title">Regular Monitoring</div>
-                <div class="help-list-item-text">Check your dashboard regularly to identify potential issues before they become critical.</div>
+                <div class="help-list-item-title">Set Appropriate Thresholds</div>
+                <div class="help-list-item-text">Configure alert thresholds based on your server's normal usage patterns. Start with defaults (80% CPU, 80% memory, 90% disk) and adjust based on observed behavior.</div>
             </li>
             <li class="help-list-item">
-                <div class="help-list-item-title">Alert Configuration</div>
-                <div class="help-list-item-text">Configure appropriate thresholds for your infrastructure to avoid false positives while catching real issues.</div>
+                <div class="help-list-item-title">Monitor Critical Services</div>
+                <div class="help-list-item-text">Enable monitoring for services that are critical to your application (web servers, databases, caches). This ensures immediate notification when they go down.</div>
             </li>
             <li class="help-list-item">
-                <div class="help-list-item-title">Service Monitoring</div>
-                <div class="help-list-item-text">Enable monitoring for critical services to get notified immediately when they go down.</div>
+                <div class="help-list-item-title">Review AI Recommendations</div>
+                <div class="help-list-item-text">Check the AI Recommendations panel regularly for optimization suggestions. The AI analyzes your metrics over time to identify potential improvements.</div>
             </li>
             <li class="help-list-item">
-                <div class="help-list-item-title">User Access</div>
-                <div class="help-list-item-text">Use roles and permissions to grant appropriate access levels to team members.</div>
+                <div class="help-list-item-title">Use Alert Suppression for Maintenance</div>
+                <div class="help-list-item-text">Before performing planned maintenance, enable alert suppression to avoid unnecessary notifications. Remember to re-enable alerts afterward.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Configure Both Email and Slack</div>
+                <div class="help-list-item-text">For critical infrastructure, configure both email and Slack notifications to ensure alerts are received through multiple channels.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Review Alert History</div>
+                <div class="help-list-item-text">Regularly review the Alert History page to understand patterns, identify recurring issues, and verify that alerts are being resolved.</div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- Troubleshooting -->
+<div class="help-section">
+    <div class="help-card">
+        <h2 class="help-card-title">Troubleshooting</h2>
+        
+        <ul class="help-list">
+            <li class="help-list-item">
+                <div class="help-list-item-title">Server Shows Offline</div>
+                <div class="help-list-item-text">Check that the server is reachable via SSH. Verify the IP address, port, and that the SSH key is still authorized on the server. Check if monitoring is suspended.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">No Metrics Being Collected</div>
+                <div class="help-list-item-text">Ensure psutil is installed on the monitored server (<code>pip3 install psutil</code>). Check SSH connectivity and verify the monitoring cron jobs are running.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Email Alerts Not Sending</div>
+                <div class="help-list-item-text">Test your email configuration using the "Test" button. For Gmail, ensure you're using an App Password (not your regular password). Check spam folders.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">Slack Alerts Not Working</div>
+                <div class="help-list-item-text">Verify the webhook URL is correct and the Slack app is installed in your workspace. Test the configuration using the "Test" button.</div>
+            </li>
+            <li class="help-list-item">
+                <div class="help-list-item-title">High CPU/Memory But No Alert</div>
+                <div class="help-list-item-text">Check if alert suppression is enabled for the server. Verify the threshold values in the server's monitoring configuration.</div>
             </li>
         </ul>
     </div>
