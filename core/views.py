@@ -2752,6 +2752,12 @@ def _check_and_send_alerts(server, metric):
             # Log to AlertHistory
             for alert in alerts:
                 mapped_type = map_alert_type(alert['type'])
+                
+                # Capture process context for CPU and Memory alerts
+                process_context = None
+                if alert['type'] in ['CPU', 'Memory'] and metric and hasattr(metric, 'top_processes') and metric.top_processes:
+                    process_context = metric.top_processes
+                
                 AlertHistory.objects.create(
                     server=server,
                     alert_type=mapped_type,
@@ -2759,7 +2765,8 @@ def _check_and_send_alerts(server, metric):
                     value=alert['value'],
                     threshold=alert['threshold'],
                     message=alert['message'],
-                    recipients=email_config.to_email or ''
+                    recipients=email_config.to_email or '',
+                    process_context=process_context
                 )
                 app_logger.info(f"Alert sent: {server.name} - {mapped_type} - {alert['message']}")
         
