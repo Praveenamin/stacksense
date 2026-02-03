@@ -177,6 +177,27 @@
                             </svg>
                         </div>
                         <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">{{ alert.message|truncatewords:15 }}</div>
+                        {% if alert.process_context %}
+                        <div style="margin-top: var(--cds-spacing-2); padding: var(--cds-spacing-2); background-color: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0;">
+                            {% if alert.alert_type == 'CPU' and alert.process_context.cpu %}
+                            <div style="font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Top CPU Processes:</div>
+                            {% for proc in alert.process_context.cpu %}
+                            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); display: flex; justify-content: space-between; padding: 2px 0;">
+                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">{{ proc.command }}</span>
+                                <span style="font-weight: var(--cds-font-weight-medium); color: #dc2626; margin-left: var(--cds-spacing-2);">{{ proc.cpu_percent }}%</span>
+                            </div>
+                            {% endfor %}
+                            {% elif alert.alert_type == 'Memory' and alert.process_context.memory %}
+                            <div style="font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Top Memory Processes:</div>
+                            {% for proc in alert.process_context.memory %}
+                            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); display: flex; justify-content: space-between; padding: 2px 0;">
+                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">{{ proc.command }}</span>
+                                <span style="font-weight: var(--cds-font-weight-medium); color: #dc2626; margin-left: var(--cds-spacing-2);">{{ proc.memory_percent }}%</span>
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </td>
                     <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">

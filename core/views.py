@@ -2791,7 +2791,8 @@ def _check_and_send_alerts(server, metric):
                     threshold=alert['threshold'],
                     message=alert['message'],
                     recipients=email_config.to_email or '',
-                    resolved_at=timezone.now()
+                    resolved_at=timezone.now(),
+                    process_context=None  # No process context needed for resolved alerts
                 )
                 app_logger.info(f"Alert resolved: {server.name} - {mapped_type} - {alert['message']}")
         
@@ -3001,7 +3002,8 @@ The server connection has been restored and is responding normally.
                 value=0.0,
                 threshold=30.0,
                 message=f"Server is {state.upper()}" if state == "offline" else f"Server connection restored",
-                recipients=', '.join(recipients) if email_config and recipients else 'Slack'
+                recipients=', '.join(recipients) if email_config and recipients else 'Slack',
+                process_context=None
             )
             
     except Exception as e:
@@ -3256,7 +3258,8 @@ The service has been restored and is now running.
                 value=0.0,
                 threshold=2.0,
                 message=f"Service {service.name} is {'DOWN' if status == 'triggered' else 'UP'}",
-                recipients=email_config.to_email if email_config else 'Slack'
+                recipients=email_config.to_email if email_config else 'Slack',
+                process_context=None
             )
             
     except Exception as e:

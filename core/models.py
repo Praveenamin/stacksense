@@ -531,6 +531,11 @@ class AlertHistory(models.Model):
     recipients = models.TextField(help_text="Comma-separated list of email recipients")
     sent_at = models.DateTimeField(default=timezone.now, db_index=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    process_context = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Top processes at time of alert. Format: {'cpu': [...], 'memory': [...]}"
+    )
     
     class Meta:
         ordering = ["-sent_at"]
