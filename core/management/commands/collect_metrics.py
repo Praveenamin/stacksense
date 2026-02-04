@@ -542,34 +542,63 @@ except Exception:
 # Collect top processes (CPU and Memory)
 top_processes = {"cpu": [], "memory": []}
 try:
-    # Get all processes
-    processes = []
-    for proc in psutil.process_iter(['pid', 'cpu_percent', 'memory_percent', 'name', 'cmdline']):
+    # First pass: initialize CPU percent tracking for all processes
+    # This primes psutil's internal cache so the second call gives real values
+    procs = list(psutil.process_iter(['pid', 'name', 'cmdline']))
+    for proc in procs:
         try:
-            proc_info = proc.info
-            # Get CPU percent (non-blocking, uses previous interval)
-            if proc_info['cpu_percent'] is None:
-                proc_info['cpu_percent'] = 0.0
+            proc.cpu_percent()  # First call returns 0, but starts tracking
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    
+    # Wait a short interval to measure CPU usage
+    import time
+    time.sleep(0.5)  # 500ms interval for CPU measurement
+    
+    # Second pass: collect actual CPU and memory percentages
+    processes = []
+    for proc in procs:
+        try:
+            # Get CPU percent (now returns actual value after interval)
+            cpu_pct = proc.cpu_percent()
+            if cpu_pct is None:
+                cpu_pct = 0.0
             # Get memory percent
-            if proc_info['memory_percent'] is None:
-                proc_info['memory_percent'] = 0.0
+            mem_pct = proc.memory_percent()
+            if mem_pct is None:
+                mem_pct = 0.0
             # Build command string (limit length)
-            cmdline = proc_info.get('cmdline', [])
-            if cmdline:
-                command = ' '.join(cmdline)[:100]  # Limit to 100 chars
-            else:
-                command = proc_info.get('name', 'unknown')
+            try:
+                cmdline = proc.cmdline()
+                if cmdline:
+                    command = ' '.join(cmdline)[:100]  # Limit to 100 chars
+                else:
+                    command = proc.name() or 'unknown'
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                command = proc.name() or 'unknown'
+            
             processes.append({
-                'pid': str(proc_info['pid']),
-                'cpu_percent': round(proc_info['cpu_percent'], 1),
-                'memory_percent': round(proc_info['memory_percent'], 1),
+                'pid': str(proc.pid),
+                'cpu_percent': round(cpu_pct, 1),
+                'memory_percent': round(mem_pct, 1),
                 'command': command
             })
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
     
-    # Sort and get top 3 CPU processes
-    cpu_processes = sorted(processes, key=lambda x: x['cpu_percent'], reverse=True)[:3]
+    # Sort and get top 3 CPU processes (exclude 0% CPU and the collect_metrics script itself)
+    cpu_processes = sorted(
+        [p for p in processes if p['cpu_percent'] > 0 and 'collect_metrics.py' not in p['command']],
+        key=lambda x: x['cpu_percent'], 
+        reverse=True
+    )[:3]
+    # If no processes with >0% CPU, fall back to top by memory that might be CPU-intensive
+    if not cpu_processes:
+        cpu_processes = sorted(
+            [p for p in processes if 'collect_metrics.py' not in p['command']],
+            key=lambda x: x['cpu_percent'], 
+            reverse=True
+        )[:3]
     top_processes["cpu"] = [{"pid": p["pid"], "cpu_percent": p["cpu_percent"], "command": p["command"]} for p in cpu_processes]
     
     # Sort and get top 3 memory processes
