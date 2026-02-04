@@ -2559,6 +2559,11 @@ def _check_and_send_alerts(server, metric):
         cache_key = f"alert_state:{server.id}"
         previous_state = cache.get(cache_key, {})
         
+        # Get pending alert state (for sustained threshold checking)
+        # Alerts only trigger after 2 consecutive readings above threshold
+        pending_cache_key = f"alert_pending:{server.id}"
+        pending_state = cache.get(pending_cache_key, {})
+        
         # Initialize current state
         current_state = {
             'CPU': False,
@@ -2571,49 +2576,69 @@ def _check_and_send_alerts(server, metric):
         alerts = []
         resolved_alerts = []
         
-        # Check CPU threshold
+        # Check CPU threshold (requires 2 consecutive readings above threshold)
         cpu_above_threshold = metric.cpu_percent is not None and metric.cpu_percent >= config.cpu_threshold
         current_state['CPU'] = cpu_above_threshold
         
         if cpu_above_threshold:
-            alerts.append({
-                'type': 'CPU',
-                'value': metric.cpu_percent,
-                'threshold': config.cpu_threshold,
-                'message': f"CPU usage is {metric.cpu_percent:.1f}% (threshold: {config.cpu_threshold}%)"
-            })
-            print(f"[ALERT] CPU threshold exceeded: {metric.cpu_percent:.1f}% >= {config.cpu_threshold}%")
-        elif previous_state.get('CPU', False):
-            # CPU was above threshold before, but now it's below - resolved!
-            resolved_alerts.append({
-                'type': 'CPU',
-                'value': metric.cpu_percent,
-                'threshold': config.cpu_threshold,
-                'message': f"CPU usage has returned to normal: {metric.cpu_percent:.1f}% (threshold: {config.cpu_threshold}%)"
-            })
-            print(f"[ALERT] CPU threshold resolved: {metric.cpu_percent:.1f}% < {config.cpu_threshold}%")
+            # Check if this is the first reading above threshold or sustained
+            if pending_state.get('CPU', False):
+                # Second consecutive reading above threshold - trigger alert!
+                alerts.append({
+                    'type': 'CPU',
+                    'value': metric.cpu_percent,
+                    'threshold': config.cpu_threshold,
+                    'message': f"CPU usage is {metric.cpu_percent:.1f}% (threshold: {config.cpu_threshold}%)"
+                })
+                print(f"[ALERT] CPU threshold sustained: {metric.cpu_percent:.1f}% >= {config.cpu_threshold}% (2nd consecutive reading)")
+            else:
+                # First reading above threshold - mark as pending, don't alert yet
+                pending_state['CPU'] = True
+                print(f"[ALERT] CPU threshold exceeded (pending): {metric.cpu_percent:.1f}% >= {config.cpu_threshold}% (waiting for sustained)")
+        else:
+            # CPU is below threshold - clear pending state
+            pending_state['CPU'] = False
+            if previous_state.get('CPU', False):
+                # CPU was above threshold before, but now it's below - resolved!
+                resolved_alerts.append({
+                    'type': 'CPU',
+                    'value': metric.cpu_percent,
+                    'threshold': config.cpu_threshold,
+                    'message': f"CPU usage has returned to normal: {metric.cpu_percent:.1f}% (threshold: {config.cpu_threshold}%)"
+                })
+                print(f"[ALERT] CPU threshold resolved: {metric.cpu_percent:.1f}% < {config.cpu_threshold}%")
         
-        # Check Memory threshold
+        # Check Memory threshold (requires 2 consecutive readings above threshold)
         memory_above_threshold = metric.memory_percent is not None and metric.memory_percent >= config.memory_threshold
         current_state['Memory'] = memory_above_threshold
         
         if memory_above_threshold:
-            alerts.append({
-                'type': 'Memory',
-                'value': metric.memory_percent,
-                'threshold': config.memory_threshold,
-                'message': f"Memory usage is {metric.memory_percent:.1f}% (threshold: {config.memory_threshold}%)"
-            })
-            print(f"[ALERT] Memory threshold exceeded: {metric.memory_percent:.1f}% >= {config.memory_threshold}%")
-        elif previous_state.get('Memory', False):
-            # Memory was above threshold before, but now it's below - resolved!
-            resolved_alerts.append({
-                'type': 'Memory',
-                'value': metric.memory_percent,
-                'threshold': config.memory_threshold,
-                'message': f"Memory usage has returned to normal: {metric.memory_percent:.1f}% (threshold: {config.memory_threshold}%)"
-            })
-            print(f"[ALERT] Memory threshold resolved: {metric.memory_percent:.1f}% < {config.memory_threshold}%")
+            # Check if this is the first reading above threshold or sustained
+            if pending_state.get('Memory', False):
+                # Second consecutive reading above threshold - trigger alert!
+                alerts.append({
+                    'type': 'Memory',
+                    'value': metric.memory_percent,
+                    'threshold': config.memory_threshold,
+                    'message': f"Memory usage is {metric.memory_percent:.1f}% (threshold: {config.memory_threshold}%)"
+                })
+                print(f"[ALERT] Memory threshold sustained: {metric.memory_percent:.1f}% >= {config.memory_threshold}% (2nd consecutive reading)")
+            else:
+                # First reading above threshold - mark as pending, don't alert yet
+                pending_state['Memory'] = True
+                print(f"[ALERT] Memory threshold exceeded (pending): {metric.memory_percent:.1f}% >= {config.memory_threshold}% (waiting for sustained)")
+        else:
+            # Memory is below threshold - clear pending state
+            pending_state['Memory'] = False
+            if previous_state.get('Memory', False):
+                # Memory was above threshold before, but now it's below - resolved!
+                resolved_alerts.append({
+                    'type': 'Memory',
+                    'value': metric.memory_percent,
+                    'threshold': config.memory_threshold,
+                    'message': f"Memory usage has returned to normal: {metric.memory_percent:.1f}% (threshold: {config.memory_threshold}%)"
+                })
+                print(f"[ALERT] Memory threshold resolved: {metric.memory_percent:.1f}% < {config.memory_threshold}%")
         
         # Check Disk thresholds (check all partitions)
         if metric.disk_usage:
@@ -2805,6 +2830,9 @@ def _check_and_send_alerts(server, metric):
         
         # Update cache with current state (store for 24 hours)
         cache.set(cache_key, current_state, 86400)
+        
+        # Update pending state cache (store for 5 minutes - enough for a few collection cycles)
+        cache.set(pending_cache_key, pending_state, 300)
         
         if not alerts and not resolved_alerts:
             print(f"[ALERT] No alerts triggered for {server.name} (CPU: {metric.cpu_percent}, Memory: {metric.memory_percent})")
