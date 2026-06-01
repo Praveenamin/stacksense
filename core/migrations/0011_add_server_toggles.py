@@ -9,15 +9,10 @@ class Migration(migrations.Migration):
         ('core', '0003_alter_monitoringconfig_cpu_threshold_and_more'),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name='server',
-            name='suppress_alerts',
-            field=models.BooleanField(default=False, help_text='Whether to suppress email alerts for this server'),
-        ),
-        migrations.AddField(
-            model_name='server',
-            name='suspend_monitoring',
-            field=models.BooleanField(default=False, help_text='Whether to suspend monitoring for this server'),
-        ),
-    ]
+    # NOTE: These two fields (server.suppress_alerts, server.suspend_monitoring)
+    # are already added by the sibling migration 0004_add_server_fields, which
+    # Django applies first on a fresh database (both depend on 0003). Re-adding
+    # them here raised "column already exists". This migration is kept as a
+    # no-op so it stays in the graph (0017_merge depends on it) without
+    # duplicating the columns.
+    operations = []

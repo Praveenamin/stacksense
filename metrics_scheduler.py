@@ -39,7 +39,7 @@ while running:
             # Log but don't stop metrics collection if heartbeat tracking fails
             print(f"Warning: Heartbeat tracking failed (non-critical): {heartbeat_error}")
         
-        print(f"\n[{timezone.now().strftime("%Y-%m-%d %H:%M:%S")}] Running metrics collection...")
+        print(f"\n[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running metrics collection...")
         call_command("collect_metrics", verbosity=1)
         print(f"Metrics collection completed. Next run in {interval} seconds.")
         
@@ -47,7 +47,7 @@ while running:
         time_since_last_anomaly_check = (timezone.now() - last_anomaly_check).total_seconds()
         if time_since_last_anomaly_check >= anomaly_detection_interval:
             try:
-                print(f"[{timezone.now().strftime("%Y-%m-%d %H:%M:%S")}] Running anomaly detection...")
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running anomaly detection...")
                 call_command("detect_anomalies", verbosity=1)
                 last_anomaly_check = timezone.now()
                 print("Anomaly detection completed.")
@@ -58,7 +58,7 @@ while running:
         time_since_last_log_scan = (timezone.now() - last_log_scan).total_seconds()
         if time_since_last_log_scan >= log_scan_interval:
             try:
-                print(f"[{timezone.now().strftime("%Y-%m-%d %H:%M:%S")}] Running log scanning...")
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running log scanning...")
                 call_command("scan_logs", verbosity=1)
                 last_log_scan = timezone.now()
                 print("Log scanning completed.")
@@ -69,7 +69,7 @@ while running:
         time_since_last_latency = (timezone.now() - last_latency_collection).total_seconds()
         if time_since_last_latency >= latency_collection_interval:
             try:
-                print(f"[{timezone.now().strftime("%Y-%m-%d %H:%M:%S")}] Running service latency collection...")
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running service latency collection...")
                 call_command("collect_service_latency", verbosity=0)
                 last_latency_collection = timezone.now()
                 print("Service latency collection completed.")

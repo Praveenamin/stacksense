@@ -9,42 +9,77 @@ class Migration(migrations.Migration):
         ('core', '0019_rename_core_server_server__idx_core_server_server__0b8cbf_idx_and_more'),
     ]
 
+    # NOTE: The four MonitoredLog fields below (enabled, last_scan_time,
+    # scan_from_days, service_type) were originally added in migrations that
+    # were later removed (the 0005-0010 gap), so Django's migration *state*
+    # never learned about them. The original version of this migration added
+    # the columns with raw RunSQL (DB only, no state change) and then tried to
+    # AlterField them, which crashed with FieldDoesNotExist on a fresh build.
+    #
+    # Fixed by using SeparateDatabaseAndState: the DB side keeps the idempotent
+    # "ADD COLUMN IF NOT EXISTS" (safe for older DBs that already have them),
+    # while the state side registers proper AddField operations so the model
+    # state matches the database.
     operations = [
-        migrations.RunSQL(
-            sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT TRUE;",
-            reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS enabled;",
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT TRUE;",
+                    reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS enabled;",
+                ),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='monitoredlog',
+                    name='enabled',
+                    field=models.BooleanField(default=True, help_text='Enable/disable log troubleshooting for this log'),
+                ),
+            ],
         ),
-        migrations.RunSQL(
-            sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS last_scan_time TIMESTAMP NULL;",
-            reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS last_scan_time;",
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS last_scan_time TIMESTAMP NULL;",
+                    reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS last_scan_time;",
+                ),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='monitoredlog',
+                    name='last_scan_time',
+                    field=models.DateTimeField(blank=True, help_text='Last time logs were scanned', null=True),
+                ),
+            ],
         ),
-        migrations.RunSQL(
-            sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS scan_from_days INTEGER DEFAULT 1;",
-            reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS scan_from_days;",
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS scan_from_days INTEGER DEFAULT 1;",
+                    reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS scan_from_days;",
+                ),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='monitoredlog',
+                    name='scan_from_days',
+                    field=models.IntegerField(default=1, help_text='Start scanning from this many days ago (default: 1 day)'),
+                ),
+            ],
         ),
-        migrations.RunSQL(
-            sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS service_type VARCHAR(20) DEFAULT 'custom';",
-            reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS service_type;",
-        ),
-        migrations.AlterField(
-            model_name='monitoredlog',
-            name='enabled',
-            field=models.BooleanField(default=True, help_text='Enable/disable log troubleshooting for this log'),
-        ),
-        migrations.AlterField(
-            model_name='monitoredlog',
-            name='last_scan_time',
-            field=models.DateTimeField(blank=True, help_text='Last time logs were scanned', null=True),
-        ),
-        migrations.AlterField(
-            model_name='monitoredlog',
-            name='scan_from_days',
-            field=models.IntegerField(default=1, help_text='Start scanning from this many days ago (default: 1 day)'),
-        ),
-        migrations.AlterField(
-            model_name='monitoredlog',
-            name='service_type',
-            field=models.CharField(choices=[('apache', 'Apache'), ('nginx', 'Nginx'), ('exim', 'Exim'), ('postfix', 'Postfix'), ('mysql', 'MySQL'), ('mariadb', 'MariaDB'), ('custom', 'Custom App')], default='custom', help_text='Service type for automatic log path detection', max_length=20),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql="ALTER TABLE core_monitoredlog ADD COLUMN IF NOT EXISTS service_type VARCHAR(20) DEFAULT 'custom';",
+                    reverse_sql="ALTER TABLE core_monitoredlog DROP COLUMN IF EXISTS service_type;",
+                ),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='monitoredlog',
+                    name='service_type',
+                    field=models.CharField(choices=[('apache', 'Apache'), ('nginx', 'Nginx'), ('exim', 'Exim'), ('postfix', 'Postfix'), ('mysql', 'MySQL'), ('mariadb', 'MariaDB'), ('custom', 'Custom App')], default='custom', help_text='Service type for automatic log path detection', max_length=20),
+                ),
+            ],
         ),
         migrations.AlterField(
             model_name='monitoredlog',
