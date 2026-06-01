@@ -108,6 +108,13 @@ urlpatterns = [
     path("api/log-troubleshooting/create-solution/", views.log_troubleshooting_create_solution, name="log_troubleshooting_create_solution"),
     path("log-troubleshooting/results/", views.log_troubleshooting_results, name="log_troubleshooting_results"),
     path("domains/<slug:slug>/", views.monitoring_domain, name="monitoring_domain"),
+    # User Experience: synthetic uptime checks
+    path("uptime/", views.synthetic_checks_list, name="synthetic_checks_list"),
+    path("uptime/add/", views.synthetic_check_add, name="synthetic_check_add"),
+    path("uptime/<int:check_id>/", views.synthetic_check_detail, name="synthetic_check_detail"),
+    path("uptime/<int:check_id>/edit/", views.synthetic_check_edit, name="synthetic_check_edit"),
+    path("uptime/<int:check_id>/delete/", views.synthetic_check_delete, name="synthetic_check_delete"),
+    path("uptime/<int:check_id>/run/", views.synthetic_check_run, name="synthetic_check_run"),
     path("help/", views.help_docs, name="help_docs"),
     path("logout/", views.custom_logout, name="logout"),
     # RBAC URLs

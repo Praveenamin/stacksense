@@ -1,0 +1,109 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}{% if is_edit %}Edit{% else %}Add{% endif %} Uptime Check - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="padding:24px;max-width:640px;">
+    <h1 style="font-size:24px;font-weight:600;color:#0f172a;margin:0 0 6px 0;">{% if is_edit %}Edit Check{% else %}Add Uptime Check{% endif %}</h1>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px 0;">The monitoring server runs this probe on a schedule from the outside.</p>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div style="padding:12px 16px;border-radius:6px;font-size:14px;margin-bottom:12px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:28px;">
+        {% csrf_token %}
+        {% with lbl="display:block;font-size:14px;font-weight:500;color:#0f172a;margin-bottom:6px;" inp="width:100%;padding:10px 14px;font-size:14px;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;" grp="margin-bottom:18px;" %}
+
+        <div style="{{ grp }}">
+            <label style="{{ lbl }}">Name *</label>
+            <input type="text" name="name" value="{{ check.name }}" placeholder="e.g. Main site health" style="{{ inp }}" required>
+        </div>
+
+        <div style="{{ grp }}">
+            <label style="{{ lbl }}">Check type</label>
+            <select name="check_type" id="check_type" style="{{ inp }}" onchange="toggleType()">
+                <option value="HTTP" {% if check.check_type == 'HTTP' %}selected{% endif %}>HTTP / HTTPS</option>
+                <option value="TCP" {% if check.check_type == 'TCP' %}selected{% endif %}>TCP Port</option>
+            </select>
+        </div>
+
+        <!-- HTTP fields -->
+        <div id="http_fields">
+            <div style="{{ grp }}">
+                <label style="{{ lbl }}">URL</label>
+                <input type="text" name="url" value="{{ check.url }}" placeholder="https://example.com/health" style="{{ inp }}">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;{{ grp }}">
+                <div>
+                    <label style="{{ lbl }}">Method</label>
+                    <select name="method" style="{{ inp }}">
+                        <option value="GET" {% if check.method == 'GET' %}selected{% endif %}>GET</option>
+                        <option value="HEAD" {% if check.method == 'HEAD' %}selected{% endif %}>HEAD</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="{{ lbl }}">Expected status</label>
+                    <input type="text" name="expected_status" value="{{ check.expected_status }}" placeholder="200-399" style="{{ inp }}">
+                </div>
+            </div>
+            <div style="{{ grp }}">
+                <label style="{{ lbl }}">Expected text in body (optional)</label>
+                <input type="text" name="expected_substring" value="{{ check.expected_substring }}" placeholder="e.g. OK" style="{{ inp }}">
+            </div>
+            <div style="{{ grp }}">
+                <label style="font-size:14px;color:#0f172a;"><input type="checkbox" name="verify_tls" {% if check.verify_tls %}checked{% endif %}> Verify TLS certificate</label>
+            </div>
+        </div>
+
+        <!-- TCP fields -->
+        <div id="tcp_fields" style="display:none;">
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;{{ grp }}">
+                <div>
+                    <label style="{{ lbl }}">Host</label>
+                    <input type="text" name="host" value="{{ check.host }}" placeholder="example.com" style="{{ inp }}">
+                </div>
+                <div>
+                    <label style="{{ lbl }}">Port</label>
+                    <input type="number" name="port" value="{{ check.port|default_if_none:'' }}" placeholder="443" min="1" max="65535" style="{{ inp }}">
+                </div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;{{ grp }}">
+            <div>
+                <label style="{{ lbl }}">Timeout (s)</label>
+                <input type="number" name="timeout_seconds" value="{{ check.timeout_seconds }}" min="1" style="{{ inp }}">
+            </div>
+            <div>
+                <label style="{{ lbl }}">Interval (s)</label>
+                <input type="number" name="interval_seconds" value="{{ check.interval_seconds }}" min="10" style="{{ inp }}">
+            </div>
+            <div>
+                <label style="{{ lbl }}">Fail threshold</label>
+                <input type="number" name="failure_threshold" value="{{ check.failure_threshold }}" min="1" style="{{ inp }}">
+            </div>
+        </div>
+
+        <div style="{{ grp }}">
+            <label style="font-size:14px;color:#0f172a;display:block;margin-bottom:8px;"><input type="checkbox" name="enabled" {% if check.enabled %}checked{% endif %}> Enabled</label>
+            <label style="font-size:14px;color:#0f172a;"><input type="checkbox" name="alert_on_failure" {% if check.alert_on_failure %}checked{% endif %}> Alert on failure (email / Slack)</label>
+        </div>
+
+        <button type="submit" style="background:#0f62fe;color:#fff;padding:10px 22px;font-size:14px;border:none;border-radius:6px;cursor:pointer;">{% if is_edit %}Save changes{% else %}Create check{% endif %}</button>
+        <a href="{% url 'synthetic_checks_list' %}" style="margin-left:14px;font-size:14px;color:#64748b;text-decoration:none;">Cancel</a>
+        {% endwith %}
+    </form>
+</div>
+
+<script>
+function toggleType() {
+    var t = document.getElementById('check_type').value;
+    document.getElementById('http_fields').style.display = (t === 'HTTP') ? 'block' : 'none';
+    document.getElementById('tcp_fields').style.display = (t === 'TCP') ? 'block' : 'none';
+}
+toggleType();
+</script>
+{% endblock %}

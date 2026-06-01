@@ -25,10 +25,12 @@ interval = 30  # 30 seconds
 anomaly_detection_interval = 300  # Run anomaly detection every 5 minutes
 log_scan_interval = 300  # Run log scanning every 5 minutes
 latency_collection_interval = 60  # Run latency collection every minute
+synthetic_check_interval = 30  # Run due synthetic (uptime) checks every 30s
 
 last_anomaly_check = timezone.now()
 last_log_scan = timezone.now()
 last_latency_collection = timezone.now()
+last_synthetic_check = timezone.now()
 
 while running:
     try:
@@ -75,6 +77,17 @@ while running:
                 print("Service latency collection completed.")
             except Exception as e:
                 print(f"Error in service latency collection: {str(e)}")
+
+        # Run due synthetic (uptime) checks every 30 seconds
+        time_since_last_synthetic = (timezone.now() - last_synthetic_check).total_seconds()
+        if time_since_last_synthetic >= synthetic_check_interval:
+            try:
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running synthetic checks...")
+                call_command("run_synthetic_checks", verbosity=0)
+                last_synthetic_check = timezone.now()
+                print("Synthetic checks completed.")
+            except Exception as e:
+                print(f"Error in synthetic checks: {str(e)}")
     except Exception as e:
         print(f"Error: {str(e)}")
     

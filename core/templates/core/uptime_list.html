@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}User Experience - Uptime Checks - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="padding: 24px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+            <h1 style="font-size:24px;font-weight:600;color:#0f172a;margin:0 0 6px 0;">User Experience — Uptime Checks</h1>
+            <p style="font-size:14px;color:#64748b;margin:0;">Synthetic checks that probe your endpoints on a schedule, before users notice.</p>
+        </div>
+        <a href="{% url 'synthetic_check_add' %}" style="background:#0f62fe;color:#fff;padding:9px 18px;font-size:14px;border-radius:6px;text-decoration:none;">+ Add Check</a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div style="padding:12px 16px;border-radius:6px;font-size:14px;margin-bottom:12px;{% if message.tags == 'error' %}background:#fef2f2;color:#991b1b;border:1px solid #fecaca;{% else %}background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;{% endif %}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Summary -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Total checks</div>
+            <div style="font-size:26px;font-weight:700;color:#0f172a;">{{ total }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Up</div>
+            <div style="font-size:26px;font-weight:700;color:#166534;">{{ up_count }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Down</div>
+            <div style="font-size:26px;font-weight:700;color:{% if down_count %}#b91c1c{% else %}#0f172a{% endif %};">{{ down_count }}</div>
+        </div>
+    </div>
+
+    {% if summaries %}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+                <th style="padding:11px 16px;font-weight:500;">Status</th>
+                <th style="padding:11px 16px;font-weight:500;">Name</th>
+                <th style="padding:11px 16px;font-weight:500;">Target</th>
+                <th style="padding:11px 16px;font-weight:500;">Uptime (24h)</th>
+                <th style="padding:11px 16px;font-weight:500;">Avg latency</th>
+                <th style="padding:11px 16px;font-weight:500;">Last checked</th>
+                <th style="padding:11px 16px;font-weight:500;"></th>
+            </tr></thead>
+            <tbody>
+            {% for s in summaries %}
+                <tr style="border-top:1px solid #f1f5f9;">
+                    <td style="padding:11px 16px;">
+                        {% if s.check.last_status == 'UP' %}<span style="color:#166534;font-weight:600;">● Up</span>
+                        {% elif s.check.last_status == 'DOWN' %}<span style="color:#b91c1c;font-weight:600;">● Down</span>
+                        {% else %}<span style="color:#94a3b8;">● Unknown</span>{% endif %}
+                        {% if not s.check.enabled %}<span style="color:#94a3b8;font-size:11px;"> (disabled)</span>{% endif %}
+                    </td>
+                    <td style="padding:11px 16px;"><a href="{% url 'synthetic_check_detail' s.check.id %}" style="color:#0f62fe;text-decoration:none;font-weight:500;">{{ s.check.name }}</a></td>
+                    <td style="padding:11px 16px;color:#475569;">{{ s.check.check_type }} · {{ s.check.target|truncatechars:48 }}</td>
+                    <td style="padding:11px 16px;color:#475569;">{% if s.uptime_24h is not None %}{{ s.uptime_24h }}%{% else %}—{% endif %}</td>
+                    <td style="padding:11px 16px;color:#475569;">{% if s.avg_ms_24h is not None %}{{ s.avg_ms_24h }} ms{% else %}—{% endif %}</td>
+                    <td style="padding:11px 16px;color:#475569;">{% if s.check.last_checked_at %}{{ s.check.last_checked_at|date:"M d, H:i" }}{% else %}never{% endif %}</td>
+                    <td style="padding:11px 16px;"><a href="{% url 'synthetic_check_detail' s.check.id %}" style="color:#64748b;text-decoration:none;">View →</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="background:#fff;border:1px dashed #cbd5e1;border-radius:8px;padding:48px;text-align:center;">
+        <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No checks yet</h3>
+        <p style="font-size:14px;color:#64748b;margin:0 0 20px 0;">Add a check to start monitoring an endpoint's uptime and response time.</p>
+        <a href="{% url 'synthetic_check_add' %}" style="background:#0f62fe;color:#fff;padding:9px 18px;font-size:14px;border-radius:6px;text-decoration:none;">+ Add your first check</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

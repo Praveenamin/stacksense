@@ -10,7 +10,7 @@ import paramiko
 from .models import (
     Server, MonitoredLog, LogEvent, AnalysisRule,
     SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric,
-    AgentCredential
+    AgentCredential, SyntheticCheck, SyntheticCheckResult
 )
 
 
@@ -252,6 +252,24 @@ class AgentCredentialAdmin(admin.ModelAdmin):
     readonly_fields = ("token_hash", "token_prefix", "created_at", "last_used_at", "last_used_ip")
     # Don't allow hand-creating credentials here (no way to set a hash safely);
     # use the create_agent_token command instead.
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(SyntheticCheck)
+class SyntheticCheckAdmin(admin.ModelAdmin):
+    list_display = ("name", "check_type", "target", "enabled", "last_status", "last_checked_at", "interval_seconds")
+    list_filter = ("check_type", "enabled", "last_status")
+    search_fields = ("name", "url", "host")
+    readonly_fields = ("last_status", "last_checked_at", "consecutive_failures", "consecutive_successes", "last_state_change_at", "created_at", "updated_at")
+
+
+@admin.register(SyntheticCheckResult)
+class SyntheticCheckResultAdmin(admin.ModelAdmin):
+    list_display = ("synthetic_check", "timestamp", "success", "status_code", "response_time_ms")
+    list_filter = ("success", "synthetic_check")
+    readonly_fields = ("synthetic_check", "timestamp", "success", "status_code", "response_time_ms", "error_message")
+
     def has_add_permission(self, request):
         return False
 

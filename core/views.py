@@ -6,7 +6,7 @@ from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult
 from .service_latency import measure_service_latency
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -8224,6 +8224,156 @@ def monitoring_domain(request, slug):
 
     context.update(admin.site.each_context(request))
     return render(request, "core/domain_landing.html", context)
+
+
+# ---------------------------------------------------------------------------
+# User Experience monitoring (synthetic uptime checks)
+# ---------------------------------------------------------------------------
+def _synthetic_check_summary(check):
+    """Build a display summary (status, uptime, latency) for a check."""
+    from .synthetic import uptime_percentage, avg_response_ms
+    last = check.results.order_by("-timestamp").first()
+    return {
+        "check": check,
+        "uptime_24h": uptime_percentage(check, 24),
+        "avg_ms_24h": avg_response_ms(check, 24),
+        "last_result": last,
+    }
+
+
+@staff_member_required
+def synthetic_checks_list(request):
+    """User Experience domain: list all synthetic uptime checks with status."""
+    checks = SyntheticCheck.objects.all()
+    summaries = [_synthetic_check_summary(c) for c in checks]
+    up = sum(1 for s in summaries if s["check"].last_status == SyntheticCheck.Status.UP)
+    down = sum(1 for s in summaries if s["check"].last_status == SyntheticCheck.Status.DOWN)
+    context = {
+        "show_sidebar": True,
+        "summaries": summaries,
+        "total": len(summaries),
+        "up_count": up,
+        "down_count": down,
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/uptime_list.html", context)
+
+
+def _apply_check_form(request, check):
+    """Populate a SyntheticCheck from POST data. Returns error message or None."""
+    check.name = request.POST.get("name", "").strip()
+    check.check_type = request.POST.get("check_type", SyntheticCheck.CheckType.HTTP)
+    check.url = request.POST.get("url", "").strip()
+    check.method = (request.POST.get("method", "GET") or "GET").strip().upper()
+    check.expected_status = request.POST.get("expected_status", "200-399").strip() or "200-399"
+    check.expected_substring = request.POST.get("expected_substring", "").strip()
+    check.verify_tls = request.POST.get("verify_tls") == "on"
+    check.host = request.POST.get("host", "").strip()
+    port = request.POST.get("port", "").strip()
+    check.port = int(port) if port.isdigit() else None
+    try:
+        check.timeout_seconds = max(1, int(request.POST.get("timeout_seconds", 10)))
+        check.interval_seconds = max(10, int(request.POST.get("interval_seconds", 60)))
+        check.failure_threshold = max(1, int(request.POST.get("failure_threshold", 2)))
+    except (ValueError, TypeError):
+        return "Timeout, interval and failure threshold must be numbers."
+    check.enabled = request.POST.get("enabled") == "on"
+    check.alert_on_failure = request.POST.get("alert_on_failure") == "on"
+
+    if not check.name:
+        return "Name is required."
+    if check.check_type == SyntheticCheck.CheckType.HTTP:
+        if not check.url:
+            return "URL is required for HTTP checks."
+    else:
+        if not check.host or not check.port:
+            return "Host and port are required for TCP checks."
+    return None
+
+
+@staff_member_required
+def synthetic_check_add(request):
+    if request.method == "POST":
+        check = SyntheticCheck()
+        err = _apply_check_form(request, check)
+        if err:
+            messages.error(request, err)
+            context = {"show_sidebar": True, "check": check, "is_edit": False}
+            context.update(admin.site.each_context(request))
+            return render(request, "core/uptime_form.html", context)
+        check.save()
+        _log_user_action(request, "ADD_SYNTHETIC_CHECK", f"Added check {check.name}")
+        messages.success(request, f'Check "{check.name}" created.')
+        return redirect("synthetic_check_detail", check_id=check.id)
+
+    # GET: render blank form with sensible defaults
+    check = SyntheticCheck(check_type=SyntheticCheck.CheckType.HTTP, method="GET",
+                           expected_status="200-399", verify_tls=True, timeout_seconds=10,
+                           interval_seconds=60, failure_threshold=2, enabled=True, alert_on_failure=True)
+    context = {"show_sidebar": True, "check": check, "is_edit": False}
+    context.update(admin.site.each_context(request))
+    return render(request, "core/uptime_form.html", context)
+
+
+@staff_member_required
+def synthetic_check_edit(request, check_id):
+    check = get_object_or_404(SyntheticCheck, id=check_id)
+    if request.method == "POST":
+        err = _apply_check_form(request, check)
+        if err:
+            messages.error(request, err)
+        else:
+            check.save()
+            _log_user_action(request, "EDIT_SYNTHETIC_CHECK", f"Edited check {check.name}")
+            messages.success(request, f'Check "{check.name}" updated.')
+            return redirect("synthetic_check_detail", check_id=check.id)
+    context = {"show_sidebar": True, "check": check, "is_edit": True}
+    context.update(admin.site.each_context(request))
+    return render(request, "core/uptime_form.html", context)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def synthetic_check_delete(request, check_id):
+    check = get_object_or_404(SyntheticCheck, id=check_id)
+    name = check.name
+    check.delete()
+    _log_user_action(request, "DELETE_SYNTHETIC_CHECK", f"Deleted check {name}")
+    messages.success(request, f'Check "{name}" deleted.')
+    return redirect("synthetic_checks_list")
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def synthetic_check_run(request, check_id):
+    check = get_object_or_404(SyntheticCheck, id=check_id)
+    from .synthetic import run_check
+    try:
+        result, transition = run_check(check)
+        msg = f'Ran "{check.name}": {"OK" if result.success else "FAILED"}'
+        if transition:
+            msg += f" (state changed to {transition})"
+        messages.success(request, msg)
+    except Exception as e:
+        messages.error(request, f"Failed to run check: {e}")
+    return redirect("synthetic_check_detail", check_id=check.id)
+
+
+@staff_member_required
+def synthetic_check_detail(request, check_id):
+    from .synthetic import uptime_percentage
+    check = get_object_or_404(SyntheticCheck, id=check_id)
+    summary = _synthetic_check_summary(check)
+    summary["uptime_7d"] = uptime_percentage(check, 24 * 7)
+    recent = check.results.order_by("-timestamp")[:50]
+    context = {
+        "show_sidebar": True,
+        "check": check,
+        "summary": summary,
+        "recent": recent,
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/uptime_detail.html", context)
 
 
 def demo_dashboard(request):

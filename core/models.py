@@ -1073,3 +1073,110 @@ class AgentCredential(models.Model):
             )
         except cls.DoesNotExist:
             return None
+
+
+class SyntheticCheck(models.Model):
+    """A synthetic (bot-driven) uptime check the monitoring server runs on a
+    schedule against a URL or TCP port. Part of User Experience monitoring:
+    catch outages and slowdowns before real users do."""
+
+    class CheckType(models.TextChoices):
+        HTTP = "HTTP", "HTTP / HTTPS"
+        TCP = "TCP", "TCP Port"
+
+    class Status(models.TextChoices):
+        UP = "UP", "Up"
+        DOWN = "DOWN", "Down"
+        UNKNOWN = "UNKNOWN", "Unknown"
+
+    name = models.CharField(max_length=150, help_text="Friendly name for this check")
+    check_type = models.CharField(max_length=10, choices=CheckType.choices, default=CheckType.HTTP)
+
+    # HTTP target
+    url = models.URLField(max_length=500, blank=True, help_text="For HTTP checks, e.g. https://example.com/health")
+    method = models.CharField(max_length=10, default="GET", help_text="HTTP method (GET or HEAD)")
+    expected_status = models.CharField(
+        max_length=100,
+        default="200-399",
+        help_text="Accepted status codes: e.g. '200', '200,301', or a range '200-399'",
+    )
+    expected_substring = models.CharField(
+        max_length=255, blank=True,
+        help_text="Optional text that must appear in the response body",
+    )
+    verify_tls = models.BooleanField(default=True, help_text="Verify the TLS certificate for HTTPS checks")
+
+    # TCP target
+    host = models.CharField(max_length=255, blank=True, help_text="For TCP checks, hostname or IP")
+    port = models.IntegerField(null=True, blank=True, help_text="For TCP checks, port number")
+
+    # Scheduling / behaviour
+    timeout_seconds = models.IntegerField(default=10)
+    interval_seconds = models.IntegerField(default=60, help_text="How often to run this check")
+    enabled = models.BooleanField(default=True)
+
+    # Optional association with a monitored server (purely for grouping)
+    server = models.ForeignKey(
+        Server, null=True, blank=True, on_delete=models.SET_NULL, related_name="synthetic_checks",
+    )
+
+    # Alerting
+    alert_on_failure = models.BooleanField(default=True)
+    failure_threshold = models.IntegerField(
+        default=2, help_text="Consecutive failures before the check is marked DOWN and an alert fires",
+    )
+
+    # Live state (maintained by the engine)
+    last_status = models.CharField(max_length=10, choices=Status.choices, default=Status.UNKNOWN)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    consecutive_failures = models.IntegerField(default=0)
+    consecutive_successes = models.IntegerField(default=0)
+    last_state_change_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Synthetic Check"
+        verbose_name_plural = "Synthetic Checks"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_check_type_display()})"
+
+    @property
+    def target(self):
+        """Human-readable target string."""
+        if self.check_type == self.CheckType.TCP:
+            return f"{self.host}:{self.port}"
+        return self.url
+
+    def is_due(self, now):
+        """Whether this check should run again as of `now`."""
+        if not self.enabled:
+            return False
+        if self.last_checked_at is None:
+            return True
+        return (now - self.last_checked_at).total_seconds() >= self.interval_seconds
+
+
+class SyntheticCheckResult(models.Model):
+    """A single probe result for a SyntheticCheck."""
+    synthetic_check = models.ForeignKey(SyntheticCheck, on_delete=models.CASCADE, related_name="results")
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    success = models.BooleanField(default=False)
+    status_code = models.IntegerField(null=True, blank=True)
+    response_time_ms = models.FloatField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Synthetic Check Result"
+        verbose_name_plural = "Synthetic Check Results"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["synthetic_check", "-timestamp"]),
+        ]
+
+    def __str__(self):
+        state = "OK" if self.success else "FAIL"
+        return f"{self.synthetic_check.name} {state} @ {self.timestamp}"

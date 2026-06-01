@@ -1,0 +1,85 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}{{ check.name }} - Uptime - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="padding:24px;max-width:980px;">
+    <div style="font-size:13px;color:#64748b;margin-bottom:8px;"><a href="{% url 'synthetic_checks_list' %}" style="color:#0f62fe;text-decoration:none;">User Experience</a> / {{ check.name }}</div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <div>
+            <h1 style="font-size:24px;font-weight:600;color:#0f172a;margin:0 0 6px 0;display:flex;align-items:center;gap:10px;">
+                {{ check.name }}
+                {% if check.last_status == 'UP' %}<span style="font-size:13px;color:#166534;">● Up</span>
+                {% elif check.last_status == 'DOWN' %}<span style="font-size:13px;color:#b91c1c;">● Down</span>
+                {% else %}<span style="font-size:13px;color:#94a3b8;">● Unknown</span>{% endif %}
+            </h1>
+            <p style="font-size:14px;color:#64748b;margin:0;">{{ check.check_type }} · {{ check.target }} · every {{ check.interval_seconds }}s{% if not check.enabled %} · <span style="color:#b91c1c;">disabled</span>{% endif %}</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <form method="post" action="{% url 'synthetic_check_run' check.id %}" style="display:inline;">{% csrf_token %}
+                <button type="submit" style="background:#0f62fe;color:#fff;padding:8px 16px;font-size:14px;border:none;border-radius:6px;cursor:pointer;">Run now</button>
+            </form>
+            <a href="{% url 'synthetic_check_edit' check.id %}" style="background:#fff;color:#0f172a;border:1px solid #e2e8f0;padding:8px 16px;font-size:14px;border-radius:6px;text-decoration:none;">Edit</a>
+            <form method="post" action="{% url 'synthetic_check_delete' check.id %}" style="display:inline;" onsubmit="return confirm('Delete this check and all its history?');">{% csrf_token %}
+                <button type="submit" style="background:#fff;color:#b91c1c;border:1px solid #fecaca;padding:8px 16px;font-size:14px;border-radius:6px;cursor:pointer;">Delete</button>
+            </form>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div style="padding:12px 16px;border-radius:6px;font-size:14px;margin-bottom:12px;{% if message.tags == 'error' %}background:#fef2f2;color:#991b1b;border:1px solid #fecaca;{% else %}background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;{% endif %}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Uptime (24h)</div>
+            <div style="font-size:26px;font-weight:700;color:#0f172a;">{% if summary.uptime_24h is not None %}{{ summary.uptime_24h }}%{% else %}—{% endif %}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Uptime (7d)</div>
+            <div style="font-size:26px;font-weight:700;color:#0f172a;">{% if summary.uptime_7d is not None %}{{ summary.uptime_7d }}%{% else %}—{% endif %}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Avg latency (24h)</div>
+            <div style="font-size:26px;font-weight:700;color:#0f172a;">{% if summary.avg_ms_24h is not None %}{{ summary.avg_ms_24h }} ms{% else %}—{% endif %}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Last checked</div>
+            <div style="font-size:16px;font-weight:600;color:#0f172a;margin-top:6px;">{% if check.last_checked_at %}{{ check.last_checked_at|date:"M d, H:i:s" }}{% else %}never{% endif %}</div>
+        </div>
+    </div>
+
+    <!-- Recent results -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:600;color:#0f172a;">Recent results</div>
+        {% if recent %}
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+                <th style="padding:10px 18px;font-weight:500;">When</th>
+                <th style="padding:10px 18px;font-weight:500;">Result</th>
+                <th style="padding:10px 18px;font-weight:500;">Status</th>
+                <th style="padding:10px 18px;font-weight:500;">Latency</th>
+                <th style="padding:10px 18px;font-weight:500;">Detail</th>
+            </tr></thead>
+            <tbody>
+            {% for r in recent %}
+                <tr style="border-top:1px solid #f1f5f9;">
+                    <td style="padding:10px 18px;color:#475569;">{{ r.timestamp|date:"M d, H:i:s" }}</td>
+                    <td style="padding:10px 18px;">{% if r.success %}<span style="color:#166534;font-weight:600;">OK</span>{% else %}<span style="color:#b91c1c;font-weight:600;">FAIL</span>{% endif %}</td>
+                    <td style="padding:10px 18px;color:#475569;">{{ r.status_code|default:"—" }}</td>
+                    <td style="padding:10px 18px;color:#475569;">{% if r.response_time_ms is not None %}{{ r.response_time_ms }} ms{% else %}—{% endif %}</td>
+                    <td style="padding:10px 18px;color:#94a3b8;">{{ r.error_message|truncatechars:60 }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:32px;text-align:center;color:#64748b;font-size:14px;">No results yet. Click "Run now" to probe immediately, or wait for the scheduler.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
