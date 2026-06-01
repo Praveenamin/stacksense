@@ -6,7 +6,7 @@ from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential
 from .service_latency import measure_service_latency
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -1251,6 +1251,113 @@ def add_server(request):
         error_logger.error(f"ADD_SERVER error: {str(e)}")
         messages.error(request, f'Failed to add server: {str(e)}')
         return render(request, "core/add_server.html", {"show_sidebar": True})
+
+
+def _render_agent_install_command(request, server, raw_token, created=False, rotated=False):
+    """Render the one-time page showing a server's agent install command.
+
+    The raw token is only available here (it is stored hashed), so this page is
+    the single place the operator can copy it from.
+    """
+    base_url = request.build_absolute_uri('/').rstrip('/')
+    install_cmd = (
+        f"curl -fsSL {base_url}/agent/install.sh | sudo bash -s -- "
+        f"--url {base_url} --token {raw_token}"
+    )
+    context = {
+        "show_sidebar": True,
+        "server": server,
+        "raw_token": raw_token,
+        "install_cmd": install_cmd,
+        "base_url": base_url,
+        "created": created,
+        "rotated": rotated,
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/agent_install_command.html", context)
+
+
+def add_server_agent(request):
+    """Add a server using the push agent (no SSH).
+
+    Creates the server record + monitoring config, generates a per-server agent
+    token, and shows the one-line install command to run on the VM. The
+    monitoring server never connects to the VM -- the VM dials out to us.
+    """
+    from .utils import has_privilege
+    from django.core.validators import validate_ipv46_address
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    if not has_privilege(request.user, 'add_server'):
+        messages.error(request, "You don't have permission to add servers.")
+        return redirect('monitoring_dashboard')
+
+    if request.method == "GET":
+        context = {"show_sidebar": True}
+        context.update(admin.site.each_context(request))
+        return render(request, "core/add_server_agent.html", context)
+
+    # POST
+    _log_user_action(request, "ADD_SERVER_AGENT", "Attempting to add server (agent)")
+    name = request.POST.get('name', '').strip()
+    ip_address = request.POST.get('ip_address', '').strip()
+
+    def _form_error(msg):
+        messages.error(request, msg)
+        context = {"show_sidebar": True, "name": name, "ip_address": ip_address}
+        context.update(admin.site.each_context(request))
+        return render(request, "core/add_server_agent.html", context)
+
+    if not name or not ip_address:
+        return _form_error('Server name and IP address are required.')
+    try:
+        validate_ipv46_address(ip_address)
+    except DjangoValidationError:
+        return _form_error('Please enter a valid IPv4 or IPv6 address.')
+    if Server.objects.filter(name=name).exists():
+        return _form_error(f'A server named "{name}" already exists.')
+
+    server = Server.objects.create(
+        name=name,
+        ip_address=ip_address,
+        username='agent',  # push model does not use SSH login; placeholder
+        port=22,
+        ssh_key_deployed=False,
+    )
+    MonitoringConfig.objects.get_or_create(
+        server=server,
+        defaults={
+            "enabled": True,
+            "collection_interval_seconds": 60,
+            "adaptive_collection_enabled": False,
+            "use_adtk": True,
+            "use_isolation_forest": False,
+            "use_llm_explanation": True,
+            "retention_period_days": 30,
+            "aggregation_enabled": True,
+        },
+    )
+    _, raw_token = AgentCredential.generate_for_server(server)
+    _log_user_action(request, "ADD_SERVER_AGENT", f"Added server {name} (id={server.id})")
+    return _render_agent_install_command(request, server, raw_token, created=True)
+
+
+@require_http_methods(["POST"])
+def regenerate_agent_token(request, server_id):
+    """Rotate a server's agent token and show the new install command.
+
+    The previous token stops working immediately (instant revocation).
+    """
+    from .utils import has_privilege
+
+    if not has_privilege(request.user, 'add_server'):
+        messages.error(request, "You don't have permission to manage server tokens.")
+        return redirect('monitoring_dashboard')
+
+    server = get_object_or_404(Server, id=server_id)
+    _, raw_token = AgentCredential.generate_for_server(server)
+    _log_user_action(request, "ROTATE_AGENT_TOKEN", f"Rotated token for {server.name} (id={server.id})")
+    return _render_agent_install_command(request, server, raw_token, rotated=True)
 
 
 @staff_member_required

@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Add Server (Agent) - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="padding: 24px;">
+    <div style="margin-bottom: 24px;">
+        <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0 0 8px 0;">Add Server (Push Agent)</h1>
+        <p style="font-size: 14px; color: #64748b; margin: 0;">Register a server, then run one command on it. No SSH access or password needed.</p>
+    </div>
+
+    {% if messages %}
+    <div style="max-width: 600px; margin-bottom: 24px;">
+        {% for message in messages %}
+        <div style="padding: 12px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 8px; {% if message.tags == 'error' %}background:#fef2f2;color:#991b1b;border:1px solid #fecaca;{% else %}background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start;">
+        <!-- Form -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.1);max-width:600px;">
+            <h2 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 4px 0;">Server details</h2>
+            <p style="font-size:14px;color:#64748b;margin:0 0 24px 0;">Just a name and IP so you can identify it on the dashboard.</p>
+
+            <form method="post">
+                {% csrf_token %}
+                <div style="margin-bottom:20px;">
+                    <label for="name" style="display:block;font-size:14px;font-weight:500;color:#0f172a;margin-bottom:6px;">Server Name <span style="color:#ef4444;">*</span></label>
+                    <input type="text" id="name" name="name" value="{{ name|default:'' }}" placeholder="e.g., web-prod-1" required
+                           style="width:100%;padding:10px 14px;font-size:14px;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                    <div style="font-size:12px;color:#94a3b8;margin-top:6px;">A friendly name to identify this server.</div>
+                </div>
+
+                <div style="margin-bottom:24px;">
+                    <label for="ip_address" style="display:block;font-size:14px;font-weight:500;color:#0f172a;margin-bottom:6px;">Server IP <span style="color:#ef4444;">*</span></label>
+                    <input type="text" id="ip_address" name="ip_address" value="{{ ip_address|default:'' }}" placeholder="e.g., 10.0.0.21" required
+                           style="width:100%;padding:10px 14px;font-size:14px;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                    <div style="font-size:12px;color:#94a3b8;margin-top:6px;">For your reference on the dashboard (the agent dials out to us; we don't connect to this IP).</div>
+                </div>
+
+                <button type="submit"
+                        style="background:#0f62fe;color:#fff;padding:10px 20px;font-size:14px;font-weight:500;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;">
+                    Create &amp; get install command
+                </button>
+                <a href="/add-server/" style="margin-left:16px;font-size:13px;color:#64748b;text-decoration:none;">Use legacy SSH method instead</a>
+            </form>
+        </div>
+
+        <!-- How it works -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:24px;">
+            <h3 style="font-size:15px;font-weight:600;color:#0f172a;margin:0 0 16px 0;">How the push agent works</h3>
+            <ul style="margin:0;padding-left:18px;font-size:13px;color:#475569;line-height:1.7;">
+                <li>You run one install command on the VM.</li>
+                <li>A small agent sends stats <strong>out</strong> to this server over HTTPS.</li>
+                <li>This server never logs in to the VM &mdash; nothing to steal that opens a door.</li>
+            </ul>
+            <h3 style="font-size:15px;font-weight:600;color:#0f172a;margin:24px 0 12px 0;">On the VM you only need</h3>
+            <ul style="margin:0;padding-left:18px;font-size:13px;color:#475569;line-height:1.7;">
+                <li>Outbound access to this server on port 443</li>
+                <li>The ability to run a small program (Python 3)</li>
+                <li>No inbound ports opened, no web server, no root for normal metrics</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
