@@ -19,8 +19,10 @@ ever stored server-side.
 
 import json
 import logging
+import os
 
-from django.http import JsonResponse
+from django.conf import settings
+from django.http import JsonResponse, HttpResponse, Http404
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -167,6 +169,33 @@ def _coerce_metrics(payload):
     kwargs.setdefault("disk_usage", {})
     kwargs.setdefault("network_io", {})
     return kwargs, None
+
+
+def _serve_agent_file(filename, content_type):
+    """Serve a file from the agent/ directory as plain text.
+
+    The agent source and installer are not secret (the per-server token is the
+    only secret, and it is supplied by the operator at install time), so these
+    are intentionally unauthenticated -- like a typical `curl ... | bash`
+    installer URL.
+    """
+    path = os.path.join(settings.BASE_DIR, "agent", filename)
+    if not os.path.isfile(path):
+        raise Http404("not found")
+    with open(path, "r", encoding="utf-8") as f:
+        return HttpResponse(f.read(), content_type=content_type)
+
+
+@require_http_methods(["GET"])
+def serve_install_script(request):
+    """Serve the VM installer so it can be piped into bash on a monitored VM."""
+    return _serve_agent_file("install.sh", "text/x-shellscript; charset=utf-8")
+
+
+@require_http_methods(["GET"])
+def serve_agent_script(request):
+    """Serve the agent program, fetched by the installer during setup."""
+    return _serve_agent_file("stacksense_agent.py", "text/x-python; charset=utf-8")
 
 
 @csrf_exempt

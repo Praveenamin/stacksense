@@ -20,6 +20,9 @@ urlpatterns = [
     path("api/agent/ping/", agent_api.agent_ping, name="agent_ping"),
     path("api/agent/heartbeat/", agent_api.agent_heartbeat, name="agent_heartbeat"),
     path("api/agent/metrics/", agent_api.agent_ingest_metrics, name="agent_ingest_metrics"),
+    # Public installer + agent source (fetched by the one-line VM installer)
+    path("agent/install.sh", agent_api.serve_install_script, name="agent_install_script"),
+    path("agent/stacksense_agent.py", agent_api.serve_agent_script, name="agent_script"),
     path("settings/", views.app_config, name="app_config"),
     path("config/timezone/", views.app_config, name="app_config_legacy"),  # Legacy URL for backward compatibility
     path("alert-config/", views.alert_config, name="alert_config"),
