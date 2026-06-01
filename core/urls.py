@@ -2,6 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from core.password_reset_views import CustomPasswordResetView
 from . import views
+from . import agent_api
 
 urlpatterns = [
     path("", views.monitoring_dashboard, name="dashboard"),
@@ -15,6 +16,10 @@ urlpatterns = [
     path("remove-server/<int:server_id>/", views.remove_server, name="remove_server"),
     path("api/live-metrics/", views.get_live_metrics, name="live_metrics"),
     path("api/heartbeat/<int:server_id>/", views.heartbeat_api, name="heartbeat_api"),
+    # Push-agent ingest API (token-authenticated, machine-to-machine)
+    path("api/agent/ping/", agent_api.agent_ping, name="agent_ping"),
+    path("api/agent/heartbeat/", agent_api.agent_heartbeat, name="agent_heartbeat"),
+    path("api/agent/metrics/", agent_api.agent_ingest_metrics, name="agent_ingest_metrics"),
     path("settings/", views.app_config, name="app_config"),
     path("config/timezone/", views.app_config, name="app_config_legacy"),  # Legacy URL for backward compatibility
     path("alert-config/", views.alert_config, name="alert_config"),

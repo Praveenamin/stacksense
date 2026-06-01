@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""
+StackSense Push Agent
+
+Runs on a monitored VM and PUSHES system metrics out to the StackSense
+monitoring server over HTTPS. The agent only makes outbound calls -- it opens
+no ports and listens for nothing -- and authenticates with a per-server bearer
+token. The monitoring server never holds any credential that can log in to this
+VM.
+
+Dependencies:
+    - Python 3.6+
+    - psutil           (the only third-party package; for reading system stats)
+    HTTP is done with the standard library (urllib), so 'requests' is NOT needed.
+
+Configuration (environment variables, or ~/.stacksense_agent.conf as JSON):
+    STACKSENSE_URL          Base URL of the monitoring server, e.g. https://mon.example.com:8000
+    STACKSENSE_TOKEN        Per-server bearer token (from `manage.py create_agent_token`)
+    STACKSENSE_INTERVAL     Seconds between pushes (default: 30)
+    STACKSENSE_VERIFY_TLS   "true"/"false" -- verify the server's TLS cert (default: true)
+
+Usage:
+    python3 stacksense_agent.py            # run forever (intended for systemd)
+    python3 stacksense_agent.py --once     # collect & push a single sample, then exit
+    python3 stacksense_agent.py --dry-run  # collect & print one sample, push nothing
+"""
+
+import json
+import os
+import ssl
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+try:
+    import psutil
+except ImportError:
+    sys.stderr.write(
+        "ERROR: psutil is not installed. Install it with:\n"
+        "    python3 -m pip install --user psutil\n"
+    )
+    sys.exit(1)
+
+AGENT_VERSION = "push-1.0.0"
+CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
+DEFAULT_INTERVAL = 30
+HTTP_TIMEOUT = 15
+MAX_RETRIES = 3
+RETRY_DELAY = 5
+
+# Virtual filesystems we never report as disks.
+IGNORED_FSTYPES = {
+    "squashfs", "tmpfs", "devtmpfs", "proc", "sysfs",
+    "cgroup", "cgroup2", "ramfs", "overlay", "udev", "virtfs",
+}
+
+
+def load_config():
+    """Load config from environment variables, falling back to the config file."""
+    config = {
+        "url": os.environ.get("STACKSENSE_URL"),
+        "token": os.environ.get("STACKSENSE_TOKEN"),
+        "interval": int(os.environ.get("STACKSENSE_INTERVAL", DEFAULT_INTERVAL)),
+        "verify_tls": os.environ.get("STACKSENSE_VERIFY_TLS", "true").lower() != "false",
+    }
+    if (not config["url"] or not config["token"]) and CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE) as f:
+                file_config = json.load(f)
+            for key in ("url", "token", "interval", "verify_tls"):
+                if config.get(key) in (None, "") and key in file_config:
+                    config[key] = file_config[key]
+        except Exception as e:
+            sys.stderr.write(f"Warning: could not read {CONFIG_FILE}: {e}\n")
+
+    if not config.get("url") or not config.get("token"):
+        sys.stderr.write(
+            "ERROR: missing configuration. Set STACKSENSE_URL and STACKSENSE_TOKEN "
+            f"(env vars) or populate {CONFIG_FILE}.\n"
+        )
+        sys.exit(1)
+
+    config["url"] = config["url"].rstrip("/")
+    return config
+
+
+def _safe(fn, default=None):
+    """Call fn() and swallow errors (some psutil calls need root or aren't portable)."""
+    try:
+        return fn()
+    except Exception:
+        return default
+
+
+def collect_top_processes(limit=5):
+    """Return {'cpu': [...], 'memory': [...]} of the heaviest processes."""
+    procs = []
+    for p in psutil.process_iter(["pid", "name", "username"]):
+        try:
+            procs.append(p)
+        except Exception:
+            continue
+    # Prime cpu_percent (first call returns 0.0), then sample.
+    for p in procs:
+        _safe(lambda: p.cpu_percent(None))
+    time.sleep(0.3)
+
+    rows = []
+    for p in procs:
+        try:
+            rows.append({
+                "pid": p.pid,
+                "name": p.info.get("name") or "",
+                "user": p.info.get("username") or "",
+                "cpu_percent": round(p.cpu_percent(None), 1),
+                "memory_percent": round(p.memory_percent(), 1),
+            })
+        except Exception:
+            continue
+
+    by_cpu = sorted(rows, key=lambda r: r["cpu_percent"], reverse=True)[:limit]
+    by_mem = sorted(rows, key=lambda r: r["memory_percent"], reverse=True)[:limit]
+    return {"cpu": by_cpu, "memory": by_mem}
+
+
+def collect_metrics(prev):
+    """Collect one metrics sample. `prev` carries counters from the last sample
+    so we can compute per-second I/O rates. Returns (metrics_dict, new_prev)."""
+    now = time.time()
+    metrics = {"agent_version": AGENT_VERSION}
+
+    # CPU
+    metrics["cpu_percent"] = psutil.cpu_percent(interval=1)
+    metrics["cpu_count"] = psutil.cpu_count()
+    metrics["physical_cpu_count"] = _safe(lambda: psutil.cpu_count(logical=False))
+    load = _safe(lambda: psutil.getloadavg())
+    if load:
+        metrics["cpu_load_avg_1m"], metrics["cpu_load_avg_5m"], metrics["cpu_load_avg_15m"] = load
+
+    # Memory
+    mem = psutil.virtual_memory()
+    metrics.update({
+        "memory_total": mem.total,
+        "memory_available": mem.available,
+        "memory_percent": mem.percent,
+        "memory_used": mem.used,
+        "memory_buffers": getattr(mem, "buffers", 0),
+        "memory_cached": getattr(mem, "cached", 0),
+        "memory_shared": getattr(mem, "shared", 0),
+    })
+    swap = psutil.swap_memory()
+    metrics.update({
+        "swap_total": swap.total or None,
+        "swap_used": swap.used or None,
+        "swap_percent": swap.percent if swap.total else None,
+    })
+
+    # Disk usage per real partition
+    disk_usage = {}
+    for part in psutil.disk_partitions(all=False):
+        if part.fstype.lower() in IGNORED_FSTYPES:
+            continue
+        if "/virtfs/" in part.mountpoint or "virtfs" in part.device.lower():
+            continue
+        usage = _safe(lambda: psutil.disk_usage(part.mountpoint))
+        if usage is None:
+            continue
+        disk_usage[part.mountpoint] = {
+            "total": usage.total,
+            "used": usage.used,
+            "free": usage.free,
+            "percent": usage.percent,
+        }
+    metrics["disk_usage"] = disk_usage
+
+    # Network counters per interface
+    net_per_nic = _safe(lambda: psutil.net_io_counters(pernic=True), {}) or {}
+    metrics["network_io"] = {
+        nic: {
+            "bytes_sent": c.bytes_sent,
+            "bytes_recv": c.bytes_recv,
+            "packets_sent": c.packets_sent,
+            "packets_recv": c.packets_recv,
+        }
+        for nic, c in net_per_nic.items()
+    }
+    metrics["network_connections"] = _safe(lambda: len(psutil.net_connections()))
+
+    # Cumulative I/O counters (for rate calculation)
+    disk_io = _safe(lambda: psutil.disk_io_counters())
+    net_io = _safe(lambda: psutil.net_io_counters())
+    cur = {
+        "ts": now,
+        "disk_read": disk_io.read_bytes if disk_io else None,
+        "disk_write": disk_io.write_bytes if disk_io else None,
+        "net_sent": net_io.bytes_sent if net_io else None,
+        "net_recv": net_io.bytes_recv if net_io else None,
+    }
+    if disk_io:
+        metrics["disk_read_bytes_total"] = disk_io.read_bytes
+        metrics["disk_write_bytes_total"] = disk_io.write_bytes
+
+    # Per-second rates vs the previous sample
+    if prev and prev.get("ts"):
+        dt = now - prev["ts"]
+        if dt > 0:
+            def rate(cur_v, prev_v):
+                if cur_v is None or prev_v is None or cur_v < prev_v:
+                    return None
+                return int((cur_v - prev_v) / dt)
+            metrics["disk_io_read"] = rate(cur["disk_read"], prev.get("disk_read"))
+            metrics["disk_io_write"] = rate(cur["disk_write"], prev.get("disk_write"))
+            metrics["net_io_sent"] = rate(cur["net_sent"], prev.get("net_sent"))
+            metrics["net_io_recv"] = rate(cur["net_recv"], prev.get("net_recv"))
+
+    # Uptime + top processes
+    metrics["system_uptime_seconds"] = int(now - psutil.boot_time())
+    metrics["top_processes"] = _safe(lambda: collect_top_processes(), {})
+
+    return metrics, cur
+
+
+def build_opener(verify_tls):
+    """Return a urllib opener; optionally skip TLS verification (self-signed)."""
+    if verify_tls:
+        ctx = ssl.create_default_context()
+    else:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+
+
+def push(config, opener, path, payload):
+    """POST JSON to the monitoring server with the bearer token. Returns dict or None."""
+    url = f"{config['url']}{path}"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Authorization", f"Bearer {config['token']}")
+
+    last_err = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with opener.open(req, timeout=HTTP_TIMEOUT) as resp:
+                body = resp.read().decode("utf-8", "replace")
+                try:
+                    return json.loads(body)
+                except ValueError:
+                    return {"status": resp.status, "raw": body}
+        except urllib.error.HTTPError as e:
+            # 4xx (e.g. 401 bad token) won't fix itself -- don't retry.
+            detail = e.read().decode("utf-8", "replace")
+            sys.stderr.write(f"Push failed: HTTP {e.code} {detail}\n")
+            if 400 <= e.code < 500:
+                return None
+            last_err = e
+        except Exception as e:
+            last_err = e
+            sys.stderr.write(f"Push attempt {attempt} failed: {e}\n")
+        if attempt < MAX_RETRIES:
+            time.sleep(RETRY_DELAY)
+    sys.stderr.write(f"Giving up after {MAX_RETRIES} attempts: {last_err}\n")
+    return None
+
+
+def main():
+    args = set(sys.argv[1:])
+    once = "--once" in args
+    dry_run = "--dry-run" in args
+
+    config = load_config()
+    opener = build_opener(config["verify_tls"])
+
+    if not config["verify_tls"]:
+        sys.stderr.write(
+            "Warning: TLS verification is DISABLED (STACKSENSE_VERIFY_TLS=false). "
+            "Use only with a trusted self-signed setup.\n"
+        )
+
+    print(f"StackSense agent {AGENT_VERSION} -> {config['url']} every {config['interval']}s")
+
+    prev = None
+    while True:
+        try:
+            metrics, prev = collect_metrics(prev)
+        except Exception as e:
+            sys.stderr.write(f"Metric collection error: {e}\n")
+            metrics = None
+
+        if dry_run:
+            print(json.dumps(metrics, indent=2, default=str))
+            return
+
+        if metrics is not None:
+            result = push(config, opener, "/api/agent/metrics/", metrics)
+            if result and result.get("status") == "ok":
+                stored = result.get("stored")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] pushed (stored={stored})")
+            else:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] push not accepted")
+
+        if once:
+            return
+        time.sleep(config["interval"])
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.stderr.write("\nStopped.\n")

@@ -9,7 +9,8 @@ import os
 import paramiko
 from .models import (
     Server, MonitoredLog, LogEvent, AnalysisRule,
-    SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric
+    SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric,
+    AgentCredential
 )
 
 
@@ -238,6 +239,21 @@ admin.site.register(MonitoredLog)
 admin.site.register(LogEvent)
 admin.site.register(AnalysisRule)
 admin.site.register(AggregatedMetric)
+
+
+@admin.register(AgentCredential)
+class AgentCredentialAdmin(admin.ModelAdmin):
+    """Manage push-agent tokens. The raw token is never shown here -- it is only
+    available once, from `manage.py create_agent_token`. This screen is for
+    enabling/disabling (revoking) credentials and auditing last use."""
+    list_display = ("server", "token_prefix", "enabled", "last_used_at", "last_used_ip", "created_at")
+    list_filter = ("enabled",)
+    search_fields = ("server__name", "token_prefix")
+    readonly_fields = ("token_hash", "token_prefix", "created_at", "last_used_at", "last_used_ip")
+    # Don't allow hand-creating credentials here (no way to set a hash safely);
+    # use the create_agent_token command instead.
+    def has_add_permission(self, request):
+        return False
 
 
 # Override admin index to redirect to monitoring

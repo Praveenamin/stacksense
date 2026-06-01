@@ -1,0 +1,261 @@
+"""
+Authenticated ingest API for the push-based monitoring agent.
+
+The agent on each monitored VM dials OUT to these endpoints over HTTPS and
+authenticates with a per-server bearer token (see AgentCredential). The
+monitoring server holds no credentials that can log in to the fleet, so a
+compromise of this server cannot be used to access any monitored VM.
+
+Endpoints (all machine-to-machine, CSRF-exempt, token-authenticated):
+    GET  /api/agent/ping/       -> connectivity + auth check
+    POST /api/agent/heartbeat/  -> lightweight "I'm alive" signal
+    POST /api/agent/metrics/    -> full system-metrics push
+
+Authentication: the agent sends an HTTP header
+    Authorization: Bearer <token>
+The raw token is hashed and looked up against AgentCredential; only the hash is
+ever stored server-side.
+"""
+
+import json
+import logging
+
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
+from .models import AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion
+
+logger = logging.getLogger("core")
+
+# Maximum accepted request body size for a metrics push (defensive limit).
+MAX_BODY_BYTES = 256 * 1024  # 256 KB
+
+# Required metric fields a push must contain (non-null on SystemMetric).
+REQUIRED_FIELDS = (
+    "cpu_percent",
+    "memory_total",
+    "memory_available",
+    "memory_percent",
+    "memory_used",
+)
+
+# Whitelisted numeric fields accepted from the agent and their coercion type.
+# Anything not listed here (or below) is ignored, so the agent can never write
+# to arbitrary model fields.
+FLOAT_FIELDS = (
+    "cpu_percent",
+    "memory_percent",
+    "swap_percent",
+    "cpu_load_avg_1m",
+    "cpu_load_avg_5m",
+    "cpu_load_avg_15m",
+    "net_utilization_sent",
+    "net_utilization_recv",
+)
+
+INT_FIELDS = (
+    "cpu_count",
+    "physical_cpu_count",
+    "memory_total",
+    "memory_available",
+    "memory_used",
+    "memory_buffers",
+    "memory_cached",
+    "memory_shared",
+    "swap_total",
+    "swap_used",
+    "network_connections",
+    "disk_io_read",
+    "disk_io_write",
+    "net_io_sent",
+    "net_io_recv",
+    "nic_max_speed_bits",
+    "disk_read_bytes_total",
+    "disk_write_bytes_total",
+    "system_uptime_seconds",
+)
+
+# JSON/dict fields accepted from the agent.
+JSON_FIELDS = (
+    "disk_usage",
+    "network_io",
+    "top_processes",
+)
+
+
+def _get_client_ip(request):
+    """Best-effort source IP, honoring a single proxy hop (X-Forwarded-For)."""
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+def _authenticate(request):
+    """Return (credential, error_response). Exactly one is non-None."""
+    auth = request.META.get("HTTP_AUTHORIZATION", "")
+    token = None
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer "):].strip()
+    if not token:
+        return None, JsonResponse(
+            {"error": "missing or malformed Authorization header"}, status=401
+        )
+
+    cred = AgentCredential.authenticate(token)
+    if cred is None:
+        return None, JsonResponse({"error": "invalid or disabled token"}, status=401)
+    return cred, None
+
+
+def _touch_credential(cred, request):
+    """Record that a valid push was received with this token."""
+    cred.last_used_at = timezone.now()
+    cred.last_used_ip = _get_client_ip(request)
+    cred.save(update_fields=["last_used_at", "last_used_ip"])
+
+
+def _update_heartbeat(server, agent_version):
+    """Refresh the server heartbeat and (optionally) the reported agent version."""
+    ServerHeartbeat.objects.update_or_create(
+        server=server,
+        defaults={"last_heartbeat": timezone.now(), "agent_version": agent_version},
+    )
+    if agent_version:
+        AgentVersion.objects.update_or_create(
+            server=server,
+            version=agent_version,
+            defaults={"last_seen": timezone.now()},
+        )
+
+
+def _coerce_metrics(payload):
+    """Validate and whitelist an agent payload into SystemMetric kwargs.
+
+    Returns (kwargs, error_message). On success error_message is None.
+    """
+    if not isinstance(payload, dict):
+        return None, "payload must be a JSON object"
+
+    # Required fields must be present and numeric.
+    for field in REQUIRED_FIELDS:
+        if payload.get(field) is None:
+            return None, f"missing required field: {field}"
+
+    kwargs = {}
+    try:
+        for field in FLOAT_FIELDS:
+            if payload.get(field) is not None:
+                kwargs[field] = float(payload[field])
+        for field in INT_FIELDS:
+            if payload.get(field) is not None:
+                kwargs[field] = int(payload[field])
+    except (TypeError, ValueError):
+        return None, f"field '{field}' is not a valid number"
+
+    for field in JSON_FIELDS:
+        value = payload.get(field)
+        if value is None:
+            continue
+        if field in ("disk_usage", "network_io") and not isinstance(value, dict):
+            return None, f"field '{field}' must be a JSON object"
+        kwargs[field] = value
+
+    # disk_usage / network_io are non-null (default=dict) on the model.
+    kwargs.setdefault("disk_usage", {})
+    kwargs.setdefault("network_io", {})
+    return kwargs, None
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def agent_ping(request):
+    """Connectivity + auth check used by the agent/installer to verify setup."""
+    cred, err = _authenticate(request)
+    if err:
+        return err
+    return JsonResponse(
+        {
+            "status": "ok",
+            "server_id": cred.server.id,
+            "server_name": cred.server.name,
+            "authenticated": True,
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def agent_heartbeat(request):
+    """Lightweight authenticated heartbeat ('I'm alive')."""
+    cred, err = _authenticate(request)
+    if err:
+        return err
+
+    agent_version = None
+    if request.body:
+        try:
+            data = json.loads(request.body)
+            if isinstance(data, dict):
+                agent_version = data.get("agent_version")
+        except (ValueError, TypeError):
+            pass
+
+    _update_heartbeat(cred.server, agent_version)
+    _touch_credential(cred, request)
+    return JsonResponse({"status": "ok", "heartbeat_received": True})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def agent_ingest_metrics(request):
+    """Receive and store a full system-metrics push from the agent."""
+    cred, err = _authenticate(request)
+    if err:
+        return err
+
+    server = cred.server
+
+    # Defensive body-size limit.
+    if request.META.get("CONTENT_LENGTH"):
+        try:
+            if int(request.META["CONTENT_LENGTH"]) > MAX_BODY_BYTES:
+                return JsonResponse({"error": "payload too large"}, status=413)
+        except (TypeError, ValueError):
+            pass
+    if len(request.body) > MAX_BODY_BYTES:
+        return JsonResponse({"error": "payload too large"}, status=413)
+
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "request body is not valid JSON"}, status=400)
+
+    agent_version = None
+    if isinstance(payload, dict):
+        agent_version = payload.get("agent_version")
+
+    # Always treat the token as a sign of life, even if monitoring is paused.
+    _update_heartbeat(server, agent_version)
+    _touch_credential(cred, request)
+
+    # Respect per-server monitoring suspension: acknowledge but don't store.
+    config = getattr(server, "monitoring_config", None)
+    if config is not None and getattr(config, "monitoring_suspended", False):
+        return JsonResponse(
+            {"status": "ok", "stored": False, "reason": "monitoring suspended"}
+        )
+
+    kwargs, verr = _coerce_metrics(payload)
+    if verr:
+        return JsonResponse({"error": verr}, status=400)
+
+    # Stamp the timestamp server-side so agents cannot backdate/forward-date data.
+    metric = SystemMetric.objects.create(
+        server=server, timestamp=timezone.now(), **kwargs
+    )
+
+    logger.info("Agent metrics stored for %s (metric_id=%s)", server.name, metric.id)
+    return JsonResponse({"status": "ok", "stored": True, "metric_id": metric.id})

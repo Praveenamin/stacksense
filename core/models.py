@@ -1,3 +1,6 @@
+import hashlib
+import secrets
+
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -974,3 +977,99 @@ class SLIMeasurement(models.Model):
     
     def __str__(self):
         return f"{self.server.name} - {self.get_metric_type_display()} SLI: {self.sli_value} (target: {self.slo_target})"
+
+
+class AgentCredential(models.Model):
+    """Per-server credential for the push-based monitoring agent.
+
+    The agent on each monitored VM authenticates to the ingest API with a bearer
+    token. Only a SHA-256 hash of the token is stored here -- the raw token is
+    shown exactly once at creation time and cannot be recovered afterwards.
+
+    Each server has its own token. A leaked token therefore only allows posting
+    metrics for that single server and grants NO access into any machine, which
+    is the core of the push model's security: the monitoring server holds no
+    credentials that can log in to the fleet.
+    """
+    server = models.OneToOneField(
+        Server,
+        on_delete=models.CASCADE,
+        related_name="agent_credential",
+        help_text="The monitored server this token authenticates",
+    )
+    token_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        help_text="SHA-256 hex digest of the agent token (the raw token is never stored)",
+    )
+    token_prefix = models.CharField(
+        max_length=12,
+        blank=True,
+        help_text="First few characters of the token, for identification only",
+    )
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Whether this token is currently accepted by the ingest API",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time a valid push was received with this token",
+    )
+    last_used_ip = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="Source IP of the last accepted push",
+    )
+
+    class Meta:
+        verbose_name = "Agent Credential"
+        verbose_name_plural = "Agent Credentials"
+
+    def __str__(self):
+        return f"Agent credential for {self.server.name}"
+
+    @staticmethod
+    def hash_token(raw_token):
+        """Return the SHA-256 hex digest used to store/look up a token."""
+        return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def generate_for_server(cls, server):
+        """Create or rotate the credential for a server.
+
+        Returns a tuple of (credential, raw_token). The raw_token is the only
+        time the plaintext token is available -- surface it to the operator once
+        and never persist it.
+        """
+        raw_token = secrets.token_urlsafe(32)
+        cred, _ = cls.objects.update_or_create(
+            server=server,
+            defaults={
+                "token_hash": cls.hash_token(raw_token),
+                "token_prefix": raw_token[:8],
+                "enabled": True,
+                "last_used_at": None,
+                "last_used_ip": None,
+            },
+        )
+        return cred, raw_token
+
+    @classmethod
+    def authenticate(cls, raw_token):
+        """Return the enabled credential matching a raw token, or None.
+
+        The lookup is performed on the indexed hash (not the raw token), so it
+        does not leak the secret via timing.
+        """
+        if not raw_token:
+            return None
+        try:
+            return cls.objects.select_related("server").get(
+                token_hash=cls.hash_token(raw_token),
+                enabled=True,
+            )
+        except cls.DoesNotExist:
+            return None
