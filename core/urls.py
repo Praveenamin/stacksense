@@ -107,6 +107,7 @@ urlpatterns = [
     path("api/log-troubleshooting/ai-solution/", views.log_troubleshooting_ai_solution, name="log_troubleshooting_ai_solution"),
     path("api/log-troubleshooting/create-solution/", views.log_troubleshooting_create_solution, name="log_troubleshooting_create_solution"),
     path("log-troubleshooting/results/", views.log_troubleshooting_results, name="log_troubleshooting_results"),
+    path("domains/<slug:slug>/", views.monitoring_domain, name="monitoring_domain"),
     path("help/", views.help_docs, name="help_docs"),
     path("logout/", views.custom_logout, name="logout"),
     # RBAC URLs

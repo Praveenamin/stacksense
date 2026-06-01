@@ -1,0 +1,84 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ domain.title }} - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="padding: 24px; max-width: 1000px;">
+    <!-- Header -->
+    <div style="margin-bottom: 8px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <h1 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">{{ domain.title }}</h1>
+        {% if domain.status == 'building' %}
+        <span style="font-size:12px;font-weight:600;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:3px 10px;border-radius:999px;">Being built</span>
+        {% elif domain.status == 'planned' %}
+        <span style="font-size:12px;font-weight:600;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:3px 10px;border-radius:999px;">Planned</span>
+        {% else %}
+        <span style="font-size:12px;font-weight:600;color:#166534;background:#dcfce7;border:1px solid #bbf7d0;padding:3px 10px;border-radius:999px;">Active</span>
+        {% endif %}
+        <span style="font-size:12px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;padding:3px 10px;border-radius:999px;">Pillar: {{ domain.pillar }}</span>
+    </div>
+    <p style="font-size: 14px; color: #64748b; margin: 0 0 24px 0;">{{ domain.tagline }}</p>
+
+    {% if domain.existing_note %}
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#1e40af;">
+        {{ domain.existing_note }}
+    </div>
+    {% endif %}
+
+    <!-- Security live stats (only domain with data today) -->
+    {% if security_stats %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:18px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Login events (7d)</div>
+            <div style="font-size:28px;font-weight:700;color:#0f172a;margin-top:4px;">{{ security_stats.total_7d }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:18px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Failed logins (7d)</div>
+            <div style="font-size:28px;font-weight:700;color:{% if security_stats.failed_7d %}#b91c1c{% else %}#0f172a{% endif %};margin-top:4px;">{{ security_stats.failed_7d }}</div>
+        </div>
+    </div>
+    {% if security_stats.recent %}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0;margin-bottom:24px;overflow:hidden;">
+        <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:600;color:#0f172a;">Recent login activity</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+                <th style="padding:10px 18px;font-weight:500;">When</th>
+                <th style="padding:10px 18px;font-weight:500;">Email</th>
+                <th style="padding:10px 18px;font-weight:500;">IP</th>
+                <th style="padding:10px 18px;font-weight:500;">Status</th>
+            </tr></thead>
+            <tbody>
+            {% for ev in security_stats.recent %}
+                <tr style="border-top:1px solid #f1f5f9;">
+                    <td style="padding:10px 18px;color:#475569;">{{ ev.timestamp|date:"M d, H:i" }}</td>
+                    <td style="padding:10px 18px;color:#0f172a;">{{ ev.email }}</td>
+                    <td style="padding:10px 18px;color:#475569;">{{ ev.ip_address }}</td>
+                    <td style="padding:10px 18px;">
+                        {% if ev.status == 'failed' %}<span style="color:#b91c1c;font-weight:600;">Failed</span>{% else %}<span style="color:#166534;">Success</span>{% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+        <!-- What it monitors -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:24px;">
+            <h3 style="font-size:15px;font-weight:600;color:#0f172a;margin:0 0 14px 0;">What this domain monitors</h3>
+            <ul style="margin:0;padding-left:18px;font-size:13px;color:#475569;line-height:1.8;">
+                {% for item in domain.monitors %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+        </div>
+        <!-- Roadmap -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:24px;">
+            <h3 style="font-size:15px;font-weight:600;color:#0f172a;margin:0 0 14px 0;">Coming next</h3>
+            <ul style="margin:0;padding-left:18px;font-size:13px;color:#475569;line-height:1.8;">
+                {% for item in domain.roadmap %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

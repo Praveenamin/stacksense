@@ -11,13 +11,21 @@ logger = logging.getLogger(__name__)
 
 
 def get_client_ip(request):
-    """Extract client IP address from request"""
+    """Extract client IP address from request.
+
+    Returns '0.0.0.0' (conventional "unknown") rather than None when the IP
+    can't be determined -- e.g. programmatic logins with no request, or a
+    request without REMOTE_ADDR. LoginActivity.ip_address is non-null, and for
+    a security audit log we must never silently drop a login event.
+    """
+    if request is None:
+        return '0.0.0.0'
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
+        ip = x_forwarded_for.split(',')[0].strip()
     else:
         ip = request.META.get('REMOTE_ADDR')
-    return ip
+    return ip or '0.0.0.0'
 
 
 def get_location_from_ip(ip_address):

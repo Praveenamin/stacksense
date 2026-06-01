@@ -8122,6 +8122,110 @@ def delete_role(request, role_id):
     return redirect('role_management')
 
 
+# ---------------------------------------------------------------------------
+# Monitoring domains (taxonomy-based landing pages)
+#
+# Part of redefining monitoring around the standard taxonomy:
+# Infrastructure, APM, Logs, Security/SIEM, User Experience, Business.
+# Infrastructure and Logs already have full pages (the dashboard and Logs
+# Analysis); these landing pages give the remaining domains a real home and
+# describe what they monitor + what is being built.
+# ---------------------------------------------------------------------------
+
+MONITORING_DOMAINS = {
+    "security": {
+        "title": "Security Monitoring",
+        "tagline": "Detect suspicious access and protect the fleet (SIEM).",
+        "pillar": "Logs + Metrics",
+        "status": "building",
+        "monitors": [
+            "Login attempts (success / failure) and their sources",
+            "Suspicious authentication patterns (brute force, new locations)",
+            "File-integrity changes on monitored hosts (planned)",
+            "Security-relevant log events (planned)",
+        ],
+        "roadmap": [
+            "Failed-login spike detection + alerting",
+            "Per-host file-integrity monitoring via the agent",
+            "Security event timeline and SIEM-style search",
+        ],
+    },
+    "uptime": {
+        "title": "User Experience Monitoring",
+        "tagline": "Catch outages before users do, with synthetic uptime checks.",
+        "pillar": "Metrics (synthetic)",
+        "status": "building",
+        "monitors": [
+            "Scheduled HTTP/TCP checks against your endpoints (synthetic)",
+            "Uptime %, response time and status-code tracking",
+            "Multi-step journey checks (planned)",
+            "Real User Monitoring from browsers (planned)",
+        ],
+        "roadmap": [
+            "Synthetic check engine (URL/port probes on a schedule)",
+            "Uptime + latency dashboards and SLOs",
+            "Downtime alerting via email / Slack",
+        ],
+    },
+    "business": {
+        "title": "Business Monitoring",
+        "tagline": "Tie system health to business outcomes (KPIs).",
+        "pillar": "Metrics (business)",
+        "status": "planned",
+        "monitors": [
+            "Custom business KPIs (signups/hour, orders, revenue, ...)",
+            "KPI trends and thresholds",
+            "Correlation of KPI dips with infrastructure events (planned)",
+        ],
+        "roadmap": [
+            "KPI ingestion API + data model",
+            "KPI dashboards and alerting",
+            "Link KPI anomalies to infra / app incidents",
+        ],
+    },
+    "apm": {
+        "title": "Application Performance (APM)",
+        "tagline": "Code- and request-level performance and tracing.",
+        "pillar": "Metrics + Traces",
+        "status": "planned",
+        "monitors": [
+            "Request latency, error rates and throughput",
+            "Service-to-service traces (planned)",
+            "Database query timing (planned)",
+        ],
+        "roadmap": [
+            "Expand existing service-latency probes",
+            "Request tracing via app instrumentation",
+        ],
+        "existing_note": "Some of this exists today as service-latency and response-time metrics on the dashboard.",
+    },
+}
+
+
+@staff_member_required
+def monitoring_domain(request, slug):
+    """Render the taxonomy landing page for a monitoring domain."""
+    domain = MONITORING_DOMAINS.get(slug)
+    if not domain:
+        from django.http import Http404
+        raise Http404("Unknown monitoring domain")
+
+    context = {"show_sidebar": True, "slug": slug, "domain": domain}
+
+    # The Security domain already has live data: surface recent login activity.
+    if slug == "security":
+        since = timezone.now() - timedelta(days=7)
+        recent = LoginActivity.objects.filter(timestamp__gte=since)
+        context["security_stats"] = {
+            "total_7d": recent.count(),
+            "failed_7d": recent.filter(status="failed").count(),
+            "recent": list(LoginActivity.objects.order_by("-timestamp")[:8]),
+        }
+
+    context.update(admin.site.each_context(request))
+    return render(request, "core/domain_landing.html", context)
+
+
 def demo_dashboard(request):
     """
     Demo dashboard showcasing IBM Carbon Design System components
