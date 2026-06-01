@@ -1269,3 +1269,124 @@ class SecurityEvent(models.Model):
 
     def __str__(self):
         return f"[{self.severity}] {self.get_event_type_display()} ({self.status})"
+
+
+class BusinessMonitorConfig(models.Model):
+    """Single-instance config for Business monitoring, incl. the KPI ingest token.
+
+    Business apps push KPI values to /api/kpi/ingest/ with this bearer token.
+    Only a SHA-256 hash of the token is stored (raw shown once on generation).
+    """
+    ingest_token_hash = models.CharField(max_length=64, blank=True)
+    ingest_token_prefix = models.CharField(max_length=12, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Business Monitor Configuration"
+        verbose_name_plural = "Business Monitor Configuration"
+
+    def save(self, *args, **kwargs):
+        self.id = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_config(cls):
+        config, _ = cls.objects.get_or_create(id=1)
+        return config
+
+    def generate_token(self):
+        """Generate (or rotate) the ingest token. Returns the raw token (shown once)."""
+        raw = secrets.token_urlsafe(32)
+        self.ingest_token_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        self.ingest_token_prefix = raw[:8]
+        self.save(update_fields=["ingest_token_hash", "ingest_token_prefix", "updated_at"])
+        return raw
+
+    def verify_token(self, raw_token):
+        if not raw_token or not self.ingest_token_hash:
+            return False
+        return hashlib.sha256(raw_token.encode("utf-8")).hexdigest() == self.ingest_token_hash
+
+    def __str__(self):
+        return "Business Monitor Configuration"
+
+
+class BusinessKPI(models.Model):
+    """Definition of a business metric/KPI tracked over time."""
+    class Direction(models.TextChoices):
+        HIGHER_BETTER = "higher_better", "Higher is better"
+        LOWER_BETTER = "lower_better", "Lower is better"
+
+    class Status(models.TextChoices):
+        OK = "ok", "OK"
+        WARNING = "warning", "Warning"
+        CRITICAL = "critical", "Critical"
+        UNKNOWN = "unknown", "Unknown"
+
+    name = models.CharField(max_length=150)
+    key = models.SlugField(max_length=100, unique=True, help_text="Machine key used when pushing values, e.g. 'signups_per_hour'")
+    unit = models.CharField(max_length=30, blank=True, help_text="Display unit, e.g. '/hr', '$', '%'")
+    description = models.TextField(blank=True)
+
+    direction = models.CharField(max_length=15, choices=Direction.choices, default=Direction.HIGHER_BETTER)
+    warning_threshold = models.FloatField(null=True, blank=True, help_text="Value at which the KPI is in warning")
+    critical_threshold = models.FloatField(null=True, blank=True, help_text="Value at which the KPI is critical")
+
+    alert_enabled = models.BooleanField(default=True)
+    enabled = models.BooleanField(default=True)
+
+    # Live state
+    last_value = models.FloatField(null=True, blank=True)
+    last_value_at = models.DateTimeField(null=True, blank=True)
+    last_status = models.CharField(max_length=10, choices=Status.choices, default=Status.UNKNOWN)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Business KPI"
+        verbose_name_plural = "Business KPIs"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def evaluate(self, value):
+        """Return the Status for a given value, honouring direction + thresholds."""
+        w, c = self.warning_threshold, self.critical_threshold
+        if self.direction == self.Direction.HIGHER_BETTER:
+            if c is not None and value <= c:
+                return self.Status.CRITICAL
+            if w is not None and value <= w:
+                return self.Status.WARNING
+        else:  # lower is better
+            if c is not None and value >= c:
+                return self.Status.CRITICAL
+            if w is not None and value >= w:
+                return self.Status.WARNING
+        return self.Status.OK
+
+
+class BusinessKPIValue(models.Model):
+    """A single recorded value for a BusinessKPI (time series)."""
+    class Source(models.TextChoices):
+        API = "api", "API"
+        MANUAL = "manual", "Manual"
+
+    kpi = models.ForeignKey(BusinessKPI, on_delete=models.CASCADE, related_name="values")
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    value = models.FloatField()
+    source = models.CharField(max_length=10, choices=Source.choices, default=Source.API)
+    note = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Business KPI Value"
+        verbose_name_plural = "Business KPI Values"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["kpi", "-timestamp"]),
+        ]
+
+    def __str__(self):
+        return f"{self.kpi.key}={self.value} @ {self.timestamp}"

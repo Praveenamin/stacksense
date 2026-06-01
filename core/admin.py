@@ -11,7 +11,8 @@ from .models import (
     Server, MonitoredLog, LogEvent, AnalysisRule,
     SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric,
     AgentCredential, SyntheticCheck, SyntheticCheckResult,
-    SecurityEvent, SecurityMonitorConfig
+    SecurityEvent, SecurityMonitorConfig,
+    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig
 )
 
 
@@ -286,6 +287,36 @@ class SecurityMonitorConfigAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return not SecurityMonitorConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(BusinessKPI)
+class BusinessKPIAdmin(admin.ModelAdmin):
+    list_display = ("name", "key", "unit", "direction", "last_value", "last_status", "last_value_at", "enabled")
+    list_filter = ("direction", "last_status", "enabled")
+    search_fields = ("name", "key")
+    readonly_fields = ("last_value", "last_value_at", "last_status", "created_at", "updated_at")
+
+
+@admin.register(BusinessKPIValue)
+class BusinessKPIValueAdmin(admin.ModelAdmin):
+    list_display = ("kpi", "value", "source", "timestamp")
+    list_filter = ("source", "kpi")
+    readonly_fields = ("kpi", "value", "source", "note", "timestamp")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(BusinessMonitorConfig)
+class BusinessMonitorConfigAdmin(admin.ModelAdmin):
+    list_display = ("ingest_token_prefix", "updated_at")
+    readonly_fields = ("ingest_token_hash", "ingest_token_prefix", "created_at", "updated_at")
+
+    def has_add_permission(self, request):
+        return not BusinessMonitorConfig.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
         return False

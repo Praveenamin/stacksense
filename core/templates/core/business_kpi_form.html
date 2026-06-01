@@ -1,0 +1,43 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}{% if is_edit %}Edit{% else %}Add{% endif %} KPI - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="padding:24px;max-width:620px;">
+    <h1 style="font-size:24px;font-weight:600;color:#0f172a;margin:0 0 6px 0;">{% if is_edit %}Edit KPI{% else %}Add Business KPI{% endif %}</h1>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px 0;">Define what to track and when it should warn or go critical.</p>
+
+    {% if messages %}{% for message in messages %}
+    <div style="padding:12px 16px;border-radius:6px;font-size:14px;margin-bottom:12px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;">{{ message }}</div>
+    {% endfor %}{% endif %}
+
+    <form method="post" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:28px;">
+        {% csrf_token %}
+        {% with lbl="display:block;font-size:14px;font-weight:500;color:#0f172a;margin-bottom:6px;" inp="width:100%;padding:10px 14px;font-size:14px;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;" grp="margin-bottom:18px;" %}
+        <div style="{{ grp }}"><label style="{{ lbl }}">Name *</label><input type="text" name="name" value="{{ kpi.name }}" placeholder="Signups per hour" style="{{ inp }}" required></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;{{ grp }}">
+            <div><label style="{{ lbl }}">Key *</label><input type="text" name="key" value="{{ kpi.key }}" placeholder="signups_per_hour" style="{{ inp }}"><div style="font-size:12px;color:#94a3b8;margin-top:4px;">Used when pushing values. Auto-slugified.</div></div>
+            <div><label style="{{ lbl }}">Unit</label><input type="text" name="unit" value="{{ kpi.unit }}" placeholder="/hr" style="{{ inp }}"></div>
+        </div>
+        <div style="{{ grp }}"><label style="{{ lbl }}">Description</label><input type="text" name="description" value="{{ kpi.description }}" style="{{ inp }}"></div>
+        <div style="{{ grp }}">
+            <label style="{{ lbl }}">Direction</label>
+            <select name="direction" style="{{ inp }}">
+                <option value="higher_better" {% if kpi.direction == 'higher_better' %}selected{% endif %}>Higher is better (alert when low)</option>
+                <option value="lower_better" {% if kpi.direction == 'lower_better' %}selected{% endif %}>Lower is better (alert when high)</option>
+            </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;{{ grp }}">
+            <div><label style="{{ lbl }}">Warning threshold</label><input type="number" step="any" name="warning_threshold" value="{{ kpi.warning_threshold|default_if_none:'' }}" style="{{ inp }}"></div>
+            <div><label style="{{ lbl }}">Critical threshold</label><input type="number" step="any" name="critical_threshold" value="{{ kpi.critical_threshold|default_if_none:'' }}" style="{{ inp }}"></div>
+        </div>
+        <div style="{{ grp }}">
+            <label style="font-size:14px;color:#0f172a;display:block;margin-bottom:8px;"><input type="checkbox" name="enabled" {% if kpi.enabled %}checked{% endif %}> Enabled</label>
+            <label style="font-size:14px;color:#0f172a;"><input type="checkbox" name="alert_enabled" {% if kpi.alert_enabled %}checked{% endif %}> Alert on threshold breach (email / Slack)</label>
+        </div>
+        <button type="submit" style="background:#0f62fe;color:#fff;padding:10px 22px;font-size:14px;border:none;border-radius:6px;cursor:pointer;">{% if is_edit %}Save changes{% else %}Create KPI{% endif %}</button>
+        <a href="{% url 'business_dashboard' %}" style="margin-left:14px;font-size:14px;color:#64748b;text-decoration:none;">Cancel</a>
+        {% endwith %}
+    </form>
+</div>
+{% endblock %}

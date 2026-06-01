@@ -22,6 +22,7 @@ urlpatterns = [
     path("api/agent/ping/", agent_api.agent_ping, name="agent_ping"),
     path("api/agent/heartbeat/", agent_api.agent_heartbeat, name="agent_heartbeat"),
     path("api/agent/metrics/", agent_api.agent_ingest_metrics, name="agent_ingest_metrics"),
+    path("api/kpi/ingest/", agent_api.kpi_ingest, name="kpi_ingest"),
     # Public installer + agent source (fetched by the one-line VM installer)
     path("agent/install.sh", agent_api.serve_install_script, name="agent_install_script"),
     path("agent/stacksense_agent.py", agent_api.serve_agent_script, name="agent_script"),
@@ -108,6 +109,14 @@ urlpatterns = [
     path("api/log-troubleshooting/create-solution/", views.log_troubleshooting_create_solution, name="log_troubleshooting_create_solution"),
     path("log-troubleshooting/results/", views.log_troubleshooting_results, name="log_troubleshooting_results"),
     path("domains/<slug:slug>/", views.monitoring_domain, name="monitoring_domain"),
+    # Business KPIs
+    path("business/", views.business_dashboard, name="business_dashboard"),
+    path("business/add/", views.business_kpi_add, name="business_kpi_add"),
+    path("business/token/regenerate/", views.business_regenerate_token, name="business_regenerate_token"),
+    path("business/<int:kpi_id>/", views.business_kpi_detail, name="business_kpi_detail"),
+    path("business/<int:kpi_id>/edit/", views.business_kpi_edit, name="business_kpi_edit"),
+    path("business/<int:kpi_id>/record/", views.business_kpi_record, name="business_kpi_record"),
+    path("business/<int:kpi_id>/delete/", views.business_kpi_delete, name="business_kpi_delete"),
     # Security / SIEM
     path("security/", views.security_dashboard, name="security_dashboard"),
     path("security/event/<int:event_id>/", views.security_event_update, name="security_event_update"),

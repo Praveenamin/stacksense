@@ -6,7 +6,7 @@ from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult, SecurityEvent, SecurityMonitorConfig
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult, SecurityEvent, SecurityMonitorConfig, BusinessKPI, BusinessKPIValue, BusinessMonitorConfig
 from .service_latency import measure_service_latency
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -8374,6 +8374,152 @@ def synthetic_check_detail(request, check_id):
     }
     context.update(admin.site.each_context(request))
     return render(request, "core/uptime_detail.html", context)
+
+
+# ---------------------------------------------------------------------------
+# Business KPI monitoring
+# ---------------------------------------------------------------------------
+def _business_context(request, new_raw_token=None):
+    kpis = BusinessKPI.objects.all()
+    cfg = BusinessMonitorConfig.get_config()
+    base_url = request.build_absolute_uri("/").rstrip("/")
+    summary = {"total": kpis.count(), "ok": 0, "warning": 0, "critical": 0}
+    for k in kpis:
+        if k.last_status in summary:
+            summary[k.last_status] += 1
+    context = {
+        "show_sidebar": True,
+        "kpis": kpis,
+        "config": cfg,
+        "summary": summary,
+        "base_url": base_url,
+        "new_raw_token": new_raw_token,
+        "has_token": bool(cfg.ingest_token_hash),
+    }
+    context.update(admin.site.each_context(request))
+    return context
+
+
+@staff_member_required
+def business_dashboard(request):
+    return render(request, "core/business_list.html", _business_context(request))
+
+
+def _apply_kpi_form(request, kpi):
+    from django.utils.text import slugify
+    kpi.name = request.POST.get("name", "").strip()
+    kpi.key = slugify(request.POST.get("key", "").strip() or kpi.name)
+    kpi.unit = request.POST.get("unit", "").strip()
+    kpi.description = request.POST.get("description", "").strip()
+    kpi.direction = request.POST.get("direction", BusinessKPI.Direction.HIGHER_BETTER)
+    kpi.alert_enabled = request.POST.get("alert_enabled") == "on"
+    kpi.enabled = request.POST.get("enabled") == "on"
+
+    def _num(field):
+        raw = request.POST.get(field, "").strip()
+        return float(raw) if raw not in ("", None) else None
+
+    try:
+        kpi.warning_threshold = _num("warning_threshold")
+        kpi.critical_threshold = _num("critical_threshold")
+    except ValueError:
+        return "Thresholds must be numbers."
+
+    if not kpi.name:
+        return "Name is required."
+    if not kpi.key:
+        return "Key is required."
+    dupe = BusinessKPI.objects.filter(key=kpi.key).exclude(pk=kpi.pk).exists()
+    if dupe:
+        return f"A KPI with key '{kpi.key}' already exists."
+    return None
+
+
+@staff_member_required
+def business_kpi_add(request):
+    if request.method == "POST":
+        kpi = BusinessKPI()
+        err = _apply_kpi_form(request, kpi)
+        if err:
+            messages.error(request, err)
+            context = {"show_sidebar": True, "kpi": kpi, "is_edit": False}
+            context.update(admin.site.each_context(request))
+            return render(request, "core/business_kpi_form.html", context)
+        kpi.save()
+        _log_user_action(request, "ADD_KPI", f"Added KPI {kpi.key}")
+        messages.success(request, f'KPI "{kpi.name}" created.')
+        return redirect("business_kpi_detail", kpi_id=kpi.id)
+    kpi = BusinessKPI(direction=BusinessKPI.Direction.HIGHER_BETTER, enabled=True, alert_enabled=True)
+    context = {"show_sidebar": True, "kpi": kpi, "is_edit": False}
+    context.update(admin.site.each_context(request))
+    return render(request, "core/business_kpi_form.html", context)
+
+
+@staff_member_required
+def business_kpi_edit(request, kpi_id):
+    kpi = get_object_or_404(BusinessKPI, id=kpi_id)
+    if request.method == "POST":
+        err = _apply_kpi_form(request, kpi)
+        if err:
+            messages.error(request, err)
+        else:
+            kpi.save()
+            _log_user_action(request, "EDIT_KPI", f"Edited KPI {kpi.key}")
+            messages.success(request, "KPI updated.")
+            return redirect("business_kpi_detail", kpi_id=kpi.id)
+    context = {"show_sidebar": True, "kpi": kpi, "is_edit": True}
+    context.update(admin.site.each_context(request))
+    return render(request, "core/business_kpi_form.html", context)
+
+
+@staff_member_required
+def business_kpi_detail(request, kpi_id):
+    kpi = get_object_or_404(BusinessKPI, id=kpi_id)
+    recent = kpi.values.order_by("-timestamp")[:50]
+    context = {"show_sidebar": True, "kpi": kpi, "recent": recent}
+    context.update(admin.site.each_context(request))
+    return render(request, "core/business_kpi_detail.html", context)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def business_kpi_record(request, kpi_id):
+    kpi = get_object_or_404(BusinessKPI, id=kpi_id)
+    raw = request.POST.get("value", "").strip()
+    try:
+        value = float(raw)
+    except (ValueError, TypeError):
+        messages.error(request, "Value must be a number.")
+        return redirect("business_kpi_detail", kpi_id=kpi.id)
+    from .business import record_value
+    _, transition = record_value(kpi, value, source=BusinessKPIValue.Source.MANUAL,
+                                 note=request.POST.get("note", "").strip())
+    msg = f"Recorded {value}{kpi.unit}. Status: {kpi.last_status}."
+    if transition:
+        msg += f" (changed to {transition})"
+    messages.success(request, msg)
+    return redirect("business_kpi_detail", kpi_id=kpi.id)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def business_kpi_delete(request, kpi_id):
+    kpi = get_object_or_404(BusinessKPI, id=kpi_id)
+    name = kpi.name
+    kpi.delete()
+    _log_user_action(request, "DELETE_KPI", f"Deleted KPI {name}")
+    messages.success(request, f'KPI "{name}" deleted.')
+    return redirect("business_dashboard")
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def business_regenerate_token(request):
+    cfg = BusinessMonitorConfig.get_config()
+    raw = cfg.generate_token()
+    _log_user_action(request, "ROTATE_KPI_TOKEN", "Rotated business ingest token")
+    messages.success(request, "New ingest token generated — copy it now, it won't be shown again.")
+    return render(request, "core/business_list.html", _business_context(request, new_raw_token=raw))
 
 
 # ---------------------------------------------------------------------------

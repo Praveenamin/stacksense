@@ -27,7 +27,10 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion
+from .models import (
+    AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion,
+    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig,
+)
 
 logger = logging.getLogger("core")
 
@@ -169,6 +172,56 @@ def _coerce_metrics(payload):
     kwargs.setdefault("disk_usage", {})
     kwargs.setdefault("network_io", {})
     return kwargs, None
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def kpi_ingest(request):
+    """Ingest a business KPI value.
+
+    Auth: Authorization: Bearer <business ingest token>.
+    Body: {"key": "<kpi key>", "value": <number>, "note": "<optional>"}
+    The timestamp is stamped server-side.
+    """
+    auth = request.META.get("HTTP_AUTHORIZATION", "")
+    token = auth[len("Bearer "):].strip() if auth.startswith("Bearer ") else None
+    cfg = BusinessMonitorConfig.get_config()
+    if not token or not cfg.verify_token(token):
+        return JsonResponse({"error": "invalid or missing token"}, status=401)
+
+    if len(request.body) > MAX_BODY_BYTES:
+        return JsonResponse({"error": "payload too large"}, status=413)
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "request body is not valid JSON"}, status=400)
+    if not isinstance(payload, dict):
+        return JsonResponse({"error": "payload must be a JSON object"}, status=400)
+
+    key = (payload.get("key") or "").strip()
+    if not key:
+        return JsonResponse({"error": "missing 'key'"}, status=400)
+    if payload.get("value") is None:
+        return JsonResponse({"error": "missing 'value'"}, status=400)
+    try:
+        value = float(payload["value"])
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "'value' must be a number"}, status=400)
+
+    kpi = BusinessKPI.objects.filter(key=key, enabled=True).first()
+    if kpi is None:
+        return JsonResponse({"error": f"no enabled KPI with key '{key}'"}, status=404)
+
+    from .business import record_value
+    note = (payload.get("note") or "")[:255]
+    value_obj, transition = record_value(kpi, value, source=BusinessKPIValue.Source.API, note=note)
+    return JsonResponse({
+        "status": "ok",
+        "kpi": kpi.key,
+        "value": value_obj.value,
+        "kpi_status": kpi.last_status,
+        "transition": transition,
+    })
 
 
 def _serve_agent_file(filename, content_type):
