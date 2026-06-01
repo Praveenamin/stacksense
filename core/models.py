@@ -1180,3 +1180,92 @@ class SyntheticCheckResult(models.Model):
     def __str__(self):
         state = "OK" if self.success else "FAIL"
         return f"{self.synthetic_check.name} {state} @ {self.timestamp}"
+
+
+class SecurityMonitorConfig(models.Model):
+    """Tunable thresholds for the security detection engine (single instance).
+
+    Configurable so teams can tune sensitivity and avoid alert fatigue.
+    """
+    enabled = models.BooleanField(default=True, help_text="Run security detection")
+    alert_enabled = models.BooleanField(default=True, help_text="Send email/Slack alerts for new security events")
+    window_minutes = models.IntegerField(default=10, help_text="Look-back window for correlating login events")
+    brute_force_ip_threshold = models.IntegerField(
+        default=8, help_text="Failed logins from one IP within the window before flagging brute force",
+    )
+    account_failure_threshold = models.IntegerField(
+        default=5, help_text="Failed logins for one account within the window before flagging a spike",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Security Monitor Configuration"
+        verbose_name_plural = "Security Monitor Configuration"
+
+    def save(self, *args, **kwargs):
+        self.id = 1  # single-instance pattern
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_config(cls):
+        config, _ = cls.objects.get_or_create(id=1)
+        return config
+
+    def __str__(self):
+        return "Security Monitor Configuration"
+
+
+class SecurityEvent(models.Model):
+    """A detected security event/incident (SIEM-style).
+
+    Currently sourced from authentication activity (LoginActivity); designed to
+    grow to other sources (file integrity, log signatures).
+    """
+    class EventType(models.TextChoices):
+        BRUTE_FORCE = "BRUTE_FORCE", "Brute-force login attempts"
+        LOGIN_FAILURE_SPIKE = "LOGIN_FAILURE_SPIKE", "Login failure spike (account)"
+        SUCCESS_AFTER_FAILURES = "SUCCESS_AFTER_FAILURES", "Successful login after repeated failures"
+
+    class Severity(models.TextChoices):
+        LOW = "LOW", "Low"
+        MEDIUM = "MEDIUM", "Medium"
+        HIGH = "HIGH", "High"
+        CRITICAL = "CRITICAL", "Critical"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        ACKNOWLEDGED = "acknowledged", "Acknowledged"
+        RESOLVED = "resolved", "Resolved"
+
+    event_type = models.CharField(max_length=40, choices=EventType.choices)
+    severity = models.CharField(max_length=10, choices=Severity.choices, default=Severity.MEDIUM)
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.OPEN)
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+
+    source_ip = models.GenericIPAddressField(null=True, blank=True)
+    target_email = models.CharField(max_length=255, blank=True, help_text="Account targeted, if applicable")
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="security_events")
+
+    event_count = models.IntegerField(default=1, help_text="Number of contributing observations")
+    first_seen = models.DateTimeField(default=timezone.now)
+    last_seen = models.DateTimeField(default=timezone.now, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Security Event"
+        verbose_name_plural = "Security Events"
+        ordering = ["-last_seen"]
+        indexes = [
+            models.Index(fields=["status", "-last_seen"]),
+            models.Index(fields=["event_type", "-last_seen"]),
+            models.Index(fields=["source_ip"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.severity}] {self.get_event_type_display()} ({self.status})"

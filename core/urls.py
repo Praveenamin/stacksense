@@ -108,6 +108,10 @@ urlpatterns = [
     path("api/log-troubleshooting/create-solution/", views.log_troubleshooting_create_solution, name="log_troubleshooting_create_solution"),
     path("log-troubleshooting/results/", views.log_troubleshooting_results, name="log_troubleshooting_results"),
     path("domains/<slug:slug>/", views.monitoring_domain, name="monitoring_domain"),
+    # Security / SIEM
+    path("security/", views.security_dashboard, name="security_dashboard"),
+    path("security/event/<int:event_id>/", views.security_event_update, name="security_event_update"),
+    path("security/run/", views.security_run_now, name="security_run_now"),
     # User Experience: synthetic uptime checks
     path("uptime/", views.synthetic_checks_list, name="synthetic_checks_list"),
     path("uptime/add/", views.synthetic_check_add, name="synthetic_check_add"),

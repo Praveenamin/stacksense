@@ -1,0 +1,132 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Security - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="padding:24px;max-width:1100px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <div>
+            <h1 style="font-size:24px;font-weight:600;color:#0f172a;margin:0 0 6px 0;">Security Monitoring</h1>
+            <p style="font-size:14px;color:#64748b;margin:0;">Authentication threat detection for the monitoring console (brute force, failure spikes, takeovers).</p>
+        </div>
+        <form method="post" action="{% url 'security_run_now' %}">{% csrf_token %}
+            <button type="submit" style="background:#fff;color:#0f172a;border:1px solid #e2e8f0;padding:8px 16px;font-size:14px;border-radius:6px;cursor:pointer;">Run detection now</button>
+        </form>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div style="padding:12px 16px;border-radius:6px;font-size:14px;margin-bottom:12px;{% if message.tags == 'error' %}background:#fef2f2;color:#991b1b;border:1px solid #fecaca;{% else %}background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;{% endif %}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Summary -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:24px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Open events</div>
+            <div style="font-size:28px;font-weight:700;color:{% if stats.open_events %}#b91c1c{% else %}#166534{% endif %};">{{ stats.open_events }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Logins (24h)</div>
+            <div style="font-size:28px;font-weight:700;color:#0f172a;">{{ stats.logins_24h }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Failed logins (24h)</div>
+            <div style="font-size:28px;font-weight:700;color:{% if stats.failed_24h %}#b45309{% else %}#0f172a{% endif %};">{{ stats.failed_24h }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;">Source IPs (24h)</div>
+            <div style="font-size:28px;font-weight:700;color:#0f172a;">{{ stats.unique_ips_24h }}</div>
+        </div>
+    </div>
+
+    <!-- Open events -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+        <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:600;color:#0f172a;">Security events</div>
+        {% if open_events %}
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+                <th style="padding:10px 18px;font-weight:500;">Severity</th>
+                <th style="padding:10px 18px;font-weight:500;">Event</th>
+                <th style="padding:10px 18px;font-weight:500;">Source / Account</th>
+                <th style="padding:10px 18px;font-weight:500;">Count</th>
+                <th style="padding:10px 18px;font-weight:500;">Last seen</th>
+                <th style="padding:10px 18px;font-weight:500;">Status</th>
+                <th style="padding:10px 18px;font-weight:500;"></th>
+            </tr></thead>
+            <tbody>
+            {% for ev in open_events %}
+                <tr style="border-top:1px solid #f1f5f9;">
+                    <td style="padding:10px 18px;">
+                        {% if ev.severity == 'CRITICAL' %}<span style="color:#fff;background:#b91c1c;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">CRITICAL</span>
+                        {% elif ev.severity == 'HIGH' %}<span style="color:#b91c1c;font-weight:600;">High</span>
+                        {% elif ev.severity == 'MEDIUM' %}<span style="color:#b45309;font-weight:600;">Medium</span>
+                        {% else %}<span style="color:#64748b;">Low</span>{% endif %}
+                    </td>
+                    <td style="padding:10px 18px;color:#0f172a;">{{ ev.title }}</td>
+                    <td style="padding:10px 18px;color:#475569;">{{ ev.source_ip|default:"" }}{% if ev.target_email %}<br><span style="color:#94a3b8;">{{ ev.target_email }}</span>{% endif %}</td>
+                    <td style="padding:10px 18px;color:#475569;">{{ ev.event_count }}</td>
+                    <td style="padding:10px 18px;color:#475569;">{{ ev.last_seen|date:"M d, H:i" }}</td>
+                    <td style="padding:10px 18px;">{% if ev.status == 'open' %}<span style="color:#b91c1c;">Open</span>{% else %}<span style="color:#b45309;">Acknowledged</span>{% endif %}</td>
+                    <td style="padding:10px 18px;white-space:nowrap;">
+                        {% if ev.status == 'open' %}
+                        <form method="post" action="{% url 'security_event_update' ev.id %}" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="acknowledge"><button type="submit" style="background:none;border:none;color:#0f62fe;cursor:pointer;font-size:13px;">Ack</button></form>
+                        {% endif %}
+                        <form method="post" action="{% url 'security_event_update' ev.id %}" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="resolve"><button type="submit" style="background:none;border:none;color:#166534;cursor:pointer;font-size:13px;">Resolve</button></form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:28px;text-align:center;color:#166534;font-size:14px;">No open security events. ✓</div>
+        {% endif %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+        <!-- Top source IPs by failed logins -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:600;color:#0f172a;">Top source IPs by failed logins (24h)</div>
+            {% if top_ips %}
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <tbody>
+                {% for row in top_ips %}
+                    <tr style="border-top:1px solid #f1f5f9;">
+                        <td style="padding:10px 18px;color:#0f172a;">{{ row.ip_address }}</td>
+                        <td style="padding:10px 18px;color:#b45309;text-align:right;font-weight:600;">{{ row.c }} failed</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding:24px;text-align:center;color:#64748b;font-size:14px;">No failed logins in the last 24h.</div>
+            {% endif %}
+        </div>
+
+        <!-- Recent login activity -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:600;color:#0f172a;">Recent login activity</div>
+            {% if recent_logins %}
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <tbody>
+                {% for ev in recent_logins %}
+                    <tr style="border-top:1px solid #f1f5f9;">
+                        <td style="padding:9px 18px;color:#475569;">{{ ev.timestamp|date:"M d, H:i" }}</td>
+                        <td style="padding:9px 18px;color:#0f172a;">{{ ev.email }}</td>
+                        <td style="padding:9px 18px;color:#475569;">{{ ev.ip_address }}</td>
+                        <td style="padding:9px 18px;">{% if ev.status == 'failed' %}<span style="color:#b91c1c;font-weight:600;">Failed</span>{% else %}<span style="color:#166534;">OK</span>{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding:24px;text-align:center;color:#64748b;font-size:14px;">No login activity yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <p style="font-size:12px;color:#94a3b8;margin-top:18px;">
+        Detection thresholds (brute force: {{ config.brute_force_ip_threshold }} fails/IP, account spike: {{ config.account_failure_threshold }} fails, window: {{ config.window_minutes }} min) are tunable in the admin under "Security Monitor Configuration". Alerts use your Email/Slack settings.
+    </p>
+</div>
+{% endblock %}

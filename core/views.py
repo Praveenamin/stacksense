@@ -6,7 +6,7 @@ from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult, SecurityEvent, SecurityMonitorConfig
 from .service_latency import measure_service_latency
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -8374,6 +8374,72 @@ def synthetic_check_detail(request, check_id):
     }
     context.update(admin.site.each_context(request))
     return render(request, "core/uptime_detail.html", context)
+
+
+# ---------------------------------------------------------------------------
+# Security / SIEM monitoring
+# ---------------------------------------------------------------------------
+@staff_member_required
+def security_dashboard(request):
+    """Security domain: auth threat detection overview + open events."""
+    from django.db.models import Count
+    now = timezone.now()
+    since = now - timedelta(hours=24)
+    logins = LoginActivity.objects.filter(timestamp__gte=since)
+    failed = logins.filter(status=LoginActivity.StatusChoices.FAILED)
+    open_events_qs = SecurityEvent.objects.exclude(status=SecurityEvent.Status.RESOLVED)
+
+    top_ips = list(
+        failed.exclude(ip_address="0.0.0.0")
+        .values("ip_address")
+        .annotate(c=Count("id"))
+        .order_by("-c")[:8]
+    )
+    context = {
+        "show_sidebar": True,
+        "stats": {
+            "logins_24h": logins.count(),
+            "failed_24h": failed.count(),
+            "open_events": open_events_qs.count(),
+            "unique_ips_24h": logins.exclude(ip_address="0.0.0.0").values("ip_address").distinct().count(),
+        },
+        "open_events": open_events_qs.order_by("-last_seen")[:50],
+        "top_ips": top_ips,
+        "recent_logins": LoginActivity.objects.order_by("-timestamp")[:15],
+        "config": SecurityMonitorConfig.get_config(),
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/security_dashboard.html", context)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def security_event_update(request, event_id):
+    event = get_object_or_404(SecurityEvent, id=event_id)
+    action = request.POST.get("action")
+    if action == "acknowledge":
+        event.status = SecurityEvent.Status.ACKNOWLEDGED
+    elif action == "resolve":
+        event.status = SecurityEvent.Status.RESOLVED
+    else:
+        messages.error(request, "Unknown action.")
+        return redirect("security_dashboard")
+    event.save(update_fields=["status", "updated_at"])
+    _log_user_action(request, "SECURITY_EVENT", f"{action} event {event.id}")
+    messages.success(request, f"Event {action}d.")
+    return redirect("security_dashboard")
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def security_run_now(request):
+    from .security_monitor import detect_security_events
+    try:
+        new_events = detect_security_events()
+        messages.success(request, f"Detection ran: {len(new_events)} new event(s).")
+    except Exception as e:
+        messages.error(request, f"Detection failed: {e}")
+    return redirect("security_dashboard")
 
 
 def demo_dashboard(request):

@@ -10,7 +10,8 @@ import paramiko
 from .models import (
     Server, MonitoredLog, LogEvent, AnalysisRule,
     SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric,
-    AgentCredential, SyntheticCheck, SyntheticCheckResult
+    AgentCredential, SyntheticCheck, SyntheticCheckResult,
+    SecurityEvent, SecurityMonitorConfig
 )
 
 
@@ -269,6 +270,25 @@ class SyntheticCheckResultAdmin(admin.ModelAdmin):
     list_display = ("synthetic_check", "timestamp", "success", "status_code", "response_time_ms")
     list_filter = ("success", "synthetic_check")
     readonly_fields = ("synthetic_check", "timestamp", "success", "status_code", "response_time_ms", "error_message")
+
+
+@admin.register(SecurityEvent)
+class SecurityEventAdmin(admin.ModelAdmin):
+    list_display = ("event_type", "severity", "status", "source_ip", "target_email", "event_count", "last_seen")
+    list_filter = ("event_type", "severity", "status")
+    search_fields = ("source_ip", "target_email", "title")
+    readonly_fields = ("first_seen", "last_seen", "created_at", "updated_at")
+
+
+@admin.register(SecurityMonitorConfig)
+class SecurityMonitorConfigAdmin(admin.ModelAdmin):
+    list_display = ("enabled", "alert_enabled", "window_minutes", "brute_force_ip_threshold", "account_failure_threshold")
+
+    def has_add_permission(self, request):
+        return not SecurityMonitorConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     def has_add_permission(self, request):
         return False
