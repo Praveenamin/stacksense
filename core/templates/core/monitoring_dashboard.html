@@ -115,8 +115,8 @@
     }
 
     /* Persona toggle (Operations / Executive) */
-    .persona-btn { padding:7px 16px; border:none; background:transparent; color:#475569; font-size:13px; font-weight:500; cursor:pointer; border-radius:6px; }
-    .persona-btn.active { background:#fff; color:#0f172a; box-shadow:0 1px 2px rgba(15,23,42,.1); }
+    .persona-btn { display:inline-flex; align-items:center; padding:7px 18px; border:none; background:transparent; color:#475569; font-size:13px; font-weight:600; line-height:1; box-sizing:border-box; font-family:inherit; cursor:pointer; border-radius:6px; white-space:nowrap; }
+    .persona-btn.active { background:#ffffff; color:#0f172a; box-shadow:0 1px 2px rgba(15,23,42,.12); }
     .exec-pill { display:inline-flex; align-items:center; font-size:12px; font-weight:600; padding:4px 11px; border-radius:999px; }
     .lg-dot { width:9px; height:9px; border-radius:999px; display:inline-block; margin-right:7px; }
     .dash-section { font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:4px 0 14px 0; }
@@ -129,7 +129,7 @@
             <h1 style="font-size:28px;font-weight:600;color:#161616;margin:0 0 4px 0;line-height:1.2;">Dashboard</h1>
             <p style="font-size:14px;color:#525252;margin:0;">{% if dashboard_view == 'executive' %}Business overview — KPIs at a glance.{% else %}Fleet overview — health, trends and alerts at a glance.{% endif %}</p>
         </div>
-        <form method="post" action="{% url 'set_dashboard_view' %}" style="display:flex;background:#f1f5f9;border-radius:8px;padding:3px;gap:2px;">{% csrf_token %}
+        <form method="post" action="{% url 'set_dashboard_view' %}" style="display:inline-flex;align-items:center;background:#eef1f5;border-radius:9px;padding:4px;gap:4px;flex-shrink:0;">{% csrf_token %}
             <button type="submit" name="view" value="operations" class="persona-btn {% if dashboard_view != 'executive' %}active{% endif %}">Operations</button>
             <button type="submit" name="view" value="executive" class="persona-btn {% if dashboard_view == 'executive' %}active{% endif %}">Executive</button>
         </form>
@@ -286,7 +286,7 @@
         {% include "core/components/dashboard/response_time_chart.html" %}
     </div>
     {% else %}
-    <div class="dashboard-grid" style="margin-bottom: 20px;">
+    <div style="margin-bottom: 20px;">
         {% include "core/components/dashboard/network_traffic_chart.html" %}
     </div>
     {% endif %}
