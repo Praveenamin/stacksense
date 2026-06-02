@@ -1147,7 +1147,17 @@ def monitoring_dashboard(request):
 
 @staff_member_required
 def add_server(request):
-    """Add a new server with SSH key deployment"""
+    """Legacy SSH-based add flow (retired).
+
+    The push-agent model replaced SSH onboarding, so this entry point now
+    redirects to the agent flow. The SSH deployment code below is retained for
+    reference / potential reuse but is no longer reachable from the UI.
+    """
+    return redirect('add_server_agent')
+
+
+def add_server_legacy_ssh(request):
+    """Original SSH key-deployment add flow (no longer routed)."""
     from .utils import has_privilege
 
     if not has_privilege(request.user, 'add_server'):
@@ -1161,7 +1171,7 @@ def add_server(request):
         }
         context.update(admin.site.each_context(request))
         return render(request, "core/add_server.html", context)
-    
+
     # Handle POST request
     _log_user_action(request, "ADD_SERVER", f"Attempting to add server")
     try:
