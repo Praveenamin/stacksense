@@ -242,7 +242,7 @@
                 </div>
                 <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
                     <div><span class="lg-dot" style="background:#24a148;"></span>Running <b>{{ services_running }}</b></div>
-                    <div><span class="lg-dot" style="background:#94a3b8;"></span>Stopped <b>{{ services_stopped }}</b></div>
+                    <div><span class="lg-dot" style="background:#da1e28;"></span>Stopped <b>{{ services_stopped }}</b></div>
                     <div style="margin-top:4px;"><a href="/services/" style="color:#0f62fe;text-decoration:none;font-size:12px;">View all →</a></div>
                 </div>
             </div>
@@ -276,7 +276,7 @@
             });
         }
         donut('donut-servers', [{{ online_count }},{{ warning_count }},{{ offline_count }}], ['#24a148','#ff832b','#94a3b8']);
-        donut('donut-services', [{{ services_running }},{{ services_stopped }}], ['#24a148','#94a3b8']);
+        donut('donut-services', [{{ services_running }},{{ services_stopped }}], ['#24a148','#da1e28']);
         donut('donut-containers', [{{ containers_running }},{{ containers_stopped }}], ['#24a148','#94a3b8']);
     })();
     </script>
