@@ -301,7 +301,7 @@ class SLOComplianceGauges {
         // Build datasets
         const datasets = [
             {
-                label: 'CPU (avg)',
+                label: 'CPU',
                 data: sortedTimestamps.map(ts => {
                     const d = cpuMap.get(ts);
                     return d ? d.value : null;
@@ -336,7 +336,7 @@ class SLOComplianceGauges {
                 clip: false  // Allow triangle to draw above chart area when at 100%
             },
             {
-                label: 'Memory (avg)',
+                label: 'Memory',
                 data: sortedTimestamps.map(ts => {
                     const d = memoryMap.get(ts);
                     return d ? d.value : null;
@@ -429,6 +429,11 @@ class SLOComplianceGauges {
                             padding: 20,
                             font: {
                                 size: 12
+                            },
+                            // Keep the legend clean: peak series are shown as markers
+                            // on the line itself, not as (struck-through) legend entries.
+                            filter: function(item) {
+                                return !/\(peak\)/i.test(item.text);
                             }
                         }
                     },
