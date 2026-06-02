@@ -37,7 +37,6 @@
         <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
             <th style="padding:9px 18px;font-weight:500;">Service</th>
             <th style="padding:9px 18px;font-weight:500;">Type</th>
-            <th style="padding:9px 18px;font-weight:500;">Port</th>
             <th style="padding:9px 18px;font-weight:500;">Status</th>
             <th style="padding:9px 18px;font-weight:500;text-align:right;">Monitor</th>
         </tr></thead>
@@ -46,7 +45,6 @@
             <tr class="svc-row" data-name="{{ s.name|lower }}" style="border-top:1px solid #f1f5f9;">
                 <td style="padding:9px 18px;color:#0f172a;font-weight:500;">{{ s.name }}</td>
                 <td style="padding:9px 18px;color:#64748b;">{{ s.service_type }}</td>
-                <td style="padding:9px 18px;color:#64748b;">{{ s.port|default:"—" }}</td>
                 <td style="padding:9px 18px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#94a3b8;">● {{ s.status|capfirst }}</span>{% endif %}</td>
                 <td style="padding:9px 18px;text-align:right;">
                     <label class="switch"><input type="checkbox" {% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
@@ -70,7 +68,6 @@
                 <tr class="svc-row" data-name="{{ s.name|lower }}" style="border-top:1px solid #f1f5f9;background:#fcfcfd;">
                     <td style="padding:8px 18px;color:#475569;">{{ s.name }}</td>
                     <td style="padding:8px 18px;color:#94a3b8;">{{ s.service_type }}</td>
-                    <td style="padding:8px 18px;color:#94a3b8;">{{ s.port|default:"—" }}</td>
                     <td style="padding:8px 18px;">{% if s.status == 'running' %}<span style="color:#166534;">● Running</span>{% else %}<span style="color:#94a3b8;">● {{ s.status|capfirst }}</span>{% endif %}</td>
                     <td style="padding:8px 18px;text-align:right;"><label class="switch"><input type="checkbox" {% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
                 </tr>
