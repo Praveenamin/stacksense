@@ -1143,12 +1143,13 @@ def monitoring_dashboard(request):
     acl = UserACL.get_or_create_for_user(request.user)
     dashboard_view = acl.dashboard_view
 
-    # Services + containers fleet-wide summary (systemd services only, like the Services page)
-    services_qs = Service.objects.exclude(service_type="port")
+    # Dashboard shows only services/containers the user has chosen to monitor
+    services_qs = Service.objects.filter(monitoring_enabled=True)
     services_total = services_qs.count()
     services_running = services_qs.filter(status="running").count()
-    containers_total = Container.objects.count()
-    containers_running = Container.objects.filter(state="running").count()
+    containers_qs = Container.objects.filter(monitoring_enabled=True)
+    containers_total = containers_qs.count()
+    containers_running = containers_qs.filter(state="running").count()
 
     # Response Time (service latency) is APM-adjacent: only show it once there is
     # actual latency data from a monitored service.
