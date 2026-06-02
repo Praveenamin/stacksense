@@ -136,7 +136,10 @@
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
             {% if dashboard_view != 'executive' %}
-            <button type="button" id="insight-bell-btn" class="insight-icon" onclick="toggleInsight('insight-panel', this)" title="Trends &amp; AI recommendations">🔔<span class="insight-badge" id="insight-bell-count" style="display:none;"></span></button>
+            <button type="button" id="insight-bell-btn" class="insight-icon" onclick="toggleInsight('insight-panel', this)" title="Trends &amp; AI recommendations">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span class="insight-badge" id="insight-bell-count" style="display:none;"></span>
+            </button>
             {% endif %}
             <form method="post" action="{% url 'set_dashboard_view' %}" style="display:inline-flex;align-items:center;background:#eef1f5;border-radius:9px;padding:4px;gap:4px;">{% csrf_token %}
                 <button type="submit" name="view" value="operations" class="persona-btn {% if dashboard_view != 'executive' %}active{% endif %}">Operations</button>
