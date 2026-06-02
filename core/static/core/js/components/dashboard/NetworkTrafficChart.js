@@ -180,16 +180,18 @@ class NetworkTrafficChart extends BaseDashboardComponent {
                 {
                     label: `Inbound${labelPrefix}`,
                     data: data.points.map(p => p.inbound || 0),
-                    borderColor: '#a855f7',
-                    backgroundColor: 'rgba(168, 85, 247, 0.6)',
-                    fill: true
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.16)',
+                    fill: true,
+                    tension: 0.35
                 },
                 {
                     label: `Outbound${labelPrefix}`,
                     data: data.points.map(p => p.outbound || 0),
-                    borderColor: '#06b6d4',
-                    backgroundColor: 'rgba(6, 182, 212, 0.6)',
-                    fill: true
+                    borderColor: '#14b8a6',
+                    backgroundColor: 'rgba(20, 184, 166, 0.16)',
+                    fill: true,
+                    tension: 0.35
                 }
             ]
         };

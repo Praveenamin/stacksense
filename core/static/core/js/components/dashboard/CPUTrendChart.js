@@ -174,9 +174,10 @@ class CPUTrendChart extends BaseDashboardComponent {
         const datasets = [{
             label: label,
             data: data.points.map(p => p.value),
-            borderColor: '#0ea5e9',
-            backgroundColor: 'rgba(14, 165, 233, 0.1)',
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.12)',
             fill: true,
+            tension: 0.35,
             order: 2
         }];
         

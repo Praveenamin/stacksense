@@ -186,10 +186,10 @@ class ResponseTimeChart extends BaseDashboardComponent {
             datasets: [{
                 label: label,
                 data: data.points.map(p => p.value),
-                borderColor: '#10b981',  // Green color for latency
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderColor: '#f59e0b',  // Amber, matching the unified palette
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
                 fill: true,
-                tension: 0.3
+                tension: 0.35
             }]
         };
         

@@ -163,9 +163,10 @@ class MemoryTrendChart extends BaseDashboardComponent {
         const datasets = [{
             label: label,
             data: data.points.map(p => p.value),
-            borderColor: '#22c55e',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            borderColor: '#14b8a6',
+            backgroundColor: 'rgba(20, 184, 166, 0.12)',
             fill: true,
+            tension: 0.35,
             order: 2
         }];
         
