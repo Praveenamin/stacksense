@@ -1158,6 +1158,9 @@ def monitoring_dashboard(request):
         for mount, info in du.items():
             if not isinstance(info, dict):
                 continue
+            # Skip boot and temp partitions
+            if mount in ("/boot", "/boot/efi", "/tmp", "/var/tmp") or mount.startswith("/boot"):
+                continue
             pct = info.get("percent")
             if pct is None:
                 continue
