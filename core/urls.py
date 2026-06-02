@@ -93,6 +93,7 @@ urlpatterns = [
     path("api/dashboard/top-cpu-consumers/", views.dashboard_top_cpu_consumers_api, name="dashboard_top_cpu_consumers_api"),
     path("api/dashboard/top-memory-consumers/", views.dashboard_top_memory_consumers_api, name="dashboard_top_memory_consumers_api"),
     path("api/dashboard/health-status/", views.dashboard_health_status_api, name="dashboard_health_status_api"),
+    path("api/dashboard/fleet-status/", views.dashboard_fleet_status_api, name="dashboard_fleet_status_api"),
     path("api/dashboard/recent-alerts/", views.dashboard_recent_alerts_api, name="dashboard_recent_alerts_api"),
     path("api/dashboard/ai-recommendations/", views.dashboard_ai_recommendations_api, name="dashboard_ai_recommendations_api"),
     path("api/dashboard/disk-forecast/<int:server_id>/<path:mount_point>/", views.dashboard_disk_forecast_api, name="dashboard_disk_forecast_api"),

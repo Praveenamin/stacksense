@@ -1243,6 +1243,39 @@ def set_dashboard_view(request):
     return redirect("monitoring_dashboard")
 
 
+def _fleet_status_counts():
+    """Fleet-wide counts for the dashboard status donuts (servers + monitored
+    services/containers). Used by the dashboard page and the auto-refresh API."""
+    online = warning = offline = 0
+    for s in Server.objects.all():
+        st = _calculate_server_status(s)
+        if st == "online":
+            online += 1
+        elif st == "warning":
+            warning += 1
+        else:
+            offline += 1
+    svc = Service.objects.filter(monitoring_enabled=True)
+    svc_total = svc.count()
+    svc_running = svc.filter(status="running").count()
+    ctr = Container.objects.filter(monitoring_enabled=True)
+    ctr_total = ctr.count()
+    ctr_running = ctr.filter(state="running").count()
+    return {
+        "servers": {"online": online, "warning": warning, "offline": offline,
+                    "total": online + warning + offline},
+        "services": {"running": svc_running, "stopped": svc_total - svc_running, "total": svc_total},
+        "containers": {"running": ctr_running, "stopped": ctr_total - ctr_running, "total": ctr_total},
+    }
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def dashboard_fleet_status_api(request):
+    """Live fleet-status counts for the dashboard donuts (auto-refresh)."""
+    return JsonResponse({"success": True, "data": _fleet_status_counts()})
+
+
 @staff_member_required
 def add_server(request):
     """Legacy SSH-based add flow (retired).

@@ -378,7 +378,7 @@ def main():
 
     print(f"StackSense agent {AGENT_VERSION} -> {config['url']} every {config['interval']}s")
 
-    services_interval = int(os.environ.get("STACKSENSE_SERVICES_INTERVAL", 300))
+    services_interval = int(os.environ.get("STACKSENSE_SERVICES_INTERVAL", 60))
     last_services_push = 0  # force a services push on the first loop
 
     prev = None
