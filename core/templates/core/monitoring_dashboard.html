@@ -120,6 +120,11 @@
     .exec-pill { display:inline-flex; align-items:center; font-size:12px; font-weight:600; padding:4px 11px; border-radius:999px; }
     .lg-dot { width:9px; height:9px; border-radius:999px; display:inline-block; margin-right:7px; }
     .dash-section { font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:4px 0 14px 0; }
+    /* Insight icon buttons (Trends / AI) */
+    .insight-icon { position:relative; width:38px; height:38px; border:1px solid #e2e8f0; background:#fff; border-radius:9px; font-size:17px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+    .insight-icon:hover { background:#f1f5f9; }
+    .insight-icon.active { border-color:#0f62fe; box-shadow:0 0 0 2px rgba(15,98,254,.15); }
+    .insight-badge { position:absolute; top:-6px; right:-6px; background:#0f62fe; color:#fff; font-size:10px; font-weight:700; min-width:16px; height:16px; padding:0 4px; border-radius:999px; display:flex; align-items:center; justify-content:center; }
 </style>
 {% endblock %}
 
@@ -129,10 +134,16 @@
             <h1 style="font-size:28px;font-weight:600;color:#161616;margin:0 0 4px 0;line-height:1.2;">Dashboard</h1>
             <p style="font-size:14px;color:#525252;margin:0;">{% if dashboard_view == 'executive' %}Business overview — KPIs at a glance.{% else %}Fleet overview — health, trends and alerts at a glance.{% endif %}</p>
         </div>
-        <form method="post" action="{% url 'set_dashboard_view' %}" style="display:inline-flex;align-items:center;background:#eef1f5;border-radius:9px;padding:4px;gap:4px;flex-shrink:0;">{% csrf_token %}
-            <button type="submit" name="view" value="operations" class="persona-btn {% if dashboard_view != 'executive' %}active{% endif %}">Operations</button>
-            <button type="submit" name="view" value="executive" class="persona-btn {% if dashboard_view == 'executive' %}active{% endif %}">Executive</button>
-        </form>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            {% if dashboard_view != 'executive' %}
+            <button type="button" id="insight-trends-btn" class="insight-icon" style="display:none;" onclick="toggleInsight('insight-trends-panel', this)" title="Trend insights">📈<span class="insight-badge" id="insight-trends-count"></span></button>
+            <button type="button" id="insight-ai-btn" class="insight-icon" style="display:none;" onclick="toggleInsight('insight-ai-panel', this)" title="AI recommendations">✨<span class="insight-badge" id="insight-ai-count"></span></button>
+            {% endif %}
+            <form method="post" action="{% url 'set_dashboard_view' %}" style="display:inline-flex;align-items:center;background:#eef1f5;border-radius:9px;padding:4px;gap:4px;">{% csrf_token %}
+                <button type="submit" name="view" value="operations" class="persona-btn {% if dashboard_view != 'executive' %}active{% endif %}">Operations</button>
+                <button type="submit" name="view" value="executive" class="persona-btn {% if dashboard_view == 'executive' %}active{% endif %}">Executive</button>
+            </form>
+        </div>
     </div>
 
     {% if dashboard_view == 'executive' %}
@@ -170,6 +181,32 @@
 
     {% else %}
     {% include "core/components/dashboard/alerts_banner.html" %}
+
+    <!-- Insight panels (revealed via the header icons, only when there's content) -->
+    <div id="insight-trends-panel" class="insight-panel" style="display:none;margin-bottom:20px;">{% include "core/components/dashboard/trend_insights.html" %}</div>
+    <div id="insight-ai-panel" class="insight-panel" style="display:none;margin-bottom:20px;">{% include "core/components/dashboard/ai_recommendations.html" %}</div>
+    <script>
+    function toggleInsight(id, btn){
+        var panel=document.getElementById(id);
+        var open = (panel.style.display==='none' || panel.style.display==='');
+        document.querySelectorAll('.insight-panel').forEach(function(p){ if(p.id!==id) p.style.display='none'; });
+        document.querySelectorAll('.insight-icon').forEach(function(b){ if(b!==btn) b.classList.remove('active'); });
+        panel.style.display = open ? 'block' : 'none';
+        btn.classList.toggle('active', open);
+        if(open) panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    (function(){
+        function reveal(btnId, countId, n){
+            if(n>0){ var b=document.getElementById(btnId); if(b){ b.style.display='inline-flex'; var c=document.getElementById(countId); if(c) c.textContent=n; } }
+        }
+        fetch('/api/dashboard/trend-insights/').then(function(r){return r.json();}).then(function(d){
+            var n=(d&&d.data&&d.data.insights)?d.data.insights.length:0; reveal('insight-trends-btn','insight-trends-count',n);
+        }).catch(function(){});
+        fetch('/api/dashboard/ai-recommendations/').then(function(r){return r.json();}).then(function(d){
+            var n=(d&&d.data&&d.data.length)?d.data.length:0; reveal('insight-ai-btn','insight-ai-count',n);
+        }).catch(function(){});
+    })();
+    </script>
 
     <div class="dash-section">Overview</div>
     <!-- Fleet status (graphical): Servers / Services / Containers -->
@@ -306,10 +343,6 @@
         {% include "core/components/dashboard/login_activity_summary.html" %}
     </div>
 
-    <!-- INSIGHTS -->
-    <div class="dash-section">Insights</div>
-    {% include "core/components/dashboard/trend_insights.html" %}
-    {% include "core/components/dashboard/ai_recommendations.html" %}
     {% endif %}
 
 {% endblock %}
