@@ -117,6 +117,11 @@
 {% endblock %}
 
 {% block content %}
+    <div style="margin-bottom:20px;">
+        <h1 style="font-size:28px;font-weight:600;color:#161616;margin:0 0 4px 0;line-height:1.2;">Dashboard</h1>
+        <p style="font-size:14px;color:#525252;margin:0;">Fleet overview — health, trends and alerts at a glance.</p>
+    </div>
+
     {% include "core/components/dashboard/alerts_banner.html" %}
     {% include "core/components/dashboard/summary_metrics_card.html" %}
     
