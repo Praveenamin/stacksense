@@ -1,350 +1,239 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Instances - StackWatch{% endblock %}
+{% block title %}Instances - Stack Alert{% endblock %}
 
 {% block bodyclass %}server-list-page{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
-<div style="margin-bottom: var(--cds-spacing-8);">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-            <h1 style="font-size: 28px; font-weight: 600; color: #161616; margin: 0 0 4px 0; line-height: 1.2;">Instances</h1>
-            <p style="font-size: 14px; color: #525252; margin: 0; line-height: 1.5;">Detailed view of all your virtual machine instances</p>
-        </div>
-        <div style="display: flex; gap: 8px;">
-            <a href="/monitoring/" style="background-color: #ffffff; color: #161616; border: 1px solid #d0d0d0; padding: 8px 16px; font-size: 14px; font-weight: 400; text-decoration: none; border-radius: 4px; display: inline-flex; align-items: center;">Back to Dashboard</a>
-            <a href="/add-server-agent/" style="background-color: #0f62fe; color: #ffffff; padding: 8px 16px; font-size: 14px; font-weight: 400; text-decoration: none; border-radius: 4px; display: inline-flex; align-items: center;">Add Server</a>
-        </div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+    <div>
+        <h1 style="font-size:28px;font-weight:600;color:#161616;margin:0 0 4px 0;line-height:1.2;">Instances</h1>
+        <p style="font-size:14px;color:#525252;margin:0;">All your virtual machines and their live health.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a href="/monitoring/" style="background:#fff;color:#161616;border:1px solid #d0d0d0;padding:9px 16px;font-size:14px;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;">Dashboard</a>
+        <a href="/add-server-agent/" style="background:#0f62fe;color:#fff;padding:9px 18px;font-size:14px;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;">+ Add Server</a>
     </div>
 </div>
 
 <!-- Messages -->
 {% if messages %}
-<div style="margin-bottom: var(--cds-spacing-8);">
+<div style="margin-bottom:20px;">
     {% for message in messages %}
-    <div class="notification notification-{{ message.tags|default:'info' }}">
-        <div class="notification-content">
-            <div style="display: flex; align-items: flex-start; gap: var(--cds-spacing-4);">
-                <div class="notification-icon">
-                    {% if message.tags == 'error' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                    {% elif message.tags == 'success' %}
-                    <svg fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px;">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    {% endif %}
-                </div>
-                <div>
-                    <div style="font-size: 14px; font-weight: 400; color: #161616;">{{ message }}</div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div style="padding:12px 16px;border-radius:8px;font-size:14px;margin-bottom:8px;{% if message.tags == 'error' %}background:#fef2f2;color:#991b1b;border:1px solid #fecaca;{% else %}background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;{% endif %}">{{ message }}</div>
     {% endfor %}
 </div>
 {% endif %}
 
-<!-- Instances Table -->
 {% if servers %}
-<div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 0;">
-    <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-            <tr style="background-color: #f4f4f4; border-bottom: 1px solid #e0e0e0;">
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Instance</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Status</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Agent</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Alerts</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Monitoring</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">CPU</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Memory</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Disk</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Network</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Uptime</th>
-                <th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; color: #525252; text-transform: uppercase; letter-spacing: 0.16px;">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for server in servers %}
-            <tr style="border-bottom: 1px solid #e0e0e0; transition: background-color 0.15s ease;">
-                <!-- Instance -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color: #525252; cursor: pointer;">
-                            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                        <div style="font-size: 14px; font-weight: 400; color: #161616;">{{ server.name }}</div>
-                    </div>
-                </td>
-                <!-- Status -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.status == 'online' %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">Online</span>
-                    {% elif server.status == 'warning' %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #ffe6cc; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">Warning</span>
-                    {% elif server.status == 'offline' %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #f4f4f4; color: #525252; border-radius: 12px; font-size: 12px; font-weight: 400;">Offline</span>
-                    {% else %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #fff4e6; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">pending</span>
-                    {% endif %}
-                </td>
-                <!-- Agent -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.agent_installed %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">Installed</span>
-                    {% else %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #ffe6cc; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">Not Installed</span>
-                    {% endif %}
-                </td>
-                <!-- Alerts -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.alert_suppressed %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #ffe6cc; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">Disabled</span>
-                    {% else %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">Enabled</span>
-                    {% endif %}
-                </td>
-                <!-- Monitoring -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.monitoring_suspended %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #ffe6cc; color: #8e3b00; border-radius: 12px; font-size: 12px; font-weight: 400;">Disabled</span>
-                    {% else %}
-                    <span style="display: inline-flex; align-items: center; padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">Enabled</span>
-                    {% endif %}
-                </td>
-                <!-- CPU -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.cpu_percent is not None %}
-                    <div style="font-size: 14px; color: #161616; margin-bottom: 4px;">{{ server.cpu_percent|floatformat:0 }}%</div>
-                    <div style="width: 100px; height: 4px; background-color: #e0e0e0; border-radius: 2px; overflow: hidden;">
-                        <div style="width: {{ server.cpu_percent }}%; height: 100%; background-color: #0f62fe; transition: width 0.3s ease;"></div>
-                    </div>
-                    {% else %}
-                    <span style="color: #a8a8a8;">—</span>
-                    {% endif %}
-                </td>
-                <!-- Memory -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.memory_percent is not None and server.memory_total %}
-                    <div style="font-size: 14px; color: #161616; margin-bottom: 4px;">
-                        {{ server.memory_used|floatformat:1|default:"0" }}GB / {{ server.memory_total|floatformat:1|default:"0" }}GB
-                    </div>
-                    <div style="width: 100px; height: 4px; background-color: #e0e0e0; border-radius: 2px; overflow: hidden;">
-                        <div style="width: {{ server.memory_percent }}%; height: 100%; background-color: #0f62fe; transition: width 0.3s ease;"></div>
-                    </div>
-                    {% else %}
-                    <span style="color: #a8a8a8;">—</span>
-                    {% endif %}
-                </td>
-                <!-- Disk -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.disk_percent is not None %}
-                    <div style="font-size: 14px; color: #161616; margin-bottom: 4px;">{{ server.disk_percent|floatformat:0 }}%</div>
-                    <div style="width: 100px; height: 4px; background-color: #e0e0e0; border-radius: 2px; overflow: hidden;">
-                        <div style="width: {{ server.disk_percent }}%; height: 100%; background-color: #0f62fe; transition: width 0.3s ease;"></div>
-                    </div>
-                    {% else %}
-                    <span style="color: #a8a8a8;">—</span>
-                    {% endif %}
-                </td>
-                <!-- Network -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    {% if server.network_sent is not None or server.network_recv is not None %}
-                    <div style="font-size: 14px; color: #161616;">
-                        <span style="color: #525252;">↑</span> {{ server.network_sent|floatformat:1|default:"0" }}MB/s
-                        <span style="color: #525252; margin-left: 8px;">↓</span> {{ server.network_recv|floatformat:1|default:"0" }}MB/s
-                    </div>
-                    {% else %}
-                    <span style="color: #a8a8a8;">—</span>
-                    {% endif %}
-                </td>
-                <!-- Uptime -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    <div style="display: flex; align-items: center; gap: 4px; font-size: 14px; color: #161616;">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color: #525252;">
-                            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM8 3v5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        {{ server.uptime_display|default:"0m" }}
-                    </div>
-                </td>
-                <!-- Actions -->
-                <td style="padding: 12px 16px; vertical-align: middle;">
-                    <div class="actions-menu" style="position: relative;">
-                        <button type="button" class="actions-button" onclick="toggleActionsMenu({{ server.id }})" style="background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center;">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color: #525252;">
-                                <circle cx="8" cy="4" r="1.5" fill="currentColor"/>
-                                <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                                <circle cx="8" cy="12" r="1.5" fill="currentColor"/>
-                            </svg>
-                        </button>
-                        <div id="actions-menu-{{ server.id }}" class="actions-dropdown" style="display: none; position: absolute; right: 0; top: 100%; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 180px; margin-top: 4px;">
-                            <a href="/server/{{ server.id }}/" style="display: block; padding: 8px 16px; font-size: 14px; color: #161616; text-decoration: none; border-bottom: 1px solid #e0e0e0;">View Details</a>
-                            <a href="/server/edit/{{ server.id }}/" style="display: block; padding: 8px 16px; font-size: 14px; color: #161616; text-decoration: none; border-bottom: 1px solid #e0e0e0;">Edit</a>
-                            <div style="border-bottom: 1px solid #e0e0e0;"></div>
-                            <button type="button" onclick="toggleAlertSuppression({{ server.id }}, {% if server.alert_suppressed %}true{% else %}false{% endif %})" style="display: block; width: 100%; text-align: left; padding: 8px 16px; font-size: 14px; color: #161616; background: none; border: none; cursor: pointer; border-bottom: 1px solid #e0e0e0;">
-                                {% if server.alert_suppressed %}Resume Alerts{% else %}Suspend Alerts{% endif %}
-                            </button>
-                            <button type="button" onclick="toggleMonitoring({{ server.id }}, {% if server.monitoring_suspended %}true{% else %}false{% endif %})" style="display: block; width: 100%; text-align: left; padding: 8px 16px; font-size: 14px; color: #161616; background: none; border: none; cursor: pointer; border-bottom: 1px solid #e0e0e0;">
-                                {% if server.monitoring_suspended %}Resume Monitoring{% else %}Suspend Monitoring{% endif %}
-                            </button>
-                            <div style="border-bottom: 1px solid #e0e0e0;"></div>
-                            <button type="button" onclick="confirmDeleteServerList('{{ server.name }}', {{ server.id }})" style="display: block; width: 100%; text-align: left; padding: 8px 16px; font-size: 14px; color: #da1e28; background: none; border: none; cursor: pointer;">Delete</button>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% else %}
-<div style="text-align: center; padding: 48px 32px; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 0;">
-    <div style="width: 64px; height: 64px; color: #a8a8a8; margin: 0 auto 16px auto;">
-        <svg fill="currentColor" viewBox="0 0 20 20" style="width: 64px; height: 64px;">
-            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001-1v-6z" clip-rule="evenodd"/>
-        </svg>
+<!-- Filter / control bar -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="filter-chip active" data-status="all">All <span class="chip-count">0</span></button>
+        <button class="filter-chip" data-status="online"><span class="dot" style="background:#24a148;"></span>Online <span class="chip-count">0</span></button>
+        <button class="filter-chip" data-status="warning"><span class="dot" style="background:#ff832b;"></span>Warning <span class="chip-count">0</span></button>
+        <button class="filter-chip" data-status="offline"><span class="dot" style="background:#a8a8a8;"></span>Offline <span class="chip-count">0</span></button>
     </div>
-    <h3 style="font-size: 18px; font-weight: 600; color: #161616; margin: 0 0 8px 0;">No Servers Added Yet</h3>
-    <p style="font-size: 14px; color: #525252; margin: 0 0 24px 0;">Start by adding your first server to monitor its performance and receive alerts.</p>
-    <a href="/add-server-agent/" style="background-color: #0f62fe; color: #ffffff; padding: 8px 16px; font-size: 14px; font-weight: 400; text-decoration: none; border-radius: 4px; display: inline-flex; align-items: center;">Add Your First Server</a>
+    <div style="position:relative;">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;">
+            <path d="M9 17A8 8 0 109 1a8 8 0 000 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <input id="vm-search" type="text" placeholder="Search name or IP…" autocomplete="off"
+               style="padding:9px 12px 9px 36px;width:260px;max-width:60vw;font-size:14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#0f172a;box-sizing:border-box;">
+    </div>
+</div>
+
+<!-- Card grid -->
+<div class="vm-grid">
+    {% for server in servers %}
+    <div class="vm-card" data-name="{{ server.name|lower }}" data-ip="{{ server.ip_address }}" data-status="{{ server.status }}"
+         style="border-left-color:{% if server.status == 'online' %}#24a148{% elif server.status == 'warning' %}#ff832b{% else %}#c1c7cd{% endif %};">
+        <!-- Card header -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:14px;">
+            <div style="min-width:0;">
+                <a href="/server/{{ server.id }}/" style="font-size:16px;font-weight:600;color:#0f172a;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ server.name }}</a>
+                <div style="font-size:12.5px;color:#64748b;margin-top:2px;">{{ server.ip_address }}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                {% if server.status == 'online' %}
+                <span style="display:inline-flex;align-items:center;padding:3px 10px;background:#d1f7c4;color:#0e6027;border-radius:999px;font-size:12px;font-weight:500;">Online</span>
+                {% elif server.status == 'warning' %}
+                <span style="display:inline-flex;align-items:center;padding:3px 10px;background:#fff1e0;color:#8e3b00;border-radius:999px;font-size:12px;font-weight:500;">Warning</span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;padding:3px 10px;background:#f4f4f4;color:#525252;border-radius:999px;font-size:12px;font-weight:500;">Offline</span>
+                {% endif %}
+                <!-- Actions -->
+                <div class="actions-menu" style="position:relative;">
+                    <button type="button" class="actions-button" onclick="toggleActionsMenu({{ server.id }})" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;border-radius:6px;">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:#64748b;"><circle cx="8" cy="4" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/></svg>
+                    </button>
+                    <div id="actions-menu-{{ server.id }}" class="actions-dropdown" style="display:none;position:absolute;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 14px rgba(15,23,42,.12);z-index:1000;min-width:185px;margin-top:6px;overflow:hidden;">
+                        <a href="/server/{{ server.id }}/" style="display:block;padding:9px 16px;font-size:14px;color:#161616;text-decoration:none;border-bottom:1px solid #f1f5f9;">View Details</a>
+                        <a href="/server/edit/{{ server.id }}/" style="display:block;padding:9px 16px;font-size:14px;color:#161616;text-decoration:none;border-bottom:1px solid #f1f5f9;">Edit</a>
+                        <button type="button" onclick="toggleAlertSuppression({{ server.id }}, {% if server.alert_suppressed %}true{% else %}false{% endif %})" style="display:block;width:100%;text-align:left;padding:9px 16px;font-size:14px;color:#161616;background:none;border:none;cursor:pointer;border-bottom:1px solid #f1f5f9;">{% if server.alert_suppressed %}Resume Alerts{% else %}Suspend Alerts{% endif %}</button>
+                        <button type="button" onclick="toggleMonitoring({{ server.id }}, {% if server.monitoring_suspended %}true{% else %}false{% endif %})" style="display:block;width:100%;text-align:left;padding:9px 16px;font-size:14px;color:#161616;background:none;border:none;cursor:pointer;border-bottom:1px solid #f1f5f9;">{% if server.monitoring_suspended %}Resume Monitoring{% else %}Suspend Monitoring{% endif %}</button>
+                        <button type="button" onclick="confirmDeleteServerList('{{ server.name }}', {{ server.id }})" style="display:block;width:100%;text-align:left;padding:9px 16px;font-size:14px;color:#da1e28;background:none;border:none;cursor:pointer;">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status chips row -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+            {% if server.agent_installed %}<span class="mini-badge" style="background:#eef6ff;color:#0043ce;">Agent</span>{% else %}<span class="mini-badge" style="background:#fff1e0;color:#8e3b00;">No agent</span>{% endif %}
+            {% if server.alert_suppressed %}<span class="mini-badge" style="background:#fff1e0;color:#8e3b00;">Alerts off</span>{% endif %}
+            {% if server.monitoring_suspended %}<span class="mini-badge" style="background:#f4f4f4;color:#525252;">Monitoring paused</span>{% endif %}
+        </div>
+
+        <!-- Metrics -->
+        {% if server.agent_installed %}
+        <div style="display:flex;flex-direction:column;gap:11px;">
+            <!-- CPU -->
+            <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:#64748b;">CPU</span><span style="color:#0f172a;font-weight:600;">{% if server.cpu_percent is not None %}{{ server.cpu_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div>
+                <div class="bar-track"><div style="width:{{ server.cpu_percent|default:0 }}%;background:{% if server.cpu_percent|default:0 >= 90 %}#da1e28{% elif server.cpu_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};" class="bar-fill"></div></div>
+            </div>
+            <!-- Memory -->
+            <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:#64748b;">Memory</span><span style="color:#0f172a;font-weight:600;">{% if server.memory_total %}{{ server.memory_used|floatformat:1 }}/{{ server.memory_total|floatformat:1 }}GB{% else %}—{% endif %}</span></div>
+                <div class="bar-track"><div style="width:{{ server.memory_percent|default:0 }}%;background:{% if server.memory_percent|default:0 >= 90 %}#da1e28{% elif server.memory_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};" class="bar-fill"></div></div>
+            </div>
+            <!-- Disk -->
+            <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:#64748b;">Disk</span><span style="color:#0f172a;font-weight:600;">{% if server.disk_percent is not None %}{{ server.disk_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div>
+                <div class="bar-track"><div style="width:{{ server.disk_percent|default:0 }}%;background:{% if server.disk_percent|default:0 >= 90 %}#da1e28{% elif server.disk_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};" class="bar-fill"></div></div>
+            </div>
+        </div>
+        {% else %}
+        <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:14px;text-align:center;font-size:13px;color:#64748b;">
+            No metrics yet — install the agent to see live health.
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:12px;color:#64748b;">
+            <span title="Uptime">⏱ {{ server.uptime_display|default:"—" }}</span>
+            <span title="Last check-in">{% if server.last_checkin %}{{ server.last_checkin|timesince }} ago{% else %}never{% endif %}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- No-results (filter) state -->
+<div id="no-results" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:14px;">No instances match your filters.</div>
+
+{% else %}
+<!-- Empty state -->
+<div style="text-align:center;padding:56px 32px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;">
+    <div style="width:56px;height:56px;color:#cbd5e1;margin:0 auto 16px auto;">
+        <svg fill="currentColor" viewBox="0 0 20 20" style="width:56px;height:56px;"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001-1v-6z" clip-rule="evenodd"/></svg>
+    </div>
+    <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No instances yet</h3>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px 0;">Add your first server to start monitoring its health.</p>
+    <a href="/add-server-agent/" style="background:#0f62fe;color:#fff;padding:9px 18px;font-size:14px;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;">+ Add your first server</a>
 </div>
 {% endif %}
 
 <style>
-.actions-menu {
-    position: relative;
-}
-
-.actions-dropdown {
-    display: none;
-}
-
-.actions-dropdown a:hover,
-.actions-dropdown button:hover {
-    background-color: #f4f4f4;
-}
-
-tr:hover {
-    background-color: #f9f9f9;
-}
+.vm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+.vm-card { background:#fff; border:1px solid #e2e8f0; border-left-width:4px; border-radius:10px; padding:18px; transition:box-shadow .15s ease, transform .15s ease; }
+.vm-card:hover { box-shadow:0 6px 18px rgba(15,23,42,.09); transform:translateY(-1px); }
+.bar-track { width:100%; height:6px; background:#eef2f6; border-radius:999px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:999px; transition:width .3s ease; }
+.mini-badge { font-size:11px; font-weight:500; padding:2px 9px; border-radius:999px; }
+.filter-chip { display:inline-flex; align-items:center; gap:7px; background:#fff; border:1px solid #e2e8f0; color:#475569; padding:7px 14px; border-radius:999px; font-size:13px; font-weight:500; cursor:pointer; transition:all .12s ease; }
+.filter-chip:hover { border-color:#cbd5e1; }
+.filter-chip.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+.filter-chip .dot { width:7px; height:7px; border-radius:999px; display:inline-block; }
+.filter-chip .chip-count { font-size:11px; opacity:.7; }
+.actions-dropdown a:hover, .actions-dropdown button:hover { background:#f4f4f4; }
 </style>
 
 <script>
+// ---- Filtering (search + status chips) ----
+(function () {
+    const search = document.getElementById('vm-search');
+    const chips = document.querySelectorAll('.filter-chip');
+    const cards = document.querySelectorAll('.vm-card');
+    const noResults = document.getElementById('no-results');
+    let activeStatus = 'all';
+
+    function applyFilters() {
+        const term = (search && search.value ? search.value : '').trim().toLowerCase();
+        let visible = 0;
+        cards.forEach(card => {
+            const matchText = !term || card.dataset.name.includes(term) || (card.dataset.ip || '').toLowerCase().includes(term);
+            const matchStatus = activeStatus === 'all' || card.dataset.status === activeStatus;
+            const show = matchText && matchStatus;
+            card.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        if (noResults) noResults.style.display = visible ? 'none' : 'block';
+    }
+
+    // status counts on chips
+    const counts = { all: 0, online: 0, warning: 0, offline: 0 };
+    cards.forEach(c => { counts.all++; if (counts[c.dataset.status] !== undefined) counts[c.dataset.status]++; });
+    chips.forEach(c => { const el = c.querySelector('.chip-count'); if (el) el.textContent = counts[c.dataset.status] || 0; });
+
+    chips.forEach(c => c.addEventListener('click', () => {
+        activeStatus = c.dataset.status;
+        chips.forEach(x => x.classList.remove('active'));
+        c.classList.add('active');
+        applyFilters();
+    }));
+    if (search) search.addEventListener('keyup', applyFilters);
+})();
+
+// ---- Actions (unchanged behaviour) ----
 function toggleActionsMenu(serverId) {
     const menu = document.getElementById('actions-menu-' + serverId);
-    const allMenus = document.querySelectorAll('.actions-dropdown');
-    
-    // Close all other menus
-    allMenus.forEach(m => {
-        if (m.id !== 'actions-menu-' + serverId) {
-            m.style.display = 'none';
-        }
-    });
-    
-    // Toggle current menu
+    document.querySelectorAll('.actions-dropdown').forEach(m => { if (m.id !== 'actions-menu-' + serverId) m.style.display = 'none'; });
     menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
-
-// Close menus when clicking outside
-document.addEventListener('click', function(event) {
+document.addEventListener('click', function (event) {
     if (!event.target.closest('.actions-menu')) {
-        document.querySelectorAll('.actions-dropdown').forEach(menu => {
-            menu.style.display = 'none';
-        });
+        document.querySelectorAll('.actions-dropdown').forEach(menu => { menu.style.display = 'none'; });
     }
 });
-
 function confirmDeleteServerList(serverName, serverId) {
     var message = '⚠️ WARNING: Delete Server\n\n' +
         'Are you sure you want to delete the server "' + serverName + '"?\n\n' +
-        'This action will permanently delete:\n' +
-        '• All server configuration\n' +
-        '• All collected metrics\n' +
-        '• All alert history\n' +
-        '• All monitoring data\n\n' +
-        'This action CANNOT be undone!\n\n' +
-        'Click OK to confirm deletion, or Cancel to abort.';
-    
-    if (confirm(message)) {
-        document.getElementById('delete-form-' + serverId).submit();
-    }
+        'This permanently deletes its configuration, metrics, alert history and monitoring data.\n\n' +
+        'This action CANNOT be undone!';
+    if (confirm(message)) { document.getElementById('delete-form-' + serverId).submit(); }
 }
-
 async function toggleAlertSuppression(serverId, currentlySuppressed) {
     const action = currentlySuppressed ? 'resume' : 'suppress';
     const actionText = currentlySuppressed ? 'resume' : 'suspend';
-    
-    if (!confirm(`Are you sure you want to ${actionText} alerts for this server?`)) {
-        return;
-    }
-    
+    if (!confirm(`Are you sure you want to ${actionText} alerts for this server?`)) return;
     try {
-        const response = await fetch(`/api/servers/${serverId}/alerts/${action}/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        });
-        
+        const response = await fetch(`/api/servers/${serverId}/alerts/${action}/`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') } });
         const data = await response.json();
-        
-        if (data.success) {
-            alert(data.message || `Alerts ${actionText}d successfully`);
-            location.reload(); // Reload to update the UI
-        } else {
-            alert('Error: ' + (data.error || 'Failed to toggle alert suppression'));
-        }
-    } catch (error) {
-        console.error('Error toggling alert suppression:', error);
-        alert('Error: Failed to toggle alert suppression');
-    }
+        if (data.success) { alert(data.message || `Alerts ${actionText}d successfully`); location.reload(); }
+        else { alert('Error: ' + (data.error || 'Failed to toggle alert suppression')); }
+    } catch (error) { console.error(error); alert('Error: Failed to toggle alert suppression'); }
 }
-
 async function toggleMonitoring(serverId, currentlySuspended) {
     const action = currentlySuspended ? 'resume' : 'suspend';
     const actionText = currentlySuspended ? 'resume' : 'suspend';
-    
-    if (!confirm(`Are you sure you want to ${actionText} monitoring for this server?`)) {
-        return;
-    }
-    
+    if (!confirm(`Are you sure you want to ${actionText} monitoring for this server?`)) return;
     try {
-        const response = await fetch(`/api/servers/${serverId}/monitoring/${action}/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        });
-        
+        const response = await fetch(`/api/servers/${serverId}/monitoring/${action}/`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') } });
         const data = await response.json();
-        
-        if (data.success) {
-            alert(data.message || `Monitoring ${actionText}d successfully`);
-            location.reload(); // Reload to update the UI
-        } else {
-            alert('Error: ' + (data.error || 'Failed to toggle monitoring'));
-        }
-    } catch (error) {
-        console.error('Error toggling monitoring:', error);
-        alert('Error: Failed to toggle monitoring');
-    }
+        if (data.success) { alert(data.message || `Monitoring ${actionText}d successfully`); location.reload(); }
+        else { alert('Error: ' + (data.error || 'Failed to toggle monitoring')); }
+    } catch (error) { console.error(error); alert('Error: Failed to toggle monitoring'); }
 }
-
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
         const cookies = document.cookie.split(';');
         for (let i = 0; i < cookies.length; i++) {
             const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
+            if (cookie.substring(0, name.length + 1) === (name + '=')) { cookieValue = decodeURIComponent(cookie.substring(name.length + 1)); break; }
         }
     }
     return cookieValue;
@@ -352,9 +241,7 @@ function getCookie(name) {
 </script>
 
 {% for server in servers %}
-<form id="delete-form-{{ server.id }}" action="/server/delete/{{ server.id }}/" method="post" style="display: none;">
-    {% csrf_token %}
-</form>
+<form id="delete-form-{{ server.id }}" action="/server/delete/{{ server.id }}/" method="post" style="display:none;">{% csrf_token %}</form>
 {% endfor %}
 
 {% endblock %}
