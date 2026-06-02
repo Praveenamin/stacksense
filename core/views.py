@@ -1150,6 +1150,13 @@ def monitoring_dashboard(request):
     containers_total = Container.objects.count()
     containers_running = Container.objects.filter(state="running").count()
 
+    # Response Time (service latency) is APM-adjacent: only show it once there is
+    # actual latency data from a monitored service.
+    from core.models import ServiceLatencyMeasurement
+    has_response_time_data = ServiceLatencyMeasurement.objects.filter(
+        service__monitoring_enabled=True
+    ).exists()
+
     context = {
         "servers_data": servers_data,
         "total_servers": len(servers_data),
@@ -1165,6 +1172,7 @@ def monitoring_dashboard(request):
         "containers_total": containers_total,
         "containers_running": containers_running,
         "containers_stopped": containers_total - containers_running,
+        "has_response_time_data": has_response_time_data,
     }
 
     # Executive view focuses on business KPIs

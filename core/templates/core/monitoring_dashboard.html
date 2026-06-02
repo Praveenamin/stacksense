@@ -283,10 +283,16 @@
         {% include "core/components/dashboard/memory_trend_chart.html" %}
     </div>
     
+    {% if has_response_time_data %}
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/network_traffic_chart.html" %}
         {% include "core/components/dashboard/response_time_chart.html" %}
     </div>
+    {% else %}
+    <div class="dashboard-grid" style="margin-bottom: 32px;">
+        {% include "core/components/dashboard/network_traffic_chart.html" %}
+    </div>
+    {% endif %}
     
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/top_cpu_consumers.html" %}

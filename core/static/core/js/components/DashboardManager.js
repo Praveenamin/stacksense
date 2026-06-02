@@ -17,14 +17,14 @@ class DashboardManager {
         this.components.cpuTrend = new CPUTrendChart();
         this.components.memoryTrend = new MemoryTrendChart();
         this.components.networkTraffic = new NetworkTrafficChart();
-        this.components.responseTime = new ResponseTimeChart();
+        if (document.getElementById('dashboard-response-time')) this.components.responseTime = new ResponseTimeChart();
         this.components.diskIOSummary = new DiskIOSummary();
         
         // Initialize components with server selectors
         if (this.components.cpuTrend.init) this.components.cpuTrend.init();
         if (this.components.memoryTrend.init) this.components.memoryTrend.init();
         if (this.components.networkTraffic.init) this.components.networkTraffic.init();
-        if (this.components.responseTime.init) this.components.responseTime.init();
+        if (this.components.responseTime && this.components.responseTime.init) this.components.responseTime.init();
         if (this.components.diskIOSummary.init) this.components.diskIOSummary.init();
         this.components.topCPUConsumers = new TopCPUConsumers();
         this.components.topMemoryConsumers = new TopMemoryConsumers();
