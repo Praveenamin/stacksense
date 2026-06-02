@@ -117,6 +117,47 @@
     <!-- Main Content Area -->
     <div class="flex-1 flex flex-col h-screen overflow-hidden relative">
 
+        {% if show_sidebar %}
+        <!-- Global top bar: Admin & Settings (top-right) -->
+        <header style="height:54px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;padding:0 24px;background:#fff;border-bottom:1px solid #e2e8f0;">
+            <div class="settings-menu" style="position:relative;">
+                <button type="button" onclick="toggleSettingsMenu(event)" title="Admin & settings" aria-label="Admin & settings"
+                        style="background:none;border:none;color:#475569;width:38px;height:38px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </button>
+                <div id="settings-dropdown" style="display:none;position:absolute;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 6px 18px rgba(15,23,42,.12);z-index:1500;min-width:200px;margin-top:6px;overflow:hidden;">
+                    <div style="padding:8px 16px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #f1f5f9;">Admin &amp; Settings</div>
+                    <a href="/settings/" class="settings-item">Settings</a>
+                    <a href="/alert-config/" class="settings-item">Alerts Configuration</a>
+                    {% if user.is_staff or user.is_superuser %}
+                    <a href="/admin-users/" class="settings-item">Users</a>
+                    <a href="/roles/" class="settings-item">Roles</a>
+                    <a href="/admin/" class="settings-item">Admin Panel</a>
+                    {% endif %}
+                    <a href="/help/" class="settings-item" style="border-top:1px solid #f1f5f9;">Help Docs</a>
+                </div>
+            </div>
+        </header>
+        <style>
+            .settings-menu button:hover { background:#f1f5f9; }
+            .settings-item { display:block; padding:9px 16px; font-size:14px; color:#161616; text-decoration:none; }
+            .settings-item:hover { background:#f4f4f4; }
+        </style>
+        <script>
+            function toggleSettingsMenu(e) {
+                e.stopPropagation();
+                var d = document.getElementById('settings-dropdown');
+                d.style.display = d.style.display === 'none' ? 'block' : 'none';
+            }
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.settings-menu')) {
+                    var d = document.getElementById('settings-dropdown');
+                    if (d) d.style.display = 'none';
+                }
+            });
+        </script>
+        {% endif %}
+
         <!-- Main Scrollable Content -->
         <main class="flex-1 overflow-y-auto bg-background p-8">
             <!-- Back button for non-sidebar pages -->

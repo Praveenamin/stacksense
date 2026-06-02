@@ -1,3 +1,8 @@
+<style>
+    /* Hide the sidebar scrollbar but keep it scrollable on short screens */
+    .sidebar-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+    .sidebar-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+</style>
 <aside class="w-64 bg-sidebar border-r border-sidebar-border h-full flex flex-col text-sidebar-foreground">
     <div class="p-4 border-b border-sidebar-border flex items-center gap-2">
         <div class="h-8 w-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold">
@@ -8,7 +13,7 @@
         <span class="font-bold text-lg tracking-tight">Stack Alert</span>
     </div>
 
-    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+    <nav class="flex-1 overflow-y-auto sidebar-scroll py-4 px-3 space-y-1">
         <div class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             OVERVIEW
         </div>
@@ -109,54 +114,9 @@
             Alerts History
         </a>
 
-        {% if user.is_staff or user.is_superuser %}
-        <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            ACCESS CONTROL
-        </div>
-        <a href="/admin-users/"
-            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'admin-users' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
-            <svg class="mr-3 h-5 w-5 {% if 'admin-users' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z">
-                </path>
-            </svg>
-            Users
-        </a>
-        <a href="/roles/"
-            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'roles' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
-            <svg class="mr-3 h-5 w-5 {% if 'roles' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
-                </path>
-            </svg>
-            Roles
-        </a>
-        {% endif %}
     </nav>
 
     <div class="p-4 border-t border-sidebar-border space-y-1">
-        <a href="{% url 'app_config' %}"
-            class="flex items-center px-3 py-2 text-sm font-medium {% if 'settings' in request.path or 'config/timezone' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent{% endif %} rounded-md transition-colors">
-            <svg class="mr-3 h-5 w-5 {% if 'settings' in request.path or 'config/timezone' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
-                </path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
-                </path>
-            </svg>
-            Settings
-        </a>
-        <a href="/help/"
-            class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent rounded-md transition-colors">
-            <svg class="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                </path>
-            </svg>
-            Help Docs
-        </a>
 
         <div class="mt-4 pt-4 border-t border-sidebar-border flex items-center justify-between">
             <div class="flex items-center">
