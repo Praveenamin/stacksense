@@ -53,10 +53,10 @@
         <!-- Card header -->
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
             <div style="min-width:0;">
-                <a href="/server/{{ server.id }}/" style="font-size:13.5px;font-weight:600;color:#0f172a;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ server.name }}</a>
-                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ server.ip_address }}</div>
+                <a href="/server/{{ server.id }}/" style="font-size:15px;font-weight:600;color:#0f172a;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ server.name }}</a>
+                <div style="font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ server.ip_address }}</div>
             </div>
-            <span style="flex-shrink:0;display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:500;{% if server.status == 'online' %}background:#d1f7c4;color:#0e6027;{% elif server.status == 'warning' %}background:#fff1e0;color:#8e3b00;{% else %}background:#f4f4f4;color:#525252;{% endif %}">{{ server.status|capfirst }}</span>
+            <span style="flex-shrink:0;display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:500;{% if server.status == 'online' %}background:#d1f7c4;color:#0e6027;{% elif server.status == 'warning' %}background:#fff1e0;color:#8e3b00;{% else %}background:#f4f4f4;color:#525252;{% endif %}">{{ server.status|capfirst }}</span>
         </div>
 
         <!-- Alert/anomaly tags (only when present) -->
@@ -70,7 +70,7 @@
 
         <!-- Metrics (compact inline rows) -->
         {% if server.agent_installed %}
-        <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;">
+        <div style="margin-top:13px;display:flex;flex-direction:column;gap:8px;">
             <div class="m-row"><span class="m-label">CPU</span><div class="bar-track"><div class="bar-fill" style="width:{{ server.cpu_percent|default:0 }}%;background:{% if server.cpu_percent|default:0 >= 90 %}#da1e28{% elif server.cpu_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};"></div></div><span class="m-val">{% if server.cpu_percent is not None %}{{ server.cpu_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div>
             <div class="m-row"><span class="m-label">MEM</span><div class="bar-track"><div class="bar-fill" style="width:{{ server.memory_percent|default:0 }}%;background:{% if server.memory_percent|default:0 >= 90 %}#da1e28{% elif server.memory_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};"></div></div><span class="m-val">{% if server.memory_percent is not None %}{{ server.memory_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div>
             <div class="m-row"><span class="m-label">DISK</span><div class="bar-track"><div class="bar-fill" style="width:{{ server.disk_percent|default:0 }}%;background:{% if server.disk_percent|default:0 >= 90 %}#da1e28{% elif server.disk_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};"></div></div><span class="m-val">{% if server.disk_percent is not None %}{{ server.disk_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div>
@@ -80,7 +80,7 @@
         {% endif %}
 
         <!-- Footer: uptime + quick action icons -->
-        <div style="display:flex;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8;">
+        <div style="display:flex;align-items:center;margin-top:14px;padding-top:11px;border-top:1px solid #f1f5f9;font-size:12px;color:#64748b;">
             <span title="Uptime">⏱ {{ server.uptime_display|default:"—" }}</span>
             <div style="margin-left:auto;display:flex;align-items:center;gap:1px;">
                 <a class="icon-btn icon-view" href="/server/{{ server.id }}/" title="View details" aria-label="View details"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></a>
@@ -124,7 +124,7 @@
 </div>
 
 <style>
-.vm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(225px,1fr)); gap:10px; }
+.vm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:14px; }
 /* Modal */
 .app-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:2000; padding:16px; }
 .app-modal { background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.25); width:100%; max-width:420px; padding:24px; animation:appModalIn .14s ease; }
@@ -139,20 +139,20 @@
 .app-modal-btn-primary:hover { background:#0353e9; }
 .app-modal-btn-danger { background:#da1e28; color:#fff; }
 .app-modal-btn-danger:hover { background:#ba1b25; }
-.vm-card { background:#fff; border:1px solid #e2e8f0; border-left-width:3px; border-radius:9px; padding:12px 13px; transition:box-shadow .15s ease, transform .15s ease; }
+.vm-card { background:#fff; border:1px solid #e2e8f0; border-left-width:4px; border-radius:10px; padding:16px; transition:box-shadow .15s ease, transform .15s ease; }
 .vm-card:hover { box-shadow:0 6px 18px rgba(15,23,42,.09); transform:translateY(-1px); }
-.bar-track { flex:1; height:5px; background:#eef2f6; border-radius:999px; overflow:hidden; }
+.bar-track { flex:1; height:6px; background:#eef2f6; border-radius:999px; overflow:hidden; }
 .bar-fill { height:100%; border-radius:999px; transition:width .3s ease; }
-.mini-badge { font-size:10.5px; font-weight:500; padding:1px 7px; border-radius:999px; }
-.m-row { display:flex; align-items:center; gap:7px; }
-.m-label { width:30px; font-size:10px; font-weight:600; letter-spacing:.02em; color:#94a3b8; }
-.m-val { width:34px; text-align:right; font-size:11px; font-weight:600; color:#0f172a; }
+.mini-badge { font-size:11px; font-weight:500; padding:2px 8px; border-radius:999px; }
+.m-row { display:flex; align-items:center; gap:8px; }
+.m-label { width:34px; font-size:11px; font-weight:600; letter-spacing:.02em; color:#94a3b8; }
+.m-val { width:38px; text-align:right; font-size:12px; font-weight:600; color:#0f172a; }
 .filter-chip { display:inline-flex; align-items:center; gap:7px; background:#fff; border:1px solid #e2e8f0; color:#475569; padding:7px 14px; border-radius:999px; font-size:13px; font-weight:500; cursor:pointer; transition:all .12s ease; }
 .filter-chip:hover { border-color:#cbd5e1; }
 .filter-chip.active { background:#0f172a; color:#fff; border-color:#0f172a; }
 .filter-chip .dot { width:7px; height:7px; border-radius:999px; display:inline-block; }
 .filter-chip .chip-count { font-size:11px; opacity:.7; }
-.icon-btn { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; border:none; background:none; cursor:pointer; text-decoration:none; transition:background .12s ease, color .12s ease; }
+.icon-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:7px; border:none; background:none; cursor:pointer; text-decoration:none; transition:background .12s ease, color .12s ease; }
 /* subtle base tones, a touch stronger on hover */
 .icon-view   { color:#7aa3e0; } .icon-view:hover   { background:#eef4ff; color:#2563eb; }
 .icon-edit   { color:#9aa1b0; } .icon-edit:hover   { background:#f1f3f7; color:#475569; }
