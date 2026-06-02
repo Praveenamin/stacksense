@@ -16,22 +16,23 @@ class SLOComplianceGauges {
         this.servers = [];
         
         // Chart colors
+        // Calmer, cohesive palette with translucent area fills
         this.colors = {
             cpu: {
-                line: '#3b82f6',      // Blue
-                fill: 'rgba(59, 130, 246, 0.1)'
+                line: '#6366f1',      // Indigo
+                fill: 'rgba(99, 102, 241, 0.12)'
             },
             memory: {
-                line: '#22c55e',      // Green
-                fill: 'rgba(34, 197, 94, 0.1)'
+                line: '#14b8a6',      // Teal
+                fill: 'rgba(20, 184, 166, 0.12)'
             },
             disk: {
-                line: '#8b5cf6',      // Purple
-                fill: 'rgba(139, 92, 246, 0.1)'
+                line: '#f59e0b',      // Amber
+                fill: 'rgba(245, 158, 11, 0.12)'
             },
             error_rate: {
-                line: '#ef4444',      // Red
-                fill: 'rgba(239, 68, 68, 0.1)'
+                line: '#f43f5e',      // Rose
+                fill: 'rgba(244, 63, 94, 0.14)'
             }
         };
     }
@@ -308,9 +309,9 @@ class SLOComplianceGauges {
                 borderColor: this.colors.cpu.line,
                 backgroundColor: this.colors.cpu.fill,
                 borderWidth: 2,
-                fill: false,
-                tension: 0.3,
-                pointRadius: sortedTimestamps.length > 48 ? 0 : 3,
+                fill: true,
+                tension: 0.35,
+                pointRadius: sortedTimestamps.length > 48 ? 0 : 2,
                 pointHoverRadius: 5
             },
             {
@@ -323,8 +324,8 @@ class SLOComplianceGauges {
                     }
                     return null;
                 }),
-                borderColor: '#1d4ed8',  // Darker blue for peaks
-                backgroundColor: '#1d4ed8',
+                borderColor: '#4338ca',  // Darker indigo for peaks
+                backgroundColor: '#4338ca',
                 borderWidth: 0,
                 fill: false,
                 pointRadius: 8,
@@ -343,9 +344,9 @@ class SLOComplianceGauges {
                 borderColor: this.colors.memory.line,
                 backgroundColor: this.colors.memory.fill,
                 borderWidth: 2,
-                fill: false,
-                tension: 0.3,
-                pointRadius: sortedTimestamps.length > 48 ? 0 : 3,
+                fill: true,
+                tension: 0.35,
+                pointRadius: sortedTimestamps.length > 48 ? 0 : 2,
                 pointHoverRadius: 5
             },
             {
@@ -358,8 +359,8 @@ class SLOComplianceGauges {
                     }
                     return null;
                 }),
-                borderColor: '#166534',  // Darker green for peaks
-                backgroundColor: '#166534',
+                borderColor: '#0f766e',  // Darker teal for peaks
+                backgroundColor: '#0f766e',
                 borderWidth: 0,
                 fill: false,
                 pointRadius: 8,
@@ -375,9 +376,9 @@ class SLOComplianceGauges {
                 borderColor: this.colors.disk.line,
                 backgroundColor: this.colors.disk.fill,
                 borderWidth: 2,
-                fill: false,
-                tension: 0.3,
-                pointRadius: sortedTimestamps.length > 48 ? 0 : 3,
+                fill: true,
+                tension: 0.35,
+                pointRadius: sortedTimestamps.length > 48 ? 0 : 2,
                 pointHoverRadius: 5
             },
             {
