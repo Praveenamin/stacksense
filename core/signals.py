@@ -50,8 +50,12 @@ def log_user_login(sender, request, user, **kwargs):
         return
     try:
         ip_address = get_client_ip(request)
+        # No real client IP => programmatic/bare request (e.g. force_login in
+        # tests/management). Don't audit it.
+        if ip_address in (None, "", "0.0.0.0"):
+            return
         location = get_location_from_ip(ip_address)
-        
+
         LoginActivity.objects.create(
             user=user,
             email=user.email or user.username,
