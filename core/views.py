@@ -8397,20 +8397,62 @@ def synthetic_check_detail(request, check_id):
 # ---------------------------------------------------------------------------
 # Services (auto-detected across all servers)
 # ---------------------------------------------------------------------------
+# Background/OS-plumbing services that are usually not worth monitoring.
+# These are hidden by default on the Services page (shown behind an expander).
+_BACKGROUND_SERVICE_NAMES = {
+    "modemmanager", "dbus", "dbus-broker", "polkit", "polkitd", "fwupd", "fwupd-refresh",
+    "packagekit", "accounts-daemon", "udisks2", "snapd", "multipathd", "ntpsec", "ntp",
+    "chrony", "chronyd", "rsyslog", "irqbalance", "thermald", "upower", "apport",
+    "unattended-upgrades", "networkd-dispatcher", "apparmor", "lvm2-monitor",
+    "open-vm-tools", "qemu-guest-agent", "cloud-init", "console-setup", "keyboard-setup",
+    "setvtrgb", "blk-availability", "finalrd", "atd", "rpcbind", "gdm", "gdm3",
+    "switcheroo-control", "power-profiles-daemon", "wpa_supplicant", "secureboot-db",
+    "plymouth-quit", "plymouth-start", "rtkit-daemon", "kmod-static-nodes",
+}
+_BACKGROUND_SERVICE_PREFIXES = (
+    "getty", "serial-getty", "systemd-", "user@", "user-runtime-dir@", "session-",
+    "snap.", "cloud-", "e2scrub", "man-db", "logrotate", "fstrim", "motd",
+    "dpkg", "apt-", "phpsessionclean", "ua-", "ubuntu-advantage", "update-notifier",
+)
+
+
+def _is_background_service(svc):
+    """Heuristic: is this a low-value OS/background service (hidden by default)?"""
+    if svc.service_type == "port":
+        return False  # a listening network service is always notable
+    name = (svc.name or "").lower()
+    if name in _BACKGROUND_SERVICE_NAMES:
+        return True
+    return any(name.startswith(p) for p in _BACKGROUND_SERVICE_PREFIXES)
+
+
 @staff_member_required
 def services_overview(request):
-    """List all services auto-detected by agents across every server."""
-    services = Service.objects.select_related("server").order_by("server__name", "name")
-    total = services.count()
-    running = services.filter(status="running").count()
+    """Services grouped by server, with the non-critical/background ones filtered
+    out by default and a per-service monitoring toggle."""
+    groups = {}
+    total = running = monitored = 0
+    for svc in Service.objects.select_related("server").order_by("server__name", "name"):
+        total += 1
+        if svc.status == "running":
+            running += 1
+        if svc.monitoring_enabled:
+            monitored += 1
+        g = groups.setdefault(svc.server_id, {
+            "server": svc.server, "notable": [], "background": [], "monitored": 0,
+        })
+        if svc.monitoring_enabled:
+            g["monitored"] += 1
+        (g["background"] if _is_background_service(svc) else g["notable"]).append(svc)
+
     context = {
         "show_sidebar": True,
-        "services": services,
+        "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
         "stats": {
             "total": total,
             "running": running,
-            "stopped": total - running,
-            "servers": Server.objects.filter(services__isnull=False).distinct().count(),
+            "monitored": monitored,
+            "servers": len(groups),
         },
     }
     context.update(admin.site.each_context(request))
