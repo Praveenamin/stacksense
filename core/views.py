@@ -1143,6 +1143,13 @@ def monitoring_dashboard(request):
     acl = UserACL.get_or_create_for_user(request.user)
     dashboard_view = acl.dashboard_view
 
+    # Services + containers fleet-wide summary (systemd services only, like the Services page)
+    services_qs = Service.objects.exclude(service_type="port")
+    services_total = services_qs.count()
+    services_running = services_qs.filter(status="running").count()
+    containers_total = Container.objects.count()
+    containers_running = Container.objects.filter(state="running").count()
+
     context = {
         "servers_data": servers_data,
         "total_servers": len(servers_data),
@@ -1152,6 +1159,12 @@ def monitoring_dashboard(request):
         "alert_count": alert_count,
         "show_sidebar": True,
         "dashboard_view": dashboard_view,
+        "services_total": services_total,
+        "services_running": services_running,
+        "services_stopped": services_total - services_running,
+        "containers_total": containers_total,
+        "containers_running": containers_running,
+        "containers_stopped": containers_total - containers_running,
     }
 
     # Executive view focuses on business KPIs
