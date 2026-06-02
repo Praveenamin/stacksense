@@ -871,6 +871,14 @@ def server_list(request):
         except:
             server.alert_suppressed = False
             server.monitoring_suspended = False
+
+        # Why is it in warning? Count active alerts + unresolved anomalies (drives the card tags)
+        try:
+            server.active_alerts = AlertHistory.objects.filter(server=server, status="triggered").count()
+            server.active_anomalies = Anomaly.objects.filter(server=server, resolved=False).count()
+        except Exception:
+            server.active_alerts = 0
+            server.active_anomalies = 0
         
         # Format uptime
         if server.uptime_seconds:

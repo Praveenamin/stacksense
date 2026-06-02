@@ -82,6 +82,9 @@
 
         <!-- Status chips row -->
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+            <!-- Why warning: active alerts / anomalies (clickable) -->
+            {% if server.active_alerts %}<a href="/server/{{ server.id }}/" class="mini-badge" style="background:#fff1f1;color:#b91c1c;text-decoration:none;">⚠ {{ server.active_alerts }} alert{{ server.active_alerts|pluralize }}</a>{% endif %}
+            {% if server.active_anomalies %}<a href="{% url 'server_anomalies_log' server.id %}" class="mini-badge" style="background:#fff7ed;color:#b45309;text-decoration:none;">{{ server.active_anomalies }} anomal{{ server.active_anomalies|pluralize:"y,ies" }}</a>{% endif %}
             {% if server.agent_installed %}<span class="mini-badge" style="background:#eef6ff;color:#0043ce;">Agent</span>{% else %}<span class="mini-badge" style="background:#fff1e0;color:#8e3b00;">No agent</span>{% endif %}
             {% if server.alert_suppressed %}<span class="mini-badge" style="background:#fff1e0;color:#8e3b00;">Alerts off</span>{% endif %}
             {% if server.monitoring_suspended %}<span class="mini-badge" style="background:#f4f4f4;color:#525252;">Monitoring paused</span>{% endif %}
