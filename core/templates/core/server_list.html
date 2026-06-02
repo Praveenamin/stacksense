@@ -73,7 +73,6 @@
                         <a href="/server/{{ server.id }}/" style="display:block;padding:9px 16px;font-size:14px;color:#161616;text-decoration:none;border-bottom:1px solid #f1f5f9;">View Details</a>
                         <a href="/server/edit/{{ server.id }}/" style="display:block;padding:9px 16px;font-size:14px;color:#161616;text-decoration:none;border-bottom:1px solid #f1f5f9;">Edit</a>
                         <button type="button" onclick="toggleAlertSuppression({{ server.id }}, {% if server.alert_suppressed %}true{% else %}false{% endif %})" style="display:block;width:100%;text-align:left;padding:9px 16px;font-size:14px;color:#161616;background:none;border:none;cursor:pointer;border-bottom:1px solid #f1f5f9;">{% if server.alert_suppressed %}Resume Alerts{% else %}Suspend Alerts{% endif %}</button>
-                        <button type="button" onclick="toggleMonitoring({{ server.id }}, {% if server.monitoring_suspended %}true{% else %}false{% endif %})" style="display:block;width:100%;text-align:left;padding:9px 16px;font-size:14px;color:#161616;background:none;border:none;cursor:pointer;border-bottom:1px solid #f1f5f9;">{% if server.monitoring_suspended %}Resume Monitoring{% else %}Suspend Monitoring{% endif %}</button>
                         <button type="button" onclick="confirmDeleteServerList('{{ server.name }}', {{ server.id }})" style="display:block;width:100%;text-align:left;padding:9px 16px;font-size:14px;color:#da1e28;background:none;border:none;cursor:pointer;">Delete</button>
                     </div>
                 </div>
@@ -87,7 +86,6 @@
             {% if server.active_anomalies %}<a href="{% url 'server_anomalies_log' server.id %}" class="mini-badge" style="background:#fff7ed;color:#b45309;text-decoration:none;">{{ server.active_anomalies }} anomal{{ server.active_anomalies|pluralize:"y,ies" }}</a>{% endif %}
             {% if server.agent_installed %}<span class="mini-badge" style="background:#eef6ff;color:#0043ce;">Agent</span>{% else %}<span class="mini-badge" style="background:#fff1e0;color:#8e3b00;">No agent</span>{% endif %}
             {% if server.alert_suppressed %}<span class="mini-badge" style="background:#fff1e0;color:#8e3b00;">Alerts off</span>{% endif %}
-            {% if server.monitoring_suspended %}<span class="mini-badge" style="background:#f4f4f4;color:#525252;">Monitoring paused</span>{% endif %}
         </div>
 
         <!-- Metrics -->
@@ -218,17 +216,6 @@ async function toggleAlertSuppression(serverId, currentlySuppressed) {
         if (data.success) { alert(data.message || `Alerts ${actionText}d successfully`); location.reload(); }
         else { alert('Error: ' + (data.error || 'Failed to toggle alert suppression')); }
     } catch (error) { console.error(error); alert('Error: Failed to toggle alert suppression'); }
-}
-async function toggleMonitoring(serverId, currentlySuspended) {
-    const action = currentlySuspended ? 'resume' : 'suspend';
-    const actionText = currentlySuspended ? 'resume' : 'suspend';
-    if (!confirm(`Are you sure you want to ${actionText} monitoring for this server?`)) return;
-    try {
-        const response = await fetch(`/api/servers/${serverId}/monitoring/${action}/`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') } });
-        const data = await response.json();
-        if (data.success) { alert(data.message || `Monitoring ${actionText}d successfully`); location.reload(); }
-        else { alert('Error: ' + (data.error || 'Failed to toggle monitoring')); }
-    } catch (error) { console.error(error); alert('Error: Failed to toggle monitoring'); }
 }
 function getCookie(name) {
     let cookieValue = null;
