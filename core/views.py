@@ -1139,6 +1139,10 @@ def monitoring_dashboard(request):
             "monitoring_suspended": monitoring_suspended,
         })
 
+    # Per-user dashboard perspective (Operations vs Executive)
+    acl = UserACL.get_or_create_for_user(request.user)
+    dashboard_view = acl.dashboard_view
+
     context = {
         "servers_data": servers_data,
         "total_servers": len(servers_data),
@@ -1147,10 +1151,27 @@ def monitoring_dashboard(request):
         "offline_count": offline_count,
         "alert_count": alert_count,
         "show_sidebar": True,
+        "dashboard_view": dashboard_view,
     }
+
+    # Executive view focuses on business KPIs
+    if dashboard_view == UserACL.DashboardView.EXECUTIVE:
+        context["kpis"] = list(BusinessKPI.objects.filter(enabled=True).order_by("name"))
+
     context.update(admin.site.each_context(request))
-    
     return render(request, "core/monitoring_dashboard.html", context)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def set_dashboard_view(request):
+    """Persist the user's preferred dashboard perspective, then return to it."""
+    view = request.POST.get("view")
+    if view in (UserACL.DashboardView.OPERATIONS, UserACL.DashboardView.EXECUTIVE):
+        acl = UserACL.get_or_create_for_user(request.user)
+        acl.dashboard_view = view
+        acl.save(update_fields=["dashboard_view", "updated_at"])
+    return redirect("monitoring_dashboard")
 
 
 @staff_member_required

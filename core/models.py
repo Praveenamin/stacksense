@@ -608,9 +608,17 @@ class RolePrivilege(models.Model):
 
 class UserACL(models.Model):
     """Access Control List for Staff Users - now uses role-based permissions"""
+    class DashboardView(models.TextChoices):
+        OPERATIONS = "operations", "Operations"
+        EXECUTIVE = "executive", "Executive"
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='acl')
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True,
                            help_text="Role that defines this user's permissions")
+    dashboard_view = models.CharField(
+        max_length=20, choices=DashboardView.choices, default=DashboardView.OPERATIONS,
+        help_text="Which dashboard perspective this user sees (Operations or Executive)",
+    )
 
     # DEPRECATED: These boolean flags are kept for backward compatibility
     # but should be removed after migration to role-based system
