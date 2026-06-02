@@ -114,9 +114,8 @@
         {% endif %}
 
         <!-- Footer -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:12px;color:#64748b;">
-            <span title="Uptime">⏱ {{ server.uptime_display|default:"—" }}</span>
-            <span title="Last check-in">{% if server.last_checkin %}{{ server.last_checkin|timesince }} ago{% else %}never{% endif %}</span>
+        <div style="display:flex;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:12px;color:#64748b;">
+            <span title="Uptime">⏱ Uptime {{ server.uptime_display|default:"—" }}</span>
         </div>
     </div>
     {% endfor %}
