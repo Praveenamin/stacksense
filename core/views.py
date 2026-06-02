@@ -8432,7 +8432,8 @@ def services_overview(request):
     out by default and a per-service monitoring toggle."""
     groups = {}
     total = running = monitored = 0
-    for svc in Service.objects.select_related("server").order_by("server__name", "name"):
+    # Show only systemd services for now (exclude auto-detected listening ports).
+    for svc in Service.objects.exclude(service_type="port").select_related("server").order_by("server__name", "name"):
         total += 1
         if svc.status == "running":
             running += 1
