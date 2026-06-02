@@ -106,15 +106,15 @@
             <span title="Uptime">⏱ Uptime {{ server.uptime_display|default:"—" }}</span>
             <div style="margin-left:auto;display:flex;align-items:center;gap:2px;">
                 <!-- View details -->
-                <a class="icon-btn" href="/server/{{ server.id }}/" title="View details" aria-label="View details">
+                <a class="icon-btn icon-view" href="/server/{{ server.id }}/" title="View details" aria-label="View details">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
                 </a>
                 <!-- Edit -->
-                <a class="icon-btn" href="/server/edit/{{ server.id }}/" title="Edit" aria-label="Edit">
+                <a class="icon-btn icon-edit" href="/server/edit/{{ server.id }}/" title="Edit" aria-label="Edit">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </a>
                 <!-- Suspend / Resume alerts -->
-                <button type="button" class="icon-btn" onclick="toggleAlertSuppression({{ server.id }}, {% if server.alert_suppressed %}true{% else %}false{% endif %})"
+                <button type="button" class="icon-btn icon-alert" onclick="toggleAlertSuppression({{ server.id }}, {% if server.alert_suppressed %}true{% else %}false{% endif %})"
                         title="{% if server.alert_suppressed %}Resume alerts{% else %}Suspend alerts{% endif %}" aria-label="{% if server.alert_suppressed %}Resume alerts{% else %}Suspend alerts{% endif %}">
                     {% if server.alert_suppressed %}
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -123,7 +123,7 @@
                     {% endif %}
                 </button>
                 <!-- Delete -->
-                <button type="button" class="icon-btn icon-btn-danger" onclick="confirmDeleteServerList('{{ server.name }}', {{ server.id }})" title="Delete" aria-label="Delete">
+                <button type="button" class="icon-btn icon-delete" onclick="confirmDeleteServerList('{{ server.name }}', {{ server.id }})" title="Delete" aria-label="Delete">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
             </div>
@@ -159,9 +159,12 @@
 .filter-chip.active { background:#0f172a; color:#fff; border-color:#0f172a; }
 .filter-chip .dot { width:7px; height:7px; border-radius:999px; display:inline-block; }
 .filter-chip .chip-count { font-size:11px; opacity:.7; }
-.icon-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:7px; border:none; background:none; color:#64748b; cursor:pointer; text-decoration:none; transition:background .12s ease, color .12s ease; }
-.icon-btn:hover { background:#f1f5f9; color:#0f172a; }
-.icon-btn-danger:hover { background:#fef2f2; color:#da1e28; }
+.icon-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:7px; border:none; background:none; cursor:pointer; text-decoration:none; transition:background .12s ease, color .12s ease; }
+/* subtle base tones, a touch stronger on hover */
+.icon-view   { color:#7aa3e0; } .icon-view:hover   { background:#eef4ff; color:#2563eb; }
+.icon-edit   { color:#9aa1b0; } .icon-edit:hover   { background:#f1f3f7; color:#475569; }
+.icon-alert  { color:#d9b072; } .icon-alert:hover  { background:#fff7ea; color:#b45309; }
+.icon-delete { color:#dba0a4; } .icon-delete:hover { background:#fef2f2; color:#da1e28; }
 </style>
 
 <script>
