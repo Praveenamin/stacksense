@@ -110,10 +110,15 @@ def _calculate_server_status(server):
         if time_diff_seconds > threshold:
             return "offline"
         
-        # Server is online (heartbeat OK) - check for alerts
+        # Server is online (heartbeat OK) - check for alerts.
+        # Server status reflects the server's own health only; SERVICE alerts
+        # (a monitored service being down) are shown under Services, not here.
         active_anomalies = Anomaly.objects.filter(server=server, resolved=False).exists()
-        active_alerts = AlertHistory.objects.filter(server=server, status="triggered").exists()
-        
+        active_alerts = (AlertHistory.objects
+                         .filter(server=server, status="triggered")
+                         .exclude(alert_type=AlertHistory.AlertType.SERVICE)
+                         .exists())
+
         if active_anomalies or active_alerts:
             return "warning"
         else:
@@ -872,9 +877,13 @@ def server_list(request):
             server.alert_suppressed = False
             server.monitoring_suspended = False
 
-        # Why is it in warning? Count active alerts + unresolved anomalies (drives the card tags)
+        # Why is it in warning? Count active alerts + unresolved anomalies (drives the card tags).
+        # Exclude SERVICE alerts here too -- service health is shown under Services, not the server.
         try:
-            server.active_alerts = AlertHistory.objects.filter(server=server, status="triggered").count()
+            server.active_alerts = (AlertHistory.objects
+                                    .filter(server=server, status="triggered")
+                                    .exclude(alert_type=AlertHistory.AlertType.SERVICE)
+                                    .count())
             server.active_anomalies = Anomaly.objects.filter(server=server, resolved=False).count()
         except Exception:
             server.active_alerts = 0
