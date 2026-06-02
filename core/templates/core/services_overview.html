@@ -23,15 +23,23 @@
 <input id="svc-search" type="text" placeholder="Search service or server…" autocomplete="off" style="padding:9px 12px;width:320px;max-width:70vw;font-size:14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#0f172a;box-sizing:border-box;margin-bottom:18px;">
 
 {% for g in groups %}
-<div class="svc-server" data-server="{{ g.server.name|lower }}" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:16px;overflow:hidden;">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;">
-        <div>
-            <a href="/server/{{ g.server.id }}/" style="font-size:15px;font-weight:600;color:#0f172a;text-decoration:none;">{{ g.server.name }}</a>
-            <span style="font-size:12px;color:#94a3b8;margin-left:8px;">{{ g.server.ip_address }}</span>
+<div class="svc-server" data-server="{{ g.server.name|lower }}" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:12px;overflow:hidden;">
+    <div class="svc-head" onclick="toggleServer('srv-{{ g.server.id }}', this)"
+         style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;user-select:none;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="transition:transform .15s ease;flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
+            <div style="min-width:0;">
+                <span style="font-size:15px;font-weight:600;color:#0f172a;">{{ g.server.name }}</span>
+                <span style="font-size:12px;color:#94a3b8;margin-left:8px;">{{ g.server.ip_address }}</span>
+            </div>
         </div>
-        <div style="font-size:12px;color:#64748b;">{{ g.notable|length }} key service{{ g.notable|length|pluralize }} · {{ g.monitored }} monitored</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+            {% if g.monitored %}<span style="font-size:11px;font-weight:600;color:#0f62fe;background:#eef4ff;padding:2px 9px;border-radius:999px;">{{ g.monitored }} monitored</span>{% endif %}
+            <span style="font-size:12px;color:#64748b;">{{ g.notable|length }} service{{ g.notable|length|pluralize }}</span>
+        </div>
     </div>
 
+    <div id="srv-{{ g.server.id }}" class="svc-body" style="display:none;border-top:1px solid #f1f5f9;">
     {% if g.notable %}
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
@@ -76,6 +84,7 @@
         </table>
     </div>
     {% endif %}
+    </div><!-- /svc-body -->
 </div>
 {% endfor %}
 
@@ -97,6 +106,17 @@
 <script>
 function getCookie(name){var v=null;if(document.cookie){document.cookie.split(';').forEach(function(c){c=c.trim();if(c.substring(0,name.length+1)===(name+'=')){v=decodeURIComponent(c.substring(name.length+1));}});}return v;}
 function toggleBg(id, btn){var t=document.getElementById(id);var show=t.style.display==='none';t.style.display=show?'table':'none';btn.textContent=(show?'▾ Hide ':'▸ Show ')+btn.textContent.replace(/^[▸▾]\s*(Show|Hide)\s*/,'');}
+function setServer(card, open){
+    var body=card.querySelector('.svc-body'); var chev=card.querySelector('.chev');
+    if(body) body.style.display = open ? 'block' : 'none';
+    if(chev) chev.style.transform = open ? 'rotate(90deg)' : 'none';
+}
+function toggleServer(id, head){
+    var card=head.closest('.svc-server'); var body=document.getElementById(id);
+    setServer(card, body.style.display==='none');
+}
+// Auto-expand when there's only one server; otherwise keep all collapsed.
+(function(){ var cards=document.querySelectorAll('.svc-server'); if(cards.length===1){ setServer(cards[0], true); } })();
 function toggleServiceMonitoring(serverId, serviceId, el){
     fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}})
         .then(r=>r.json()).then(d=>{ if(!d.success){ el.checked=!el.checked; alert('Failed to update monitoring'); } })
@@ -107,7 +127,8 @@ function toggleServiceMonitoring(serverId, serviceId, el){
     var search=document.getElementById('svc-search'); if(!search) return;
     search.addEventListener('keyup', function(){
         var term=search.value.trim().toLowerCase();
-        document.querySelectorAll('.svc-server').forEach(function(card){
+        var cards=document.querySelectorAll('.svc-server');
+        cards.forEach(function(card){
             var serverMatch = card.dataset.server.includes(term);
             var anyRow=false;
             card.querySelectorAll('.svc-row').forEach(function(r){
@@ -115,7 +136,11 @@ function toggleServiceMonitoring(serverId, serviceId, el){
                 r.style.display = show ? '' : 'none';
                 if(show) anyRow=true;
             });
-            card.style.display = (!term || serverMatch || anyRow) ? '' : 'none';
+            var visible = (!term || serverMatch || anyRow);
+            card.style.display = visible ? '' : 'none';
+            // expand matching servers while searching; collapse when cleared
+            if(term){ setServer(card, visible); }
+            else { setServer(card, cards.length===1); }
         });
     });
 })();
