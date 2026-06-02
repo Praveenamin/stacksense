@@ -22,8 +22,9 @@
 }
 
 .dashboard-component-icon {
-    font-size: 20px;
-    line-height: 1;
+    /* Hidden for a uniform, text-only header style consistent with the rest of
+       the app (the emoji icons were inconsistent across widgets). */
+    display: none;
 }
 
 .dashboard-component-title {
