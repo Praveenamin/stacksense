@@ -13,7 +13,6 @@ class DashboardManager {
      */
     init() {
         // Initialize all components
-        this.components.summaryMetrics = new SummaryMetricsCard();
         this.components.alertsBanner = new AlertsBanner();
         this.components.cpuTrend = new CPUTrendChart();
         this.components.memoryTrend = new MemoryTrendChart();

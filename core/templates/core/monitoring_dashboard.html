@@ -168,7 +168,39 @@
 
     {% else %}
     {% include "core/components/dashboard/alerts_banner.html" %}
-    {% include "core/components/dashboard/summary_metrics_card.html" %}
+
+    <!-- Fleet status (graphical) -->
+    <div class="dashboard-component" style="margin-bottom:32px;">
+        <div class="dashboard-component-header"><h3 class="dashboard-component-title">Fleet Status</h3></div>
+        <div style="display:flex;align-items:center;gap:36px;flex-wrap:wrap;padding-top:6px;">
+            <div style="width:190px;height:190px;position:relative;flex-shrink:0;">
+                <canvas id="fleet-status-donut"></canvas>
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+                    <div style="font-size:30px;font-weight:700;color:#0f172a;line-height:1;">{{ total_servers }}</div>
+                    <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Servers</div>
+                </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+                <div style="display:flex;align-items:center;gap:10px;"><span style="width:10px;height:10px;border-radius:999px;background:#24a148;display:inline-block;"></span><span style="font-size:14px;color:#475569;width:80px;">Online</span><span style="font-size:18px;font-weight:700;color:#0f172a;">{{ online_count }}</span></div>
+                <div style="display:flex;align-items:center;gap:10px;"><span style="width:10px;height:10px;border-radius:999px;background:#ff832b;display:inline-block;"></span><span style="font-size:14px;color:#475569;width:80px;">Warning</span><span style="font-size:18px;font-weight:700;color:#0f172a;">{{ warning_count }}</span></div>
+                <div style="display:flex;align-items:center;gap:10px;"><span style="width:10px;height:10px;border-radius:999px;background:#94a3b8;display:inline-block;"></span><span style="font-size:14px;color:#475569;width:80px;">Offline</span><span style="font-size:18px;font-weight:700;color:#0f172a;">{{ offline_count }}</span></div>
+                <div style="display:flex;align-items:center;gap:10px;border-top:1px solid #f1f5f9;padding-top:12px;margin-top:2px;"><span style="font-size:14px;color:#475569;width:90px;">Open issues</span><span style="font-size:18px;font-weight:700;color:#0f172a;">{{ alert_count }}</span></div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        var el=document.getElementById('fleet-status-donut');
+        if(!el || typeof Chart==='undefined') return;
+        new Chart(el, {
+            type:'doughnut',
+            data:{ labels:['Online','Warning','Offline'],
+                datasets:[{ data:[{{ online_count }},{{ warning_count }},{{ offline_count }}],
+                    backgroundColor:['#24a148','#ff832b','#cbd5e1'], borderWidth:0 }] },
+            options:{ cutout:'72%', plugins:{ legend:{display:false}, tooltip:{enabled:true} }, responsive:true, maintainAspectRatio:false }
+        });
+    })();
+    </script>
     
     <!-- Reliability Metrics Chart Section -->
     <div class="dashboard-component" style="margin-bottom: 32px;">
@@ -244,7 +276,6 @@
 <script src="{% static 'core/js/anomaly_status.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/BaseDashboardComponent.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/ChartWrapper.js' %}"></script>
-<script src="{% static 'core/js/components/dashboard/SummaryMetricsCard.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/AlertsBanner.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/CPUTrendChart.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/MemoryTrendChart.js' %}"></script>
