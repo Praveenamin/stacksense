@@ -147,8 +147,34 @@
 </div>
 {% endif %}
 
+<!-- Reusable confirm dialog (matches app styling) -->
+<div id="app-modal-overlay" class="app-modal-overlay" style="display:none;">
+    <div class="app-modal" role="dialog" aria-modal="true">
+        <div class="app-modal-title" id="app-modal-title">Confirm</div>
+        <div class="app-modal-body" id="app-modal-body"></div>
+        <div class="app-modal-actions">
+            <button type="button" id="app-modal-cancel" class="app-modal-btn app-modal-btn-secondary">Cancel</button>
+            <button type="button" id="app-modal-confirm" class="app-modal-btn app-modal-btn-primary">Confirm</button>
+        </div>
+    </div>
+</div>
+
 <style>
 .vm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+/* Modal */
+.app-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:2000; padding:16px; }
+.app-modal { background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.25); width:100%; max-width:420px; padding:24px; animation:appModalIn .14s ease; }
+@keyframes appModalIn { from { opacity:0; transform:translateY(6px) scale(.98); } to { opacity:1; transform:none; } }
+.app-modal-title { font-size:17px; font-weight:600; color:#0f172a; margin-bottom:8px; }
+.app-modal-body { font-size:14px; color:#475569; line-height:1.6; margin-bottom:22px; }
+.app-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+.app-modal-btn { padding:9px 18px; font-size:14px; font-weight:500; border-radius:7px; cursor:pointer; border:1px solid transparent; }
+.app-modal-btn-secondary { background:#fff; color:#334155; border-color:#e2e8f0; }
+.app-modal-btn-secondary:hover { background:#f8fafc; }
+.app-modal-btn-primary { background:#0f62fe; color:#fff; }
+.app-modal-btn-primary:hover { background:#0353e9; }
+.app-modal-btn-danger { background:#da1e28; color:#fff; }
+.app-modal-btn-danger:hover { background:#ba1b25; }
 .vm-card { background:#fff; border:1px solid #e2e8f0; border-left-width:4px; border-radius:10px; padding:18px; transition:box-shadow .15s ease, transform .15s ease; }
 .vm-card:hover { box-shadow:0 6px 18px rgba(15,23,42,.09); transform:translateY(-1px); }
 .bar-track { width:100%; height:6px; background:#eef2f6; border-radius:999px; overflow:hidden; }
@@ -203,24 +229,52 @@
     if (search) search.addEventListener('keyup', applyFilters);
 })();
 
+// ---- Styled dialog (replaces native confirm/alert) ----
+function appConfirm(opts) {
+    const overlay = document.getElementById('app-modal-overlay');
+    const confirmBtn = document.getElementById('app-modal-confirm');
+    const cancelBtn = document.getElementById('app-modal-cancel');
+    document.getElementById('app-modal-title').textContent = opts.title || 'Confirm';
+    document.getElementById('app-modal-body').textContent = opts.body || '';
+    confirmBtn.textContent = opts.confirmText || 'Confirm';
+    confirmBtn.className = 'app-modal-btn ' + (opts.danger ? 'app-modal-btn-danger' : 'app-modal-btn-primary');
+    cancelBtn.style.display = opts.alert ? 'none' : '';
+    function close() { overlay.style.display = 'none'; confirmBtn.onclick = null; cancelBtn.onclick = null; overlay.onclick = null; document.onkeydown = null; }
+    confirmBtn.onclick = function () { close(); if (opts.onConfirm) opts.onConfirm(); };
+    cancelBtn.onclick = close;
+    overlay.onclick = function (e) { if (e.target === overlay) close(); };
+    document.onkeydown = function (e) { if (e.key === 'Escape') close(); };
+    overlay.style.display = 'flex';
+    confirmBtn.focus();
+}
+function appAlert(message, title) { appConfirm({ title: title || 'Notice', body: message, confirmText: 'OK', alert: true }); }
+
 // ---- Actions ----
 function confirmDeleteServerList(serverName, serverId) {
-    var message = '⚠️ WARNING: Delete Server\n\n' +
-        'Are you sure you want to delete the server "' + serverName + '"?\n\n' +
-        'This permanently deletes its configuration, metrics, alert history and monitoring data.\n\n' +
-        'This action CANNOT be undone!';
-    if (confirm(message)) { document.getElementById('delete-form-' + serverId).submit(); }
+    appConfirm({
+        title: 'Delete server',
+        body: `Delete "${serverName}"? This permanently removes its configuration, metrics, alert history and monitoring data. This cannot be undone.`,
+        confirmText: 'Delete',
+        danger: true,
+        onConfirm: function () { document.getElementById('delete-form-' + serverId).submit(); }
+    });
 }
-async function toggleAlertSuppression(serverId, currentlySuppressed) {
+function toggleAlertSuppression(serverId, currentlySuppressed) {
     const action = currentlySuppressed ? 'resume' : 'suppress';
     const actionText = currentlySuppressed ? 'resume' : 'suspend';
-    if (!confirm(`Are you sure you want to ${actionText} alerts for this server?`)) return;
-    try {
-        const response = await fetch(`/api/servers/${serverId}/alerts/${action}/`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') } });
-        const data = await response.json();
-        if (data.success) { alert(data.message || `Alerts ${actionText}d successfully`); location.reload(); }
-        else { alert('Error: ' + (data.error || 'Failed to toggle alert suppression')); }
-    } catch (error) { console.error(error); alert('Error: Failed to toggle alert suppression'); }
+    appConfirm({
+        title: (currentlySuppressed ? 'Resume' : 'Suspend') + ' alerts',
+        body: `Are you sure you want to ${actionText} alerts for this server?`,
+        confirmText: currentlySuppressed ? 'Resume alerts' : 'Suspend alerts',
+        onConfirm: async function () {
+            try {
+                const response = await fetch(`/api/servers/${serverId}/alerts/${action}/`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') } });
+                const data = await response.json();
+                if (data.success) { location.reload(); }
+                else { appAlert(data.error || 'Failed to toggle alert suppression', 'Error'); }
+            } catch (error) { console.error(error); appAlert('Failed to toggle alert suppression', 'Error'); }
+        }
+    });
 }
 function getCookie(name) {
     let cookieValue = null;
