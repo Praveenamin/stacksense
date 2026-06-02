@@ -257,7 +257,7 @@
                 </div>
                 <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
                     <div><span class="lg-dot" style="background:#24a148;"></span>Running <b id="fs-containers-running">{{ containers_running }}</b></div>
-                    <div><span class="lg-dot" style="background:#94a3b8;"></span>Exited <b id="fs-containers-exited">{{ containers_stopped }}</b></div>
+                    <div><span class="lg-dot" style="background:#da1e28;"></span>Exited <b id="fs-containers-exited">{{ containers_stopped }}</b></div>
                     <div style="margin-top:4px;"><a href="/containers/" style="color:#0f62fe;text-decoration:none;font-size:12px;">View all →</a></div>
                 </div>
             </div>
@@ -266,7 +266,7 @@
     <script>
     (function(){
         if(typeof Chart==='undefined') return;
-        var COLORS={ servers:['#24a148','#ff832b','#94a3b8'], services:['#24a148','#da1e28'], containers:['#24a148','#94a3b8'] };
+        var COLORS={ servers:['#24a148','#ff832b','#94a3b8'], services:['#24a148','#da1e28'], containers:['#24a148','#da1e28'] };
         function makeDonut(id, data, colors){
             var el=document.getElementById(id); if(!el) return null;
             var sum=data.reduce(function(a,b){return a+b;},0);

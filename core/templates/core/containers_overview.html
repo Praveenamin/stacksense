@@ -55,8 +55,8 @@
                     <td style="padding:9px 18px;">
                         {% if c.state == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>
                         {% elif c.state == 'paused' %}<span style="color:#b45309;font-weight:600;">● Paused</span>
-                        {% elif c.state == 'gone' %}<span style="color:#94a3b8;">● Gone</span>
-                        {% else %}<span style="color:#94a3b8;">● {{ c.state|capfirst }}</span>{% endif %}
+                        {% elif c.state == 'gone' %}<span style="color:#b91c1c;font-weight:600;">● Gone</span>
+                        {% else %}<span style="color:#b91c1c;font-weight:600;">● {{ c.state|capfirst }}</span>{% endif %}
                         {% if c.status_text %}<span style="color:#94a3b8;font-size:12px;margin-left:6px;">{{ c.status_text }}</span>{% endif %}
                     </td>
                     <td style="padding:9px 18px;text-align:right;">

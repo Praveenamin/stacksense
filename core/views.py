@@ -116,7 +116,7 @@ def _calculate_server_status(server):
         active_anomalies = Anomaly.objects.filter(server=server, resolved=False).exists()
         active_alerts = (AlertHistory.objects
                          .filter(server=server, status="triggered")
-                         .exclude(alert_type=AlertHistory.AlertType.SERVICE)
+                         .exclude(alert_type__in=[AlertHistory.AlertType.SERVICE, AlertHistory.AlertType.CONTAINER])
                          .exists())
 
         if active_anomalies or active_alerts:
@@ -882,7 +882,7 @@ def server_list(request):
         try:
             server.active_alerts = (AlertHistory.objects
                                     .filter(server=server, status="triggered")
-                                    .exclude(alert_type=AlertHistory.AlertType.SERVICE)
+                                    .exclude(alert_type__in=[AlertHistory.AlertType.SERVICE, AlertHistory.AlertType.CONTAINER])
                                     .count())
             server.active_anomalies = Anomaly.objects.filter(server=server, resolved=False).count()
         except Exception:

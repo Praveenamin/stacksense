@@ -225,15 +225,18 @@ def kpi_ingest(request):
     })
 
 
-def _notify_service(server, service_name, down):
-    """Email/Slack a monitored-service down/recovery notice (best-effort)."""
+def _notify_unit(server, kind, name, down):
+    """Email/Slack a monitored service/container down/recovery notice (best-effort).
+
+    `kind` is "service" or "container".
+    """
     if down:
-        subject = f"[StackSense] SERVICE DOWN: {service_name} on {server.name}"
-        body = f"Monitored service '{service_name}' is NOT running on {server.name} (as of {timezone.now()})."
+        subject = f"[StackSense] {kind.upper()} DOWN: {name} on {server.name}"
+        body = f"Monitored {kind} '{name}' is NOT running on {server.name} (as of {timezone.now()})."
         emoji = ":red_circle:"
     else:
-        subject = f"[StackSense] SERVICE RECOVERED: {service_name} on {server.name}"
-        body = f"Monitored service '{service_name}' is running again on {server.name} (as of {timezone.now()})."
+        subject = f"[StackSense] {kind.upper()} RECOVERED: {name} on {server.name}"
+        body = f"Monitored {kind} '{name}' is running again on {server.name} (as of {timezone.now()})."
         emoji = ":large_green_circle:"
     try:
         ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
@@ -243,7 +246,7 @@ def _notify_service(server, service_name, down):
             if recipients:
                 send_mail(subject, body, ecfg.from_email or None, recipients, fail_silently=True)
     except Exception:
-        logger.exception("Service email alert failed for %s/%s", server.name, service_name)
+        logger.exception("%s email alert failed for %s/%s", kind, server.name, name)
     try:
         scfg = SlackAlertConfig.objects.filter(enabled=True).first()
         if scfg and scfg.webhook_url:
@@ -256,7 +259,7 @@ def _notify_service(server, service_name, down):
                 payload["icon_emoji"] = scfg.icon_emoji
             requests.post(scfg.webhook_url, json=payload, timeout=10)
     except Exception:
-        logger.exception("Service slack alert failed for %s/%s", server.name, service_name)
+        logger.exception("%s slack alert failed for %s/%s", kind, server.name, name)
 
 
 def evaluate_service_alerts(server):
@@ -287,12 +290,45 @@ def evaluate_service_alerts(server):
                 message=f"{marker} Service '{svc.name}' is not running on {server.name}.",
                 recipients=(ecfg.to_email if ecfg else "") or "", sent_at=now,
             )
-            _notify_service(server, svc.name, down=True)
+            _notify_unit(server, "service", svc.name, down=True)
         elif (not is_down) and open_alert:
             open_alert.status = AlertHistory.AlertStatus.RESOLVED
             open_alert.resolved_at = now
             open_alert.save(update_fields=["status", "resolved_at"])
-            _notify_service(server, svc.name, down=False)
+            _notify_unit(server, "service", svc.name, down=False)
+
+
+def evaluate_container_alerts(server):
+    """Raise/resolve alerts for this server's MONITORED containers based on state.
+
+    Mirrors evaluate_service_alerts: a monitored container that is not running
+    raises a (single) triggered CONTAINER AlertHistory (marker `[ctr:<name>]`);
+    when it runs again the open alert is resolved.
+    """
+    config = getattr(server, "monitoring_config", None)
+    suppressed = getattr(server, "suppress_alerts", False) or (config and getattr(config, "alert_suppressed", False))
+    now = timezone.now()
+    for ctr in Container.objects.filter(server=server, monitoring_enabled=True):
+        marker = f"[ctr:{ctr.name}]"
+        open_alert = AlertHistory.objects.filter(
+            server=server, alert_type=AlertHistory.AlertType.CONTAINER,
+            status=AlertHistory.AlertStatus.TRIGGERED, message__contains=marker,
+        ).first()
+        is_down = ctr.state != "running"
+        if is_down and not open_alert and not suppressed:
+            ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
+            AlertHistory.objects.create(
+                server=server, alert_type=AlertHistory.AlertType.CONTAINER,
+                status=AlertHistory.AlertStatus.TRIGGERED, value=0, threshold=1,
+                message=f"{marker} Container '{ctr.name}' is {ctr.state} on {server.name}.",
+                recipients=(ecfg.to_email if ecfg else "") or "", sent_at=now,
+            )
+            _notify_unit(server, "container", ctr.name, down=True)
+        elif (not is_down) and open_alert:
+            open_alert.status = AlertHistory.AlertStatus.RESOLVED
+            open_alert.resolved_at = now
+            open_alert.save(update_fields=["status", "resolved_at"])
+            _notify_unit(server, "container", ctr.name, down=False)
 
 
 @csrf_exempt
@@ -426,6 +462,12 @@ def agent_ingest_containers(request):
          .exclude(name__in=reported)
          .exclude(state="gone")
          .update(state="gone", last_checked=now))
+
+    # Raise/resolve alerts for monitored containers based on their current state.
+    try:
+        evaluate_container_alerts(server)
+    except Exception:
+        logger.exception("Container alert evaluation failed for %s", server.name)
 
     return JsonResponse({"status": "ok", "received": len(reported)})
 

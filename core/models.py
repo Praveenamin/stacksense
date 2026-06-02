@@ -520,7 +520,8 @@ class AlertHistory(models.Model):
         DISK = "Disk", "Disk"
         CONNECTION = "CONNECTION", "Connection"
         SERVICE = "SERVICE", "Service"
-    
+        CONTAINER = "CONTAINER", "Container"
+
     class AlertStatus(models.TextChoices):
         TRIGGERED = "triggered", "Triggered"
         RESOLVED = "resolved", "Resolved"

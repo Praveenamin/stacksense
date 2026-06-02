@@ -272,7 +272,7 @@
                 <div style="display: flex; flex-direction: column; gap: var(--cds-spacing-2);">
                     {% for alert in group %}
                     <div style="display: grid; grid-template-columns: 120px 1fr auto; gap: var(--cds-spacing-4); align-items: center; padding: var(--cds-spacing-2); background-color: white; border-radius: 4px;">
-                        <span style="background-color: {% if alert.alert_type == 'CPU' %}#f59e0b{% elif alert.alert_type == 'Memory' %}#f59e0b{% elif alert.alert_type == 'Disk' %}#ef4444{% elif alert.alert_type == 'CONNECTION' %}#ef4444{% elif alert.alert_type == 'SERVICE' %}#ef4444{% else %}#64748b{% endif %}; color: white; padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: 4px; font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">
+                        <span style="background-color: {% if alert.alert_type == 'CPU' %}#f59e0b{% elif alert.alert_type == 'Memory' %}#f59e0b{% elif alert.alert_type == 'Disk' %}#ef4444{% elif alert.alert_type == 'CONNECTION' %}#ef4444{% elif alert.alert_type == 'SERVICE' %}#ef4444{% elif alert.alert_type == 'CONTAINER' %}#ef4444{% else %}#64748b{% endif %}; color: white; padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: 4px; font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium);">
                             {{ alert.alert_type }}
                         </span>
                         <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100);">
