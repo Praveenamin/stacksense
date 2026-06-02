@@ -29,7 +29,7 @@ from django.views.decorators.http import require_http_methods
 
 from .models import (
     AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion,
-    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig,
+    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service,
 )
 
 logger = logging.getLogger("core")
@@ -222,6 +222,74 @@ def kpi_ingest(request):
         "kpi_status": kpi.last_status,
         "transition": transition,
     })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def agent_ingest_services(request):
+    """Receive the list of running services detected by the agent and sync them.
+
+    Body: {"services": [{"name","status","service_type","port","bind_address","process_id"}, ...]}
+    Upserts each reported service for the server; auto-detected services that are
+    no longer reported are marked 'stopped'.
+    """
+    cred, err = _authenticate(request)
+    if err:
+        return err
+    server = cred.server
+
+    if len(request.body) > MAX_BODY_BYTES:
+        return JsonResponse({"error": "payload too large"}, status=413)
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "request body is not valid JSON"}, status=400)
+
+    agent_version = payload.get("agent_version") if isinstance(payload, dict) else None
+    _update_heartbeat(server, agent_version)
+    _touch_credential(cred, request)
+
+    services = payload.get("services") if isinstance(payload, dict) else None
+    if not isinstance(services, list):
+        return JsonResponse({"error": "missing 'services' list"}, status=400)
+
+    now = timezone.now()
+    reported_names = set()
+    for item in services:
+        if not isinstance(item, dict):
+            continue
+        name = (item.get("name") or "").strip()[:100]
+        if not name:
+            continue
+        reported_names.add(name)
+        port = item.get("port")
+        try:
+            port = int(port) if port not in (None, "") else None
+        except (TypeError, ValueError):
+            port = None
+        Service.objects.update_or_create(
+            server=server,
+            name=name,
+            defaults={
+                "status": (item.get("status") or "running")[:50],
+                "service_type": (item.get("service_type") or "systemd")[:50],
+                "port": port,
+                "bind_address": (item.get("bind_address") or "")[:50] or None,
+                "process_id": (str(item.get("process_id")) or "")[:50] or None,
+                "last_checked": now,
+                "auto_detected": True,
+            },
+        )
+
+    # Mark previously auto-detected services that are no longer reported as stopped.
+    if reported_names:
+        (Service.objects
+         .filter(server=server, auto_detected=True)
+         .exclude(name__in=reported_names)
+         .exclude(status="stopped")
+         .update(status="stopped", last_checked=now))
+
+    return JsonResponse({"status": "ok", "received": len(reported_names)})
 
 
 def _serve_agent_file(filename, content_type):

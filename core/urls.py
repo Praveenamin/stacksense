@@ -13,6 +13,7 @@ urlpatterns = [
     path("server/<int:server_id>/agent-token/regenerate/", views.regenerate_agent_token, name="regenerate_agent_token"),
     path("api/add-server/", views.add_server_api, name="add_server_api"),
     path("servers/", views.server_list, name="server_list"),
+    path("services/", views.services_overview, name="services_overview"),
     path("server/edit/<int:server_id>/", views.edit_server, name="edit_server"),
     path("server/delete/<int:server_id>/", views.delete_server, name="delete_server"),
     path("remove-server/<int:server_id>/", views.remove_server, name="remove_server"),
@@ -22,6 +23,7 @@ urlpatterns = [
     path("api/agent/ping/", agent_api.agent_ping, name="agent_ping"),
     path("api/agent/heartbeat/", agent_api.agent_heartbeat, name="agent_heartbeat"),
     path("api/agent/metrics/", agent_api.agent_ingest_metrics, name="agent_ingest_metrics"),
+    path("api/agent/services/", agent_api.agent_ingest_services, name="agent_ingest_services"),
     path("api/kpi/ingest/", agent_api.kpi_ingest, name="kpi_ingest"),
     # Public installer + agent source (fetched by the one-line VM installer)
     path("agent/install.sh", agent_api.serve_install_script, name="agent_install_script"),

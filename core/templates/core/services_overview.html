@@ -1,0 +1,99 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Services - Stack Alert{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+    <div>
+        <h1 style="font-size:28px;font-weight:600;color:#161616;margin:0 0 4px 0;line-height:1.2;">Services</h1>
+        <p style="font-size:14px;color:#525252;margin:0;">Services automatically detected on your VMs by the agent.</p>
+    </div>
+</div>
+
+{% if services %}
+<!-- Summary -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Services</div><div style="font-size:26px;font-weight:700;color:#0f172a;">{{ stats.total }}</div></div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Running</div><div style="font-size:26px;font-weight:700;color:#166534;">{{ stats.running }}</div></div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Stopped</div><div style="font-size:26px;font-weight:700;color:{% if stats.stopped %}#b45309{% else %}#0f172a{% endif %};">{{ stats.stopped }}</div></div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Servers</div><div style="font-size:26px;font-weight:700;color:#0f172a;">{{ stats.servers }}</div></div>
+</div>
+
+<!-- Filter bar -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="svc-chip active" data-status="all">All</button>
+        <button class="svc-chip" data-status="running"><span style="width:7px;height:7px;border-radius:999px;background:#24a148;display:inline-block;"></span>Running</button>
+        <button class="svc-chip" data-status="stopped"><span style="width:7px;height:7px;border-radius:999px;background:#a8a8a8;display:inline-block;"></span>Stopped</button>
+    </div>
+    <div style="position:relative;">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;"><path d="M9 17A8 8 0 109 1a8 8 0 000 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input id="svc-search" type="text" placeholder="Search service or server…" autocomplete="off" style="padding:9px 12px 9px 36px;width:280px;max-width:60vw;font-size:14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#0f172a;box-sizing:border-box;">
+    </div>
+</div>
+
+<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+            <th style="padding:11px 16px;font-weight:500;">Service</th>
+            <th style="padding:11px 16px;font-weight:500;">Server</th>
+            <th style="padding:11px 16px;font-weight:500;">Type</th>
+            <th style="padding:11px 16px;font-weight:500;">Port</th>
+            <th style="padding:11px 16px;font-weight:500;">Status</th>
+            <th style="padding:11px 16px;font-weight:500;">Last seen</th>
+        </tr></thead>
+        <tbody id="svc-tbody">
+        {% for s in services %}
+            <tr class="svc-row" data-name="{{ s.name|lower }}" data-server="{{ s.server.name|lower }}" data-status="{{ s.status }}" style="border-top:1px solid #f1f5f9;">
+                <td style="padding:10px 16px;color:#0f172a;font-weight:500;">{{ s.name }}</td>
+                <td style="padding:10px 16px;"><a href="/server/{{ s.server.id }}/" style="color:#0f62fe;text-decoration:none;">{{ s.server.name }}</a></td>
+                <td style="padding:10px 16px;color:#64748b;">{{ s.service_type }}</td>
+                <td style="padding:10px 16px;color:#64748b;">{{ s.port|default:"—" }}</td>
+                <td style="padding:10px 16px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#94a3b8;">● {{ s.status|capfirst }}</span>{% endif %}</td>
+                <td style="padding:10px 16px;color:#94a3b8;">{% if s.last_checked %}{{ s.last_checked|timesince }} ago{% else %}—{% endif %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div id="svc-none" style="display:none;padding:28px;text-align:center;color:#64748b;font-size:14px;">No services match your filters.</div>
+</div>
+
+{% else %}
+<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
+    <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No services detected yet</h3>
+    <p style="font-size:14px;color:#64748b;margin:0;line-height:1.6;max-width:520px;margin-left:auto;margin-right:auto;">
+        The agent reports running services every few minutes. If you just installed or updated the agent, they'll appear here shortly.
+        Make sure each VM is running the latest agent (re-run the install command to update).
+    </p>
+</div>
+{% endif %}
+
+<style>
+.svc-chip { display:inline-flex; align-items:center; gap:7px; background:#fff; border:1px solid #e2e8f0; color:#475569; padding:7px 14px; border-radius:999px; font-size:13px; font-weight:500; cursor:pointer; }
+.svc-chip:hover { border-color:#cbd5e1; }
+.svc-chip.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+</style>
+<script>
+(function () {
+    const search = document.getElementById('svc-search');
+    const chips = document.querySelectorAll('.svc-chip');
+    const rows = document.querySelectorAll('.svc-row');
+    const none = document.getElementById('svc-none');
+    let activeStatus = 'all';
+    function apply() {
+        const term = (search && search.value ? search.value : '').trim().toLowerCase();
+        let visible = 0;
+        rows.forEach(r => {
+            const matchText = !term || r.dataset.name.includes(term) || r.dataset.server.includes(term);
+            const matchStatus = activeStatus === 'all' || (activeStatus === 'running' ? r.dataset.status === 'running' : r.dataset.status !== 'running');
+            const show = matchText && matchStatus;
+            r.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        if (none) none.style.display = visible ? 'none' : 'block';
+    }
+    chips.forEach(c => c.addEventListener('click', () => { activeStatus = c.dataset.status; chips.forEach(x => x.classList.remove('active')); c.classList.add('active'); apply(); }));
+    if (search) search.addEventListener('keyup', apply);
+})();
+</script>
+{% endblock %}

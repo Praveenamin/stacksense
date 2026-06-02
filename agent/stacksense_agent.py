@@ -28,6 +28,7 @@ Usage:
 import json
 import os
 import ssl
+import subprocess
 import sys
 import time
 import urllib.error
@@ -123,6 +124,62 @@ def collect_top_processes(limit=5):
     by_cpu = sorted(rows, key=lambda r: r["cpu_percent"], reverse=True)[:limit]
     by_mem = sorted(rows, key=lambda r: r["memory_percent"], reverse=True)[:limit]
     return {"cpu": by_cpu, "memory": by_mem}
+
+
+def collect_services():
+    """Detect running services on this host.
+
+    Primary source: systemd running units (works as a non-root user).
+    Best-effort secondary: listening TCP/UDP ports (only what psutil can see).
+    Returns a list of {name, status, service_type, port, bind_address, process_id}.
+    """
+    services = []
+    seen = set()
+
+    # systemd running services
+    try:
+        out = subprocess.run(
+            ["systemctl", "list-units", "--type=service", "--state=running",
+             "--no-pager", "--no-legend", "--plain"],
+            capture_output=True, text=True, timeout=10,
+        )
+        for line in out.stdout.splitlines():
+            parts = line.split(None, 4)
+            if not parts:
+                continue
+            unit = parts[0]
+            if unit.endswith(".service"):
+                name = unit[:-len(".service")]
+                if name and name not in seen:
+                    seen.add(name)
+                    services.append({"name": name, "status": "running", "service_type": "systemd"})
+    except Exception:
+        pass
+
+    # Listening ports (best-effort; full visibility needs root)
+    try:
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.status != "LISTEN" or not conn.laddr:
+                continue
+            port = conn.laddr.port
+            addr = conn.laddr.ip
+            pname = ""
+            if conn.pid:
+                pname = _safe(lambda: psutil.Process(conn.pid).name(), "") or ""
+            name = pname or f"port-{port}"
+            key = ("port", name, port)
+            if key in seen:
+                continue
+            seen.add(key)
+            services.append({
+                "name": name, "status": "running", "service_type": "port",
+                "port": port, "bind_address": addr,
+                "process_id": str(conn.pid) if conn.pid else "",
+            })
+    except Exception:
+        pass
+
+    return services
 
 
 def collect_metrics(prev):
@@ -282,6 +339,9 @@ def main():
 
     print(f"StackSense agent {AGENT_VERSION} -> {config['url']} every {config['interval']}s")
 
+    services_interval = int(os.environ.get("STACKSENSE_SERVICES_INTERVAL", 300))
+    last_services_push = 0  # force a services push on the first loop
+
     prev = None
     while True:
         try:
@@ -291,7 +351,7 @@ def main():
             metrics = None
 
         if dry_run:
-            print(json.dumps(metrics, indent=2, default=str))
+            print(json.dumps({"metrics": metrics, "services": collect_services()}, indent=2, default=str))
             return
 
         if metrics is not None:
@@ -301,6 +361,17 @@ def main():
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] pushed (stored={stored})")
             else:
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] push not accepted")
+
+        # Push the detected services periodically (services change rarely)
+        if time.monotonic() - last_services_push >= services_interval:
+            try:
+                services = collect_services()
+                res = push(config, opener, "/api/agent/services/", {"services": services, "agent_version": AGENT_VERSION})
+                if res and res.get("status") == "ok":
+                    last_services_push = time.monotonic()
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] services pushed ({len(services)})")
+            except Exception as e:
+                sys.stderr.write(f"Service push error: {e}\n")
 
         if once:
             return

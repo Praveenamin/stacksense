@@ -8395,6 +8395,29 @@ def synthetic_check_detail(request, check_id):
 
 
 # ---------------------------------------------------------------------------
+# Services (auto-detected across all servers)
+# ---------------------------------------------------------------------------
+@staff_member_required
+def services_overview(request):
+    """List all services auto-detected by agents across every server."""
+    services = Service.objects.select_related("server").order_by("server__name", "name")
+    total = services.count()
+    running = services.filter(status="running").count()
+    context = {
+        "show_sidebar": True,
+        "services": services,
+        "stats": {
+            "total": total,
+            "running": running,
+            "stopped": total - running,
+            "servers": Server.objects.filter(services__isnull=False).distinct().count(),
+        },
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/services_overview.html", context)
+
+
+# ---------------------------------------------------------------------------
 # Business KPI monitoring
 # ---------------------------------------------------------------------------
 def _business_context(request, new_raw_token=None):
