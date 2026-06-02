@@ -119,7 +119,8 @@
 
         {% if show_sidebar %}
         <!-- Global top bar: Admin & Settings (top-right) -->
-        <header style="height:54px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;padding:0 24px;background:#fff;border-bottom:1px solid #e2e8f0;">
+        <header style="height:54px;flex-shrink:0;display:flex;align-items:center;background:#fff;border-bottom:1px solid #e2e8f0;">
+            <div class="max-w-7xl mx-auto w-full" style="display:flex;justify-content:flex-end;padding:0 32px;">
             <div class="settings-menu" style="position:relative;">
                 <button type="button" onclick="toggleSettingsMenu(event)" title="Admin & settings" aria-label="Admin & settings"
                         style="background:none;border:none;color:#475569;width:38px;height:38px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">
@@ -136,6 +137,7 @@
                     {% endif %}
                     <a href="/help/" class="settings-item" style="border-top:1px solid #f1f5f9;">Help Docs</a>
                 </div>
+            </div>
             </div>
         </header>
         <style>
