@@ -30,6 +30,7 @@ from django.views.decorators.http import require_http_methods
 from .models import (
     AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion,
     BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service, Container,
+    AlertHistory, EmailAlertConfig, SlackAlertConfig,
 )
 
 logger = logging.getLogger("core")
@@ -224,6 +225,76 @@ def kpi_ingest(request):
     })
 
 
+def _notify_service(server, service_name, down):
+    """Email/Slack a monitored-service down/recovery notice (best-effort)."""
+    if down:
+        subject = f"[StackSense] SERVICE DOWN: {service_name} on {server.name}"
+        body = f"Monitored service '{service_name}' is NOT running on {server.name} (as of {timezone.now()})."
+        emoji = ":red_circle:"
+    else:
+        subject = f"[StackSense] SERVICE RECOVERED: {service_name} on {server.name}"
+        body = f"Monitored service '{service_name}' is running again on {server.name} (as of {timezone.now()})."
+        emoji = ":large_green_circle:"
+    try:
+        ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
+        if ecfg and ecfg.to_email:
+            from django.core.mail import send_mail
+            recipients = [e.strip() for e in ecfg.to_email.split(",") if e.strip()]
+            if recipients:
+                send_mail(subject, body, ecfg.from_email or None, recipients, fail_silently=True)
+    except Exception:
+        logger.exception("Service email alert failed for %s/%s", server.name, service_name)
+    try:
+        scfg = SlackAlertConfig.objects.filter(enabled=True).first()
+        if scfg and scfg.webhook_url:
+            payload = {"text": f"{emoji} {body}"}
+            if scfg.channel:
+                payload["channel"] = scfg.channel
+            if scfg.username:
+                payload["username"] = scfg.username
+            if scfg.icon_emoji:
+                payload["icon_emoji"] = scfg.icon_emoji
+            requests.post(scfg.webhook_url, json=payload, timeout=10)
+    except Exception:
+        logger.exception("Service slack alert failed for %s/%s", server.name, service_name)
+
+
+def evaluate_service_alerts(server):
+    """Raise/resolve alerts for this server's MONITORED services based on status.
+
+    A monitored service that is not running raises a (single) triggered
+    SERVICE AlertHistory; when it runs again the open alert is resolved. The
+    service name is embedded as a `[svc:<name>]` marker so each service maps to
+    its own alert.
+    """
+    config = getattr(server, "monitoring_config", None)
+    suppressed = getattr(server, "suppress_alerts", False) or (config and getattr(config, "alert_suppressed", False))
+    if config is not None and not getattr(config, "service_failure_alert", True):
+        return
+    now = timezone.now()
+    for svc in Service.objects.filter(server=server, monitoring_enabled=True):
+        marker = f"[svc:{svc.name}]"
+        open_alert = AlertHistory.objects.filter(
+            server=server, alert_type=AlertHistory.AlertType.SERVICE,
+            status=AlertHistory.AlertStatus.TRIGGERED, message__contains=marker,
+        ).first()
+        is_down = svc.status != "running"
+        if is_down and not open_alert and not suppressed:
+            ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
+            AlertHistory.objects.create(
+                server=server, alert_type=AlertHistory.AlertType.SERVICE,
+                status=AlertHistory.AlertStatus.TRIGGERED, value=0, threshold=1,
+                message=f"{marker} Service '{svc.name}' is not running on {server.name}.",
+                recipients=(ecfg.to_email if ecfg else "") or "", sent_at=now,
+            )
+            _notify_service(server, svc.name, down=True)
+        elif (not is_down) and open_alert:
+            open_alert.status = AlertHistory.AlertStatus.RESOLVED
+            open_alert.resolved_at = now
+            open_alert.save(update_fields=["status", "resolved_at"])
+            _notify_service(server, svc.name, down=False)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def agent_ingest_services(request):
@@ -288,6 +359,12 @@ def agent_ingest_services(request):
          .exclude(name__in=reported_names)
          .exclude(status="stopped")
          .update(status="stopped", last_checked=now))
+
+    # Raise/resolve alerts for monitored services based on their current status.
+    try:
+        evaluate_service_alerts(server)
+    except Exception:
+        logger.exception("Service alert evaluation failed for %s", server.name)
 
     return JsonResponse({"status": "ok", "received": len(reported_names)})
 
