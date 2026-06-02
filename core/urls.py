@@ -14,6 +14,8 @@ urlpatterns = [
     path("api/add-server/", views.add_server_api, name="add_server_api"),
     path("servers/", views.server_list, name="server_list"),
     path("services/", views.services_overview, name="services_overview"),
+    path("containers/", views.containers_overview, name="containers_overview"),
+    path("api/server/<int:server_id>/container/<int:container_id>/toggle-monitoring/", views.toggle_container_monitoring, name="toggle_container_monitoring"),
     path("server/edit/<int:server_id>/", views.edit_server, name="edit_server"),
     path("server/delete/<int:server_id>/", views.delete_server, name="delete_server"),
     path("remove-server/<int:server_id>/", views.remove_server, name="remove_server"),
@@ -24,6 +26,7 @@ urlpatterns = [
     path("api/agent/heartbeat/", agent_api.agent_heartbeat, name="agent_heartbeat"),
     path("api/agent/metrics/", agent_api.agent_ingest_metrics, name="agent_ingest_metrics"),
     path("api/agent/services/", agent_api.agent_ingest_services, name="agent_ingest_services"),
+    path("api/agent/containers/", agent_api.agent_ingest_containers, name="agent_ingest_containers"),
     path("api/kpi/ingest/", agent_api.kpi_ingest, name="kpi_ingest"),
     # Public installer + agent source (fetched by the one-line VM installer)
     path("agent/install.sh", agent_api.serve_install_script, name="agent_install_script"),

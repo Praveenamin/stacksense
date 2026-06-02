@@ -1390,3 +1390,29 @@ class BusinessKPIValue(models.Model):
 
     def __str__(self):
         return f"{self.kpi.key}={self.value} @ {self.timestamp}"
+
+
+class Container(models.Model):
+    """A container (Docker) detected on a server by the agent."""
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="containers")
+    container_id = models.CharField(max_length=64, blank=True, help_text="Container ID")
+    name = models.CharField(max_length=200)
+    image = models.CharField(max_length=300, blank=True)
+    state = models.CharField(max_length=30, default="running", help_text="running, exited, paused, ...")
+    status_text = models.CharField(max_length=200, blank=True, help_text="e.g. 'Up 3 hours'")
+    ports = models.CharField(max_length=300, blank=True)
+    monitoring_enabled = models.BooleanField(default=False)
+    auto_detected = models.BooleanField(default=True)
+    last_checked = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Container"
+        verbose_name_plural = "Containers"
+        unique_together = [["server", "name"]]
+        ordering = ["server__name", "name"]
+        indexes = [models.Index(fields=["server", "state"])]
+
+    def __str__(self):
+        return f"{self.name} on {self.server.name} ({self.state})"

@@ -82,6 +82,15 @@ id -u "$SERVICE_USER" >/dev/null 2>&1 || \
   useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
 mkdir -p "$INSTALL_DIR" "$CONF_DIR"
 
+# For container monitoring: if Docker is present, add the agent user to the
+# 'docker' group so it can run 'docker ps'. NOTE: docker group membership is
+# effectively root-equivalent on this host -- skip this if you don't want the
+# agent to have Docker access (containers simply won't be reported).
+if command -v docker >/dev/null 2>&1 && getent group docker >/dev/null 2>&1; then
+  usermod -aG docker "$SERVICE_USER" 2>/dev/null && \
+    echo "      Added '$SERVICE_USER' to the docker group (for container monitoring)."
+fi
+
 echo "[3/6] Downloading agent from $URL ..."
 curl $CURL_OPTS "$URL/agent/stacksense_agent.py" -o "$INSTALL_DIR/stacksense_agent.py"
 

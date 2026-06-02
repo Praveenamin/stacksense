@@ -1,0 +1,112 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Containers - Stack Alert{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div style="margin-bottom:20px;">
+    <h1 style="font-size:28px;font-weight:600;color:#161616;margin:0 0 4px 0;line-height:1.2;">Containers</h1>
+    <p style="font-size:14px;color:#525252;margin:0;">Containers auto-detected per server. Toggle the ones you want to actively monitor.</p>
+</div>
+
+{% if groups %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Servers</div><div style="font-size:26px;font-weight:700;color:#0f172a;">{{ stats.servers }}</div></div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Containers</div><div style="font-size:26px;font-weight:700;color:#0f172a;">{{ stats.total }}</div></div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Running</div><div style="font-size:26px;font-weight:700;color:#166534;">{{ stats.running }}</div></div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;"><div style="font-size:12px;color:#64748b;text-transform:uppercase;">Monitored</div><div style="font-size:26px;font-weight:700;color:#0f62fe;">{{ stats.monitored }}</div></div>
+</div>
+
+<input id="ctr-search" type="text" placeholder="Search container, image or server…" autocomplete="off" style="padding:9px 12px;width:340px;max-width:70vw;font-size:14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#0f172a;box-sizing:border-box;margin-bottom:18px;">
+
+{% for g in groups %}
+<div class="ctr-server" data-server="{{ g.server.name|lower }}" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:12px;overflow:hidden;">
+    <div class="ctr-head" onclick="toggleServer('csrv-{{ g.server.id }}', this)" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;user-select:none;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="transition:transform .15s ease;flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
+            <div style="min-width:0;">
+                <span style="font-size:15px;font-weight:600;color:#0f172a;">{{ g.server.name }}</span>
+                <span style="font-size:12px;color:#94a3b8;margin-left:8px;">{{ g.server.ip_address }}</span>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+            {% if g.monitored %}<span style="font-size:11px;font-weight:600;color:#0f62fe;background:#eef4ff;padding:2px 9px;border-radius:999px;">{{ g.monitored }} monitored</span>{% endif %}
+            <span style="font-size:12px;color:#64748b;">{{ g.containers|length }} container{{ g.containers|length|pluralize }}</span>
+        </div>
+    </div>
+
+    <div id="csrv-{{ g.server.id }}" class="ctr-body" style="display:none;border-top:1px solid #f1f5f9;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+                <th style="padding:9px 18px;font-weight:500;">Container</th>
+                <th style="padding:9px 18px;font-weight:500;">Image</th>
+                <th style="padding:9px 18px;font-weight:500;">Status</th>
+                <th style="padding:9px 18px;font-weight:500;text-align:right;">Monitor</th>
+            </tr></thead>
+            <tbody>
+            {% for c in g.containers %}
+                <tr class="ctr-row" data-name="{{ c.name|lower }}" data-image="{{ c.image|lower }}" style="border-top:1px solid #f1f5f9;">
+                    <td style="padding:9px 18px;color:#0f172a;font-weight:500;">{{ c.name }}</td>
+                    <td style="padding:9px 18px;color:#64748b;word-break:break-all;">{{ c.image|default:"—" }}</td>
+                    <td style="padding:9px 18px;">
+                        {% if c.state == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>
+                        {% elif c.state == 'paused' %}<span style="color:#b45309;font-weight:600;">● Paused</span>
+                        {% elif c.state == 'gone' %}<span style="color:#94a3b8;">● Gone</span>
+                        {% else %}<span style="color:#94a3b8;">● {{ c.state|capfirst }}</span>{% endif %}
+                        {% if c.status_text %}<span style="color:#94a3b8;font-size:12px;margin-left:6px;">{{ c.status_text }}</span>{% endif %}
+                    </td>
+                    <td style="padding:9px 18px;text-align:right;">
+                        <label class="switch"><input type="checkbox" {% if c.monitoring_enabled %}checked{% endif %} onchange="toggleContainerMonitoring({{ g.server.id }}, {{ c.id }}, this)"><span class="slider"></span></label>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
+    <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No containers detected yet</h3>
+    <p style="font-size:14px;color:#64748b;margin:0;max-width:560px;margin-left:auto;margin-right:auto;line-height:1.6;">The agent reports containers (via Docker) every few minutes. The agent user must be able to access Docker — re-run the install command to update the agent and grant it Docker access.</p>
+</div>
+{% endif %}
+
+<style>
+.switch { position:relative; display:inline-block; width:38px; height:22px; }
+.switch input { opacity:0; width:0; height:0; }
+.slider { position:absolute; cursor:pointer; inset:0; background:#cbd5e1; border-radius:999px; transition:.2s; }
+.slider:before { content:""; position:absolute; height:16px; width:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+.switch input:checked + .slider { background:#0f62fe; }
+.switch input:checked + .slider:before { transform:translateX(16px); }
+</style>
+<script>
+function getCookie(name){var v=null;if(document.cookie){document.cookie.split(';').forEach(function(c){c=c.trim();if(c.substring(0,name.length+1)===(name+'=')){v=decodeURIComponent(c.substring(name.length+1));}});}return v;}
+function setServer(card, open){var body=card.querySelector('.ctr-body');var chev=card.querySelector('.chev');if(body)body.style.display=open?'block':'none';if(chev)chev.style.transform=open?'rotate(90deg)':'none';}
+function toggleServer(id, head){var card=head.closest('.ctr-server');var body=document.getElementById(id);setServer(card, body.style.display==='none');}
+(function(){var cards=document.querySelectorAll('.ctr-server');if(cards.length===1){setServer(cards[0], true);}})();
+function toggleContainerMonitoring(serverId, containerId, el){
+    fetch(`/api/server/${serverId}/container/${containerId}/toggle-monitoring/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}})
+        .then(r=>r.json()).then(d=>{ if(!d.success){ el.checked=!el.checked; alert('Failed to update monitoring'); } })
+        .catch(()=>{ el.checked=!el.checked; alert('Failed to update monitoring'); });
+}
+(function(){
+    var search=document.getElementById('ctr-search'); if(!search) return;
+    search.addEventListener('keyup', function(){
+        var term=search.value.trim().toLowerCase();
+        var cards=document.querySelectorAll('.ctr-server');
+        cards.forEach(function(card){
+            var serverMatch=card.dataset.server.includes(term); var anyRow=false;
+            card.querySelectorAll('.ctr-row').forEach(function(r){
+                var show=!term||serverMatch||r.dataset.name.includes(term)||(r.dataset.image||'').includes(term);
+                r.style.display=show?'':'none'; if(show)anyRow=true;
+            });
+            var visible=(!term||serverMatch||anyRow);
+            card.style.display=visible?'':'none';
+            if(term){setServer(card, visible);} else {setServer(card, cards.length===1);}
+        });
+    });
+})();
+</script>
+{% endblock %}

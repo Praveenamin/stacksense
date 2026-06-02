@@ -44,6 +44,13 @@
             </svg>
             Services
         </a>
+        <a href="/containers/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if '/containers' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if '/containers' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+            Containers
+        </a>
 
         <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             MONITORING DOMAINS

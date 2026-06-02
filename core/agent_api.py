@@ -29,7 +29,7 @@ from django.views.decorators.http import require_http_methods
 
 from .models import (
     AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion,
-    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service,
+    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service, Container,
 )
 
 logger = logging.getLogger("core")
@@ -290,6 +290,67 @@ def agent_ingest_services(request):
          .update(status="stopped", last_checked=now))
 
     return JsonResponse({"status": "ok", "received": len(reported_names)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def agent_ingest_containers(request):
+    """Receive the list of containers detected by the agent and sync them.
+
+    Body: {"containers": [{"container_id","name","image","state","status_text","ports"}, ...]}
+    Upserts by server+name; containers no longer reported are marked 'gone'.
+    """
+    cred, err = _authenticate(request)
+    if err:
+        return err
+    server = cred.server
+
+    if len(request.body) > MAX_BODY_BYTES:
+        return JsonResponse({"error": "payload too large"}, status=413)
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "request body is not valid JSON"}, status=400)
+
+    agent_version = payload.get("agent_version") if isinstance(payload, dict) else None
+    _update_heartbeat(server, agent_version)
+    _touch_credential(cred, request)
+
+    containers = payload.get("containers") if isinstance(payload, dict) else None
+    if not isinstance(containers, list):
+        return JsonResponse({"error": "missing 'containers' list"}, status=400)
+
+    now = timezone.now()
+    reported = set()
+    for item in containers:
+        if not isinstance(item, dict):
+            continue
+        name = (item.get("name") or "").strip()[:200]
+        if not name:
+            continue
+        reported.add(name)
+        Container.objects.update_or_create(
+            server=server,
+            name=name,
+            defaults={
+                "container_id": (item.get("container_id") or "")[:64],
+                "image": (item.get("image") or "")[:300],
+                "state": (item.get("state") or "running")[:30],
+                "status_text": (item.get("status_text") or "")[:200],
+                "ports": (item.get("ports") or "")[:300],
+                "last_checked": now,
+                "auto_detected": True,
+            },
+        )
+
+    if reported:
+        (Container.objects
+         .filter(server=server, auto_detected=True)
+         .exclude(name__in=reported)
+         .exclude(state="gone")
+         .update(state="gone", last_checked=now))
+
+    return JsonResponse({"status": "ok", "received": len(reported)})
 
 
 def _serve_agent_file(filename, content_type):

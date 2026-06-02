@@ -182,6 +182,45 @@ def collect_services():
     return services
 
 
+def collect_containers():
+    """Detect containers via the Docker CLI (best-effort).
+
+    Returns [] if Docker isn't installed or the agent user can't access the
+    Docker socket. Requires the agent user to be in the 'docker' group.
+    """
+    out = []
+    try:
+        res = subprocess.run(
+            ["docker", "ps", "-a", "--no-trunc", "--format", "{{json .}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if res.returncode != 0:
+            return out
+        for line in res.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                c = json.loads(line)
+            except ValueError:
+                continue
+            status = c.get("Status") or ""
+            state = (c.get("State") or "").lower()
+            if not state:
+                state = "running" if status.startswith("Up") else "exited"
+            out.append({
+                "container_id": (c.get("ID") or "")[:64],
+                "name": c.get("Names") or "",
+                "image": c.get("Image") or "",
+                "state": state,
+                "status_text": status[:200],
+                "ports": (c.get("Ports") or "")[:300],
+            })
+    except Exception:
+        pass
+    return out
+
+
 def collect_metrics(prev):
     """Collect one metrics sample. `prev` carries counters from the last sample
     so we can compute per-second I/O rates. Returns (metrics_dict, new_prev)."""
@@ -351,7 +390,7 @@ def main():
             metrics = None
 
         if dry_run:
-            print(json.dumps({"metrics": metrics, "services": collect_services()}, indent=2, default=str))
+            print(json.dumps({"metrics": metrics, "services": collect_services(), "containers": collect_containers()}, indent=2, default=str))
             return
 
         if metrics is not None:
@@ -362,16 +401,23 @@ def main():
             else:
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] push not accepted")
 
-        # Push the detected services periodically (services change rarely)
+        # Push the detected services + containers periodically (they change rarely)
         if time.monotonic() - last_services_push >= services_interval:
             try:
                 services = collect_services()
                 res = push(config, opener, "/api/agent/services/", {"services": services, "agent_version": AGENT_VERSION})
                 if res and res.get("status") == "ok":
-                    last_services_push = time.monotonic()
                     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] services pushed ({len(services)})")
             except Exception as e:
                 sys.stderr.write(f"Service push error: {e}\n")
+            try:
+                containers = collect_containers()
+                res = push(config, opener, "/api/agent/containers/", {"containers": containers, "agent_version": AGENT_VERSION})
+                if res and res.get("status") == "ok":
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] containers pushed ({len(containers)})")
+            except Exception as e:
+                sys.stderr.write(f"Container push error: {e}\n")
+            last_services_push = time.monotonic()
 
         if once:
             return

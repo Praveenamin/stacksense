@@ -12,8 +12,16 @@ from .models import (
     SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric,
     AgentCredential, SyntheticCheck, SyntheticCheckResult,
     SecurityEvent, SecurityMonitorConfig,
-    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig
+    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Container
 )
+
+
+@admin.register(Container)
+class ContainerAdmin(admin.ModelAdmin):
+    list_display = ("name", "server", "image", "state", "monitoring_enabled", "last_checked")
+    list_filter = ("state", "monitoring_enabled")
+    search_fields = ("name", "image", "server__name")
+    readonly_fields = ("last_checked", "created_at", "updated_at")
 
 
 class ServerForm(forms.ModelForm):

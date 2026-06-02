@@ -6,7 +6,7 @@ from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult, SecurityEvent, SecurityMonitorConfig, BusinessKPI, BusinessKPIValue, BusinessMonitorConfig
+from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, MonitoredLog, LogEvent, AnalysisRule, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult, SecurityEvent, SecurityMonitorConfig, BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Container
 from .service_latency import measure_service_latency
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -8458,6 +8458,46 @@ def services_overview(request):
     }
     context.update(admin.site.each_context(request))
     return render(request, "core/services_overview.html", context)
+
+
+# ---------------------------------------------------------------------------
+# Containers (auto-detected across all servers)
+# ---------------------------------------------------------------------------
+@staff_member_required
+def containers_overview(request):
+    """Containers grouped by server, with a per-container monitoring toggle."""
+    groups = {}
+    total = running = monitored = 0
+    for c in Container.objects.select_related("server").order_by("server__name", "name"):
+        total += 1
+        if c.state == "running":
+            running += 1
+        if c.monitoring_enabled:
+            monitored += 1
+        g = groups.setdefault(c.server_id, {"server": c.server, "containers": [], "monitored": 0})
+        if c.monitoring_enabled:
+            g["monitored"] += 1
+        g["containers"].append(c)
+
+    context = {
+        "show_sidebar": True,
+        "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
+        "stats": {"total": total, "running": running, "monitored": monitored, "servers": len(groups)},
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/containers_overview.html", context)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def toggle_container_monitoring(request, server_id, container_id):
+    server = get_object_or_404(Server, id=server_id)
+    container = get_object_or_404(Container, id=container_id, server=server)
+    container.monitoring_enabled = not container.monitoring_enabled
+    container.save(update_fields=["monitoring_enabled", "updated_at"])
+    _log_user_action(request, "TOGGLE_CONTAINER_MONITORING",
+                     f"Container {container.name} on {server.name} - monitoring {'enabled' if container.monitoring_enabled else 'disabled'}")
+    return JsonResponse({"success": True, "monitoring_enabled": container.monitoring_enabled})
 
 
 # ---------------------------------------------------------------------------
