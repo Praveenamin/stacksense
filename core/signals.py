@@ -40,7 +40,14 @@ def get_location_from_ip(ip_address):
 
 @receiver(user_logged_in)
 def log_user_login(sender, request, user, **kwargs):
-    """Log successful user login"""
+    """Log successful user login.
+
+    Only genuine HTTP logins are audited. Programmatic logins (e.g. Django's
+    force_login in tests/management, which have no request) are skipped so they
+    don't pollute the login activity log.
+    """
+    if request is None:
+        return
     try:
         ip_address = get_client_ip(request)
         location = get_location_from_ip(ip_address)
