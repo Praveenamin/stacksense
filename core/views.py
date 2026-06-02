@@ -1139,6 +1139,40 @@ def monitoring_dashboard(request):
             "monitoring_suspended": monitoring_suspended,
         })
 
+    # Top disk-usage partitions across all servers (for the Disk Usage widget)
+    import json as _json
+    disk_parts = []
+    for srv in servers:
+        lm = (SystemMetric.objects.filter(server=srv)
+              .only("disk_usage", "timestamp").order_by("-timestamp").first())
+        if not lm or not lm.disk_usage:
+            continue
+        du = lm.disk_usage
+        if isinstance(du, str):
+            try:
+                du = _json.loads(du)
+            except (ValueError, TypeError):
+                continue
+        if not isinstance(du, dict):
+            continue
+        for mount, info in du.items():
+            if not isinstance(info, dict):
+                continue
+            pct = info.get("percent")
+            if pct is None:
+                continue
+            used = info.get("used") or 0
+            total = info.get("total") or 0
+            disk_parts.append({
+                "server": srv.name,
+                "mount": mount,
+                "percent": round(pct, 1),
+                "used_gb": round(used / (1024 ** 3), 1) if used else 0,
+                "total_gb": round(total / (1024 ** 3), 1) if total else 0,
+            })
+    disk_parts.sort(key=lambda x: x["percent"], reverse=True)
+    top_disk_partitions = disk_parts[:3]
+
     # Per-user dashboard perspective (Operations vs Executive)
     acl = UserACL.get_or_create_for_user(request.user)
     dashboard_view = acl.dashboard_view
@@ -1174,6 +1208,7 @@ def monitoring_dashboard(request):
         "containers_running": containers_running,
         "containers_stopped": containers_total - containers_running,
         "has_response_time_data": has_response_time_data,
+        "top_disk_partitions": top_disk_partitions,
     }
 
     # Executive view focuses on business KPIs

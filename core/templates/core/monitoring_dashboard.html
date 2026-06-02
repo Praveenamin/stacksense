@@ -335,7 +335,29 @@
     {% endif %}
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
         {% include "core/components/dashboard/disk_io_summary.html" %}
-        {% include "core/components/dashboard/disk_forecast.html" %}
+        <!-- Top disk usage partitions across all servers -->
+        <div class="dashboard-component" style="margin:0;">
+            <div class="dashboard-component-header"><h3 class="dashboard-component-title">Top Disk Usage</h3></div>
+            <p class="dashboard-component-subtitle">Highest-usage partitions across all servers</p>
+            {% if top_disk_partitions %}
+            <div style="display:flex;flex-direction:column;gap:16px;margin-top:6px;">
+                {% for d in top_disk_partitions %}
+                <div>
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:5px;">
+                        <span style="color:#0f172a;font-weight:600;">{{ d.mount }} <span style="color:#94a3b8;font-weight:400;">· {{ d.server }}</span></span>
+                        <span style="color:#0f172a;font-weight:700;">{{ d.percent }}%</span>
+                    </div>
+                    <div style="width:100%;height:7px;background:#eef2f6;border-radius:999px;overflow:hidden;">
+                        <div style="width:{{ d.percent }}%;height:100%;border-radius:999px;background:{% if d.percent >= 90 %}#da1e28{% elif d.percent >= 70 %}#f59e0b{% else %}#6366f1{% endif %};"></div>
+                    </div>
+                    {% if d.total_gb %}<div style="font-size:11px;color:#94a3b8;margin-top:4px;">{{ d.used_gb }} / {{ d.total_gb }} GB</div>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="padding:24px;text-align:center;color:#94a3b8;font-size:14px;">No disk data yet.</div>
+            {% endif %}
+        </div>
     </div>
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/top_cpu_consumers.html" %}

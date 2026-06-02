@@ -30,11 +30,11 @@ class DashboardManager {
         this.components.topMemoryConsumers = new TopMemoryConsumers();
         this.components.alertTimeline = new AlertTimeline();
         this.components.aiRecommendations = new AIRecommendations();
-        this.components.diskForecast = new DiskForecast();
+        if (document.getElementById('dashboard-disk-forecast')) this.components.diskForecast = new DiskForecast();
         this.components.loginActivity = new LoginActivitySummary();
         
         // Initialize DiskForecast with server selector
-        if (this.components.diskForecast.init) {
+        if (this.components.diskForecast && this.components.diskForecast.init) {
             this.components.diskForecast.init();
         }
         
