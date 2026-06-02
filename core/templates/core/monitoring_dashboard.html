@@ -119,6 +119,7 @@
     .persona-btn.active { background:#fff; color:#0f172a; box-shadow:0 1px 2px rgba(15,23,42,.1); }
     .exec-pill { display:inline-flex; align-items:center; font-size:12px; font-weight:600; padding:4px 11px; border-radius:999px; }
     .lg-dot { width:9px; height:9px; border-radius:999px; display:inline-block; margin-right:7px; }
+    .dash-section { font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:4px 0 14px 0; }
 </style>
 {% endblock %}
 
@@ -170,6 +171,7 @@
     {% else %}
     {% include "core/components/dashboard/alerts_banner.html" %}
 
+    <div class="dash-section">Overview</div>
     <!-- Fleet status (graphical): Servers / Services / Containers -->
     <div class="dashboard-grid" style="grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px;">
         <!-- Servers -->
@@ -272,42 +274,42 @@
         </div>
     </div>
     
-    <!-- Trend Insights Section -->
-    {% include "core/components/dashboard/trend_insights.html" %}
-    
-    <!-- AI Recommendations (related to Trend Insights above) -->
-    {% include "core/components/dashboard/ai_recommendations.html" %}
-    
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
+    <!-- PERFORMANCE -->
+    <div class="dash-section">Performance</div>
+    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
         {% include "core/components/dashboard/cpu_trend_chart.html" %}
         {% include "core/components/dashboard/memory_trend_chart.html" %}
     </div>
-    
     {% if has_response_time_data %}
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
+    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
         {% include "core/components/dashboard/network_traffic_chart.html" %}
         {% include "core/components/dashboard/response_time_chart.html" %}
     </div>
     {% else %}
-    <div class="dashboard-grid" style="margin-bottom: 32px;">
+    <div class="dashboard-grid" style="margin-bottom: 20px;">
         {% include "core/components/dashboard/network_traffic_chart.html" %}
     </div>
     {% endif %}
-    
+    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
+        {% include "core/components/dashboard/disk_io_summary.html" %}
+        {% include "core/components/dashboard/disk_forecast.html" %}
+    </div>
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/top_cpu_consumers.html" %}
         {% include "core/components/dashboard/top_memory_consumers.html" %}
     </div>
-    
+
+    <!-- ACTIVITY -->
+    <div class="dash-section">Activity</div>
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
-        {% include "core/components/dashboard/disk_io_summary.html" %}
         {% include "core/components/dashboard/alert_timeline.html" %}
-    </div>
-    
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
-        {% include "core/components/dashboard/disk_forecast.html" %}
         {% include "core/components/dashboard/login_activity_summary.html" %}
     </div>
+
+    <!-- INSIGHTS -->
+    <div class="dash-section">Insights</div>
+    {% include "core/components/dashboard/trend_insights.html" %}
+    {% include "core/components/dashboard/ai_recommendations.html" %}
     {% endif %}
 
 {% endblock %}
