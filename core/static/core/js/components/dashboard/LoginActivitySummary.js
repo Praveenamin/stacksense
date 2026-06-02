@@ -28,7 +28,7 @@ class LoginActivitySummary extends BaseDashboardComponent {
                     <span class="login-indicator ${statusClass}"></span>
                     <div class="login-content">
                         <div class="login-email">${this.escapeHtml(activity.email)}</div>
-                        <div class="login-location">${this.escapeHtml(activity.location)}</div>
+                        <div class="login-location">${this.escapeHtml(activity.ip_address || '—')}</div>
                         <div class="login-time">${activity.time_ago}</div>
                     </div>
                     <span class="login-status-tag">
