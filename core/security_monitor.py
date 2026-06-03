@@ -25,6 +25,8 @@ from .models import (
     SecurityMonitorConfig,
     EmailAlertConfig,
     SlackAlertConfig,
+    SSHAuthEvent,
+    Server,
 )
 
 logger = logging.getLogger("core")
@@ -34,10 +36,11 @@ _IGNORED_IPS = {"0.0.0.0"}
 
 
 def _upsert_event(event_type, severity, title, description, source_ip=None,
-                  target_email="", count=1, metadata=None):
+                  target_email="", count=1, metadata=None, server=None):
     """Create a new open SecurityEvent or update the matching open one.
 
-    Returns (event, created).
+    Returns (event, created). When `server` is set (host/SSH events), it is part
+    of the dedup key so the same IP attacking two servers yields two events.
     """
     now = timezone.now()
     existing = SecurityEvent.objects.filter(
@@ -45,6 +48,7 @@ def _upsert_event(event_type, severity, title, description, source_ip=None,
         status=SecurityEvent.Status.OPEN,
         source_ip=source_ip,
         target_email=target_email or "",
+        server=server,
     ).first()
 
     if existing:
@@ -65,12 +69,54 @@ def _upsert_event(event_type, severity, title, description, source_ip=None,
         description=description,
         source_ip=source_ip,
         target_email=target_email or "",
+        server=server,
         event_count=count,
         first_seen=now,
         last_seen=now,
         metadata=metadata or {},
     )
     return event, True
+
+
+def detect_ssh_brute_force(cfg, now):
+    """Detect SSH brute-force per server from recent SSHAuthEvent failures.
+
+    Flags a source IP that exceeds the failed-attempt threshold against a given
+    server within the window. Returns newly created events.
+    """
+    from django.db.models import Count
+    window_start = now - timedelta(minutes=cfg.window_minutes)
+    failed = (SSHAuthEvent.objects
+              .filter(timestamp__gte=window_start, success=False)
+              .exclude(source_ip__in=_IGNORED_IPS)
+              .exclude(source_ip=""))
+
+    rows = (failed.values("server_id", "source_ip")
+            .annotate(c=Count("id"))
+            .filter(c__gte=cfg.brute_force_ip_threshold))
+
+    new_events = []
+    # Map server_id -> Server for titles
+    server_ids = {r["server_id"] for r in rows}
+    servers = {s.id: s for s in Server.objects.filter(id__in=server_ids)}
+    for r in rows:
+        srv = servers.get(r["server_id"])
+        if srv is None:
+            continue
+        ip, count = r["source_ip"], r["c"]
+        event, created = _upsert_event(
+            SecurityEvent.EventType.SSH_BRUTE_FORCE,
+            SecurityEvent.Severity.HIGH,
+            title=f"SSH brute-force on {srv.name} from {ip}",
+            description=f"{count} failed SSH logins on {srv.name} from {ip} in the last {cfg.window_minutes} minutes.",
+            source_ip=ip,
+            count=count,
+            metadata={"window_minutes": cfg.window_minutes, "failed_count": count, "server": srv.name},
+            server=srv,
+        )
+        if created:
+            new_events.append(event)
+    return new_events
 
 
 def detect_security_events():
@@ -153,6 +199,9 @@ def detect_security_events():
                 event.user = s.user
                 event.save(update_fields=["user"])
                 new_events.append(event)
+
+    # 4. SSH brute-force against monitored servers (from agent auth-log events)
+    new_events.extend(detect_ssh_brute_force(cfg, now))
 
     if cfg.alert_enabled:
         for event in new_events:

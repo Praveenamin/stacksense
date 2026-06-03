@@ -30,7 +30,7 @@ from django.views.decorators.http import require_http_methods
 from .models import (
     AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion,
     BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service, Container,
-    AlertHistory, EmailAlertConfig, SlackAlertConfig,
+    AlertHistory, EmailAlertConfig, SlackAlertConfig, SSHAuthEvent,
 )
 
 logger = logging.getLogger("core")
@@ -470,6 +470,57 @@ def agent_ingest_containers(request):
         logger.exception("Container alert evaluation failed for %s", server.name)
 
     return JsonResponse({"status": "ok", "received": len(reported)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def agent_ingest_ssh_auth(request):
+    """Receive SSH authentication events observed on the server by the agent.
+
+    Body: {"events": [{"source_ip","username","success","raw"}, ...]}
+    Stored as SSHAuthEvent rows (server-stamped time); fed to SSH brute-force
+    detection on the next security pass.
+    """
+    cred, err = _authenticate(request)
+    if err:
+        return err
+    server = cred.server
+
+    if len(request.body) > MAX_BODY_BYTES:
+        return JsonResponse({"error": "payload too large"}, status=413)
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "request body is not valid JSON"}, status=400)
+
+    agent_version = payload.get("agent_version") if isinstance(payload, dict) else None
+    _update_heartbeat(server, agent_version)
+    _touch_credential(cred, request)
+
+    events = payload.get("events") if isinstance(payload, dict) else None
+    if not isinstance(events, list):
+        return JsonResponse({"error": "missing 'events' list"}, status=400)
+
+    now = timezone.now()
+    rows = []
+    for item in events[:1000]:  # hard cap per push
+        if not isinstance(item, dict):
+            continue
+        ip = (item.get("source_ip") or "").strip()[:64]
+        if not ip:
+            continue
+        rows.append(SSHAuthEvent(
+            server=server,
+            timestamp=now,
+            source_ip=ip,
+            username=(item.get("username") or "")[:150],
+            success=bool(item.get("success")),
+            raw=(item.get("raw") or "")[:300],
+        ))
+    if rows:
+        SSHAuthEvent.objects.bulk_create(rows)
+
+    return JsonResponse({"status": "ok", "received": len(rows)})
 
 
 def _serve_agent_file(filename, content_type):

@@ -27,6 +27,7 @@ Usage:
 
 import json
 import os
+import re
 import ssl
 import subprocess
 import sys
@@ -180,6 +181,63 @@ def collect_services():
         pass
 
     return services
+
+
+_SSH_LOG_PATHS = ["/var/log/auth.log", "/var/log/secure"]
+_SSH_RE_ACCEPTED = re.compile(r"sshd\[\d+\]:\s+Accepted \w+ for (\S+) from (\d{1,3}(?:\.\d{1,3}){3})")
+_SSH_RE_FAILED = re.compile(r"sshd\[\d+\]:\s+Failed password for (?:invalid user )?(\S+) from (\d{1,3}(?:\.\d{1,3}){3})")
+_SSH_RE_INVALID = re.compile(r"sshd\[\d+\]:\s+Invalid user (\S+) from (\d{1,3}(?:\.\d{1,3}){3})")
+
+
+def collect_ssh_auth(state, max_events=500):
+    """Incrementally tail the SSH auth log and return new auth events.
+
+    Lightweight: tracks a byte offset and reads only newly-appended lines each
+    cycle (seeks to end on first run, so no historical backfill). Returns [] if
+    no log is present or the agent user can't read it (needs the 'adm' group).
+    """
+    path = None
+    for p in _SSH_LOG_PATHS:
+        if os.path.exists(p):
+            path = p
+            break
+    if not path:
+        return []
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return []
+
+    # First time we see this log: start from the end (don't reprocess history).
+    if state.get("path") != path:
+        state["path"] = path
+        state["offset"] = size
+        return []
+
+    offset = state.get("offset", size)
+    if offset > size:  # log was rotated/truncated
+        offset = 0
+
+    events = []
+    try:
+        with open(path, "r", errors="replace") as f:
+            f.seek(offset)
+            for line in f:
+                if "sshd" not in line:
+                    continue
+                m = _SSH_RE_ACCEPTED.search(line)
+                if m:
+                    events.append({"username": m.group(1)[:150], "source_ip": m.group(2), "success": True, "raw": line.strip()[:300]})
+                else:
+                    m = _SSH_RE_FAILED.search(line) or _SSH_RE_INVALID.search(line)
+                    if m:
+                        events.append({"username": m.group(1)[:150], "source_ip": m.group(2), "success": False, "raw": line.strip()[:300]})
+                if len(events) >= max_events:
+                    break
+            state["offset"] = f.tell()
+    except (OSError, PermissionError):
+        return []
+    return events
 
 
 def collect_containers():
@@ -380,6 +438,7 @@ def main():
 
     services_interval = int(os.environ.get("STACKSENSE_SERVICES_INTERVAL", 60))
     last_services_push = 0  # force a services push on the first loop
+    ssh_state = {}  # incremental SSH auth-log tail state
 
     prev = None
     while True:
@@ -400,6 +459,15 @@ def main():
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] pushed (stored={stored})")
             else:
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] push not accepted")
+
+        # Push new SSH auth events incrementally (only when there are any)
+        try:
+            ssh_events = collect_ssh_auth(ssh_state)
+            if ssh_events:
+                push(config, opener, "/api/agent/ssh-auth/", {"events": ssh_events, "agent_version": AGENT_VERSION})
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ssh-auth pushed ({len(ssh_events)})")
+        except Exception as e:
+            sys.stderr.write(f"SSH auth push error: {e}\n")
 
         # Push the detected services + containers periodically (they change rarely)
         if time.monotonic() - last_services_push >= services_interval:

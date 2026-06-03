@@ -28,6 +28,7 @@ urlpatterns = [
     path("api/agent/metrics/", agent_api.agent_ingest_metrics, name="agent_ingest_metrics"),
     path("api/agent/services/", agent_api.agent_ingest_services, name="agent_ingest_services"),
     path("api/agent/containers/", agent_api.agent_ingest_containers, name="agent_ingest_containers"),
+    path("api/agent/ssh-auth/", agent_api.agent_ingest_ssh_auth, name="agent_ingest_ssh_auth"),
     path("api/kpi/ingest/", agent_api.kpi_ingest, name="kpi_ingest"),
     # Public installer + agent source (fetched by the one-line VM installer)
     path("agent/install.sh", agent_api.serve_install_script, name="agent_install_script"),

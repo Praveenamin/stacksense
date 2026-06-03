@@ -12,8 +12,19 @@ from .models import (
     SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric,
     AgentCredential, SyntheticCheck, SyntheticCheckResult,
     SecurityEvent, SecurityMonitorConfig,
-    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Container
+    BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Container, SSHAuthEvent
 )
+
+
+@admin.register(SSHAuthEvent)
+class SSHAuthEventAdmin(admin.ModelAdmin):
+    list_display = ("server", "timestamp", "success", "username", "source_ip")
+    list_filter = ("success", "server")
+    search_fields = ("source_ip", "username", "server__name")
+    readonly_fields = ("server", "timestamp", "success", "username", "source_ip", "raw")
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(Container)

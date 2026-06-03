@@ -91,6 +91,13 @@ if command -v docker >/dev/null 2>&1 && getent group docker >/dev/null 2>&1; the
     echo "      Added '$SERVICE_USER' to the docker group (for container monitoring)."
 fi
 
+# For SSH-auth monitoring: the 'adm' group can read /var/log/auth.log. This is a
+# low-risk, log-read-only privilege (not root/docker).
+if getent group adm >/dev/null 2>&1; then
+  usermod -aG adm "$SERVICE_USER" 2>/dev/null && \
+    echo "      Added '$SERVICE_USER' to the adm group (to read auth logs for SSH monitoring)."
+fi
+
 echo "[3/6] Downloading agent from $URL ..."
 curl $CURL_OPTS "$URL/agent/stacksense_agent.py" -o "$INSTALL_DIR/stacksense_agent.py"
 

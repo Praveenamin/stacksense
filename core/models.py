@@ -1235,6 +1235,7 @@ class SecurityEvent(models.Model):
         BRUTE_FORCE = "BRUTE_FORCE", "Brute-force login attempts"
         LOGIN_FAILURE_SPIKE = "LOGIN_FAILURE_SPIKE", "Login failure spike (account)"
         SUCCESS_AFTER_FAILURES = "SUCCESS_AFTER_FAILURES", "Successful login after repeated failures"
+        SSH_BRUTE_FORCE = "SSH_BRUTE_FORCE", "SSH brute-force on a server"
 
     class Severity(models.TextChoices):
         LOW = "LOW", "Low"
@@ -1257,6 +1258,8 @@ class SecurityEvent(models.Model):
     source_ip = models.GenericIPAddressField(null=True, blank=True)
     target_email = models.CharField(max_length=255, blank=True, help_text="Account targeted, if applicable")
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="security_events")
+    server = models.ForeignKey(Server, null=True, blank=True, on_delete=models.CASCADE, related_name="security_events",
+                               help_text="Monitored server this event relates to (for SSH/host events)")
 
     event_count = models.IntegerField(default=1, help_text="Number of contributing observations")
     first_seen = models.DateTimeField(default=timezone.now)
@@ -1425,3 +1428,27 @@ class Container(models.Model):
 
     def __str__(self):
         return f"{self.name} on {self.server.name} ({self.state})"
+
+
+class SSHAuthEvent(models.Model):
+    """An SSH authentication event observed on a server (from its auth log)."""
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="ssh_auth_events")
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    source_ip = models.CharField(max_length=64, blank=True)
+    username = models.CharField(max_length=150, blank=True)
+    success = models.BooleanField(default=False)
+    raw = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = "SSH Auth Event"
+        verbose_name_plural = "SSH Auth Events"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["server", "-timestamp"]),
+            models.Index(fields=["source_ip"]),
+            models.Index(fields=["success", "-timestamp"]),
+        ]
+
+    def __str__(self):
+        state = "OK" if self.success else "FAIL"
+        return f"SSH {state} {self.username}@{self.server.name} from {self.source_ip}"
