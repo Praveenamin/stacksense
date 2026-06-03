@@ -57,9 +57,6 @@ class SLOComplianceGauges {
             <div class="reliability-chart-wrapper">
                 <canvas id="reliability-metrics-chart" height="280"></canvas>
             </div>
-            <div class="reliability-stats-row" id="reliability-stats-row">
-                <!-- Stats will be populated here -->
-            </div>
         `;
     }
 

@@ -341,23 +341,7 @@
             <span id="dashboard-error-message-sli-compliance"></span>
         </div>
     </div>
-    
-    <!-- PERFORMANCE -->
-    <div class="dash-section">Performance</div>
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
-        {% include "core/components/dashboard/cpu_trend_chart.html" %}
-        {% include "core/components/dashboard/memory_trend_chart.html" %}
-    </div>
-    {% if has_response_time_data %}
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
-        {% include "core/components/dashboard/network_traffic_chart.html" %}
-        {% include "core/components/dashboard/response_time_chart.html" %}
-    </div>
-    {% else %}
-    <div style="margin-bottom: 20px;">
-        {% include "core/components/dashboard/network_traffic_chart.html" %}
-    </div>
-    {% endif %}
+
     <!-- Top Consumers: CPU / Memory / Disk usage combined into one box -->
     <style>
         /* Consistent, clickable VM name across all three columns */
@@ -375,7 +359,7 @@
             .top-consumers-combined > .dashboard-component:not(:last-child) { border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:14px; }
         }
     </style>
-    <div class="dashboard-component" style="margin-bottom: 20px;">
+    <div class="dashboard-component" style="margin-bottom: 32px;">
         <div class="top-consumers-combined">
             {% include "core/components/dashboard/top_cpu_consumers.html" %}
             {% include "core/components/dashboard/top_memory_consumers.html" %}
@@ -404,6 +388,22 @@
         </div>
     </div>
 
+    <!-- PERFORMANCE -->
+    <div class="dash-section">Performance</div>
+    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
+        {% include "core/components/dashboard/cpu_trend_chart.html" %}
+        {% include "core/components/dashboard/memory_trend_chart.html" %}
+    </div>
+    {% if has_response_time_data %}
+    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
+        {% include "core/components/dashboard/network_traffic_chart.html" %}
+        {% include "core/components/dashboard/response_time_chart.html" %}
+    </div>
+    {% else %}
+    <div style="margin-bottom: 20px;">
+        {% include "core/components/dashboard/network_traffic_chart.html" %}
+    </div>
+    {% endif %}
     <!-- Disk I/O paired with Alert Timeline (half-width, matches the grid) -->
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/disk_io_summary.html" %}
