@@ -264,13 +264,20 @@
         .tri-tile > .dashboard-component { margin:0; height:100%; }
         .tri-expand { position:absolute; top:12px; right:12px; z-index:5; width:26px; height:26px; border:1px solid #e2e8f0; background:#fff; border-radius:6px; cursor:pointer; color:#64748b; display:inline-flex; align-items:center; justify-content:center; padding:0; }
         .tri-expand:hover { background:#f1f5f9; color:#0f172a; }
-        /* Compact: small chart, hide controls/subtitle/summary */
-        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child { display:none; }
+        /* Compact: keep ONLY the time-range filter (24h/7d/30d); hide the bulky
+           extras (server select, Overall/Server toggle), subtitle and summary. */
+        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child > div:not(:first-child),
+        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child > select { display:none; }
         .tri-tile:not(.expanded) .dashboard-component-subtitle { display:none; }
         .tri-tile:not(.expanded) .chart-summary { display:none; }
         .tri-tile:not(.expanded) .dashboard-component-title { font-size:14px; }
+        /* Compact, evenly-sized period buttons across all three graphs */
+        .tri-tile:not(.expanded) .reliability-period-btn,
+        .tri-tile:not(.expanded) .chart-period-btn { padding:2px 8px; font-size:11px; }
+        .tri-tile:not(.expanded) .dashboard-component-header { padding-right:34px; }  /* room for expand icon */
+        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child { gap:0 !important; }
         .tri-tile:not(.expanded) .chart-container,
-        .tri-tile:not(.expanded) .reliability-chart-wrapper { height:150px !important; min-height:0 !important; padding:6px 0 !important; }
+        .tri-tile:not(.expanded) .reliability-chart-wrapper { height:130px !important; min-height:0 !important; padding:4px 0 !important; }
         /* Expanded: span full width, taller chart */
         .tri-tile.expanded { grid-column:1 / -1; }
         .tri-tile.expanded .dashboard-component-header { padding-right:36px; }
