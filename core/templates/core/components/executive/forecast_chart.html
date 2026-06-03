@@ -1,0 +1,13 @@
+{% comment %}Capacity Forecast — projected fleet avg CPU+Memory, 30/60/90 horizon.{% endcomment %}
+<div class="exec-widget">
+    <div class="exec-widget-head">
+        <h3 class="exec-widget-title"><span aria-hidden="true">🔮</span>Capacity Forecast</h3>
+        <div class="exec-period-toggle" role="group" aria-label="Forecast horizon">
+            <button type="button" class="exec-period-btn active" data-forecast-period="30">30d</button>
+            <button type="button" class="exec-period-btn" data-forecast-period="60">60d</button>
+            <button type="button" class="exec-period-btn" data-forecast-period="90">90d</button>
+        </div>
+    </div>
+    <div class="exec-chart-wrap"><canvas id="exec-forecast-chart" aria-label="Projected fleet average CPU and memory utilization"></canvas></div>
+    {{ forecast_data|json_script:"exec-forecast-data" }}
+</div>

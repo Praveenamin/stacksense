@@ -1257,6 +1257,16 @@ def set_dashboard_view(request):
     return redirect("monitoring_dashboard")
 
 
+@staff_member_required
+def executive_dashboard_preview(request):
+    """TEMPORARY (Phase 3) preview of the Executive right-sizing dashboard,
+    rendered against demo data. ?empty=1 forces the <7-day gate state.
+    Replaced by the real data layer + nav wiring in Phase 4."""
+    from .utils.rightsizing_demo import build_demo_context
+    ctx = build_demo_context(empty=request.GET.get("empty") == "1")
+    return render(request, "core/executive_dashboard.html", ctx)
+
+
 def _fleet_status_counts():
     """Fleet-wide counts for the dashboard status donuts (servers + monitored
     services/containers). Used by the dashboard page and the auto-refresh API."""

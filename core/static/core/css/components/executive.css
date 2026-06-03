@@ -1,0 +1,126 @@
+/* Executive Dashboard — right-sizing widgets. Matches dashboard.css conventions. */
+
+/* ---- Confidence badge (colorblind-safe: shape icon + text, never colour alone) ---- */
+.conf-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    line-height: 1.5;
+}
+.conf-badge .conf-icon { font-size: 10px; }
+.conf-low  { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+.conf-med  { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.conf-high { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+
+/* ---- Fleet summary strip ---- */
+.exec-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+}
+.exec-stat {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+.exec-stat .stat-label {
+    font-size: 11px; font-weight: 600; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px;
+}
+.exec-stat .stat-value { font-size: 26px; font-weight: 700; color: #0f172a; line-height: 1.1; }
+.exec-stat .stat-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+.exec-stat.savings .stat-value { color: #166534; }
+
+.exec-pending-note {
+    font-size: 13px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a;
+    border-radius: 8px; padding: 9px 14px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+}
+
+/* ---- Widget grid ---- */
+.exec-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    margin-bottom: 18px;
+}
+.exec-grid .span-2 { grid-column: 1 / -1; }
+@media (max-width: 1024px) { .exec-grid { grid-template-columns: 1fr; } }
+
+.exec-widget {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 18px 20px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.exec-widget-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; margin-bottom: 12px;
+}
+.exec-widget-title { font-size: 15px; font-weight: 600; color: #0f172a; margin: 0;
+    display: flex; align-items: center; gap: 8px; }
+.exec-widget-count {
+    font-size: 11px; font-weight: 600; color: #475569;
+    background: #f1f5f9; border-radius: 999px; padding: 2px 9px;
+}
+
+/* ---- Recommendation table ---- */
+.exec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.exec-table th {
+    text-align: left; font-size: 11px; font-weight: 600; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: .04em;
+    padding: 6px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+}
+.exec-table td {
+    padding: 9px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle;
+}
+.exec-table tr:last-child td { border-bottom: none; }
+.exec-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.exec-table .vm-name { font-weight: 600; color: #0f172a; }
+.exec-table .muted { color: #94a3b8; }
+.exec-table .rec-text { color: #0f172a; }
+.exec-table .save-pos { color: #166534; font-weight: 600; }
+.exec-table .save-neg { color: #b91c1c; font-weight: 600; }
+
+/* utilisation mini-bar inside a cell */
+.util-cell { display: flex; align-items: center; gap: 7px; }
+.util-bar { flex: 1; height: 6px; background: #f1f5f9; border-radius: 999px; overflow: hidden; min-width: 42px; }
+.util-bar > span { display: block; height: 100%; border-radius: 999px; background: #6366f1; }
+.util-bar.mem > span { background: #14b8a6; }
+.util-bar.hot > span { background: #ef4444; }
+
+.exec-empty { font-size: 13px; color: #94a3b8; padding: 18px 4px; text-align: center; }
+
+/* ---- Chart widgets ---- */
+.exec-period-toggle { display: inline-flex; }
+.exec-period-btn {
+    padding: 3px 10px; border: 1px solid #e2e8f0; background: transparent;
+    color: #334155; font-size: 11px; font-weight: 500; cursor: pointer;
+}
+.exec-period-btn:first-child { border-radius: 4px 0 0 4px; }
+.exec-period-btn:last-child { border-radius: 0 4px 4px 0; }
+.exec-period-btn:not(:last-child) { border-right: none; }
+.exec-period-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.exec-chart-wrap { position: relative; height: 240px; }
+
+/* ---- Insufficient-data gate ---- */
+.exec-gate {
+    background: #fff; border: 1px dashed #cbd5e1; border-radius: 12px;
+    padding: 48px 32px; text-align: center; max-width: 640px; margin: 12px auto;
+}
+.exec-gate .gate-icon { font-size: 34px; }
+.exec-gate h3 { font-size: 18px; font-weight: 600; color: #0f172a; margin: 12px 0 8px; }
+.exec-gate p { font-size: 14px; color: #475569; margin: 0 auto; max-width: 460px; line-height: 1.55; }
+.exec-gate .gate-sub { font-size: 13px; color: #94a3b8; margin-top: 14px; }
+
+.demo-ribbon {
+    background: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3;
+    font-size: 12px; font-weight: 600; border-radius: 8px;
+    padding: 8px 14px; margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+}

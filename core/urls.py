@@ -9,6 +9,7 @@ urlpatterns = [
     path("monitoring/", views.monitoring_dashboard, name="monitoring_dashboard"),
     path("dashboard/", views.monitoring_dashboard, name="dashboard_alt"),
     path("dashboard/view/", views.set_dashboard_view, name="set_dashboard_view"),
+    path("executive/preview/", views.executive_dashboard_preview, name="executive_dashboard_preview"),
     path("add-server/", views.add_server, name="add_server"),
     path("add-server-agent/", views.add_server_agent, name="add_server_agent"),
     path("server/<int:server_id>/agent-token/regenerate/", views.regenerate_agent_token, name="regenerate_agent_token"),

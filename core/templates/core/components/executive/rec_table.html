@@ -1,0 +1,72 @@
+{% comment %}
+Generic recommendation table widget.
+Params (via {% include ... with %}):
+  title        widget heading
+  icon         emoji for the heading (optional)
+  rows         list[VMAssessment]
+  count        number to show in the pill (optional; defaults to rows|length)
+  show_savings show the Savings/Reclaim column (bool)
+  currency     currency symbol (for $ savings)
+  empty_text   text when rows is empty
+  span2        if truthy, widget spans both grid columns
+{% endcomment %}
+<div class="exec-widget {% if span2 %}span-2{% endif %}">
+    <div class="exec-widget-head">
+        <h3 class="exec-widget-title">{% if icon %}<span aria-hidden="true">{{ icon }}</span>{% endif %}{{ title }}</h3>
+        <span class="exec-widget-count">{{ count }}</span>
+    </div>
+    {% if rows %}
+    <div style="overflow-x:auto;">
+    <table class="exec-table">
+        <thead>
+            <tr>
+                <th scope="col">VM</th>
+                <th scope="col">Current</th>
+                <th scope="col">Avg CPU</th>
+                <th scope="col">Avg Memory</th>
+                <th scope="col">Disk</th>
+                <th scope="col">Recommendation</th>
+                <th scope="col">Confidence</th>
+                <th scope="col">Data Period</th>
+                {% if show_savings %}<th scope="col" class="num">{% if currency %}Savings{% else %}Reclaim{% endif %}</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for a in rows %}
+            <tr>
+                <td class="vm-name">{{ a.name }}</td>
+                <td class="muted">{{ a.current_vcpu }} vCPU · {{ a.current_gb|floatformat:"-1" }} GB</td>
+                <td>
+                    <div class="util-cell">
+                        <span class="num">{{ a.cpu.avg|floatformat:0 }}%</span>
+                        <span class="util-bar {% if a.cpu.avg >= 80 or a.cpu.p95 >= 90 %}hot{% endif %}"><span style="width:{{ a.cpu.avg|floatformat:0 }}%"></span></span>
+                    </div>
+                </td>
+                <td>
+                    <div class="util-cell">
+                        <span class="num">{{ a.memory.avg|floatformat:0 }}%</span>
+                        <span class="util-bar mem {% if a.memory.avg >= 80 or a.memory.p95 >= 90 %}hot{% endif %}"><span style="width:{{ a.memory.avg|floatformat:0 }}%"></span></span>
+                    </div>
+                </td>
+                <td class="muted num">{% if a.disk %}{{ a.disk.avg|floatformat:0 }}%{% else %}—{% endif %}</td>
+                <td class="rec-text">{{ a.recommendation_text }}</td>
+                <td>{% include "core/components/executive/confidence_badge.html" with confidence=a.confidence %}</td>
+                <td class="muted">{{ a.data_period_label }} days</td>
+                {% if show_savings %}
+                <td class="num">
+                    {% if a.monthly_savings is not None %}
+                        <span class="{% if a.monthly_savings > 0 %}save-pos{% else %}save-neg{% endif %}">{% if a.monthly_savings > 0 %}{{ currency }}{{ a.monthly_savings|floatformat:0 }}/mo{% else %}+{{ currency }}{{ a.monthly_savings|floatformat:0|cut:"-" }}/mo{% endif %}</span>
+                    {% else %}
+                        <span class="muted">{% if a.delta_vcpu > 0 %}−{{ a.delta_vcpu }} vCPU{% endif %}{% if a.delta_gb > 0 %} −{{ a.delta_gb|floatformat:"-1" }} GB{% endif %}</span>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="exec-empty">{{ empty_text|default:"Nothing to show." }}</div>
+    {% endif %}
+</div>

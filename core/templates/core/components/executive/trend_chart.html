@@ -1,0 +1,13 @@
+{% comment %}Resource Utilization Trend — fleet avg CPU+Memory, 7/30/90 toggle.{% endcomment %}
+<div class="exec-widget">
+    <div class="exec-widget-head">
+        <h3 class="exec-widget-title"><span aria-hidden="true">📈</span>Resource Utilization Trend</h3>
+        <div class="exec-period-toggle" role="group" aria-label="Trend period">
+            <button type="button" class="exec-period-btn active" data-trend-period="7">7d</button>
+            <button type="button" class="exec-period-btn" data-trend-period="30">30d</button>
+            <button type="button" class="exec-period-btn" data-trend-period="90">90d</button>
+        </div>
+    </div>
+    <div class="exec-chart-wrap"><canvas id="exec-trend-chart" aria-label="Fleet average CPU and memory utilization over time"></canvas></div>
+    {{ trend_data|json_script:"exec-trend-data" }}
+</div>

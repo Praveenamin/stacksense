@@ -1,0 +1,4 @@
+{% comment %}
+Reusable confidence badge. Colorblind-safe: shape icon + text label, never
+colour alone. Usage: {% include "core/components/executive/confidence_badge.html" with confidence=a.confidence %}
+{% endcomment %}{% if confidence == "HIGH" %}<span class="conf-badge conf-high" title="High confidence — based on long-term usage trends" aria-label="High confidence"><span class="conf-icon" aria-hidden="true">🟢</span>High Confidence</span>{% elif confidence == "MEDIUM" %}<span class="conf-badge conf-med" title="Recommended — based on sustained usage patterns" aria-label="Recommended confidence"><span class="conf-icon" aria-hidden="true">🟠</span>Recommended</span>{% elif confidence == "LOW" %}<span class="conf-badge conf-low" title="Preliminary — based on limited historical data" aria-label="Preliminary confidence"><span class="conf-icon" aria-hidden="true">🟡</span>Preliminary</span>{% endif %}
