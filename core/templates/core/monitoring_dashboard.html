@@ -281,7 +281,7 @@
     <div class="tri-row">
         <!-- Reliability -->
         <div class="tri-tile">
-            <button class="tri-expand" onclick="toggleTile(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            <button class="tri-expand" onclick="openChartModal(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
             <div class="dashboard-component" style="margin-bottom:0;">
                 <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <h3 class="dashboard-component-title">Reliability Metrics &amp; Status</h3>
@@ -314,23 +314,53 @@
         </div>
         <!-- CPU Trend -->
         <div class="tri-tile">
-            <button class="tri-expand" onclick="toggleTile(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            <button class="tri-expand" onclick="openChartModal(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
             {% include "core/components/dashboard/cpu_trend_chart.html" %}
         </div>
         <!-- Memory Trend -->
         <div class="tri-tile">
-            <button class="tri-expand" onclick="toggleTile(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            <button class="tri-expand" onclick="openChartModal(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
             {% include "core/components/dashboard/memory_trend_chart.html" %}
         </div>
     </div>
+    <!-- Full-chart modal: the compact card's live chart is moved here on expand -->
+    <style>
+        .chart-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.5); display:flex; align-items:center; justify-content:center; z-index:2000; padding:24px; }
+        .chart-modal { background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.25); width:100%; max-width:920px; max-height:88vh; overflow:auto; padding:10px 22px 22px; position:relative; }
+        .chart-modal-close { position:absolute; top:12px; right:14px; z-index:5; width:30px; height:30px; border:none; background:none; font-size:22px; line-height:1; color:#64748b; cursor:pointer; border-radius:6px; }
+        .chart-modal-close:hover { background:#f1f5f9; color:#0f172a; }
+        #chart-modal-body .dashboard-component { border:none; box-shadow:none; margin:0; padding:6px 0 0; }
+        #chart-modal-body .chart-container, #chart-modal-body .reliability-chart-wrapper { height:360px !important; min-height:360px !important; }
+    </style>
+    <div id="chart-modal" class="chart-modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+        <div class="chart-modal">
+            <button class="chart-modal-close" onclick="closeChartModal()" aria-label="Close">&times;</button>
+            <div id="chart-modal-body"></div>
+        </div>
+    </div>
     <script>
-    function toggleTile(btn){
-        var tile = btn.closest('.tri-tile'); if(!tile) return;
-        var expanding = !tile.classList.contains('expanded');
-        tile.parentNode.querySelectorAll('.tri-tile.expanded').forEach(function(t){ if(t!==tile) t.classList.remove('expanded'); });
-        tile.classList.toggle('expanded', expanding);
-        setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 80);
-    }
+    (function(){
+        var ret=null;
+        window.openChartModal=function(btn){
+            var tile=btn.closest('.tri-tile'); if(!tile) return;
+            var comp=tile.querySelector('.dashboard-component'); if(!comp) return;
+            ret={node:comp, parent:tile};
+            document.getElementById('chart-modal-body').appendChild(comp);
+            document.getElementById('chart-modal').style.display='flex';
+            document.body.style.overflow='hidden';
+            setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 60);
+        };
+        window.closeChartModal=function(){
+            var overlay=document.getElementById('chart-modal');
+            if(ret && ret.node && ret.parent){ ret.parent.appendChild(ret.node); }
+            ret=null;
+            overlay.style.display='none';
+            document.body.style.overflow='';
+            setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 60);
+        };
+        document.getElementById('chart-modal').addEventListener('click', function(e){ if(e.target===this) closeChartModal(); });
+        document.addEventListener('keydown', function(e){ if(e.key==='Escape' && document.getElementById('chart-modal').style.display!=='none') closeChartModal(); });
+    })();
     </script>
 
     <!-- Top Consumers: CPU / Memory / Disk usage combined into one box -->
