@@ -27,12 +27,14 @@ log_scan_interval = 300  # Run log scanning every 5 minutes
 latency_collection_interval = 60  # Run latency collection every minute
 synthetic_check_interval = 30  # Run due synthetic (uptime) checks every 30s
 security_detection_interval = 60  # Run security detection every minute
+connectivity_check_interval = 60  # Check for down/recovered servers every minute
 
 last_anomaly_check = timezone.now()
 last_log_scan = timezone.now()
 last_latency_collection = timezone.now()
 last_synthetic_check = timezone.now()
 last_security_detection = timezone.now()
+last_connectivity_check = timezone.now()
 
 while running:
     try:
@@ -101,6 +103,17 @@ while running:
                 print("Security detection completed.")
             except Exception as e:
                 print(f"Error in security detection: {str(e)}")
+
+        # Check server connectivity (down/recovered) every minute
+        time_since_last_connectivity = (timezone.now() - last_connectivity_check).total_seconds()
+        if time_since_last_connectivity >= connectivity_check_interval:
+            try:
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Checking server connectivity...")
+                call_command("check_server_connectivity", verbosity=0)
+                last_connectivity_check = timezone.now()
+                print("Connectivity check completed.")
+            except Exception as e:
+                print(f"Error in connectivity check: {str(e)}")
     except Exception as e:
         print(f"Error: {str(e)}")
     
