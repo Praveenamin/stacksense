@@ -1,5 +1,8 @@
 {% comment %}Overview: health banner + Servers / Services / Containers summary cards (live){% endcomment %}
 
+<!-- Status banner: only shown when there are NO active alerts (otherwise the
+     yellow alerts banner above is the single source of status) -->
+{% if alert_count == 0 %}
 <!-- Status banner -->
 <div id="ov-banner" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-radius:10px;padding:12px 18px;margin-bottom:18px;{% if overview.all_ok %}background:#f0fdf4;border:1px solid #bbf7d0;{% else %}background:#fff7ed;border:1px solid #fed7aa;{% endif %}">
     <div id="ov-banner-msg" style="display:flex;align-items:center;gap:10px;font-size:14px;color:{% if overview.all_ok %}#166534{% else %}#b45309{% endif %};">
@@ -13,6 +16,7 @@
     </div>
     <span id="ov-updated" data-ts="{% if overview.last_updated %}{{ overview.last_updated|date:'U' }}{% endif %}" style="font-size:12px;color:#64748b;">{% if overview.last_updated %}updated {{ overview.last_updated|timesince }} ago{% endif %}</span>
 </div>
+{% endif %}
 
 <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px 2px;">Overview</div>
 

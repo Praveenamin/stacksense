@@ -245,41 +245,81 @@
     })();
     </script>
     
-    <!-- Reliability Metrics Chart Section -->
-    <div class="dashboard-component" style="margin-bottom: 32px;">
-        <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <h3 class="dashboard-component-title">Reliability Metrics & Status</h3>
-            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                <!-- Time Period Filter -->
-                <div style="display: flex;">
-                    <button class="reliability-period-btn active" data-period="24h">24h</button>
-                    <button class="reliability-period-btn" data-period="7d">7 Days</button>
-                    <button class="reliability-period-btn" data-period="30d">30 Days</button>
+    <!-- Reliability + CPU Trend + Memory Trend: one compact row, click a tile to expand -->
+    <style>
+        .tri-row { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px; }
+        .tri-tile { position:relative; min-width:0; }
+        .tri-tile > .dashboard-component { margin:0; height:100%; }
+        .tri-expand { position:absolute; top:12px; right:12px; z-index:5; width:26px; height:26px; border:1px solid #e2e8f0; background:#fff; border-radius:6px; cursor:pointer; color:#64748b; display:inline-flex; align-items:center; justify-content:center; padding:0; }
+        .tri-expand:hover { background:#f1f5f9; color:#0f172a; }
+        /* Compact: small chart, hide controls/subtitle/summary */
+        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child { display:none; }
+        .tri-tile:not(.expanded) .dashboard-component-subtitle { display:none; }
+        .tri-tile:not(.expanded) .chart-summary { display:none; }
+        .tri-tile:not(.expanded) .dashboard-component-title { font-size:14px; }
+        .tri-tile:not(.expanded) .chart-container,
+        .tri-tile:not(.expanded) .reliability-chart-wrapper { height:150px !important; min-height:0 !important; padding:6px 0 !important; }
+        /* Expanded: span full width, taller chart */
+        .tri-tile.expanded { grid-column:1 / -1; }
+        .tri-tile.expanded .dashboard-component-header { padding-right:36px; }
+        .tri-tile.expanded .chart-container,
+        .tri-tile.expanded .reliability-chart-wrapper { height:320px !important; }
+        @media (max-width:980px){ .tri-row { grid-template-columns:1fr; } .tri-tile.expanded { grid-column:auto; } }
+    </style>
+    <div class="tri-row">
+        <!-- Reliability -->
+        <div class="tri-tile">
+            <button class="tri-expand" onclick="toggleTile(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            <div class="dashboard-component" style="margin-bottom:0;">
+                <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <h3 class="dashboard-component-title">Reliability Metrics &amp; Status</h3>
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex;">
+                            <button class="reliability-period-btn active" data-period="24h">24h</button>
+                            <button class="reliability-period-btn" data-period="7d">7 Days</button>
+                            <button class="reliability-period-btn" data-period="30d">30 Days</button>
+                        </div>
+                        <div style="display: flex; gap: 4px; background-color: var(--cds-color-gray-10, #f8fafc); border-radius: 4px; padding: 2px;">
+                            <button id="slo-view-overall" class="slo-view-toggle active" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-100, #0f172a); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Overall</button>
+                            <button id="slo-view-server" class="slo-view-toggle" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-70, #334155); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Server</button>
+                        </div>
+                        <select id="slo-server-select" style="display: none; padding: 6px 12px; border: 1px solid var(--cds-color-gray-20, #e2e8f0); border-radius: 4px; font-size: 14px; background: white; color: var(--cds-color-gray-100, #0f172a); cursor: pointer;">
+                            <option value="">Select Server...</option>
+                        </select>
+                    </div>
                 </div>
-                <!-- Overall/Server Toggle -->
-                <div style="display: flex; gap: 4px; background-color: var(--cds-color-gray-10, #f8fafc); border-radius: 4px; padding: 2px;">
-                    <button id="slo-view-overall" class="slo-view-toggle active" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-100, #0f172a); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Overall</button>
-                    <button id="slo-view-server" class="slo-view-toggle" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-70, #334155); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Server</button>
+                <p class="dashboard-component-subtitle" style="color: var(--cds-color-gray-60, #64748b); font-size: 13px; margin: 8px 0 0 0;">CPU, Memory, Disk usage and Error Rate over time</p>
+                <div class="dashboard-component-content">
+                    <div id="slo-compliance-gauges-container"></div>
                 </div>
-                <select id="slo-server-select" style="display: none; padding: 6px 12px; border: 1px solid var(--cds-color-gray-20, #e2e8f0); border-radius: 4px; font-size: 14px; background: white; color: var(--cds-color-gray-100, #0f172a); cursor: pointer;">
-                    <option value="">Select Server...</option>
-                </select>
+                <div class="dashboard-loading" id="dashboard-loading-sli-compliance" style="display: none;">
+                    <div class="loading-spinner"></div><span>Loading...</span>
+                </div>
+                <div class="dashboard-error" id="dashboard-error-sli-compliance" style="display: none;">
+                    <span id="dashboard-error-message-sli-compliance"></span>
+                </div>
             </div>
         </div>
-        <p style="color: var(--cds-color-gray-60, #64748b); font-size: 13px; margin: 8px 0 0 0;">CPU, Memory, Disk usage and Error Rate over time</p>
-        <div class="dashboard-component-content">
-            <div id="slo-compliance-gauges-container">
-                <!-- Chart will be populated by JavaScript -->
-            </div>
+        <!-- CPU Trend -->
+        <div class="tri-tile">
+            <button class="tri-expand" onclick="toggleTile(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            {% include "core/components/dashboard/cpu_trend_chart.html" %}
         </div>
-        <div class="dashboard-loading" id="dashboard-loading-sli-compliance" style="display: none;">
-            <div class="loading-spinner"></div>
-            <span>Loading...</span>
-        </div>
-        <div class="dashboard-error" id="dashboard-error-sli-compliance" style="display: none;">
-            <span id="dashboard-error-message-sli-compliance"></span>
+        <!-- Memory Trend -->
+        <div class="tri-tile">
+            <button class="tri-expand" onclick="toggleTile(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            {% include "core/components/dashboard/memory_trend_chart.html" %}
         </div>
     </div>
+    <script>
+    function toggleTile(btn){
+        var tile = btn.closest('.tri-tile'); if(!tile) return;
+        var expanding = !tile.classList.contains('expanded');
+        tile.parentNode.querySelectorAll('.tri-tile.expanded').forEach(function(t){ if(t!==tile) t.classList.remove('expanded'); });
+        tile.classList.toggle('expanded', expanding);
+        setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 80);
+    }
+    </script>
 
     <!-- Top Consumers: CPU / Memory / Disk usage combined into one box -->
     <style>
@@ -329,10 +369,6 @@
 
     <!-- PERFORMANCE -->
     <div class="dash-section">Performance</div>
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
-        {% include "core/components/dashboard/cpu_trend_chart.html" %}
-        {% include "core/components/dashboard/memory_trend_chart.html" %}
-    </div>
     {% if has_response_time_data %}
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
         {% include "core/components/dashboard/network_traffic_chart.html" %}
