@@ -6,21 +6,9 @@
 {% block extrahead %}
 <link rel="stylesheet" href="{% static 'core/css/components/dashboard.css' %}">
 <style>
-    .slo-view-toggle.active {
-        background-color: white !important;
-        color: var(--cds-color-gray-100, #0f172a) !important;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-    .slo-view-toggle:not(.active) {
-        background-color: transparent !important;
-        color: var(--cds-color-gray-70, #334155) !important;
-    }
-    .slo-view-toggle:hover {
-        background-color: rgba(255, 255, 255, 0.5) !important;
-    }
     
     /* Time period filter buttons */
-    .reliability-period-btn, .chart-period-btn {
+    .chart-period-btn {
         padding: 6px 12px;
         border: 1px solid var(--cds-color-gray-20, #e2e8f0);
         background: transparent;
@@ -30,86 +18,24 @@
         cursor: pointer;
         transition: all 0.2s ease;
     }
-    .reliability-period-btn:first-child, .chart-period-btn:first-child {
+    .chart-period-btn:first-child {
         border-radius: 4px 0 0 4px;
     }
-    .reliability-period-btn:last-child, .chart-period-btn:last-child {
+    .chart-period-btn:last-child {
         border-radius: 0 4px 4px 0;
     }
-    .reliability-period-btn:not(:last-child), .chart-period-btn:not(:last-child) {
+    .chart-period-btn:not(:last-child) {
         border-right: none;
     }
-    .reliability-period-btn.active, .chart-period-btn.active {
+    .chart-period-btn.active {
         background: var(--cds-color-blue-60, #3b82f6);
         color: white;
         border-color: var(--cds-color-blue-60, #3b82f6);
     }
-    .reliability-period-btn:hover:not(.active), .chart-period-btn:hover:not(.active) {
+    .chart-period-btn:hover:not(.active) {
         background: var(--cds-color-gray-10, #f1f5f9);
     }
-    
-    /* Chart wrapper */
-    .reliability-chart-wrapper {
-        min-height: 280px;
-        padding: 16px 0;
-    }
-    
-    /* Stats row */
-    .reliability-stats-row {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-top: 16px;
-        padding-top: 16px;
-        border-top: 1px solid var(--cds-color-gray-20, #e2e8f0);
-    }
-    
-    .reliability-stat-card {
-        background: var(--cds-color-gray-10, #f8fafc);
-        border-radius: 8px;
-        padding: 12px 16px;
-    }
-    
-    .reliability-stat-card .stat-label {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--cds-color-gray-80, #1e293b);
-        margin-bottom: 8px;
-    }
-    
-    .reliability-stat-card .stat-values {
-        display: flex;
-        gap: 16px;
-    }
-    
-    .reliability-stat-card .stat-item {
-        text-align: center;
-    }
-    
-    .reliability-stat-card .stat-value {
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--cds-color-gray-100, #0f172a);
-        display: block;
-    }
-    
-    .reliability-stat-card .stat-value.error-value {
-        color: #ef4444;
-    }
-    
-    .reliability-stat-card .stat-sublabel {
-        font-size: 10px;
-        color: var(--cds-color-gray-60, #64748b);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    @media (max-width: 768px) {
-        .reliability-stats-row {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-    
+
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
@@ -257,57 +183,29 @@
     })();
     </script>
     
-    <!-- Reliability + CPU Trend + Memory Trend: one compact row, click a tile to expand -->
+    <!-- CPU Trend + Memory Trend: one compact row, click a tile to expand -->
     <style>
-        .tri-row { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px; }
+        .tri-row { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:32px; }
         .tri-tile { position:relative; min-width:0; }
         .tri-tile > .dashboard-component { margin:0; height:100%; }
         .tri-expand { position:absolute; top:12px; right:12px; z-index:5; width:26px; height:26px; border:1px solid #e2e8f0; background:#fff; border-radius:6px; cursor:pointer; color:#64748b; display:inline-flex; align-items:center; justify-content:center; padding:0; }
         .tri-expand:hover { background:#f1f5f9; color:#0f172a; }
-        /* Compact: hide subtitle and summary (only the 24h/7d/30d filter remains). */
+        /* Compact: hide subtitle and summary; keep the period filter + server dropdown. */
         .tri-tile:not(.expanded) .dashboard-component-subtitle { display:none; }
         .tri-tile:not(.expanded) .chart-summary { display:none; }
         .tri-tile:not(.expanded) .dashboard-component-title { font-size:14px; }
-        /* Compact, evenly-sized period buttons across all three graphs */
-        .tri-tile:not(.expanded) .reliability-period-btn,
+        /* Compact, evenly-sized period buttons across both graphs */
         .tri-tile:not(.expanded) .chart-period-btn { padding:2px 8px; font-size:11px; }
         .tri-tile:not(.expanded) .dashboard-component-header { padding-right:34px; }  /* room for expand icon */
-        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child { gap:0 !important; }
-        .tri-tile:not(.expanded) .chart-container,
-        .tri-tile:not(.expanded) .reliability-chart-wrapper { height:130px !important; min-height:0 !important; padding:4px 0 !important; }
+        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child { gap:8px !important; }
+        .tri-tile:not(.expanded) .chart-container { height:130px !important; min-height:0 !important; padding:4px 0 !important; }
         /* Expanded: span full width, taller chart */
         .tri-tile.expanded { grid-column:1 / -1; }
         .tri-tile.expanded .dashboard-component-header { padding-right:36px; }
-        .tri-tile.expanded .chart-container,
-        .tri-tile.expanded .reliability-chart-wrapper { height:320px !important; }
+        .tri-tile.expanded .chart-container { height:320px !important; }
         @media (max-width:980px){ .tri-row { grid-template-columns:1fr; } .tri-tile.expanded { grid-column:auto; } }
     </style>
     <div class="tri-row">
-        <!-- Reliability -->
-        <div class="tri-tile">
-            <button class="tri-expand" onclick="openChartModal(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
-            <div class="dashboard-component" style="margin-bottom:0;">
-                <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-                    <h3 class="dashboard-component-title">Reliability Metrics &amp; Status</h3>
-                    <!-- Period filter only — chart is fleet-wide (overall across all VMs) -->
-                    <div style="display: flex;">
-                        <button class="reliability-period-btn active" data-period="24h">24h</button>
-                        <button class="reliability-period-btn" data-period="7d">7 Days</button>
-                        <button class="reliability-period-btn" data-period="30d">30 Days</button>
-                    </div>
-                </div>
-                <p class="dashboard-component-subtitle" style="color: var(--cds-color-gray-60, #64748b); font-size: 13px; margin: 8px 0 0 0;">CPU, Memory, Disk usage and Error Rate over time</p>
-                <div class="dashboard-component-content">
-                    <div id="slo-compliance-gauges-container"></div>
-                </div>
-                <div class="dashboard-loading" id="dashboard-loading-sli-compliance" style="display: none;">
-                    <div class="loading-spinner"></div><span>Loading...</span>
-                </div>
-                <div class="dashboard-error" id="dashboard-error-sli-compliance" style="display: none;">
-                    <span id="dashboard-error-message-sli-compliance"></span>
-                </div>
-            </div>
-        </div>
         <!-- CPU Trend -->
         <div class="tri-tile">
             <button class="tri-expand" onclick="openChartModal(this)" title="Expand / collapse" aria-label="Expand / collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
@@ -326,7 +224,7 @@
         .chart-modal-close { position:absolute; top:12px; right:14px; z-index:5; width:30px; height:30px; border:none; background:none; font-size:22px; line-height:1; color:#64748b; cursor:pointer; border-radius:6px; }
         .chart-modal-close:hover { background:#f1f5f9; color:#0f172a; }
         #chart-modal-body .dashboard-component { border:none; box-shadow:none; margin:0; padding:6px 0 0; }
-        #chart-modal-body .chart-container, #chart-modal-body .reliability-chart-wrapper { height:360px !important; min-height:360px !important; }
+        #chart-modal-body .chart-container { height:360px !important; min-height:360px !important; }
     </style>
     <div id="chart-modal" class="chart-modal-overlay" style="display:none;" role="dialog" aria-modal="true">
         <div class="chart-modal">
@@ -449,7 +347,6 @@
 <script src="{% static 'core/js/components/dashboard/AIRecommendations.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/DiskForecast.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/LoginActivitySummary.js' %}"></script>
-<script src="{% static 'core/js/components/dashboard/SLOComplianceGauges.js' %}"></script>
 <script src="{% static 'core/js/components/dashboard/TrendInsights.js' %}"></script>
 <script src="{% static 'core/js/components/DashboardManager.js' %}"></script>
 <script>
