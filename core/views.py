@@ -1241,7 +1241,8 @@ def monitoring_dashboard(request):
     if dashboard_view == UserACL.DashboardView.EXECUTIVE:
         context["kpis"] = list(BusinessKPI.objects.filter(enabled=True).order_by("name"))
         try:
-            context.update(build_executive_context())
+            context.update(build_executive_context(
+                allow_early=request.GET.get("early") == "1"))
         except Exception as e:
             error_logger.error(f"EXECUTIVE_DASHBOARD error: {e}")
             context["exec_error"] = True
@@ -1268,13 +1269,18 @@ def executive_dashboard_preview(request):
     data (handy when the live fleet has <7 days of history). ?empty=1 forces
     the gate state. The live page is the Executive persona on the dashboard."""
     from .utils.rightsizing_demo import build_demo_context
-    ctx = build_demo_context(empty=request.GET.get("empty") == "1")
+    ctx = build_demo_context(empty=request.GET.get("empty") == "1",
+                             allow_early=request.GET.get("early") == "1")
     return render(request, "core/executive_dashboard.html", ctx)
 
 
-def build_executive_context():
+def build_executive_context(allow_early=False):
     """Real Executive right-sizing context from live metrics. Safe to call from
-    the dashboard view; returns a context dict for executive_dashboard.html."""
+    the dashboard view; returns a context dict for executive_dashboard.html.
+
+    allow_early=True is the opt-in preview: VMs with 0<days<7 are shown as
+    "Early" (directional only) instead of being gated out."""
+    from .utils import rightsizing_constants as C
     from .utils.rightsizing_data import (
         gather_vm_window_stats, fleet_trend, fleet_forecast, get_pricing,
     )
@@ -1283,7 +1289,7 @@ def build_executive_context():
 
     pricing = get_pricing()
     stats = gather_vm_window_stats()
-    assessments = [assess_vm(s, pricing=pricing) for s in stats]
+    assessments = [assess_vm(s, pricing=pricing, allow_early=allow_early) for s in stats]
     report = build_report(assessments, pricing_configured=pricing.configured)
     ctx = dict(report)
     ctx.update({
@@ -1292,6 +1298,10 @@ def build_executive_context():
         "trend_data": fleet_trend(),
         "forecast_data": fleet_forecast(),
         "show_gate": report["eligible_count"] == 0,
+        "early_mode": any(a.confidence == "EARLY" for a in assessments),
+        "early_message": C.MSG_EARLY,
+        # Is there anything to preview early? (some VM with <7d but >0d of data)
+        "can_preview_early": any(0 < a.data_days < C.MIN_DAYS for a in assessments),
     })
     return ctx
 

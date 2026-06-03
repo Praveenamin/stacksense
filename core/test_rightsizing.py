@@ -249,6 +249,34 @@ class AssessTests(SimpleTestCase):
 
 
 # ---------------------------------------------------------------------------
+# Early preview (opt-in) — 0<days<7
+# ---------------------------------------------------------------------------
+class EarlyPreviewTests(SimpleTestCase):
+    def test_confidence_early_only_when_allowed(self):
+        self.assertEqual(confidence_for_days(3)[0], "NONE")               # default gated
+        self.assertEqual(confidence_for_days(3, allow_early=True)[0], "EARLY")
+        self.assertEqual(confidence_for_days(6.9, allow_early=True)[0], "EARLY")
+        # zero data can't be previewed even in early mode
+        self.assertEqual(confidence_for_days(0, allow_early=True)[0], "NONE")
+        # 7+ days behaves normally regardless of allow_early
+        self.assertEqual(confidence_for_days(7, allow_early=True)[0], "LOW")
+
+    def test_early_message(self):
+        self.assertEqual(confidence_for_days(3, allow_early=True)[1], C.MSG_EARLY)
+
+    def test_assess_early_produces_recommendation(self):
+        s = vm(dim(12, 15), dim(14, 18), days=3, vcpu=4, gb=8.0)
+        gated = assess_vm(s)                       # default
+        early = assess_vm(s, allow_early=True)     # opt-in
+        self.assertEqual(gated.category, C.CAT_INSUFFICIENT)
+        self.assertEqual(early.category, C.CAT_UNDER)
+        self.assertEqual(early.confidence, "EARLY")
+        self.assertEqual(early.message, C.MSG_EARLY)
+        self.assertEqual(early.data_period_label, "<7")
+        self.assertIsNotNone(early.suggested_vcpu)
+
+
+# ---------------------------------------------------------------------------
 # Report builder — grouping, caps, sorting, totals
 # ---------------------------------------------------------------------------
 class ReportTests(SimpleTestCase):

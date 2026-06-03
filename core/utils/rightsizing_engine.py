@@ -113,10 +113,16 @@ def next_step_up(current: float, steps: List) -> float:
 # ---------------------------------------------------------------------------
 # Confidence
 # ---------------------------------------------------------------------------
-def confidence_for_days(days: float, cfg: C.Thresholds = C.DEFAULT_THRESHOLDS
-                        ) -> Tuple[str, str]:
-    """Return (confidence_tier, verbatim_message) for a VM's data age."""
+def confidence_for_days(days: float, cfg: C.Thresholds = C.DEFAULT_THRESHOLDS,
+                        allow_early: bool = False) -> Tuple[str, str]:
+    """Return (confidence_tier, message) for a VM's data age.
+
+    With allow_early=True, a VM that has *some* history but less than the 7-day
+    minimum is tagged "EARLY" (opt-in preview) instead of being gated out.
+    """
     if days < cfg.min_days:
+        if allow_early and days > 0:
+            return "EARLY", C.MSG_EARLY
         return "NONE", C.MSG_INSUFFICIENT
     if days < C.CONF_MED_DAYS:
         return "LOW", C.MSG_LOW
@@ -234,10 +240,14 @@ def cost_savings(stats: VMWindowStats, sug_vcpu: Optional[int],
 # Top-level assessment
 # ---------------------------------------------------------------------------
 def assess_vm(stats: VMWindowStats, pricing: Optional[Pricing] = None,
-              cfg: C.Thresholds = C.DEFAULT_THRESHOLDS) -> VMAssessment:
-    """Assess one VM. Enforces the strict <7-day gate before anything else."""
+              cfg: C.Thresholds = C.DEFAULT_THRESHOLDS,
+              allow_early: bool = False) -> VMAssessment:
+    """Assess one VM. Enforces the strict <7-day gate before anything else,
+    unless allow_early=True (opt-in preview) — then 0<days<7 yields an EARLY,
+    directional-only assessment instead of INSUFFICIENT."""
     pricing = pricing or Pricing()
-    confidence, message = confidence_for_days(stats.data_days, cfg)
+    confidence, message = confidence_for_days(stats.data_days, cfg,
+                                              allow_early=allow_early)
 
     if confidence == "NONE":
         return VMAssessment(

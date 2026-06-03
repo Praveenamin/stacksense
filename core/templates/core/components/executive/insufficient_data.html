@@ -6,4 +6,10 @@
     {% if pending_count %}
     <div class="gate-sub">{{ pending_count }} VM{{ pending_count|pluralize }} currently being monitored — building history.</div>
     {% endif %}
+    {% if can_preview_early %}
+    <div style="margin-top:20px;">
+        <a href="?early=1" class="exec-early-btn">Show preview with current data</a>
+        <div class="gate-sub" style="margin-top:8px;">Directional only — not for decisions.</div>
+    </div>
+    {% endif %}
 </div>

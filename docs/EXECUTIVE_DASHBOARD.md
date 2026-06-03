@@ -39,6 +39,13 @@ Badges are colorblind-safe: a shape icon **plus** a text label, never colour alo
 A VM with valid age but fewer than `MIN_SAMPLES` (12) points in the window is
 treated as insufficient (sparse/gapped data isn't trusted).
 
+**Early preview (opt-in).** When every VM is under 7 days, the gate offers a
+"Show preview with current data" button. It re-renders the full dashboard with
+an amber caveat banner and a 🔵 **Early** badge on each row (`?early=1`), so you
+can see the layout populated with current data. These are explicitly directional
+only; the strict gate remains the default. VMs with zero metrics still can't be
+previewed.
+
 ## Classification thresholds (CPU + Memory)
 
 Checked in order; "worst dimension wins" for safety.

@@ -7,6 +7,13 @@ Expects the build_executive_context()/build_demo_context() keys in context.
     {% include "core/components/executive/insufficient_data.html" %}
 {% else %}
 
+    {% if early_mode %}
+    <div class="exec-early-banner" role="status">
+        <span aria-hidden="true">🔵</span>
+        <div><strong>Early preview.</strong> {{ early_message }} <a href="?">Hide preview</a></div>
+    </div>
+    {% endif %}
+
     {% if pending_count %}
     <div class="exec-pending-note"><span aria-hidden="true">⏳</span> {{ pending_count }} VM{{ pending_count|pluralize }} not yet eligible — still building the 7-day minimum history.</div>
     {% endif %}

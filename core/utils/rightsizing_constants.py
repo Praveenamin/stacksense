@@ -40,9 +40,16 @@ MSG_HIGH = (
     "Recommendations are based on long-term usage trends and can be used for "
     "capacity planning and resource allocation decisions."
 )
+# Shown only in the opt-in early preview (under 7 days). Not a spec gate message.
+MSG_EARLY = (
+    "Early preview — based on less than 7 days of data. These figures are "
+    "directional only and will change as more history is collected; do not use "
+    "them for decisions yet."
+)
 
 CONFIDENCE_MESSAGES = {
     "NONE": MSG_INSUFFICIENT,
+    "EARLY": MSG_EARLY,
     "LOW": MSG_LOW,
     "MEDIUM": MSG_MEDIUM,
     "HIGH": MSG_HIGH,
@@ -50,13 +57,14 @@ CONFIDENCE_MESSAGES = {
 
 # --- Confidence badges (colorblind-safe: shape icon + text label) ----------
 BADGES = {
+    "EARLY": {"icon": "🔵", "label": "Early", "css": "conf-early"},
     "LOW": {"icon": "🟡", "label": "Preliminary", "css": "conf-low"},
     "MEDIUM": {"icon": "🟠", "label": "Recommended", "css": "conf-med"},
     "HIGH": {"icon": "🟢", "label": "High Confidence", "css": "conf-high"},
 }
 
 # "Data Period Used" bucket labels.
-PERIOD_LABELS = {"LOW": "7", "MEDIUM": "30", "HIGH": "90+"}
+PERIOD_LABELS = {"EARLY": "<7", "LOW": "7", "MEDIUM": "30", "HIGH": "90+"}
 
 # --- Standard resize steps (provider-agnostic) -----------------------------
 VCPU_STEPS = [1, 2, 4, 8, 16, 32, 48, 64, 96, 128]

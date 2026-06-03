@@ -38,7 +38,7 @@ _DEMO_VMS = [
 ]
 
 
-def _build_assessments():
+def _build_assessments(allow_early=False):
     out = []
     for i, (name, days, vcpu, gb, cpu, mem, disk_avg) in enumerate(_DEMO_VMS):
         stats = VMWindowStats(
@@ -47,7 +47,7 @@ def _build_assessments():
             disk=_dim(disk_avg, min(disk_avg + 8, 100)),
             current_vcpu=vcpu, current_gb=float(gb),
         )
-        out.append(assess_vm(stats, pricing=DEMO_PRICING))
+        out.append(assess_vm(stats, pricing=DEMO_PRICING, allow_early=allow_early))
     return out
 
 
@@ -83,12 +83,16 @@ def _forecast_series():
     }
 
 
-def build_demo_context(empty: bool = False) -> dict:
-    """Full template context for the preview page. empty=True forces the gate."""
+def build_demo_context(empty: bool = False, allow_early: bool = False) -> dict:
+    """Full template context for the preview page. empty=True forces the gate;
+    allow_early=True previews <7-day VMs as 'Early' (directional only)."""
+    from . import rightsizing_constants as C
+
     if empty:
-        assessments = [a for a in _build_assessments() if a.data_days < 7]
+        assessments = [a for a in _build_assessments(allow_early=allow_early)
+                       if a.data_days < 7]
     else:
-        assessments = _build_assessments()
+        assessments = _build_assessments(allow_early=allow_early)
 
     report = build_report(assessments, pricing_configured=DEMO_PRICING.configured)
     ctx = dict(report)
@@ -98,5 +102,8 @@ def build_demo_context(empty: bool = False) -> dict:
         "trend_data": _trend_series(),
         "forecast_data": _forecast_series(),
         "show_gate": report["eligible_count"] == 0,
+        "early_mode": any(a.confidence == "EARLY" for a in assessments),
+        "early_message": C.MSG_EARLY,
+        "can_preview_early": any(0 < a.data_days < C.MIN_DAYS for a in assessments),
     })
     return ctx
