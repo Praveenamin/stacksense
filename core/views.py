@@ -1177,6 +1177,7 @@ def monitoring_dashboard(request):
             total = info.get("total") or 0
             disk_parts.append({
                 "server": srv.name,
+                "server_id": srv.id,
                 "mount": mount,
                 "percent": round(pct, 1),
                 "used_gb": round(used / (1024 ** 3), 1) if used else 0,

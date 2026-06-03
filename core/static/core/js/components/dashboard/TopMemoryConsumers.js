@@ -20,7 +20,7 @@ class TopMemoryConsumers extends BaseDashboardComponent {
             html += `<li class="top-consumer-item">
                 <div class="top-consumer-rank">#${rank}</div>
                 <div class="top-consumer-info">
-                    <div class="top-consumer-name">${this.escapeHtml(item.server_name)}</div>
+                    <a class="top-consumer-name vm-link" href="/server/${item.server_id}/">${this.escapeHtml(item.server_name)}</a>
                     <span class="status-tag ${statusClass}">${statusClass}</span>
                 </div>
                 <div class="top-consumer-value">${item.memory_percent}%</div>
