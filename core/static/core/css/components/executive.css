@@ -130,6 +130,20 @@
 .exec-gate p { font-size: 14px; color: #475569; margin: 0 auto; max-width: 460px; line-height: 1.55; }
 .exec-gate .gate-sub { font-size: 13px; color: #94a3b8; margin-top: 14px; }
 
+/* Status pill (shared with Business KPI cards) */
+.exec-pill {
+    display: inline-flex; align-items: center;
+    font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 999px;
+}
+
+/* Business KPI cards on the executive page */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.kpi-card { background: #fff; border: 1px solid #e2e8f0; border-left-width: 4px; border-radius: 10px; padding: 16px 18px; }
+.kpi-card .kpi-name { font-size: 14px; font-weight: 600; color: #0f172a; text-decoration: none; }
+.kpi-card .kpi-value { font-size: 28px; font-weight: 700; color: #0f172a; margin: 10px 0 2px 0; }
+.kpi-card .kpi-meta { font-size: 12px; color: #94a3b8; }
+.kpi-empty { background: #fff; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 28px; text-align: center; }
+
 .demo-ribbon {
     background: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3;
     font-size: 12px; font-weight: 600; border-radius: 8px;
