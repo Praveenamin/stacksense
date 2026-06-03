@@ -3,11 +3,12 @@
     <div class="exec-widget-head">
         <h3 class="exec-widget-title"><span aria-hidden="true">📈</span>Resource Utilization Trend</h3>
         <div class="exec-period-toggle" role="group" aria-label="Trend period">
-            <button type="button" class="exec-period-btn active" data-trend-period="7">7d</button>
-            <button type="button" class="exec-period-btn" data-trend-period="30">30d</button>
-            <button type="button" class="exec-period-btn" data-trend-period="90">90d</button>
+            <button type="button" class="exec-period-btn active" data-trend-period="7" aria-pressed="true">7d</button>
+            <button type="button" class="exec-period-btn" data-trend-period="30" aria-pressed="false">30d</button>
+            <button type="button" class="exec-period-btn" data-trend-period="90" aria-pressed="false">90d</button>
         </div>
     </div>
-    <div class="exec-chart-wrap"><canvas id="exec-trend-chart" aria-label="Fleet average CPU and memory utilization over time"></canvas></div>
+    <div class="exec-chart-wrap"><canvas id="exec-trend-chart" role="img" aria-label="Line chart: fleet-average CPU and memory utilization percentage over the selected period."></canvas></div>
+    <p class="sr-only">Fleet-average CPU and memory utilization trend. Use the recommendation tables above for exact per-VM figures.</p>
     {{ trend_data|json_script:"exec-trend-data" }}
 </div>

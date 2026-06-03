@@ -32,7 +32,11 @@ Running plan + decisions for the Executive Dashboard workstream. Phased build wi
 - [x] Phase 4 — Integration: PricingConfig + settings form, rightsizing_data.py
       (Postgres percentile + trend + forecast), Executive persona wired to the
       right-sizing dashboard (Business KPIs linked), error state, 39 tests green
-- [ ] Phase 5 — Quality bar (a11y, tests, lint, README)
+- [x] Phase 5 — Quality bar: a11y (sr-only captions, role=img charts,
+      aria-pressed toggles, focus rings, verbatim gate), unused-import cleanup,
+      39 tests green + system check clean, docs/EXECUTIVE_DASHBOARD.md
+
+## DONE — all phases complete.
 
 ## Live behaviour today
 Only 1 VM with ~2 days of metrics → Executive persona correctly shows the

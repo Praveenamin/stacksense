@@ -42,8 +42,9 @@
             const key = btn.getAttribute(attr);
             const s = data[key];
             if (!s || !chart) return;
-            buttons.forEach(b => b.classList.remove('active'));
+            buttons.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
             btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
             chart.data.labels = s.labels;
             chart.data.datasets[0].data = s.cpu;
             chart.data.datasets[1].data = s.mem;

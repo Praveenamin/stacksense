@@ -3,11 +3,12 @@
     <div class="exec-widget-head">
         <h3 class="exec-widget-title"><span aria-hidden="true">🔮</span>Capacity Forecast</h3>
         <div class="exec-period-toggle" role="group" aria-label="Forecast horizon">
-            <button type="button" class="exec-period-btn active" data-forecast-period="30">30d</button>
-            <button type="button" class="exec-period-btn" data-forecast-period="60">60d</button>
-            <button type="button" class="exec-period-btn" data-forecast-period="90">90d</button>
+            <button type="button" class="exec-period-btn active" data-forecast-period="30" aria-pressed="true">30d</button>
+            <button type="button" class="exec-period-btn" data-forecast-period="60" aria-pressed="false">60d</button>
+            <button type="button" class="exec-period-btn" data-forecast-period="90" aria-pressed="false">90d</button>
         </div>
     </div>
-    <div class="exec-chart-wrap"><canvas id="exec-forecast-chart" aria-label="Projected fleet average CPU and memory utilization"></canvas></div>
+    <div class="exec-chart-wrap"><canvas id="exec-forecast-chart" role="img" aria-label="Line chart: projected fleet-average CPU and memory utilization over the selected horizon."></canvas></div>
+    <p class="sr-only">Linear projection of fleet-average CPU and memory utilization based on recent history.</p>
     {{ forecast_data|json_script:"exec-forecast-data" }}
 </div>

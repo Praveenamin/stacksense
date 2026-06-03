@@ -70,6 +70,13 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 - `aggregate_metrics`: Aggregate old metrics into hourly/daily summaries
 - `cleanup_metrics`: Delete old raw metrics based on retention period
 
+## Executive Dashboard (VM right-sizing)
+
+The Executive persona surfaces CPU/memory right-sizing recommendations with
+confidence gating and cost estimates. See
+[docs/EXECUTIVE_DASHBOARD.md](docs/EXECUTIVE_DASHBOARD.md) for thresholds,
+confidence tiers, pricing, and how to tune them.
+
 ## Architecture
 
 - **Web**: Django application (Gunicorn)

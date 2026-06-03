@@ -16,7 +16,6 @@ from django.utils import timezone
 
 from core.models import PricingConfig, Server, SystemMetric
 
-from . import rightsizing_constants as C
 from .rightsizing_engine import DimStats, Pricing, VMWindowStats
 
 ANALYSIS_CAP_DAYS = 90
