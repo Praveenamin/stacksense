@@ -218,6 +218,18 @@
     <script>
     (function(){
         function setText(id, v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+        function updateBanner(healthy, total){
+            var b=document.getElementById('ov-banner'), m=document.getElementById('ov-banner-msg');
+            if(!b||!m) return;
+            var att=Math.max(0, total-healthy);
+            if(att===0){
+                b.style.background='#f0fdf4'; b.style.border='1px solid #bbf7d0'; m.style.color='#166534';
+                m.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg><span><strong>All systems operational</strong> · '+healthy+' of '+total+' monitored targets healthy</span>';
+            } else {
+                b.style.background='#fff7ed'; b.style.border='1px solid #fed7aa'; m.style.color='#b45309';
+                m.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span><strong>'+att+' need attention</strong> · '+healthy+' of '+total+' monitored targets healthy</span>';
+            }
+        }
         var lastTs = Date.now();
         function tick(){
             var el=document.getElementById('ov-updated'); if(!el) return;
@@ -234,14 +246,14 @@
                 setText('ov-ctr-running', d.containers.running); setText('ov-ctr-total', d.containers.total); setText('ov-ctr-exited', d.containers.stopped);
                 var healthy=d.servers.online+d.services.running+d.containers.running;
                 var total=d.servers.total+d.services.total+d.containers.total;
-                setText('ov-healthy', healthy); setText('ov-total', total);
-                var att=document.getElementById('ov-attention'); if(att) att.textContent=Math.max(0,total-healthy);
+                updateBanner(healthy, total);
                 lastTs = Date.now(); tick();
             }).catch(function(){});
         }
         setInterval(tick, 1000);
         setInterval(refreshFleet, 30000);
         tick();
+        refreshFleet();
     })();
     </script>
     
