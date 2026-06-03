@@ -194,7 +194,7 @@ class MemoryTrendChart extends BaseDashboardComponent {
         if (!this.chart) {
             this.chart = ChartWrapper.createLineChart('memory-trend-chart', chartData, {
                 layout: { padding: { top: 14 } },  // Room for spike triangles at 100%
-                scales: { y: { min: 0, max: 100, beginAtZero: true, ticks: { stepSize: 20, callback: function(value) { return value + '%'; } } } }
+                scales: { y: { max: 100, ticks: { callback: function(value) { return value + '%'; } } } }
             });
         } else {
             ChartWrapper.updateChart(this.chart, chartData);
