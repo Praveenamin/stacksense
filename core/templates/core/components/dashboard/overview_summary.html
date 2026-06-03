@@ -1,0 +1,59 @@
+{% comment %}Overview: health banner + Servers / Services / Containers summary cards (live){% endcomment %}
+
+<!-- Status banner -->
+<div id="ov-banner" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-radius:10px;padding:12px 18px;margin-bottom:18px;{% if overview.all_ok %}background:#f0fdf4;border:1px solid #bbf7d0;{% else %}background:#fff7ed;border:1px solid #fed7aa;{% endif %}">
+    <div id="ov-banner-msg" style="display:flex;align-items:center;gap:10px;font-size:14px;color:{% if overview.all_ok %}#166534{% else %}#b45309{% endif %};">
+        {% if overview.all_ok %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>
+        <span><strong>All systems operational</strong> · <span id="ov-healthy">{{ overview.healthy }}</span> of <span id="ov-total">{{ overview.total_targets }}</span> monitored targets healthy</span>
+        {% else %}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span><strong><span id="ov-attention">{{ overview.attention }}</span> need attention</strong> · <span id="ov-healthy">{{ overview.healthy }}</span> of <span id="ov-total">{{ overview.total_targets }}</span> monitored targets healthy</span>
+        {% endif %}
+    </div>
+    <span id="ov-updated" data-ts="{% if overview.last_updated %}{{ overview.last_updated|date:'U' }}{% endif %}" style="font-size:12px;color:#64748b;">{% if overview.last_updated %}updated {{ overview.last_updated|timesince }} ago{% endif %}</span>
+</div>
+
+<div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px 2px;">Overview</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:32px;">
+    <!-- Servers -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#0f172a;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="7" y1="17" x2="7.01" y2="17"/></svg>
+                Servers
+            </div>
+            <a href="/servers/" style="font-size:12px;color:#0f62fe;text-decoration:none;">View all →</a>
+        </div>
+        <div style="font-size:30px;font-weight:700;color:#0f172a;"><span id="ov-srv-online">{{ online_count }}</span> <span style="font-size:14px;font-weight:400;color:#94a3b8;">/ <span id="ov-srv-total">{{ total_servers }}</span> online</span></div>
+        <div style="margin-top:14px;font-size:12px;color:#64748b;">
+            <span id="ov-srv-warning-wrap" style="color:{% if warning_count %}#b45309{% else %}#94a3b8{% endif %};">● <span id="ov-srv-warning">{{ warning_count }}</span> warning</span>
+            <span id="ov-srv-offline-wrap" style="margin-left:12px;color:{% if offline_count %}#b91c1c{% else %}#94a3b8{% endif %};">● <span id="ov-srv-offline">{{ offline_count }}</span> offline</span>
+        </div>
+    </div>
+    <!-- Services -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#0f172a;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                Services
+            </div>
+            <a href="/services/" style="font-size:12px;color:#0f62fe;text-decoration:none;">View all →</a>
+        </div>
+        <div style="font-size:30px;font-weight:700;color:#0f172a;"><span id="ov-svc-running">{{ services_running }}</span> <span style="font-size:14px;font-weight:400;color:#94a3b8;">/ <span id="ov-svc-total">{{ services_total }}</span> running</span></div>
+        <div style="margin-top:14px;font-size:12px;color:#64748b;">monitored · <span style="color:{% if services_stopped %}#b45309{% else %}#94a3b8{% endif %};"><span id="ov-svc-stopped">{{ services_stopped }}</span> stopped</span></div>
+    </div>
+    <!-- Containers -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#0f172a;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M20 7 12 3 4 7v10l8 4 8-4V7z"/><path d="m4 7 8 4 8-4"/><line x1="12" y1="11" x2="12" y2="21"/></svg>
+                Containers
+            </div>
+            <a href="/containers/" style="font-size:12px;color:#0f62fe;text-decoration:none;">View all →</a>
+        </div>
+        <div style="font-size:30px;font-weight:700;color:#0f172a;"><span id="ov-ctr-running">{{ containers_running }}</span> <span style="font-size:14px;font-weight:400;color:#94a3b8;">/ <span id="ov-ctr-total">{{ containers_total }}</span> running</span></div>
+        <div style="margin-top:14px;font-size:12px;color:#64748b;">monitored · <span style="color:{% if containers_stopped %}#b45309{% else %}#94a3b8{% endif %};"><span id="ov-ctr-exited">{{ containers_stopped }}</span> exited</span></div>
+    </div>
+</div>

@@ -214,95 +214,34 @@
     })();
     </script>
 
-    <div class="dash-section">Overview</div>
-    <!-- Fleet status (graphical): Servers / Services / Containers -->
-    <div class="dashboard-grid" style="grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px;">
-        <!-- Servers -->
-        <div class="dashboard-component" style="margin:0;">
-            <div class="dashboard-component-header"><h3 class="dashboard-component-title">Servers</h3></div>
-            <div style="display:flex;align-items:center;gap:18px;">
-                <div style="width:120px;height:120px;position:relative;flex-shrink:0;">
-                    <canvas id="donut-servers"></canvas>
-                    <div id="fs-servers-total" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:24px;font-weight:700;color:#0f172a;">{{ total_servers }}</div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
-                    <div><span class="lg-dot" style="background:#24a148;"></span>Online <b id="fs-servers-online">{{ online_count }}</b></div>
-                    <div><span class="lg-dot" style="background:#ff832b;"></span>Warning <b id="fs-servers-warning">{{ warning_count }}</b></div>
-                    <div><span class="lg-dot" style="background:#94a3b8;"></span>Offline <b id="fs-servers-offline">{{ offline_count }}</b></div>
-                </div>
-            </div>
-        </div>
-        <!-- Services -->
-        <div class="dashboard-component" style="margin:0;">
-            <div class="dashboard-component-header"><h3 class="dashboard-component-title">Services <span style="font-size:11px;font-weight:500;color:#94a3b8;">· monitored</span></h3></div>
-            <div style="display:flex;align-items:center;gap:18px;">
-                <div style="width:120px;height:120px;position:relative;flex-shrink:0;">
-                    <canvas id="donut-services"></canvas>
-                    <div id="fs-services-total" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:24px;font-weight:700;color:#0f172a;">{{ services_total }}</div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
-                    <div><span class="lg-dot" style="background:#24a148;"></span>Running <b id="fs-services-running">{{ services_running }}</b></div>
-                    <div><span class="lg-dot" style="background:#da1e28;"></span>Stopped <b id="fs-services-stopped">{{ services_stopped }}</b></div>
-                    <div style="margin-top:4px;"><a href="/services/" style="color:#0f62fe;text-decoration:none;font-size:12px;">View all →</a></div>
-                </div>
-            </div>
-        </div>
-        <!-- Containers -->
-        <div class="dashboard-component" style="margin:0;">
-            <div class="dashboard-component-header"><h3 class="dashboard-component-title">Containers <span style="font-size:11px;font-weight:500;color:#94a3b8;">· monitored</span></h3></div>
-            <div style="display:flex;align-items:center;gap:18px;">
-                <div style="width:120px;height:120px;position:relative;flex-shrink:0;">
-                    <canvas id="donut-containers"></canvas>
-                    <div id="fs-containers-total" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:24px;font-weight:700;color:#0f172a;">{{ containers_total }}</div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
-                    <div><span class="lg-dot" style="background:#24a148;"></span>Running <b id="fs-containers-running">{{ containers_running }}</b></div>
-                    <div><span class="lg-dot" style="background:#da1e28;"></span>Exited <b id="fs-containers-exited">{{ containers_stopped }}</b></div>
-                    <div style="margin-top:4px;"><a href="/containers/" style="color:#0f62fe;text-decoration:none;font-size:12px;">View all →</a></div>
-                </div>
-            </div>
-        </div>
-    </div>
+    {% include "core/components/dashboard/overview_summary.html" %}
     <script>
     (function(){
-        if(typeof Chart==='undefined') return;
-        var COLORS={ servers:['#24a148','#ff832b','#94a3b8'], services:['#24a148','#da1e28'], containers:['#24a148','#da1e28'] };
-        function makeDonut(id, data, colors){
-            var el=document.getElementById(id); if(!el) return null;
-            var sum=data.reduce(function(a,b){return a+b;},0);
-            return new Chart(el, {
-                type:'doughnut',
-                data:{ datasets:[{ data: sum>0?data:[1], backgroundColor: sum>0?colors:['#eef2f6'], borderWidth:0 }] },
-                options:{ cutout:'72%', plugins:{ legend:{display:false}, tooltip:{enabled: sum>0} }, responsive:true, maintainAspectRatio:false }
-            });
-        }
-        var charts={
-            servers: makeDonut('donut-servers', [{{ online_count }},{{ warning_count }},{{ offline_count }}], COLORS.servers),
-            services: makeDonut('donut-services', [{{ services_running }},{{ services_stopped }}], COLORS.services),
-            containers: makeDonut('donut-containers', [{{ containers_running }},{{ containers_stopped }}], COLORS.containers)
-        };
-        function setData(chart, data, colors){
-            if(!chart) return;
-            var sum=data.reduce(function(a,b){return a+b;},0);
-            chart.data.datasets[0].data = sum>0?data:[1];
-            chart.data.datasets[0].backgroundColor = sum>0?colors:['#eef2f6'];
-            if(chart.options.plugins.tooltip) chart.options.plugins.tooltip.enabled = sum>0;
-            chart.update();
-        }
         function setText(id, v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+        var lastTs = Date.now();
+        function tick(){
+            var el=document.getElementById('ov-updated'); if(!el) return;
+            var s=Math.max(0, Math.round((Date.now()-lastTs)/1000));
+            el.textContent = s<5 ? 'updated just now' : 'updated '+(s<60? s+'s' : Math.round(s/60)+'m')+' ago';
+        }
         function refreshFleet(){
             fetch('/api/dashboard/fleet-status/').then(function(r){return r.json();}).then(function(j){
                 if(!j||!j.success||!j.data) return;
                 var d=j.data;
-                setData(charts.servers, [d.servers.online,d.servers.warning,d.servers.offline], COLORS.servers);
-                setData(charts.services, [d.services.running,d.services.stopped], COLORS.services);
-                setData(charts.containers, [d.containers.running,d.containers.stopped], COLORS.containers);
-                setText('fs-servers-total', d.servers.total); setText('fs-servers-online', d.servers.online); setText('fs-servers-warning', d.servers.warning); setText('fs-servers-offline', d.servers.offline);
-                setText('fs-services-total', d.services.total); setText('fs-services-running', d.services.running); setText('fs-services-stopped', d.services.stopped);
-                setText('fs-containers-total', d.containers.total); setText('fs-containers-running', d.containers.running); setText('fs-containers-exited', d.containers.stopped);
+                setText('ov-srv-online', d.servers.online); setText('ov-srv-total', d.servers.total);
+                setText('ov-srv-warning', d.servers.warning); setText('ov-srv-offline', d.servers.offline);
+                setText('ov-svc-running', d.services.running); setText('ov-svc-total', d.services.total); setText('ov-svc-stopped', d.services.stopped);
+                setText('ov-ctr-running', d.containers.running); setText('ov-ctr-total', d.containers.total); setText('ov-ctr-exited', d.containers.stopped);
+                var healthy=d.servers.online+d.services.running+d.containers.running;
+                var total=d.servers.total+d.services.total+d.containers.total;
+                setText('ov-healthy', healthy); setText('ov-total', total);
+                var att=document.getElementById('ov-attention'); if(att) att.textContent=Math.max(0,total-healthy);
+                lastTs = Date.now(); tick();
             }).catch(function(){});
         }
+        setInterval(tick, 1000);
         setInterval(refreshFleet, 30000);
+        tick();
     })();
     </script>
     

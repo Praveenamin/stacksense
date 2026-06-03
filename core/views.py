@@ -1205,6 +1205,18 @@ def monitoring_dashboard(request):
         service__monitoring_enabled=True
     ).exists()
 
+    # Overview health roll-up (servers + monitored services + monitored containers)
+    _healthy = online_count + services_running + containers_running
+    _targets = len(servers_data) + services_total + containers_total
+    _latest_hb = ServerHeartbeat.objects.order_by("-last_heartbeat").first()
+    overview = {
+        "healthy": _healthy,
+        "total_targets": _targets,
+        "attention": max(0, _targets - _healthy),
+        "all_ok": (_targets > 0 and _healthy >= _targets),
+        "last_updated": _latest_hb.last_heartbeat if _latest_hb else None,
+    }
+
     context = {
         "servers_data": servers_data,
         "total_servers": len(servers_data),
@@ -1214,6 +1226,7 @@ def monitoring_dashboard(request):
         "alert_count": alert_count,
         "show_sidebar": True,
         "dashboard_view": dashboard_view,
+        "overview": overview,
         "services_total": services_total,
         "services_running": services_running,
         "services_stopped": services_total - services_running,
