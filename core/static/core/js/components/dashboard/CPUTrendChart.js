@@ -205,7 +205,7 @@ class CPUTrendChart extends BaseDashboardComponent {
         if (!this.chart) {
             this.chart = ChartWrapper.createLineChart('cpu-trend-chart', chartData, {
                 layout: { padding: { top: 14 } },  // Room for spike triangles at 100%
-                scales: { y: { max: 100, ticks: { callback: function(value) { return value + '%'; } } } }
+                scales: { y: { min: 0, max: 100, beginAtZero: true, ticks: { stepSize: 20, callback: function(value) { return value + '%'; } } } }
             });
         } else {
             ChartWrapper.updateChart(this.chart, chartData);
