@@ -264,10 +264,7 @@
         .tri-tile > .dashboard-component { margin:0; height:100%; }
         .tri-expand { position:absolute; top:12px; right:12px; z-index:5; width:26px; height:26px; border:1px solid #e2e8f0; background:#fff; border-radius:6px; cursor:pointer; color:#64748b; display:inline-flex; align-items:center; justify-content:center; padding:0; }
         .tri-expand:hover { background:#f1f5f9; color:#0f172a; }
-        /* Compact: keep ONLY the time-range filter (24h/7d/30d); hide the bulky
-           extras (server select, Overall/Server toggle), subtitle and summary. */
-        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child > div:not(:first-child),
-        .tri-tile:not(.expanded) .dashboard-component-header > div:last-child > select { display:none; }
+        /* Compact: hide subtitle and summary (only the 24h/7d/30d filter remains). */
         .tri-tile:not(.expanded) .dashboard-component-subtitle { display:none; }
         .tri-tile:not(.expanded) .chart-summary { display:none; }
         .tri-tile:not(.expanded) .dashboard-component-title { font-size:14px; }
@@ -292,19 +289,11 @@
             <div class="dashboard-component" style="margin-bottom:0;">
                 <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <h3 class="dashboard-component-title">Reliability Metrics &amp; Status</h3>
-                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                        <div style="display: flex;">
-                            <button class="reliability-period-btn active" data-period="24h">24h</button>
-                            <button class="reliability-period-btn" data-period="7d">7 Days</button>
-                            <button class="reliability-period-btn" data-period="30d">30 Days</button>
-                        </div>
-                        <div style="display: flex; gap: 4px; background-color: var(--cds-color-gray-10, #f8fafc); border-radius: 4px; padding: 2px;">
-                            <button id="slo-view-overall" class="slo-view-toggle active" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-100, #0f172a); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Overall</button>
-                            <button id="slo-view-server" class="slo-view-toggle" style="padding: 6px 12px; border: none; background: transparent; color: var(--cds-color-gray-70, #334155); font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 4px;">Server</button>
-                        </div>
-                        <select id="slo-server-select" style="display: none; padding: 6px 12px; border: 1px solid var(--cds-color-gray-20, #e2e8f0); border-radius: 4px; font-size: 14px; background: white; color: var(--cds-color-gray-100, #0f172a); cursor: pointer;">
-                            <option value="">Select Server...</option>
-                        </select>
+                    <!-- Period filter only — chart is fleet-wide (overall across all VMs) -->
+                    <div style="display: flex;">
+                        <button class="reliability-period-btn active" data-period="24h">24h</button>
+                        <button class="reliability-period-btn" data-period="7d">7 Days</button>
+                        <button class="reliability-period-btn" data-period="30d">30 Days</button>
                     </div>
                 </div>
                 <p class="dashboard-component-subtitle" style="color: var(--cds-color-gray-60, #64748b); font-size: 13px; margin: 8px 0 0 0;">CPU, Memory, Disk usage and Error Rate over time</p>

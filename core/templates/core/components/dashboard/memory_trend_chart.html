@@ -10,28 +10,11 @@ Memory Usage Trend Chart Component (24h)
             <span class="dashboard-component-icon">💾</span>
             <h3 class="dashboard-component-title">Memory Usage Trend</h3>
         </div>
-        <div style="display: flex; gap: 12px; align-items: center;">
-            <!-- Time Period Filter -->
-            <div style="display: flex;">
-                <button class="chart-period-btn active" data-chart="memory" data-period="24h">24h</button>
-                <button class="chart-period-btn" data-chart="memory" data-period="7d">7 Days</button>
-                <button class="chart-period-btn" data-chart="memory" data-period="30d">30 Days</button>
-            </div>
-            <!-- Server Filter -->
-            <div class="dashboard-filter-selector" id="memory-trend-filter-container">
-                <button class="dashboard-filter-button" id="memory-trend-filter-button" type="button">
-                    <span class="filter-icon" style="font-size: 11px;">⚙</span>
-                    <span class="chart-icon" style="font-size: 13px;">📊</span>
-                    <span class="filter-text" id="memory-trend-filter-text">All VMs (Average)</span>
-                    <span class="filter-arrow">▼</span>
-                </button>
-                <div class="dashboard-filter-dropdown" id="memory-trend-filter-dropdown" style="display: none;">
-                    <div class="filter-option" data-value="all">
-                        <span>All VMs (Average)</span>
-                        <span class="filter-check" style="display: none;">✓</span>
-                    </div>
-                </div>
-            </div>
+        <!-- Time Period Filter (fleet-wide: averaged across all VMs) -->
+        <div style="display: flex;">
+            <button class="chart-period-btn active" data-chart="memory" data-period="24h">24h</button>
+            <button class="chart-period-btn" data-chart="memory" data-period="7d">7 Days</button>
+            <button class="chart-period-btn" data-chart="memory" data-period="30d">30 Days</button>
         </div>
     </div>
     <p class="dashboard-component-subtitle">Real-time memory utilization monitoring</p>
