@@ -26,8 +26,15 @@ Running plan + decisions for the Executive Dashboard workstream. Phased build wi
 
 ## Phase status
 - [x] Phase 0 — Discovery (approved)
-- [ ] Phase 1 — Design sign-off  ← awaiting approval
-- [ ] Phase 2 — Engine + unit tests
-- [ ] Phase 3 — UI widgets
-- [ ] Phase 4 — Integration (tab, pricing, data, edge cases)
+- [x] Phase 1 — Design sign-off (approved; generic vCPU/GB steps)
+- [x] Phase 2 — Engine + unit tests (28)
+- [x] Phase 3 — UI widgets + /executive/preview/ (demo)
+- [x] Phase 4 — Integration: PricingConfig + settings form, rightsizing_data.py
+      (Postgres percentile + trend + forecast), Executive persona wired to the
+      right-sizing dashboard (Business KPIs linked), error state, 39 tests green
 - [ ] Phase 5 — Quality bar (a11y, tests, lint, README)
+
+## Live behaviour today
+Only 1 VM with ~2 days of metrics → Executive persona correctly shows the
+insufficient-data gate. Use /executive/preview/ to see the populated UI (demo).
+Recommendations go live automatically once VMs reach 7+ days.

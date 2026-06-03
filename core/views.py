@@ -1237,9 +1237,14 @@ def monitoring_dashboard(request):
         "top_disk_partitions": top_disk_partitions,
     }
 
-    # Executive view focuses on business KPIs
+    # Executive view = VM right-sizing recommendations (business KPIs linked).
     if dashboard_view == UserACL.DashboardView.EXECUTIVE:
         context["kpis"] = list(BusinessKPI.objects.filter(enabled=True).order_by("name"))
+        try:
+            context.update(build_executive_context())
+        except Exception as e:
+            error_logger.error(f"EXECUTIVE_DASHBOARD error: {e}")
+            context["exec_error"] = True
 
     context.update(admin.site.each_context(request))
     return render(request, "core/monitoring_dashboard.html", context)
@@ -1259,12 +1264,64 @@ def set_dashboard_view(request):
 
 @staff_member_required
 def executive_dashboard_preview(request):
-    """TEMPORARY (Phase 3) preview of the Executive right-sizing dashboard,
-    rendered against demo data. ?empty=1 forces the <7-day gate state.
-    Replaced by the real data layer + nav wiring in Phase 4."""
+    """Preview of the Executive right-sizing dashboard rendered against demo
+    data (handy when the live fleet has <7 days of history). ?empty=1 forces
+    the gate state. The live page is the Executive persona on the dashboard."""
     from .utils.rightsizing_demo import build_demo_context
     ctx = build_demo_context(empty=request.GET.get("empty") == "1")
     return render(request, "core/executive_dashboard.html", ctx)
+
+
+def build_executive_context():
+    """Real Executive right-sizing context from live metrics. Safe to call from
+    the dashboard view; returns a context dict for executive_dashboard.html."""
+    from .utils.rightsizing_data import (
+        gather_vm_window_stats, fleet_trend, fleet_forecast, get_pricing,
+    )
+    from .utils.rightsizing_engine import assess_vm
+    from .utils.rightsizing_report import build_report
+
+    pricing = get_pricing()
+    stats = gather_vm_window_stats()
+    assessments = [assess_vm(s, pricing=pricing) for s in stats]
+    report = build_report(assessments, pricing_configured=pricing.configured)
+    ctx = dict(report)
+    ctx.update({
+        "is_demo": False,
+        "currency": pricing.currency,
+        "trend_data": fleet_trend(),
+        "forecast_data": fleet_forecast(),
+        "show_gate": report["eligible_count"] == 0,
+    })
+    return ctx
+
+
+@staff_member_required
+def pricing_settings(request):
+    """Set per-unit pricing used by the Executive right-sizing cost estimates."""
+    from django.contrib import messages
+    from .models import PricingConfig
+
+    cfg = PricingConfig.get_solo()
+    if request.method == "POST":
+        def _num(name):
+            raw = (request.POST.get(name) or "").strip()
+            if raw == "":
+                return None
+            try:
+                v = float(raw)
+            except ValueError:
+                return None
+            return v if v >= 0 else None
+
+        cfg.price_per_vcpu_month = _num("price_per_vcpu_month")
+        cfg.price_per_gb_month = _num("price_per_gb_month")
+        cfg.currency = ((request.POST.get("currency") or "$").strip()[:8]) or "$"
+        cfg.save()
+        messages.success(request, "Pricing updated.")
+        return redirect("pricing_settings")
+
+    return render(request, "core/pricing_settings.html", {"cfg": cfg})
 
 
 def _fleet_status_counts():

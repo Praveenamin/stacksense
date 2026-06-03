@@ -1452,3 +1452,36 @@ class SSHAuthEvent(models.Model):
     def __str__(self):
         state = "OK" if self.success else "FAIL"
         return f"SSH {state} {self.username}@{self.server.name} from {self.source_ip}"
+
+
+class PricingConfig(models.Model):
+    """Singleton: per-unit pricing for VM right-sizing cost estimates.
+
+    Until both prices are set, the Executive dashboard shows capacity reclaimed
+    (vCPU/GB) instead of currency.
+    """
+    price_per_vcpu_month = models.FloatField(
+        null=True, blank=True, help_text="Cost of 1 vCPU per month")
+    price_per_gb_month = models.FloatField(
+        null=True, blank=True, help_text="Cost of 1 GB RAM per month")
+    currency = models.CharField(max_length=8, default="$")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Pricing Configuration"
+        verbose_name_plural = "Pricing Configuration"
+
+    def __str__(self):
+        return f"Pricing ({self.currency}{self.price_per_vcpu_month}/vCPU, {self.currency}{self.price_per_gb_month}/GB)"
+
+    @property
+    def configured(self):
+        return self.price_per_vcpu_month is not None and self.price_per_gb_month is not None
+
+    @classmethod
+    def get_solo(cls):
+        """Return the single config row, creating an empty one if needed."""
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj

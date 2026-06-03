@@ -17,70 +17,7 @@
         <p style="font-size:14px;color:#525252;margin:0;">VM right-sizing — where you can safely cut cost, where you need to upgrade, and what it's worth.</p>
     </div>
 
-    {% if show_gate %}
-        {% include "core/components/executive/insufficient_data.html" %}
-    {% else %}
-
-        {% if pending_count %}
-        <div class="exec-pending-note"><span aria-hidden="true">⏳</span> {{ pending_count }} VM{{ pending_count|pluralize }} not yet eligible — still building the 7-day minimum history.</div>
-        {% endif %}
-
-        <!-- Fleet summary -->
-        <div class="exec-summary">
-            <div class="exec-stat savings">
-                <div class="stat-label">Potential Savings</div>
-                {% if pricing_configured and total_monthly_savings %}
-                <div class="stat-value">{{ currency }}{{ total_monthly_savings|floatformat:0 }}<span style="font-size:14px;font-weight:500;color:#94a3b8;">/mo</span></div>
-                <div class="stat-sub">{{ total_reclaim_vcpu }} vCPU · {{ total_reclaim_gb|floatformat:"-1" }} GB reclaimable</div>
-                {% else %}
-                <div class="stat-value">{{ total_reclaim_vcpu }} vCPU</div>
-                <div class="stat-sub">+ {{ total_reclaim_gb|floatformat:"-1" }} GB reclaimable · set prices for $</div>
-                {% endif %}
-            </div>
-            <div class="exec-stat">
-                <div class="stat-label">Underutilized</div>
-                <div class="stat-value">{{ counts.underutilized }}</div>
-                <div class="stat-sub">candidates to downsize</div>
-            </div>
-            <div class="exec-stat">
-                <div class="stat-label">Overloaded</div>
-                <div class="stat-value">{{ counts.overloaded }}</div>
-                <div class="stat-sub">at performance risk</div>
-            </div>
-            <div class="exec-stat">
-                <div class="stat-label">Best Optimized</div>
-                <div class="stat-value">{{ counts.optimized }}</div>
-                <div class="stat-sub">reference configs</div>
-            </div>
-        </div>
-
-        <!-- Cost opportunities (full width) -->
-        <div class="exec-grid">
-            {% include "core/components/executive/rec_table.html" with title="Cost Optimization Opportunities" icon="💰" rows=cost_opportunities count=cost_opportunities|length show_savings=True currency=currency span2=True empty_text="No cost-saving opportunities right now." %}
-        </div>
-
-        <!-- Trend + Forecast -->
-        <div class="exec-grid">
-            {% include "core/components/executive/trend_chart.html" %}
-            {% include "core/components/executive/forecast_chart.html" %}
-        </div>
-
-        <!-- Top lists -->
-        <div class="exec-grid">
-            {% include "core/components/executive/rec_table.html" with title="Top Underutilized VMs" icon="🟢" rows=top_underutilized count=counts.underutilized empty_text="No underutilized VMs." %}
-            {% include "core/components/executive/rec_table.html" with title="Top Overloaded VMs" icon="🔴" rows=top_overloaded count=counts.overloaded empty_text="No overloaded VMs." %}
-        </div>
-
-        <div class="exec-grid">
-            {% include "core/components/executive/rec_table.html" with title="Most Efficiently Utilized" icon="⭐" rows=top_optimized count=counts.optimized empty_text="No optimized VMs yet." %}
-            {% include "core/components/executive/rec_table.html" with title="Requires Immediate Upgrade" icon="⬆️" rows=upgrade_required count=upgrade_required|length empty_text="No upgrades required." %}
-        </div>
-
-        <div class="exec-grid">
-            {% include "core/components/executive/rec_table.html" with title="Eligible for Resource Reduction" icon="⬇️" rows=reduction_eligible count=reduction_eligible|length show_savings=True currency=currency span2=True empty_text="No reduction opportunities." %}
-        </div>
-
-    {% endif %}
+    {% include "core/components/executive/dashboard_body.html" %}
 {% endblock %}
 
 {% block extrajs %}
