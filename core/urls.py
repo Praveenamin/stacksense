@@ -12,6 +12,7 @@ urlpatterns = [
     path("executive/preview/", views.executive_dashboard_preview, name="executive_dashboard_preview"),
     path("settings/pricing/", views.pricing_settings, name="pricing_settings"),
     path("home/", views.home_redirect, name="home_redirect"),
+    path("account/password/", views.account_password, name="account_password"),
     path("impersonate/<int:user_id>/", views.impersonate_start, name="impersonate_start"),
     path("impersonate/exit/", views.impersonate_exit, name="impersonate_exit"),
     path("add-server/", views.add_server, name="add_server"),

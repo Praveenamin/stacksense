@@ -1275,6 +1275,29 @@ def set_dashboard_view(request):
 
 
 @staff_member_required
+def account_password(request):
+    """Self-service password change for the logged-in user (any role)."""
+    from django.contrib.auth import update_session_auth_hash
+    from django.contrib.auth.forms import PasswordChangeForm
+    from django.contrib import messages
+
+    # Always change the REAL account, even if currently impersonating.
+    target = getattr(request, "real_user", None) or request.user
+    if request.method == "POST":
+        form = PasswordChangeForm(target, request.POST)
+        if form.is_valid():
+            form.save()
+            if target == request.user:
+                update_session_auth_hash(request, target)  # stay logged in
+            messages.success(request, "Your password has been updated.")
+            return redirect("account_password")
+    else:
+        form = PasswordChangeForm(target)
+    return render(request, "core/account_password.html",
+                  {"form": form, "show_sidebar": True})
+
+
+@staff_member_required
 def home_redirect(request):
     """Post-login dispatcher: send each role to its default landing page.
     Admin/Operator -> Operations, CEO -> Executive."""
@@ -1296,7 +1319,7 @@ def impersonate_start(request, user_id):
     (anyone with the impersonate capability) and never yourself. The real actor
     is preserved server-side and the impersonator gains only the target's
     (lesser) permissions — no escalation."""
-    from .permissions import user_can, IMPERSONATE, default_landing_for, LANDING_EXECUTIVE
+    from .permissions import user_can, IMPERSONATE, can_be_impersonated, default_landing_for, LANDING_EXECUTIVE
     from . import audit
     from django.contrib import messages
     from django.http import HttpResponseForbidden
@@ -1313,8 +1336,8 @@ def impersonate_start(request, user_id):
         return HttpResponseForbidden("403 — not permitted to switch accounts")
 
     target = get_object_or_404(User, id=user_id, is_staff=True, is_active=True)
-    if target.id == actor.id or user_can(target, IMPERSONATE):
-        # Cannot impersonate yourself or another Admin/CEO.
+    if target.id == actor.id or not can_be_impersonated(target):
+        # Cannot impersonate yourself or another privileged (Admin/CEO) account.
         audit.record(actor, "impersonate_denied", resource=f"user:{target.username}",
                      method="POST", result=audit.DENIED, ip=ip, target=target)
         messages.error(request, "You can't switch into that account.")

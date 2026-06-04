@@ -22,12 +22,16 @@ Server-enforced roles & permissions, account impersonation, and an audit trail.
 | `manage_business` (KPIs) | ✅ | ✅ | — |
 | `manage_pricing` | ✅ | ✅ | — |
 | `manage_users` / `manage_roles` | ✅ | — | — |
-| `impersonate` | ✅ | ✅ | — |
+| `impersonate` | ✅ | — | — |
 | **Default landing** | Operations | Executive | Operations |
 
 Operator is **read-only Operations**. CEO equals Admin **except user & role
-administration** (Admin-only) and the default landing (Executive). CEO can still
-switch to the Operations view and impersonate lower-privilege users.
+administration and impersonation** (all Admin-only) and the default landing
+(Executive). CEO can still switch to the Operations view.
+
+**Self-service:** every signed-in user (any role) can change their own password
+at `/account/password/` (Account menu → Change password). This route requires
+authentication but no capability (`SELF_SERVICE_URL_NAMES`).
 Superusers implicitly get all capabilities (treated as Admin) — except while
 impersonating, where they take on the target's lesser capabilities.
 

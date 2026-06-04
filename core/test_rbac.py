@@ -62,10 +62,12 @@ class CapabilityResolutionTests(TestCase):
         acl = UserACL.get_or_create_for_user(u)
         acl.role = Role.objects.get(name=perms.ROLE_CEO); acl.save()
         caps = perms.effective_capabilities(u)
+        # CEO is not a user/role admin and cannot impersonate (all Admin-only).
         self.assertNotIn(perms.MANAGE_USERS, caps)
         self.assertNotIn(perms.MANAGE_ROLES, caps)
-        # but keeps executive + impersonation + operational management
-        for c in (perms.VIEW_EXECUTIVE, perms.IMPERSONATE, perms.MANAGE_MONITORING,
+        self.assertNotIn(perms.IMPERSONATE, caps)
+        # but keeps executive + operational/business management
+        for c in (perms.VIEW_EXECUTIVE, perms.MANAGE_MONITORING,
                   perms.MANAGE_BUSINESS, perms.MANAGE_PRICING):
             self.assertIn(c, caps)
 
@@ -213,3 +215,22 @@ class ExecutivePersonaGuardTests(RBACTestBase):
         self.client.post(reverse("set_dashboard_view"), {"view": "executive"})
         acl = UserACL.objects.get(user=self.operator)
         self.assertEqual(acl.dashboard_view, UserACL.DashboardView.OPERATIONS)
+
+
+class SelfServiceTests(RBACTestBase):
+    def test_any_user_can_change_own_password(self):
+        # Self-service: requires only authentication, no capability.
+        self.client.force_login(self.operator)
+        self.assertEqual(self.client.get(reverse("account_password")).status_code, 200)
+        self.client.post(reverse("account_password"), {
+            "old_password": "pw",
+            "new_password1": "Brand-New-Pw-9",
+            "new_password2": "Brand-New-Pw-9",
+        })
+        self.operator.refresh_from_db()
+        self.assertTrue(self.operator.check_password("Brand-New-Pw-9"))
+
+    def test_password_page_reachable_by_norole(self):
+        # Even a role-less staff account can manage its own password.
+        self.client.force_login(self.norole)
+        self.assertEqual(self.client.get(reverse("account_password")).status_code, 200)

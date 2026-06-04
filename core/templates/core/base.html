@@ -151,6 +151,7 @@
                 {% endfor %}
                 </div>
                 {% endif %}
+                <a href="{% url 'account_password' %}" role="menuitem" class="settings-item" style="border-top:1px solid #f1f5f9;">Change password</a>
                 <form method="post" action="/logout/" style="margin:0;border-top:1px solid #f1f5f9;">{% csrf_token %}
                     <button type="submit" role="menuitem" class="settings-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;color:#b91c1c;">Log out</button>
                 </form>

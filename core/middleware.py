@@ -91,6 +91,10 @@ class RBACMiddleware:
             audit_denied(request, "staff", user)
             return self._deny(request)
 
+        # Self-service (own account) — any authenticated staff, no capability.
+        if url_name in perms.SELF_SERVICE_URL_NAMES:
+            return None
+
         required = perms.required_capability_for(url_name, request.method)
         if required is None:
             return None
@@ -140,7 +144,7 @@ class ImpersonationMiddleware:
             if target_id:
                 target = self._resolve_target(target_id)
                 # Defensive: never impersonate a peer/privileged account.
-                if target is None or perms.user_can(target, perms.IMPERSONATE):
+                if target is None or not perms.can_be_impersonated(target):
                     request.session.pop(self.SESSION_KEY, None)
                 else:
                     request.real_user = user

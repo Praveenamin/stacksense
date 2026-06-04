@@ -51,9 +51,9 @@ ROLE_ADMIN = "Admin"
 ROLE_CEO = "CEO"
 ROLE_OPERATOR = "Operator"
 
-# CEO: everything except user & role administration (Admin-only). CEO keeps
-# operational/business management + impersonation, and defaults to Executive.
-CEO_CAPABILITIES = ALL_CAPABILITIES - {MANAGE_USERS, MANAGE_ROLES}
+# CEO: everything except user & role administration AND impersonation
+# (all Admin-only). CEO keeps operational/business management; defaults to Executive.
+CEO_CAPABILITIES = ALL_CAPABILITIES - {MANAGE_USERS, MANAGE_ROLES, IMPERSONATE}
 
 ROLE_CAPABILITIES = {
     ROLE_ADMIN: ALL_CAPABILITIES,
@@ -86,6 +86,10 @@ PUBLIC_URL_NAMES = frozenset({
     "agent_ingest_services", "agent_ingest_containers", "agent_ingest_ssh_auth",
     "kpi_ingest", "agent_install_script", "agent_script",
 })
+
+# Self-service routes: require authentication (staff) but no capability — every
+# signed-in user may manage their own account (e.g. change their own password).
+SELF_SERVICE_URL_NAMES = frozenset({"account_password"})
 
 # Unmapped GET → VIEW_OPERATIONS; unmapped mutation → this (managers only) + a
 # logged warning so we can catch routes we forgot to map. Never world-open.
@@ -194,6 +198,22 @@ def effective_capabilities(user):
 
 def user_can(user, capability):
     return capability in effective_capabilities(user)
+
+
+def can_be_impersonated(user):
+    """A valid impersonation target: a strictly lower-privilege account — never a
+    superuser, never an Admin/CEO role, never anyone who can impersonate."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return False
+    acl = getattr(user, "acl", None)
+    role_name = acl.role.name if (acl and acl.role) else None
+    if role_name in (ROLE_ADMIN, ROLE_CEO):
+        return False
+    if IMPERSONATE in effective_capabilities(user):
+        return False
+    return True
 
 
 def default_landing_for(user):

@@ -43,10 +43,12 @@ class ImpersonationTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(self.client.session.get(SESSION_KEY), self.operator.id)
 
-    def test_ceo_can_impersonate_operator(self):
+    def test_ceo_cannot_impersonate(self):
+        # Impersonation is Admin-only; CEO lacks the capability -> 403, no swap.
         self.client.force_login(self.ceo)
-        self._start(self.operator)
-        self.assertEqual(self.client.session.get(SESSION_KEY), self.operator.id)
+        r = self._start(self.operator)
+        self.assertEqual(r.status_code, 403)
+        self.assertIsNone(self.client.session.get(SESSION_KEY))
 
     def test_cannot_impersonate_peer_ceo(self):
         self.client.force_login(self.admin)
