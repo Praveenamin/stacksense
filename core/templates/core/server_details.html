@@ -562,59 +562,54 @@
     }
     
     function initializeCharts() {
-        // CPU & Memory Chart
-        const cpuMemoryCtx = document.getElementById('cpu-memory-chart').getContext('2d');
-        cpuMemoryChart = new Chart(cpuMemoryCtx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: 'CPU %', data: [], borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.12)' },
-                    { label: 'Memory %', data: [], borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.1)' }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: true } },
-                scales: { y: { beginAtZero: true, max: 100 } }
-            }
+        // Clean line style matching the dashboard trend charts: smooth, no point
+        // markers, thin line, translucent fill.
+        const series = (label, color, rgba) => ({
+            label, data: [], borderColor: color, backgroundColor: rgba,
+            fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 3, borderWidth: 2,
         });
-        
-        // Disk I/O Chart
-        const diskIOCtx = document.getElementById('disk-io-chart').getContext('2d');
-        diskIOChart = new Chart(diskIOCtx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: 'Read (KB/s)', data: [], borderColor: '#0f62fe', backgroundColor: 'rgba(15, 98, 254, 0.12)' },
-                    { label: 'Write (KB/s)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }
-                ]
+        const baseOptions = (yOpts) => ({
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, usePointStyle: true, font: { size: 11 } } },
+                tooltip: { mode: 'index', intersect: false },
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: true } }
-            }
+            scales: {
+                x: { display: false },   // time shows on hover (like the dashboard)
+                y: Object.assign({ grid: { color: 'rgba(15,23,42,0.05)' }, ticks: { font: { size: 10 } } }, yOpts),
+            },
         });
-        
-        // Network I/O Chart
-        const networkIOCtx = document.getElementById('network-io-chart').getContext('2d');
-        networkIOChart = new Chart(networkIOCtx, {
+
+        // CPU & Memory (0–100%)
+        cpuMemoryChart = new Chart(document.getElementById('cpu-memory-chart').getContext('2d'), {
             type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: 'In (KB/s)', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)' },
-                    { label: 'Out (KB/s)', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: true } }
-            }
+            data: { labels: [], datasets: [
+                series('CPU %', '#6366f1', 'rgba(99,102,241,0.12)'),
+                series('Memory %', '#14b8a6', 'rgba(20,184,166,0.12)'),
+            ]},
+            options: baseOptions({ min: 0, max: 100, ticks: { stepSize: 20, callback: v => v + '%', font: { size: 10 } } }),
+        });
+
+        // Disk I/O (KB/s)
+        diskIOChart = new Chart(document.getElementById('disk-io-chart').getContext('2d'), {
+            type: 'line',
+            data: { labels: [], datasets: [
+                series('Read (KB/s)', '#0f62fe', 'rgba(15,98,254,0.12)'),
+                series('Write (KB/s)', '#ef4444', 'rgba(239,68,68,0.12)'),
+            ]},
+            options: baseOptions({ beginAtZero: true }),
+        });
+
+        // Network I/O (KB/s)
+        networkIOChart = new Chart(document.getElementById('network-io-chart').getContext('2d'), {
+            type: 'line',
+            data: { labels: [], datasets: [
+                series('In (KB/s)', '#10b981', 'rgba(16,185,129,0.12)'),
+                series('Out (KB/s)', '#f59e0b', 'rgba(245,158,11,0.12)'),
+            ]},
+            options: baseOptions({ beginAtZero: true }),
         });
     }
     
