@@ -5486,88 +5486,17 @@ def network_io_api(request, server_id):
 @staff_member_required
 @require_http_methods(["GET"])
 def get_top_cpu_processes(request, server_id):
-    """API endpoint to get top 3 CPU consuming processes from a server"""
+    """Top 3 CPU processes from the latest pushed metric (no SSH)."""
     try:
         server = get_object_or_404(Server, id=server_id)
-        
-        # SSH connection to get top processes
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
-        try:
-            # Connect using SSH key
-            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
-            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-            
-            ssh.connect(
-                hostname=server.ip_address,
-                port=server.port,
-                username=server.username,
-                pkey=private_key,
-                timeout=10
-            )
-            
-            # Get top 3 CPU processes using ps command
-            # Using ps with custom format: pid, cpu%, command
-            command = "ps aux --sort=-%cpu | head -4 | tail -3 | awk '{print $2\"|\"$3\"|\"$11\" \"$12\" \"$13\" \"$14\" \"$15\" \"$16\" \"$17\" \"$18\" \"$19\" \"$20}'"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            
-            processes = []
-            output = stdout.read().decode('utf-8').strip()
-            errors = stderr.read().decode('utf-8').strip()
-            
-            if errors:
-                return JsonResponse({
-                    "success": False,
-                    "error": f"Error executing command: {errors}"
-                }, status=500)
-            
-            # Parse output: PID|CPU%|COMMAND
-            for line in output.split('\n'):
-                if line.strip():
-                    parts = line.split('|')
-                    if len(parts) >= 3:
-                        try:
-                            pid = parts[0].strip()
-                            cpu_percent = float(parts[1].strip())
-                            command = '|'.join(parts[2:]).strip()[:50]  # Limit command length
-                            
-                            processes.append({
-                                'pid': pid,
-                                'cpu_percent': round(cpu_percent, 1),
-                                'command': command
-                            })
-                        except (ValueError, IndexError):
-                            continue
-            
-            ssh.close()
-            
-            # Sort by CPU and take top 3
-            processes.sort(key=lambda x: x['cpu_percent'], reverse=True)
-            top_processes = processes[:3]
-            
-            return JsonResponse({
-                "success": True,
-                "processes": top_processes,
-                "server_id": server_id
-            })
-            
-        except paramiko.AuthenticationException:
-            return JsonResponse({
-                "success": False,
-                "error": "SSH authentication failed"
-            }, status=401)
-        except paramiko.SSHException as e:
-            return JsonResponse({
-                "success": False,
-                "error": f"SSH connection error: {str(e)}"
-            }, status=500)
-        except Exception as e:
-            return JsonResponse({
-                "success": False,
-                "error": f"Error connecting to server: {str(e)}"
-            }, status=500)
-            
+        metric = SystemMetric.objects.filter(server=server).order_by("-timestamp").first()
+        procs = (metric.top_processes or {}).get("cpu", []) if metric else []
+        top = [{
+            "pid": p.get("pid"),
+            "name": p.get("name") or p.get("command") or "Unknown",
+            "usage": round(p.get("cpu_percent") or 0, 1),
+        } for p in procs[:3]]
+        return JsonResponse({"success": True, "processes": top, "server_id": server_id})
     except Exception as e:
         error_logger.error(f"GET_TOP_CPU_PROCESSES error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
@@ -5576,89 +5505,17 @@ def get_top_cpu_processes(request, server_id):
 @staff_member_required
 @require_http_methods(["GET"])
 def get_top_ram_processes(request, server_id):
-    """API endpoint to get top 3 RAM consuming processes from a server"""
+    """Top 3 memory processes from the latest pushed metric (no SSH)."""
     try:
         server = get_object_or_404(Server, id=server_id)
-        
-        # SSH connection to get top processes
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
-        try:
-            # Connect using SSH key
-            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
-            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-            
-            ssh.connect(
-                hostname=server.ip_address,
-                port=server.port,
-                username=server.username,
-                pkey=private_key,
-                timeout=10
-            )
-            
-            # Get top 3 RAM processes using ps command
-            # Using ps with custom format: pid, mem%, command
-            # %mem is column 4 in ps aux output
-            command = "ps aux --sort=-%mem | head -4 | tail -3 | awk '{print $2\"|\"$4\"|\"$11\" \"$12\" \"$13\" \"$14\" \"$15\" \"$16\" \"$17\" \"$18\" \"$19\" \"$20}'"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            
-            processes = []
-            output = stdout.read().decode('utf-8').strip()
-            errors = stderr.read().decode('utf-8').strip()
-            
-            if errors:
-                return JsonResponse({
-                    "success": False,
-                    "error": f"Error executing command: {errors}"
-                }, status=500)
-            
-            # Parse output: PID|MEM%|COMMAND
-            for line in output.split('\n'):
-                if line.strip():
-                    parts = line.split('|')
-                    if len(parts) >= 3:
-                        try:
-                            pid = parts[0].strip()
-                            mem_percent = float(parts[1].strip())
-                            command = '|'.join(parts[2:]).strip()[:50]  # Limit command length
-                            
-                            processes.append({
-                                'pid': pid,
-                                'mem_percent': round(mem_percent, 1),
-                                'command': command
-                            })
-                        except (ValueError, IndexError):
-                            continue
-            
-            ssh.close()
-            
-            # Sort by RAM and take top 3
-            processes.sort(key=lambda x: x['mem_percent'], reverse=True)
-            top_processes = processes[:3]
-            
-            return JsonResponse({
-                "success": True,
-                "processes": top_processes,
-                "server_id": server_id
-            })
-            
-        except paramiko.AuthenticationException:
-            return JsonResponse({
-                "success": False,
-                "error": "SSH authentication failed"
-            }, status=401)
-        except paramiko.SSHException as e:
-            return JsonResponse({
-                "success": False,
-                "error": f"SSH connection error: {str(e)}"
-            }, status=500)
-        except Exception as e:
-            return JsonResponse({
-                "success": False,
-                "error": f"Error connecting to server: {str(e)}"
-            }, status=500)
-            
+        metric = SystemMetric.objects.filter(server=server).order_by("-timestamp").first()
+        procs = (metric.top_processes or {}).get("memory", []) if metric else []
+        top = [{
+            "pid": p.get("pid"),
+            "name": p.get("name") or p.get("command") or "Unknown",
+            "usage": round(p.get("memory_percent") or 0, 1),
+        } for p in procs[:3]]
+        return JsonResponse({"success": True, "processes": top, "server_id": server_id})
     except Exception as e:
         error_logger.error(f"GET_TOP_RAM_PROCESSES error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
