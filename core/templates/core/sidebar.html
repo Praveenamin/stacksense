@@ -55,15 +55,7 @@
         <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             MONITORING DOMAINS
         </div>
-        {# 1. Infrastructure / Health -> host metrics live on the dashboard #}
-        <a href="/monitoring/"
-            class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group">
-            <svg class="mr-3 h-5 w-5 text-muted-foreground group-hover:text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 01-2 2v4a2 2 0 012 2h14a2 2 0 012-2v-4a2 2 0 01-2-2m-2-4h.01M17 16h.01" />
-            </svg>
-            Infrastructure
-        </a>
-        {# 2. APM #}
+        {# APM #}
         <a href="/domains/apm/"
             class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if '/domains/apm' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
             <svg class="mr-3 h-5 w-5 {% if '/domains/apm' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
