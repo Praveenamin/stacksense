@@ -1,346 +1,141 @@
 {% extends "core/base.html" %}
 {% load static %}
-{% load rbac_tags %}
 
-{% block title %}Role Management - StackWatch{% endblock %}
-
-{% block bodyclass %}role-management-page{% endblock %}
+{% block title %}Roles - Stack Alert{% endblock %}
 
 {% block extrahead %}
 <style>
-    .page-header {
-        margin-bottom: 32px;
-    }
-    .page-title {
-        font-size: 24px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 8px 0;
-    }
-    .page-subtitle {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0;
-    }
-    .header-actions {
-        display: flex;
-        gap: 12px;
-    }
-    .btn-primary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #ffffff;
-        background-color: #0ea5e9;
-        border: none;
-        border-radius: 6px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: background-color 150ms ease;
-    }
-    .btn-primary:hover {
-        background-color: #0284c7;
-    }
-    .alert {
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .alert-error {
-        background-color: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #991b1b;
-    }
-    .alert-success {
-        background-color: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        color: #166534;
-    }
-    .section-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 16px 0;
-    }
-    .table-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        overflow: hidden;
-    }
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    .data-table thead {
-        background-color: #f8fafc;
-    }
-    .data-table th {
-        padding: 12px 16px;
-        text-align: left;
-        font-weight: 600;
-        color: #0f172a;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .data-table td {
-        padding: 16px;
-        border-bottom: 1px solid #e2e8f0;
-        color: #0f172a;
-        vertical-align: middle;
-    }
-    .data-table tbody tr:last-child td {
-        border-bottom: none;
-    }
-    .data-table tbody tr:hover {
-        background-color: #f8fafc;
-    }
-    .role-avatar {
-        width: 32px;
-        height: 32px;
-        background-color: rgba(14, 165, 233, 0.1);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        font-size: 14px;
-        font-weight: 500;
-        color: #0ea5e9;
-    }
-    .role-info {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .role-name {
-        font-size: 14px;
-        font-weight: 500;
-        color: #0f172a;
-        margin-bottom: 2px;
-    }
-    .role-description {
-        font-size: 12px;
-        color: #64748b;
-    }
-    .protected-badge {
-        background-color: rgba(239, 68, 68, 0.1);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.2);
-        font-size: 12px;
-        padding: 4px 8px;
-        border-radius: 6px;
-        margin-top: 4px;
-        display: inline-block;
-    }
-    .table-text {
-        font-size: 14px;
-        color: #64748b;
-    }
-    .count-badge {
-        display: inline-block;
-        background-color: rgba(14, 165, 233, 0.1);
-        color: #0ea5e9;
-        border: 1px solid rgba(14, 165, 233, 0.2);
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 500;
-        margin-right: 8px;
-    }
-    .count-badge-success {
-        background-color: rgba(34, 197, 94, 0.1);
-        color: #22c55e;
-        border-color: rgba(34, 197, 94, 0.2);
-    }
-    .action-buttons {
-        display: flex;
-        gap: 8px;
-    }
-    .btn-edit {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 6px 12px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #0f172a;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: all 150ms ease;
-    }
-    .btn-edit:hover {
-        background-color: #f8fafc;
-        border-color: #cbd5e1;
-    }
-    .btn-delete {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 6px 12px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #ffffff;
-        background-color: #ef4444;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: background-color 150ms ease;
-    }
-    .btn-delete:hover {
-        background-color: #dc2626;
-    }
-    .empty-state {
-        text-align: center;
-        padding: 48px 32px;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-    }
-    .empty-state-icon {
-        width: 64px;
-        height: 64px;
-        color: #94a3b8;
-        margin: 0 auto 24px auto;
-    }
-    .empty-state-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 8px 0;
-    }
-    .empty-state-text {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0 0 24px 0;
-    }
+    /* Roles page — matches the dashboard design system (Inter, #0f62fe accent,
+       #e2e8f0 10px cards, muted-uppercase table headers). */
+    .rm-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:22px; }
+    .rm-title { font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2; }
+    .rm-sub { font-size:14px; color:#525252; margin:0; }
+    .rm-btn { display:inline-flex; align-items:center; gap:8px; background:#0f62fe; color:#fff; border:none;
+              padding:9px 16px; font-size:14px; font-weight:500; border-radius:6px; text-decoration:none; cursor:pointer; }
+    .rm-btn:hover { background:#0353e9; }
+    .rm-btn:focus-visible { outline:3px solid #93c5fd; outline-offset:2px; }
+
+    .rm-alert { font-size:14px; border-radius:8px; padding:10px 14px; margin-bottom:16px; }
+    .rm-alert.ok { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+    .rm-alert.err { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+
+    .rm-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 2px rgba(15,23,42,.04); overflow:hidden; }
+    .rm-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .rm-table th { text-align:left; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase;
+                   letter-spacing:.04em; padding:11px 16px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+    .rm-table td { padding:14px 16px; border-bottom:1px solid #f1f5f9; color:#334155; vertical-align:middle; }
+    .rm-table tr:last-child td { border-bottom:none; }
+
+    .rm-role { display:flex; align-items:center; gap:11px; }
+    .rm-avatar { width:34px; height:34px; border-radius:8px; background:#eef2ff; color:#3730a3; flex-shrink:0;
+                 display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+    .rm-name { font-size:14px; font-weight:600; color:#0f172a; }
+    .rm-desc { font-size:12px; color:#64748b; margin-top:1px; }
+    .rm-protected { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#475569;
+                    background:#f1f5f9; border:1px solid #e2e8f0; border-radius:999px; padding:1px 8px; margin-top:5px; }
+
+    .rm-cap { display:inline-block; font-size:11px; font-weight:600; color:#334155; background:#f8fafc;
+              border:1px solid #e2e8f0; border-radius:999px; padding:2px 9px; white-space:nowrap; }
+    .rm-users { display:inline-block; font-size:12px; font-weight:600; color:#166534; background:#f0fdf4;
+                border:1px solid #bbf7d0; border-radius:999px; padding:2px 10px; }
+
+    .rm-actions { display:flex; gap:8px; }
+    .rm-edit { display:inline-flex; align-items:center; padding:6px 12px; font-size:13px; font-weight:500; color:#0f172a;
+               background:#fff; border:1px solid #e2e8f0; border-radius:6px; text-decoration:none; cursor:pointer; }
+    .rm-edit:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .rm-del { display:inline-flex; align-items:center; padding:6px 12px; font-size:13px; font-weight:500; color:#fff;
+              background:#da1e28; border:none; border-radius:6px; cursor:pointer; }
+    .rm-del:hover { background:#b91c1c; }
+    .rm-muted { font-size:12px; color:#94a3b8; }
+
+    .rm-empty { background:#fff; border:1px dashed #cbd5e1; border-radius:12px; padding:44px 32px; text-align:center; }
+    .rm-empty h3 { font-size:16px; font-weight:600; color:#0f172a; margin:10px 0 6px; }
+    .rm-empty p { font-size:14px; color:#64748b; margin:0 0 18px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<div class="page-header">
-    <div style="display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: flex-start;">
-        <div>
-            <h1 class="page-title">Role Management</h1>
-            <p class="page-subtitle">Manage user roles and their associated privileges</p>
-        </div>
-
-        <!-- Action Buttons -->
-        {% if can_manage_roles %}
-        <div class="header-actions">
-            <a href="/roles/create/" class="btn-primary">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: 8px;">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-                Create New Role
-            </a>
-        </div>
-        {% endif %}
+<div class="rm-head">
+    <div>
+        <h1 class="rm-title">Roles</h1>
+        <p class="rm-sub">Roles define what each user can see and do. Built-in roles are protected; you can add custom roles.</p>
     </div>
+    {% if can_manage_roles %}
+    <a href="{% url 'create_role' %}" class="rm-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create role
+    </a>
+    {% endif %}
 </div>
 
-<!-- Messages -->
 {% if messages %}
-<div style="max-width: 100%; margin-bottom: 24px;">
     {% for message in messages %}
-    <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
-        <span>{{ message }}</span>
-    </div>
+    <div class="rm-alert {% if message.tags == 'error' %}err{% else %}ok{% endif %}">{{ message }}</div>
     {% endfor %}
-</div>
 {% endif %}
 
-<!-- Roles Table -->
-<section style="margin-bottom: 32px;">
-    <h2 class="section-title">User Roles</h2>
-
-    {% if roles %}
-    <div class="table-card">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Role Name</th>
-                    <th>Capabilities</th>
-                    <th># of Assigned Users</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for role in roles %}
-                <tr>
-                    <td>
-                        <div class="role-info">
-                            <div class="role-avatar">
-                                {{ role.name|first|upper }}
-                            </div>
-                            <div>
-                                <div class="role-name">{{ role.name }}</div>
-                                {% if role.description %}
-                                <div class="role-description">{{ role.description|truncatechars:60 }}</div>
-                                {% endif %}
-                                {% if role.is_protected %}
-                                <span class="protected-badge">Protected</span>
-                                {% endif %}
-                            </div>
+{% if roles %}
+<div class="rm-card">
+    <table class="rm-table">
+        <thead>
+            <tr>
+                <th scope="col">Role</th>
+                <th scope="col">Capabilities</th>
+                <th scope="col">Users</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for role in roles %}
+            <tr>
+                <td>
+                    <div class="rm-role">
+                        <span class="rm-avatar">{{ role.name|first|upper }}</span>
+                        <div>
+                            <div class="rm-name">{{ role.name }}</div>
+                            {% if role.description %}<div class="rm-desc">{{ role.description|truncatechars:70 }}</div>{% endif %}
+                            {% if role.is_protected %}
+                            <span class="rm-protected" title="Built-in role — cannot be edited or deleted">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                                Protected
+                            </span>
+                            {% endif %}
                         </div>
-                    </td>
-                    <td>
-                        <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:560px;">
-                            {% for rp in role.role_privileges.all %}
-                            <span style="font-size:11px;font-weight:600;color:#334155;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px;white-space:nowrap;">{{ rp.privilege.label }}</span>
-                            {% empty %}
-                            <span class="table-text" style="color:#94a3b8;">No capabilities</span>
-                            {% endfor %}
-                        </div>
-                    </td>
-                    <td>
-                        <span class="count-badge count-badge-success">{{ role.user_count }}</span>
-                        <span class="table-text">user{{ role.user_count|pluralize }}</span>
-                    </td>
-                    <td>
-                        {% if can_manage_roles and not role.is_protected %}
-                        <div class="action-buttons">
-                            <a href="/roles/edit/{{ role.id }}/" class="btn-edit">Edit</a>
-                            <form action="/roles/delete/{{ role.id }}/" method="post" style="display: inline;">
-                                {% csrf_token %}
-                                <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete the role \"{{ role.name }}\"? This action cannot be undone.')">Delete</button>
-                            </form>
-                        </div>
-                        {% else %}
-                        <span style="font-size: 12px; color: #94a3b8;">{% if role.is_protected %}View only · protected{% else %}—{% endif %}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <svg fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
-            </svg>
-        </div>
-        <h3 class="empty-state-title">No Roles Found</h3>
-        <p class="empty-state-text">No roles have been created yet. Create your first role to get started.</p>
-        {% if can_manage_roles %}
-        <a href="/roles/create/" class="btn-primary">Create First Role</a>
-        {% endif %}
-    </div>
-    {% endif %}
-</section>
+                    </div>
+                </td>
+                <td>
+                    <div style="display:flex;flex-wrap:wrap;gap:5px;max-width:560px;">
+                        {% for rp in role.role_privileges.all %}
+                        <span class="rm-cap">{{ rp.privilege.label }}</span>
+                        {% empty %}
+                        <span class="rm-muted">No capabilities</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td><span class="rm-users">{{ role.user_count }}</span></td>
+                <td>
+                    {% if can_manage_roles and not role.is_protected %}
+                    <div class="rm-actions">
+                        <a href="{% url 'edit_role' role.id %}" class="rm-edit">Edit</a>
+                        <form action="{% url 'delete_role' role.id %}" method="post" style="display:inline;">{% csrf_token %}
+                            <button type="submit" class="rm-del" onclick="return confirm('Delete the role \"{{ role.name }}\"? This cannot be undone.')">Delete</button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <span class="rm-muted">{% if role.is_protected %}View only{% else %}—{% endif %}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="rm-empty">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+    <h3>No roles yet</h3>
+    <p>Create your first role to get started.</p>
+    {% if can_manage_roles %}<a href="{% url 'create_role' %}" class="rm-btn">Create role</a>{% endif %}
+</div>
+{% endif %}
 {% endblock %}
