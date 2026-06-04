@@ -149,6 +149,10 @@ CAPABILITY_BY_URL_NAME = {
     # Pricing
     "pricing_settings": MANAGE_PRICING,
 
+    # Application settings (timezone/language/retention)
+    "app_config": MANAGE_MONITORING,
+    "app_config_legacy": MANAGE_MONITORING,
+
     # Users & roles
     "admin_users": MANAGE_USERS, "create_admin_user": MANAGE_USERS,
     "edit_admin_user": MANAGE_USERS, "delete_admin_user": MANAGE_USERS,
