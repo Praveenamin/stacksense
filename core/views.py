@@ -782,7 +782,7 @@ def server_list(request):
     """Server list view with CRUD actions"""
     from .utils import has_privilege
 
-    if not has_privilege(request.user, 'add_server'):
+    if not has_privilege(request.user, 'manage_monitoring'):
         messages.error(request, "You don't have permission to view servers.")
         return redirect('monitoring_dashboard')
 
@@ -916,7 +916,7 @@ def edit_server(request, server_id):
     """Edit server configuration"""
     from .utils import has_privilege
 
-    if not has_privilege(request.user, 'add_server'):
+    if not has_privilege(request.user, 'manage_monitoring'):
         messages.error(request, "You don't have permission to edit servers.")
         return redirect('server_list')
 
@@ -951,7 +951,7 @@ def delete_server(request, server_id):
     """Delete server"""
     from .utils import has_privilege
 
-    if not has_privilege(request.user, 'add_server'):
+    if not has_privilege(request.user, 'manage_monitoring'):
         messages.error(request, "You don't have permission to delete servers.")
         return redirect('server_list')
 
@@ -1190,6 +1190,13 @@ def monitoring_dashboard(request):
     acl = UserACL.get_or_create_for_user(request.user)
     dashboard_view = acl.dashboard_view
 
+    # Server-side guard: only users with the Executive capability may see the
+    # Executive persona; everyone else is forced to Operations (defense in depth
+    # alongside the route-level middleware).
+    from .permissions import user_can, VIEW_EXECUTIVE
+    if dashboard_view == UserACL.DashboardView.EXECUTIVE and not user_can(request.user, VIEW_EXECUTIVE):
+        dashboard_view = UserACL.DashboardView.OPERATIONS
+
     # Dashboard shows only services/containers the user has chosen to monitor
     services_qs = Service.objects.filter(monitoring_enabled=True)
     services_total = services_qs.count()
@@ -1255,7 +1262,11 @@ def monitoring_dashboard(request):
 @require_http_methods(["POST"])
 def set_dashboard_view(request):
     """Persist the user's preferred dashboard perspective, then return to it."""
+    from .permissions import user_can, VIEW_EXECUTIVE
     view = request.POST.get("view")
+    # Operators (no Executive capability) cannot switch to the Executive persona.
+    if view == UserACL.DashboardView.EXECUTIVE and not user_can(request.user, VIEW_EXECUTIVE):
+        return redirect("monitoring_dashboard")
     if view in (UserACL.DashboardView.OPERATIONS, UserACL.DashboardView.EXECUTIVE):
         acl = UserACL.get_or_create_for_user(request.user)
         acl.dashboard_view = view
@@ -1382,7 +1393,7 @@ def add_server_legacy_ssh(request):
     """Original SSH key-deployment add flow (no longer routed)."""
     from .utils import has_privilege
 
-    if not has_privilege(request.user, 'add_server'):
+    if not has_privilege(request.user, 'manage_monitoring'):
         messages.error(request, "You don't have permission to add servers.")
         return redirect('monitoring_dashboard')
 
@@ -1520,7 +1531,7 @@ def add_server_agent(request):
     from django.core.validators import validate_ipv46_address
     from django.core.exceptions import ValidationError as DjangoValidationError
 
-    if not has_privilege(request.user, 'add_server'):
+    if not has_privilege(request.user, 'manage_monitoring'):
         messages.error(request, "You don't have permission to add servers.")
         return redirect('monitoring_dashboard')
 
@@ -1582,7 +1593,7 @@ def regenerate_agent_token(request, server_id):
     """
     from .utils import has_privilege
 
-    if not has_privilege(request.user, 'add_server'):
+    if not has_privilege(request.user, 'manage_monitoring'):
         messages.error(request, "You don't have permission to manage server tokens.")
         return redirect('monitoring_dashboard')
 
@@ -1600,7 +1611,7 @@ def add_server_api(request):
     from django.http import JsonResponse
     import json as json_module
     
-    if not has_privilege(request.user, 'add_server'):
+    if not has_privilege(request.user, 'manage_monitoring'):
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     
     try:
@@ -4110,8 +4121,8 @@ def admin_users(request):
     from .models import UserACL
     from .utils import has_privilege
 
-    # RBAC check: Only admin users (role.is_admin == True) can access this page
-    if not request.user.is_superuser:
+    # RBAC check: requires the manage_users capability (Admin/CEO).
+    if not has_privilege(request.user, 'manage_users'):
         messages.error(request, "You don't have permission to manage users.")
         return redirect('monitoring_dashboard')
 

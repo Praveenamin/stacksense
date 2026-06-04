@@ -31,11 +31,12 @@ def has_privilege(user, privilege_key):
         return True
     
     try:
-        from .models import UserACL
+        # Absolute import: this module is also loaded via importlib (see
+        # core/utils/__init__.py) where relative imports have no package context.
+        from core.models import UserACL
         acl = UserACL.objects.get(user=user)
         return acl.has_privilege(privilege_key)
-    except Exception:
-        # If UserACL doesn't exist or other error, return False
+    except UserACL.DoesNotExist:
         return False
 
 

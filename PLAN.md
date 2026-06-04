@@ -42,3 +42,37 @@ Running plan + decisions for the Executive Dashboard workstream. Phased build wi
 Only 1 VM with ~2 days of metrics → Executive persona correctly shows the
 insufficient-data gate. Use /executive/preview/ to see the populated UI (demo).
 Recommendations go live automatically once VMs reach 7+ days.
+
+---
+
+# RBAC Workstream (started 2026-06-03)
+
+Phased build with 🛑 STOP checkpoints. Server is the security boundary; deny-by-default; role from verified session only; impersonation audited.
+
+## Locked decisions (Phase 0, defaults approved — "update later" allowed)
+- **Roles:** Admin, CEO, Operator. CEO = identical capabilities to Admin, differs only in default landing (Executive). Operator = read-only Operations.
+- **Impersonation:** only Admin & CEO; targets = lower-privilege (Operators) only; never another Admin/CEO or self; no escalation (effective perms = target's); real actor preserved + audited; banner + one-click exit.
+- **Operator denial:** UI hidden/disabled w/ tooltip; server always enforces — 403 on write APIs/page POSTs; Executive persona nav → redirect to Operations; explicit executive routes/APIs → 403.
+- **Audit:** new `AuditLog` (actor, impersonated_target, action, resource, method, result allowed/denied, ip, timestamp) — written on impersonation start/exit + every denied request (+ allowed user/role/impersonation actions).
+- **Enforcement:** central `core/permissions.py` (capability vocabulary + role→capability matrix + route→capability map + landing) consumed by BOTH a deny-by-default middleware and a `@require_capability` decorator and the UI/templates. Roles stay editable in the DB (Role/Privilege) seeded from the central matrix.
+
+## Matrix (finalized default)
+| Capability | Admin | CEO | Operator |
+|---|---|---|---|
+| View Operations | ✅ | ✅ | ✅ (read-only) |
+| View Executive | ✅ | ✅ | ❌ |
+| Create/edit/delete records & config | ✅ | ✅ | ❌ |
+| User & role management | ✅ | ✅ | ❌ |
+| Impersonate | ✅ | ✅ | ❌ |
+| Default landing | Operations | Executive | Operations |
+
+## Phase status
+- [x] Phase 0 — Discovery
+- [x] Phase 1 — Design sign-off (defaults approved)
+- [x] Phase 2 — Server-side enforcement + tests (deny-by-default middleware,
+      central permissions.py, @require_capability, in-view exec guards, role
+      reseed; 21 RBAC tests green). Fixed a latent has_privilege bug (importlib
+      relative-import → silently denied all non-superusers).
+- [ ] Phase 3 — Impersonation + audit ← next
+- [ ] Phase 4 — UI gating + landing pages
+- [ ] Phase 5 — Edge cases + security pass
