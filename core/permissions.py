@@ -148,6 +148,11 @@ CAPABILITY_BY_URL_NAME = {
     "admin_user_api": MANAGE_USERS,
     "role_management": MANAGE_ROLES, "create_role": MANAGE_ROLES,
     "edit_role": MANAGE_ROLES, "delete_role": MANAGE_ROLES,
+
+    # Impersonation: starting requires the capability; exiting must be reachable
+    # by the (lower-privilege) impersonated session, so only needs view_operations.
+    "impersonate_start": IMPERSONATE,
+    "impersonate_exit": VIEW_OPERATIONS,
 }
 
 

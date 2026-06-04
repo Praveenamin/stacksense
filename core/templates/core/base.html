@@ -178,6 +178,15 @@
             </div>
             {% endif %}
 
+            {% if is_impersonating %}
+            <div role="status" aria-live="polite" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fef3c7;border:1px solid #f59e0b;color:#92400e;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:14px;">
+                <span><strong>Viewing as {{ impersonated_user.username }}</strong>{% if real_user %} — you are signed in as {{ real_user.username }}{% endif %}. You have this account's permissions only.</span>
+                <form method="post" action="{% url 'impersonate_exit' %}" style="margin:0;">{% csrf_token %}
+                    <button type="submit" style="background:#92400e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">Exit — back to my account</button>
+                </form>
+            </div>
+            {% endif %}
+
             <div class="max-w-7xl mx-auto w-full">
                 {% block content %}{% endblock %}
             </div>

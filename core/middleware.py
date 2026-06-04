@@ -36,17 +36,22 @@ def _is_api(request):
 
 
 def audit_denied(request, required, user):
-    """Record a denied request. Phase 2: structured log. Phase 3: + AuditLog."""
+    """Record a denied request to the log and the AuditLog table.
+
+    Under impersonation the real actor is preserved and the target recorded."""
+    url_name = getattr(getattr(request, "resolver_match", None), "url_name", None)
     logger.warning(
         "RBAC DENIED actor=%s staff=%s method=%s path=%s url_name=%s required=%s ip=%s",
         getattr(user, "username", None) or "anonymous",
         getattr(user, "is_staff", False),
-        request.method,
-        request.path,
-        getattr(getattr(request, "resolver_match", None), "url_name", None),
-        required,
-        _client_ip(request),
+        request.method, request.path, url_name, required, _client_ip(request),
     )
+    real = getattr(request, "real_user", None)
+    target = user if getattr(request, "impersonating", False) else None
+    from . import audit
+    audit.record(real or user, f"denied:{url_name or request.path}",
+                 resource=request.path, method=request.method,
+                 result=audit.DENIED, ip=_client_ip(request), target=target)
 
 
 class RBACMiddleware:
@@ -111,3 +116,40 @@ class RBACMiddleware:
             "<p>You don't have permission to access this page.</p>"
             "<p><a href=\"/\">Return to dashboard</a></p>"
         )
+
+
+class ImpersonationMiddleware:
+    """If the session carries a validated impersonation target, swap
+    request.user → target for this request and stash the real actor in
+    request.real_user. Must run AFTER AuthenticationMiddleware and BEFORE
+    RBACMiddleware so authorization uses the (lower-privilege) target — the
+    impersonator can never escalate.
+    """
+    SESSION_KEY = "impersonate_user_id"
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        request.real_user = None
+        request.impersonating = False
+
+        user = getattr(request, "user", None)
+        if user and user.is_authenticated:
+            target_id = request.session.get(self.SESSION_KEY)
+            if target_id:
+                target = self._resolve_target(target_id)
+                # Defensive: never impersonate a peer/privileged account.
+                if target is None or perms.user_can(target, perms.IMPERSONATE):
+                    request.session.pop(self.SESSION_KEY, None)
+                else:
+                    request.real_user = user
+                    request.user = target
+                    request.impersonating = True
+
+        return self.get_response(request)
+
+    @staticmethod
+    def _resolve_target(target_id):
+        from django.contrib.auth.models import User
+        return User.objects.filter(id=target_id, is_staff=True, is_active=True).first()

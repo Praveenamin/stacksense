@@ -1275,6 +1275,62 @@ def set_dashboard_view(request):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def impersonate_start(request, user_id):
+    """Begin impersonating a lower-privilege user. Admin/CEO only; never a peer
+    (anyone with the impersonate capability) and never yourself. The real actor
+    is preserved server-side and the impersonator gains only the target's
+    (lesser) permissions — no escalation."""
+    from .permissions import user_can, IMPERSONATE, default_landing_for, LANDING_EXECUTIVE
+    from . import audit
+    from django.contrib import messages
+    from django.http import HttpResponseForbidden
+
+    # Real actor (defensive: block starting a nested impersonation).
+    actor = getattr(request, "real_user", None) or request.user
+    if request.session.get("impersonate_user_id"):
+        return redirect("monitoring_dashboard")
+
+    ip = audit.client_ip(request)
+    if not user_can(actor, IMPERSONATE):
+        audit.record(actor, "impersonate_denied", resource=f"user:{user_id}",
+                     method="POST", result=audit.DENIED, ip=ip)
+        return HttpResponseForbidden("403 — not permitted to switch accounts")
+
+    target = get_object_or_404(User, id=user_id, is_staff=True, is_active=True)
+    if target.id == actor.id or user_can(target, IMPERSONATE):
+        # Cannot impersonate yourself or another Admin/CEO.
+        audit.record(actor, "impersonate_denied", resource=f"user:{target.username}",
+                     method="POST", result=audit.DENIED, ip=ip, target=target)
+        messages.error(request, "You can't switch into that account.")
+        return redirect("admin_users")
+
+    request.session["impersonate_user_id"] = target.id
+    audit.record(actor, "impersonate_start", resource=f"user:{target.username}",
+                 method="POST", result=audit.ALLOWED, ip=ip, target=target)
+    # Land on the target's default page.
+    if default_landing_for(target) == LANDING_EXECUTIVE:
+        return redirect("monitoring_dashboard")
+    return redirect("monitoring_dashboard")
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def impersonate_exit(request):
+    """Stop impersonating and return to the real account (one click)."""
+    from . import audit
+    actor = getattr(request, "real_user", None) or request.user
+    target_id = request.session.pop("impersonate_user_id", None)
+    if target_id:
+        target = User.objects.filter(id=target_id).first()
+        audit.record(actor, "impersonate_exit",
+                     resource=f"user:{getattr(target, 'username', target_id)}",
+                     method="POST", result=audit.ALLOWED, ip=audit.client_ip(request),
+                     target=target)
+    return redirect("monitoring_dashboard")
+
+
+@staff_member_required
 def executive_dashboard_preview(request):
     """Preview of the Executive right-sizing dashboard rendered against demo
     data (handy when the live fleet has <7 days of history). ?empty=1 forces

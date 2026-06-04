@@ -1485,3 +1485,40 @@ class PricingConfig(models.Model):
         if obj is None:
             obj = cls.objects.create()
         return obj
+
+
+class AuditLog(models.Model):
+    """Security audit trail: impersonation start/exit and denied actions.
+
+    `actor` is always the REAL user (never the impersonated target);
+    `impersonated_target` is set when the action happened under impersonation.
+    """
+    class Result(models.TextChoices):
+        ALLOWED = "allowed", "Allowed"
+        DENIED = "denied", "Denied"
+
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name="audit_actions")
+    impersonated_target = models.ForeignKey(User, on_delete=models.SET_NULL, null=True,
+                                            blank=True, related_name="audit_targeted")
+    action = models.CharField(max_length=100, help_text="e.g. impersonate_start, denied")
+    resource = models.CharField(max_length=255, blank=True, help_text="path or object")
+    method = models.CharField(max_length=10, blank=True)
+    result = models.CharField(max_length=10, choices=Result.choices, default=Result.ALLOWED)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        verbose_name = "Audit Log"
+        verbose_name_plural = "Audit Logs"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["-timestamp"]),
+            models.Index(fields=["actor", "-timestamp"]),
+            models.Index(fields=["result", "-timestamp"]),
+        ]
+
+    def __str__(self):
+        who = self.actor.username if self.actor else "anonymous"
+        as_ = f" as {self.impersonated_target.username}" if self.impersonated_target else ""
+        return f"[{self.result}] {who}{as_} {self.action} {self.resource}"

@@ -73,6 +73,8 @@ Phased build with 🛑 STOP checkpoints. Server is the security boundary; deny-b
       central permissions.py, @require_capability, in-view exec guards, role
       reseed; 21 RBAC tests green). Fixed a latent has_privilege bug (importlib
       relative-import → silently denied all non-superusers).
-- [ ] Phase 3 — Impersonation + audit ← next
-- [ ] Phase 4 — UI gating + landing pages
+- [x] Phase 3 — Impersonation + audit: AuditLog model, ImpersonationMiddleware
+      (user-swap, no escalation, real actor preserved), start/exit endpoints,
+      "Viewing as… — Exit" banner, audit on start/exit/denied. 14 tests; 77 total.
+- [ ] Phase 4 — UI gating + landing pages ← next
 - [ ] Phase 5 — Edge cases + security pass
