@@ -57,11 +57,17 @@ class CapabilityResolutionTests(TestCase):
         self.assertFalse(perms.user_can(u, perms.VIEW_EXECUTIVE))
         self.assertFalse(perms.user_can(u, perms.MANAGE_MONITORING))
 
-    def test_ceo_equals_admin_caps(self):
+    def test_ceo_caps_exclude_user_and_role_admin(self):
         u = User.objects.create_user("ceo", "c@x.com", "pw", is_staff=True)
         acl = UserACL.get_or_create_for_user(u)
         acl.role = Role.objects.get(name=perms.ROLE_CEO); acl.save()
-        self.assertEqual(perms.effective_capabilities(u), perms.ALL_CAPABILITIES)
+        caps = perms.effective_capabilities(u)
+        self.assertNotIn(perms.MANAGE_USERS, caps)
+        self.assertNotIn(perms.MANAGE_ROLES, caps)
+        # but keeps executive + impersonation + operational management
+        for c in (perms.VIEW_EXECUTIVE, perms.IMPERSONATE, perms.MANAGE_MONITORING,
+                  perms.MANAGE_BUSINESS, perms.MANAGE_PRICING):
+            self.assertIn(c, caps)
 
     def test_no_role_denied_everything(self):
         # New staff default to Operator; a deliberately role-less ACL must still
@@ -113,14 +119,15 @@ class ViewAccessTests(RBACTestBase):
         self.assertEqual(self._get(self.ceo, "executive_dashboard_preview").status_code, 200)
         self.assertEqual(self._get(self.operator, "executive_dashboard_preview").status_code, 403)
 
-    def test_user_management_admin_ceo_only(self):
+    def test_user_management_admin_only(self):
+        # User/role administration is Admin-only; CEO and Operator are denied.
         self.assertEqual(self._get(self.admin, "admin_users").status_code, 200)
-        self.assertEqual(self._get(self.ceo, "admin_users").status_code, 200)
+        self.assertEqual(self._get(self.ceo, "admin_users").status_code, 403)
         self.assertEqual(self._get(self.operator, "admin_users").status_code, 403)
 
-    def test_role_management_admin_ceo_only(self):
+    def test_role_management_admin_only(self):
         self.assertEqual(self._get(self.admin, "role_management").status_code, 200)
-        self.assertEqual(self._get(self.ceo, "role_management").status_code, 200)
+        self.assertEqual(self._get(self.ceo, "role_management").status_code, 403)
         self.assertEqual(self._get(self.operator, "role_management").status_code, 403)
 
     def test_security_business_pricing_denied_for_operator(self):

@@ -51,9 +51,13 @@ ROLE_ADMIN = "Admin"
 ROLE_CEO = "CEO"
 ROLE_OPERATOR = "Operator"
 
+# CEO: everything except user & role administration (Admin-only). CEO keeps
+# operational/business management + impersonation, and defaults to Executive.
+CEO_CAPABILITIES = ALL_CAPABILITIES - {MANAGE_USERS, MANAGE_ROLES}
+
 ROLE_CAPABILITIES = {
     ROLE_ADMIN: ALL_CAPABILITIES,
-    ROLE_CEO: ALL_CAPABILITIES,
+    ROLE_CEO: CEO_CAPABILITIES,
     ROLE_OPERATOR: frozenset({VIEW_OPERATIONS}),
 }
 PROTECTED_ROLES = {ROLE_ADMIN, ROLE_CEO, ROLE_OPERATOR}
