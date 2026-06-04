@@ -599,7 +599,7 @@
                 series('Read (MB/s)', '#0f62fe', 'rgba(15,98,254,0.12)'),
                 series('Write (MB/s)', '#ef4444', 'rgba(239,68,68,0.12)'),
             ]},
-            options: baseOptions({ beginAtZero: true }),
+            options: baseOptions({ min: 0, max: 10, ticks: { stepSize: 1, callback: function (v) { return v + ' MB/s'; }, font: { size: 10 } } }),
         });
 
         // Network I/O (MB/s)
@@ -609,7 +609,7 @@
                 series('In (MB/s)', '#10b981', 'rgba(16,185,129,0.12)'),
                 series('Out (MB/s)', '#f59e0b', 'rgba(245,158,11,0.12)'),
             ]},
-            options: baseOptions({ beginAtZero: true }),
+            options: baseOptions({ min: 0, max: 10, ticks: { stepSize: 1, callback: function (v) { return v + ' MB/s'; }, font: { size: 10 } } }),
         });
     }
     
