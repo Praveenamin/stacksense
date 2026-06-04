@@ -76,3 +76,19 @@ class RBACUITests(TestCase):
         self.assertNotIn('href="/admin-users/"', html)
         self.assertNotIn('href="/roles/"', html)
         self.assertNotIn('href="/settings/pricing/"', html)
+
+    def test_help_docs_in_sidebar_for_everyone(self):
+        for u in (self.admin, self.operator):
+            self.client.force_login(u)
+            self.assertIn('href="/help/"', self.client.get(reverse("monitoring_dashboard")).content.decode())
+
+    def test_account_menu_switch_list(self):
+        # Admin sees the impersonation switch list (operator is a valid target);
+        # Operator has no switch list.
+        self.client.force_login(self.admin)
+        admin_html = self.client.get(reverse("monitoring_dashboard")).content.decode()
+        self.assertIn("Switch to another user", admin_html)
+        self.assertIn(self.operator.username, admin_html)
+        self.client.force_login(self.operator)
+        self.assertNotIn("Switch to another user",
+                         self.client.get(reverse("monitoring_dashboard")).content.decode())
