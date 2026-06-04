@@ -1,409 +1,163 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Create User - Stack Alert{% endblock %}
+{% block title %}Create user - Stack Alert{% endblock %}
 
 {% block extrahead %}
 <style>
-    .page-header {
-        margin-bottom: 32px;
+    /* Create User — dashboard design system (matches Create role). */
+    .cr-head { margin-bottom:22px; }
+    .cr-back { font-size:13px; color:#0f62fe; text-decoration:none; }
+    .cr-title { font-size:28px; font-weight:600; color:#161616; margin:8px 0 4px; line-height:1.2; }
+    .cr-sub { font-size:14px; color:#525252; margin:0; }
+
+    .cr-alert { font-size:14px; border-radius:8px; padding:10px 14px; margin-bottom:16px; }
+    .cr-alert.err { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+    .cr-alert.ok  { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+    .cr-alert.warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+
+    .cr-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 2px rgba(15,23,42,.04); padding:24px; max-width:760px; }
+    .cr-section-title { font-size:13px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; }
+    .cr-group { margin-bottom:18px; }
+    .cr-label { display:block; font-size:13px; font-weight:600; color:#0f172a; margin-bottom:6px; }
+    .cr-req { color:#da1e28; }
+    .cr-input, .cr-select {
+        width:100%; padding:9px 12px; font-size:14px; color:#0f172a; background:#fff;
+        border:1px solid #e2e8f0; border-radius:8px; box-sizing:border-box; font-family:inherit;
     }
-    .page-title {
-        font-size: 24px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 8px 0;
-    }
-    .page-subtitle {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0;
-    }
-    .header-actions {
-        display: flex;
-        gap: 12px;
-    }
-    .btn-secondary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #0f172a;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: all 150ms ease;
-    }
-    .btn-secondary:hover {
-        background-color: #f8fafc;
-        border-color: #cbd5e1;
-    }
-    .btn-primary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #ffffff;
-        background-color: #0ea5e9;
-        border: none;
-        border-radius: 6px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: background-color 150ms ease;
-    }
-    .btn-primary:hover {
-        background-color: #0284c7;
-    }
-    .alert {
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .alert-error {
-        background-color: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #991b1b;
-    }
-    .alert-success {
-        background-color: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        color: #166534;
-    }
-    .alert-warning {
-        background-color: #fffbeb;
-        border: 1px solid #fcd34d;
-        color: #92400e;
-    }
-    .form-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 32px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .form-section {
-        margin-bottom: 24px;
-    }
-    .form-section-title {
-        font-size: 16px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 16px 0;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .form-group {
-        margin-bottom: 20px;
-    }
-    .form-label {
-        display: block;
-        font-size: 14px;
-        font-weight: 500;
-        color: #0f172a;
-        margin-bottom: 6px;
-    }
-    .form-label .required {
-        color: #ef4444;
-    }
-    .form-input {
-        width: 100%;
-        padding: 10px 14px;
-        font-size: 14px;
-        color: #0f172a;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        transition: all 150ms ease;
-        box-sizing: border-box;
-    }
-    .form-input:focus {
-        outline: none;
-        border-color: #0ea5e9;
-        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-        background-color: #ffffff;
-    }
-    .form-input::placeholder {
-        color: #94a3b8;
-    }
-    .form-select {
-        width: 100%;
-        padding: 10px 14px;
-        font-size: 14px;
-        color: #0f172a;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        transition: all 150ms ease;
-        box-sizing: border-box;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-        background-position: right 10px center;
-        background-repeat: no-repeat;
-        background-size: 16px;
-        padding-right: 40px;
-    }
-    .form-select:focus {
-        outline: none;
-        border-color: #0ea5e9;
-        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-        background-color: #ffffff;
-    }
-    .form-hint {
-        font-size: 12px;
-        color: #64748b;
-        margin-top: 4px;
-    }
-    .checkbox-group {
-        margin-bottom: 16px;
-    }
-    .checkbox-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 14px;
-        color: #0f172a;
-        cursor: pointer;
-    }
-    .checkbox-label input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        accent-color: #0ea5e9;
-        cursor: pointer;
-    }
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 24px;
-    }
-    .form-actions {
-        margin-top: 32px;
-        padding-top: 24px;
-        border-top: 1px solid #e2e8f0;
-        display: flex;
-        gap: 12px;
-        justify-content: flex-end;
-    }
-    .role-section {
-        margin-top: 24px;
-        padding-top: 24px;
-        border-top: 1px solid #e2e8f0;
-    }
-    .privileges-preview {
-        margin-top: 16px;
-        padding: 16px;
-        background-color: #f8fafc;
-        border-radius: 6px;
-        border: 1px solid #e2e8f0;
-    }
-    .privileges-title {
-        color: #0f172a;
-        font-size: 14px;
-        font-weight: 500;
-        margin: 0 0 12px 0;
-    }
-    .privilege-tag {
-        display: inline-block;
-        background: rgba(14, 165, 233, 0.1);
-        color: #0ea5e9;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        border: 1px solid rgba(14, 165, 233, 0.2);
-        margin-right: 8px;
-        margin-bottom: 8px;
-    }
+    .cr-input:focus, .cr-select:focus { outline:none; border-color:#0f62fe; box-shadow:0 0 0 3px rgba(15,98,254,.12); }
+    .cr-input::placeholder { color:#94a3b8; }
+    .cr-hint { font-size:12px; color:#64748b; margin-top:5px; }
+
+    .cr-check { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; }
+    .cr-check input { width:16px; height:16px; margin-top:2px; accent-color:#0f62fe; cursor:pointer; flex-shrink:0; }
+    .cr-check-name { font-size:14px; font-weight:600; color:#0f172a; }
+    .cr-check-desc { font-size:12px; color:#64748b; margin-top:1px; line-height:1.45; }
+
+    .cr-preview { margin-top:12px; padding:12px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; }
+    .cr-preview h4 { font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; }
+    .cr-chip { display:inline-block; font-size:11px; font-weight:600; color:#334155; background:#fff; border:1px solid #e2e8f0; border-radius:999px; padding:2px 9px; margin:0 4px 4px 0; }
+
+    .cr-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:22px; padding-top:18px; border-top:1px solid #f1f5f9; }
+    .cr-btn { display:inline-flex; align-items:center; padding:9px 18px; font-size:14px; font-weight:500; border-radius:6px; text-decoration:none; cursor:pointer; }
+    .cr-primary { background:#0f62fe; color:#fff; border:none; }
+    .cr-primary:hover { background:#0353e9; }
+    .cr-secondary { background:#fff; color:#475569; border:1px solid #e2e8f0; }
+    .cr-secondary:hover { background:#f8fafc; }
 </style>
 {% endblock %}
 
 {% block content %}
-    <!-- Page Header -->
-    <div class="page-header">
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: flex-start;">
-            <div>
-                <h1 class="page-title">Create New User</h1>
-                <p class="page-subtitle">Add a new user account with role-based permissions</p>
-            </div>
+<div class="cr-head">
+    <a href="{% url 'admin_users' %}" class="cr-back">← Back to users</a>
+    <h1 class="cr-title">Create user</h1>
+    <p class="cr-sub">Add a sign-in account and choose its role.</p>
+</div>
 
-            <!-- Action Buttons -->
-            <div class="header-actions">
-                <a href="{% url 'admin_users' %}" class="btn-secondary">← Back to Users</a>
+{% if messages %}
+    {% for message in messages %}
+    <div class="cr-alert {% if message.tags == 'error' %}err{% elif message.tags == 'warning' %}warn{% else %}ok{% endif %}">{{ message }}</div>
+    {% endfor %}
+{% endif %}
+
+<form action="{% url 'create_admin_user' %}" method="post">
+    {% csrf_token %}
+    <div class="cr-card">
+        <div class="cr-section-title">Account</div>
+        <div class="cr-group">
+            <label for="username" class="cr-label">Username <span class="cr-req">*</span></label>
+            <input type="text" id="username" name="username" class="cr-input" placeholder="e.g. jdoe" required>
+        </div>
+        <div class="cr-group">
+            <label for="email" class="cr-label">Email</label>
+            <input type="email" id="email" name="email" class="cr-input" placeholder="user@example.com">
+            <div class="cr-hint">Optional — used for notifications and password resets.</div>
+        </div>
+        <div class="cr-group">
+            <label for="password" class="cr-label">Password <span class="cr-req">*</span></label>
+            <input type="password" id="password" name="password" class="cr-input" placeholder="At least 8 characters" required>
+        </div>
+
+        <div class="cr-section-title" style="margin-top:24px;">Access</div>
+        <div class="cr-group">
+            <label class="cr-check">
+                <input type="checkbox" name="is_superuser" id="is_superuser" onchange="toggleRoleOptions()">
+                <span>
+                    <span class="cr-check-name">Superuser (full administrator)</span>
+                    <span class="cr-check-desc">Unrestricted access to everything, including user &amp; role management. Overrides the role below.</span>
+                </span>
+            </label>
+        </div>
+
+        <div id="roleOptions" class="cr-group">
+            <label for="role" class="cr-label">Role <span class="cr-req">*</span></label>
+            <select id="role" name="role" class="cr-select" required>
+                <option value="">Select a role…</option>
+                {% for role in available_roles %}
+                <option value="{{ role.id }}">{{ role.name }}{% if role.description %} — {{ role.description|truncatechars:50 }}{% endif %}</option>
+                {% endfor %}
+            </select>
+            <div class="cr-hint">The role decides what this user can see and do.</div>
+            <div id="rolePrivileges" class="cr-preview" style="display:none;">
+                <h4>This role can</h4>
+                <div id="privilegesList"></div>
             </div>
+        </div>
+
+        <div class="cr-actions">
+            <a href="{% url 'admin_users' %}" class="cr-btn cr-secondary">Cancel</a>
+            <button type="submit" class="cr-btn cr-primary">Create user</button>
         </div>
     </div>
-
-    <!-- Messages -->
-    {% if messages %}
-    <div style="max-width: 100%; margin-bottom: 24px;">
-        {% for message in messages %}
-        <div class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}">
-            <span>{{ message }}</span>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- User Creation Form -->
-    <section style="margin-bottom: 32px;">
-        <div class="form-card">
-            <form action="{% url 'create_admin_user' %}" method="post">
-                {% csrf_token %}
-
-                <!-- Basic Information -->
-                <div class="form-section">
-                    <h3 class="form-section-title">Basic Information</h3>
-
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="username" class="form-label">Username <span class="required">*</span></label>
-                            <input type="text" id="username" name="username" class="form-input" placeholder="Enter username" required>
-                            <div class="form-hint">Unique identifier for the user account</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="email" class="form-label">Email Address</label>
-                            <input type="email" id="email" name="email" class="form-input" placeholder="user@example.com">
-                            <div class="form-hint">Optional email for notifications</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="password" class="form-label">Password <span class="required">*</span></label>
-                            <input type="password" id="password" name="password" class="form-input" placeholder="Enter password" required>
-                            <div class="form-hint">Minimum 8 characters recommended</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Permissions Section -->
-                <div class="form-section">
-                    <h3 class="form-section-title">Permissions & Access</h3>
-
-                    <div class="form-group">
-                        <div class="checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="is_superuser" id="is_superuser" onchange="toggleRoleOptions()">
-                                <span><strong>Superuser (Full Administrator Access)</strong></span>
-                            </label>
-                        </div>
-                        <div class="form-hint">
-                            Superusers have unrestricted access to all features and can manage roles/privileges. This overrides role-based permissions.
-                        </div>
-                    </div>
-
-                    <!-- Role Assignment (only for non-superuser staff) -->
-                    <div id="roleOptions" class="role-section">
-                        <div class="form-group">
-                            <label for="role" class="form-label">Assign Role <span class="required">*</span></label>
-                            <select id="role" name="role" class="form-select" required>
-                                <option value="">Select a role...</option>
-                                {% for role in available_roles %}
-                                <option value="{{ role.id }}">{{ role.name }}{% if role.description %} - {{ role.description|truncatechars:50 }}{% endif %}</option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-hint">The role determines what permissions this user will have</div>
-                        </div>
-
-                        <!-- Role Privileges Preview -->
-                        <div id="rolePrivileges" class="privileges-preview" style="display: none;">
-                            <h4 class="privileges-title">Role Privileges:</h4>
-                            <div id="privilegesList"></div>
-                        </div>
-                    </div>
-
-                    <!-- Form Actions -->
-                    <div class="form-actions">
-                        <a href="{% url 'admin_users' %}" class="btn-secondary">Cancel</a>
-                        <button type="submit" class="btn-primary">Create User</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </section>
+</form>
 
 <script>
 function toggleRoleOptions() {
     const isSuperuser = document.getElementById('is_superuser').checked;
     const roleOptions = document.getElementById('roleOptions');
     const roleSelect = document.getElementById('role');
-
     if (isSuperuser) {
         roleOptions.style.display = 'none';
         roleSelect.required = false;
         roleSelect.value = '';
-        updateRolePrivileges();
     } else {
         roleOptions.style.display = 'block';
         roleSelect.required = true;
     }
+    updateRolePrivileges();
 }
 
-// Role privilege data (this would ideally come from the server)
 const rolePrivileges = {
 {% for role in available_roles %}
-    {{ role.id }}: [
-        {% for role_privilege in role.role_privileges.all %}
-        '{{ role_privilege.privilege.label }}'{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ]{% if not forloop.last %},{% endif %}
+    {{ role.id }}: [{% for rp in role.role_privileges.all %}'{{ rp.privilege.label|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}]{% if not forloop.last %},{% endif %}
 {% endfor %}
 };
 
 function updateRolePrivileges() {
     const roleSelect = document.getElementById('role');
-    const privilegesDiv = document.getElementById('rolePrivileges');
-    const privilegesList = document.getElementById('privilegesList');
-
-    const selectedRoleId = roleSelect.value;
-
-    if (selectedRoleId && rolePrivileges[selectedRoleId]) {
-        const privileges = rolePrivileges[selectedRoleId];
-        privilegesList.innerHTML = '';
-
-        if (privileges.length > 0) {
-            privileges.forEach(privilege => {
-                const tag = document.createElement('span');
-                tag.className = 'privilege-tag';
-                tag.textContent = privilege;
-                privilegesList.appendChild(tag);
+    const wrap = document.getElementById('rolePrivileges');
+    const list = document.getElementById('privilegesList');
+    const id = roleSelect.value;
+    if (id && rolePrivileges[id]) {
+        list.innerHTML = '';
+        if (rolePrivileges[id].length) {
+            rolePrivileges[id].forEach(p => {
+                const s = document.createElement('span');
+                s.className = 'cr-chip'; s.textContent = p; list.appendChild(s);
             });
         } else {
-            privilegesList.innerHTML = '<span style="color: #64748b; font-style: italic; font-size: 12px;">No privileges assigned</span>';
+            list.innerHTML = '<span style="color:#94a3b8;font-size:12px;">No capabilities</span>';
         }
-
-        privilegesDiv.style.display = 'block';
+        wrap.style.display = 'block';
     } else {
-        privilegesDiv.style.display = 'none';
+        wrap.style.display = 'none';
     }
 }
 
-function openRemoveServerModal() {
-    window.location.href = '/monitoring/';
-}
-
-function openAlertConfigModal() {
-    window.location.href = '/monitoring/';
-}
-
-// Initialize role selection handler
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const roleSelect = document.getElementById('role');
-    if (roleSelect) {
-        roleSelect.addEventListener('change', updateRolePrivileges);
-    }
-
-    // Initialize form state
+    if (roleSelect) roleSelect.addEventListener('change', updateRolePrivileges);
     toggleRoleOptions();
 });
 </script>
 {% endblock %}
-
-
-

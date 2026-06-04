@@ -1,359 +1,136 @@
 {% extends "core/base.html" %}
 {% load static %}
-{% load rbac_tags %}
 
-{% block title %}Manage Users - StackWatch{% endblock %}
-
-{% block bodyclass %}admin-users-page{% endblock %}
+{% block title %}Users - Stack Alert{% endblock %}
 
 {% block extrahead %}
 <style>
-    .page-header {
-        margin-bottom: 32px;
-    }
-    .page-title {
-        font-size: 24px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 8px 0;
-    }
-    .page-subtitle {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0;
-    }
-    .header-actions {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-    .user-badge {
-        background-color: rgba(14, 165, 233, 0.1);
-        color: #0ea5e9;
-        border: 1px solid rgba(14, 165, 233, 0.2);
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
-    }
-    .btn-primary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #ffffff;
-        background-color: #0ea5e9;
-        border: none;
-        border-radius: 6px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: background-color 150ms ease;
-    }
-    .btn-primary:hover {
-        background-color: #0284c7;
-    }
-    .alert {
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .alert-error {
-        background-color: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #991b1b;
-    }
-    .alert-success {
-        background-color: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        color: #166534;
-    }
-    .section-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 16px 0;
-    }
-    .table-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        overflow: hidden;
-    }
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    .data-table thead {
-        background-color: #f8fafc;
-    }
-    .data-table th {
-        padding: 12px 16px;
-        text-align: left;
-        font-weight: 600;
-        color: #0f172a;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .data-table td {
-        padding: 16px;
-        border-bottom: 1px solid #e2e8f0;
-        color: #0f172a;
-        vertical-align: middle;
-    }
-    .data-table tbody tr:last-child td {
-        border-bottom: none;
-    }
-    .data-table tbody tr:hover {
-        background-color: #f8fafc;
-    }
-    .user-avatar {
-        width: 32px;
-        height: 32px;
-        background-color: rgba(14, 165, 233, 0.1);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        font-size: 14px;
-        font-weight: 500;
-        color: #0ea5e9;
-    }
-    .user-info {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .user-name {
-        font-size: 14px;
-        font-weight: 500;
-        color: #0f172a;
-        margin-bottom: 2px;
-    }
-    .user-meta {
-        font-size: 12px;
-        color: #ef4444;
-    }
-    .table-text {
-        font-size: 14px;
-        color: #64748b;
-    }
-    .role-badge {
-        background-color: rgba(14, 165, 233, 0.1);
-        color: #0ea5e9;
-        border: 1px solid rgba(14, 165, 233, 0.2);
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 500;
-    }
-    .status-badge {
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 500;
-    }
-    .status-active {
-        background-color: rgba(34, 197, 94, 0.1);
-        color: #22c55e;
-        border: 1px solid rgba(34, 197, 94, 0.2);
-    }
-    .status-inactive {
-        background-color: rgba(100, 116, 139, 0.1);
-        color: #64748b;
-        border: 1px solid rgba(100, 116, 139, 0.2);
-    }
-    .action-buttons {
-        display: flex;
-        gap: 8px;
-    }
-    .btn-edit {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 6px 12px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #0f172a;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: all 150ms ease;
-    }
-    .btn-edit:hover {
-        background-color: #f8fafc;
-        border-color: #cbd5e1;
-    }
-    .btn-delete {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 6px 12px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #ffffff;
-        background-color: #ef4444;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: background-color 150ms ease;
-    }
-    .btn-delete:hover {
-        background-color: #dc2626;
-    }
-    .empty-state {
-        text-align: center;
-        padding: 48px 32px;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-    }
-    .empty-state-icon {
-        width: 64px;
-        height: 64px;
-        color: #94a3b8;
-        margin: 0 auto 24px auto;
-    }
-    .empty-state-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 8px 0;
-    }
-    .empty-state-text {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0 0 24px 0;
-    }
+    /* Users page — dashboard design system (Inter, #0f62fe, #e2e8f0 10px card). */
+    .um-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:22px; }
+    .um-title { font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2; }
+    .um-sub { font-size:14px; color:#525252; margin:0; }
+    .um-head-right { display:flex; align-items:center; gap:12px; }
+    .um-total { font-size:13px; font-weight:600; color:#475569; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:999px; padding:5px 12px; }
+    .um-btn { display:inline-flex; align-items:center; gap:8px; background:#0f62fe; color:#fff; border:none;
+              padding:9px 16px; font-size:14px; font-weight:500; border-radius:6px; text-decoration:none; cursor:pointer; }
+    .um-btn:hover { background:#0353e9; }
+
+    .um-alert { font-size:14px; border-radius:8px; padding:10px 14px; margin-bottom:16px; }
+    .um-alert.ok { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+    .um-alert.err { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+
+    .um-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 2px rgba(15,23,42,.04); overflow:hidden; }
+    .um-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .um-table th { text-align:left; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em;
+                   padding:11px 16px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+    .um-table td { padding:14px 16px; border-bottom:1px solid #f1f5f9; color:#334155; vertical-align:middle; }
+    .um-table tr:last-child td { border-bottom:none; }
+
+    .um-user { display:flex; align-items:center; gap:11px; }
+    .um-avatar { width:34px; height:34px; border-radius:8px; background:#eef2ff; color:#3730a3; flex-shrink:0;
+                 display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+    .um-name { font-size:14px; font-weight:600; color:#0f172a; }
+    .um-meta { font-size:11px; font-weight:600; color:#475569; }
+    .um-role { display:inline-block; font-size:12px; font-weight:600; color:#3730a3; background:#eef2ff; border:1px solid #c7d2fe; border-radius:999px; padding:2px 10px; }
+    .um-norole { font-size:12px; color:#94a3b8; }
+    .um-status { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; border-radius:999px; padding:2px 10px; }
+    .um-active { color:#166534; background:#f0fdf4; border:1px solid #bbf7d0; }
+    .um-inactive { color:#92400e; background:#fffbeb; border:1px solid #fde68a; }
+
+    .um-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .um-act { display:inline-flex; align-items:center; padding:6px 12px; font-size:13px; font-weight:500; color:#0f172a;
+              background:#fff; border:1px solid #e2e8f0; border-radius:6px; text-decoration:none; cursor:pointer; }
+    .um-act:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .um-del { display:inline-flex; align-items:center; padding:6px 12px; font-size:13px; font-weight:500; color:#b91c1c;
+              background:#fff; border:1px solid #fecaca; border-radius:6px; cursor:pointer; }
+    .um-del:hover { background:#fef2f2; }
+
+    .um-empty { background:#fff; border:1px dashed #cbd5e1; border-radius:12px; padding:44px 32px; text-align:center; }
+    .um-empty h3 { font-size:16px; font-weight:600; color:#0f172a; margin:10px 0 6px; }
+    .um-empty p { font-size:14px; color:#64748b; margin:0 0 18px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<div class="page-header">
-    <div style="display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: flex-start;">
-        <div>
-            <h1 class="page-title">Manage Users</h1>
-            <p class="page-subtitle">Role-based access control settings</p>
-        </div>
-
-        <div class="header-actions">
-            <div class="user-badge">
-                Total Users: {{ user_count }}
-            </div>
-            <a href="/admin-users/create/" class="btn-primary">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: 8px;">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-                Create User
-            </a>
-        </div>
+<div class="um-head">
+    <div>
+        <h1 class="um-title">Users</h1>
+        <p class="um-sub">Manage who can sign in, their role, and switch into a user's view.</p>
+    </div>
+    <div class="um-head-right">
+        <span class="um-total">{{ user_count }} user{{ user_count|pluralize }}</span>
+        <a href="{% url 'create_admin_user' %}" class="um-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create user
+        </a>
     </div>
 </div>
 
-<!-- Messages -->
 {% if messages %}
-<div style="max-width: 100%; margin-bottom: 24px;">
     {% for message in messages %}
-    <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
-        <span>{{ message }}</span>
-    </div>
+    <div class="um-alert {% if message.tags == 'error' %}err{% else %}ok{% endif %}">{{ message }}</div>
     {% endfor %}
-</div>
 {% endif %}
 
-<!-- Users Table -->
-<section style="margin-bottom: 32px;">
-    <h2 class="section-title">User Accounts</h2>
-
-    {% if users %}
-    <div class="table-card">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for acl in users %}
-                <tr>
-                    <td>
-                        <div class="user-info">
-                            <div class="user-avatar">
-                                {{ acl.user.username|first|upper }}
-                            </div>
-                            <div>
-                                <div class="user-name">{{ acl.user.username }}</div>
-                                {% if acl.user.is_superuser %}
-                                <div class="user-meta">Superuser</div>
-                                {% endif %}
-                            </div>
+{% if users %}
+<div class="um-card">
+    <table class="um-table">
+        <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Email</th>
+                <th scope="col">Role</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for acl in users %}
+            <tr>
+                <td>
+                    <div class="um-user">
+                        <span class="um-avatar">{{ acl.user.username|first|upper }}</span>
+                        <div>
+                            <div class="um-name">{{ acl.user.username }}</div>
+                            {% if acl.user.is_superuser %}<div class="um-meta">Superuser</div>{% endif %}
                         </div>
-                    </td>
-                    <td>
-                        <span class="table-text">{{ acl.user.email|default:"—" }}</span>
-                    </td>
-                    <td>
-                        {% if acl.role %}
-                        <span class="role-badge">{{ acl.role.name }}</span>
-                        {% else %}
-                        <span style="font-size: 12px; color: #94a3b8;">No Role</span>
+                    </div>
+                </td>
+                <td>{{ acl.user.email|default:"—" }}</td>
+                <td>{% if acl.role %}<span class="um-role">{{ acl.role.name }}</span>{% else %}<span class="um-norole">No role</span>{% endif %}</td>
+                <td>
+                    {% if acl.user.is_active %}
+                    <span class="um-status um-active">● Active</span>
+                    {% else %}
+                    <span class="um-status um-inactive">● Inactive</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="um-actions">
+                        <a href="{% url 'edit_admin_user' acl.user.id %}" class="um-act">Edit</a>
+                        {% if 'impersonate' in rbac_caps and not acl.user.is_superuser and acl.role.name != 'CEO' and acl.user.id != user.id %}
+                        <form action="{% url 'impersonate_start' acl.user.id %}" method="post" style="display:inline;">{% csrf_token %}
+                            <button type="submit" class="um-act" title="View the app as this user" onclick="return confirm('Switch into {{ acl.user.username }}\'s account? You will see only their permissions until you exit.')">Impersonate</button>
+                        </form>
                         {% endif %}
-                    </td>
-                    <td>
-                        {% if acl.user.is_active %}
-                        <span class="status-badge status-active">Active</span>
-                        {% else %}
-                        <span class="status-badge status-inactive">Inactive</span>
+                        {% if not acl.user.is_superuser and acl.user.username != "admin" and acl.user.id != user.id %}
+                        <form action="{% url 'delete_admin_user' acl.user.id %}" method="post" style="display:inline;">{% csrf_token %}
+                            <button type="submit" class="um-del" onclick="return confirm('Delete the user \"{{ acl.user.username }}\"? This cannot be undone.')">Delete</button>
+                        </form>
                         {% endif %}
-                    </td>
-                    <td>
-                        <div class="action-buttons">
-                            <a href="/admin-users/edit/{{ acl.user.id }}/" class="btn-edit">Edit</a>
-                            {% if 'impersonate' in rbac_caps and not acl.user.is_superuser and acl.role.name != 'CEO' and acl.user.id != user.id %}
-                            <form action="{% url 'impersonate_start' acl.user.id %}" method="post" style="display: inline;">
-                                {% csrf_token %}
-                                <button type="submit" class="btn-edit" title="View the app as this user" onclick="return confirm('Switch into {{ acl.user.username }}\'s account? You will see only their permissions until you exit.')">Impersonate</button>
-                            </form>
-                            {% endif %}
-                            {% if not acl.user.is_superuser and acl.user.username != "admin" and acl.user.id != user.id %}
-                            <form action="/admin-users/delete/{{ acl.user.id }}/" method="post" style="display: inline;">
-                                {% csrf_token %}
-                                <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete the user \"{{ acl.user.username }}\"? This action cannot be undone.')">Delete</button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <svg fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
-            </svg>
-        </div>
-        <h3 class="empty-state-title">No Users Found</h3>
-        <p class="empty-state-text">No user accounts have been created yet.</p>
-        <a href="/admin-users/create/" class="btn-primary">Create First User</a>
-    </div>
-    {% endif %}
-</section>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="um-empty">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+    <h3>No users yet</h3>
+    <p>Create the first user account to get started.</p>
+    <a href="{% url 'create_admin_user' %}" class="um-btn">Create user</a>
+</div>
+{% endif %}
 {% endblock %}
