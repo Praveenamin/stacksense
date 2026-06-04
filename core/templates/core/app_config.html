@@ -1,234 +1,112 @@
 {% extends "core/base.html" %}
 {% load static %}
-{% load timezone_tags %}
 
 {% block title %}Settings - Stack Alert{% endblock %}
 
 {% block extrahead %}
 <style>
-    .form-card {
-        background-color: var(--cds-color-white);
-        border: 1px solid var(--cds-color-gray-20);
-        border-radius: var(--cds-border-radius-lg);
-        padding: var(--cds-spacing-8);
-        box-shadow: var(--cds-shadow-md);
-        margin-bottom: var(--cds-spacing-6);
-    }
-    .form-title {
-        font-size: var(--cds-font-size-2xl);
-        font-weight: var(--cds-font-weight-semibold);
-        color: var(--cds-color-gray-100);
-        margin: 0 0 var(--cds-spacing-2) 0;
-    }
-    .form-subtitle {
-        font-size: var(--cds-font-size-base);
-        color: var(--cds-color-gray-70);
-        margin: 0 0 var(--cds-spacing-6) 0;
-    }
-    .form-group {
-        margin-bottom: var(--cds-spacing-6);
-    }
-    .form-label {
-        display: block;
-        font-size: var(--cds-font-size-base);
-        font-weight: var(--cds-font-weight-medium);
-        color: var(--cds-color-gray-100);
-        margin-bottom: var(--cds-spacing-2);
-    }
-    .form-select {
-        width: 100%;
-        padding: var(--cds-spacing-3) var(--cds-spacing-4);
-        font-size: var(--cds-font-size-base);
-        color: var(--cds-color-gray-100);
-        background-color: var(--cds-color-white);
-        border: 1px solid var(--cds-color-gray-30);
-        border-radius: var(--cds-border-radius-md);
-        transition: all 150ms ease;
-        box-sizing: border-box;
-    }
-    .form-select:focus {
-        outline: none;
-        border-color: var(--cds-color-blue-60);
-        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-    }
-    .timezone-info {
-        background-color: var(--cds-color-gray-10);
-        border: 1px solid var(--cds-color-gray-20);
-        border-radius: var(--cds-border-radius-md);
-        padding: var(--cds-spacing-4);
-        margin-top: var(--cds-spacing-4);
-    }
-    .timezone-info-item {
-        display: flex;
-        justify-content: space-between;
-        padding: var(--cds-spacing-2) 0;
-        border-bottom: 1px solid var(--cds-color-gray-20);
-    }
-    .timezone-info-item:last-child {
-        border-bottom: none;
-    }
-    .timezone-info-label {
-        font-size: var(--cds-font-size-sm);
-        color: var(--cds-color-gray-70);
-        font-weight: var(--cds-font-weight-medium);
-    }
-    .timezone-info-value {
-        font-size: var(--cds-font-size-sm);
-        color: var(--cds-color-gray-100);
-        font-weight: var(--cds-font-weight-semibold);
-    }
-    .btn-submit {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: var(--cds-spacing-3) var(--cds-spacing-6);
-        font-size: var(--cds-font-size-base);
-        font-weight: var(--cds-font-weight-medium);
-        color: var(--cds-color-white);
-        background-color: var(--cds-color-blue-60);
-        border: none;
-        border-radius: var(--cds-border-radius-md);
-        cursor: pointer;
-        transition: background-color 150ms ease;
-        width: 100%;
-    }
-    .btn-submit:hover {
-        background-color: var(--cds-color-blue-70);
-    }
-    .alert {
-        padding: var(--cds-spacing-4);
-        border-radius: var(--cds-border-radius-md);
-        margin-bottom: var(--cds-spacing-4);
-    }
-    .alert-success {
-        background-color: var(--cds-color-green-50);
-        border: 1px solid var(--cds-color-green-60);
-        color: var(--cds-color-green-70);
-    }
-    .alert-error {
-        background-color: var(--cds-color-red-50);
-        border: 1px solid var(--cds-color-red-60);
-        color: var(--cds-color-red-70);
-    }
+    /* Settings — dashboard design system (Inter, #0f62fe, #e2e8f0 10px cards). */
+    .st-head { margin-bottom:22px; }
+    .st-title { font-size:28px; font-weight:600; color:#161616; margin:0 0 4px; line-height:1.2; }
+    .st-sub { font-size:14px; color:#525252; margin:0; }
+
+    .st-alert { font-size:14px; border-radius:8px; padding:10px 14px; margin-bottom:16px; }
+    .st-alert.ok  { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+    .st-alert.err { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+
+    .st-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 2px rgba(15,23,42,.04);
+               padding:24px; max-width:720px; margin-bottom:18px; }
+    .st-section-title { font-size:13px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin:0 0 14px; }
+    .st-group { margin-bottom:20px; }
+    .st-label { display:block; font-size:13px; font-weight:600; color:#0f172a; margin-bottom:6px; }
+    .st-req { color:#da1e28; }
+    .st-select { width:100%; padding:9px 12px; font-size:14px; color:#0f172a; background:#fff; border:1px solid #e2e8f0;
+                 border-radius:8px; box-sizing:border-box; font-family:inherit; }
+    .st-select:focus { outline:none; border-color:#0f62fe; box-shadow:0 0 0 3px rgba(15,98,254,.12); }
+    .st-hint { font-size:12px; color:#64748b; margin-top:6px; line-height:1.45; }
+
+    .st-info { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; margin-top:4px;
+               display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px 18px; }
+    .st-info-label { font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; }
+    .st-info-value { font-size:14px; font-weight:600; color:#0f172a; margin-top:2px; }
+    .st-info-value.mono { font-family:var(--font-mono,monospace); }
+
+    .st-actions { margin-top:22px; padding-top:18px; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; }
+    .st-btn { display:inline-flex; align-items:center; background:#0f62fe; color:#fff; border:none; padding:9px 18px;
+              font-size:14px; font-weight:500; border-radius:6px; cursor:pointer; }
+    .st-btn:hover { background:#0353e9; }
+
+    .st-about h3 { font-size:14px; font-weight:600; color:#0f172a; margin:0 0 10px; }
+    .st-about p { font-size:13px; color:#64748b; line-height:1.6; margin:0 0 10px; }
+    .st-about p:last-child { margin-bottom:0; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 800px; margin: 0 auto; padding: var(--cds-spacing-8);">
-    <div style="margin-bottom: var(--cds-spacing-8);">
-        <h1 class="form-title">Application Settings</h1>
-        <p class="form-subtitle">Configure timezone and language settings for the application</p>
-    </div>
+<div class="st-head">
+    <h1 class="st-title">Settings</h1>
+    <p class="st-sub">Timezone, language and data-retention preferences for the application.</p>
+</div>
 
-    {% if messages %}
-        {% for message in messages %}
-        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
-            {{ message }}
+{% if messages %}
+    {% for message in messages %}
+    <div class="st-alert {% if message.tags == 'error' %}err{% else %}ok{% endif %}">{{ message }}</div>
+    {% endfor %}
+{% endif %}
+
+<form method="post" action="{% url 'app_config' %}">
+    {% csrf_token %}
+    <div class="st-card">
+        <div class="st-section-title">Preferences</div>
+
+        <div class="st-group">
+            <label for="timezone" class="st-label">Display timezone <span class="st-req">*</span></label>
+            <select name="timezone" id="timezone" class="st-select" required>
+                {% for tz_value, tz_label in common_timezones %}
+                <option value="{{ tz_value }}" {% if current_timezone == tz_value %}selected{% endif %}>{{ tz_label }}</option>
+                {% endfor %}
+            </select>
+            <div class="st-hint">All timestamps (logs, metrics, anomalies, alerts, graphs) display in this timezone. Data is stored in UTC and converted at display time.</div>
         </div>
-        {% endfor %}
-    {% endif %}
 
-    <div class="form-card">
-        <form method="post" action="{% url 'app_config' %}">
-            {% csrf_token %}
-            
-            <div class="form-group">
-                <label for="timezone" class="form-label">
-                    Display Timezone <span class="required">*</span>
-                </label>
-                <select name="timezone" id="timezone" class="form-select" required>
-                    {% for tz_value, tz_label in common_timezones %}
-                    <option value="{{ tz_value }}" {% if current_timezone == tz_value %}selected{% endif %}>
-                        {{ tz_label }}
-                    </option>
-                    {% endfor %}
-                </select>
-                <div class="form-hint" style="margin-top: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
-                    All timestamps (logs, metrics, anomalies, alerts, graphs) will be displayed in the selected timezone.
-                    Data is stored in UTC and converted at display time.
-                </div>
-            </div>
+        <div class="st-group">
+            <label for="language" class="st-label">Language <span class="st-req">*</span></label>
+            <select name="language" id="language" class="st-select" required>
+                {% for lang_value, lang_label in available_languages %}
+                <option value="{{ lang_value }}" {% if current_language == lang_value %}selected{% endif %}>{{ lang_label }}</option>
+                {% endfor %}
+            </select>
+            <div class="st-hint">Interface language. Currently only English is supported.</div>
+        </div>
 
-            <div class="form-group">
-                <label for="language" class="form-label">
-                    Language <span class="required">*</span>
-                </label>
-                <select name="language" id="language" class="form-select" required>
-                    {% for lang_value, lang_label in available_languages %}
-                    <option value="{{ lang_value }}" {% if current_language == lang_value %}selected{% endif %}>
-                        {{ lang_label }}
-                    </option>
-                    {% endfor %}
-                </select>
-                <div class="form-hint" style="margin-top: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
-                    Select the language for the application interface. Currently only English is supported.
-                </div>
-            </div>
+        <div class="st-group">
+            <label for="log_retention_days" class="st-label">Log retention <span class="st-req">*</span></label>
+            <select name="log_retention_days" id="log_retention_days" class="st-select" required>
+                {% for value, label in log_retention_choices %}
+                <option value="{{ value }}" {% if current_log_retention_days == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div class="st-hint">Log-analysis events older than this are deleted when logs are scanned.</div>
+        </div>
 
-            <div class="form-group">
-                <label for="log_retention_days" class="form-label">
-                    Log retention <span class="required">*</span>
-                </label>
-                <select name="log_retention_days" id="log_retention_days" class="form-select" required>
-                    {% for value, label in log_retention_choices %}
-                    <option value="{{ value }}" {% if current_log_retention_days == value %}selected{% endif %}>
-                        {{ label }}
-                    </option>
-                    {% endfor %}
-                </select>
-                <div class="form-hint" style="margin-top: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
-                    Logs Analysis events older than this are deleted when logs are scanned.
-                </div>
-            </div>
+        <div class="st-info">
+            <div><div class="st-info-label">Current timezone</div><div class="st-info-value">{{ current_timezone }}</div></div>
+            <div><div class="st-info-label">UTC offset</div><div class="st-info-value mono">{{ timezone_offset }}</div></div>
+            <div><div class="st-info-label">Abbreviation</div><div class="st-info-value">{{ timezone_abbrev }}</div></div>
+            <div><div class="st-info-label">Current time</div><div class="st-info-value mono">{% now "M d, Y H:i:s" %}</div></div>
+        </div>
 
-            <div class="timezone-info">
-                <div class="timezone-info-item">
-                    <span class="timezone-info-label">Current Timezone:</span>
-                    <span class="timezone-info-value">{{ current_timezone }}</span>
-                </div>
-                <div class="timezone-info-item">
-                    <span class="timezone-info-label">Timezone Offset:</span>
-                    <span class="timezone-info-value">{{ timezone_offset }}</span>
-                </div>
-                <div class="timezone-info-item">
-                    <span class="timezone-info-label">Abbreviation:</span>
-                    <span class="timezone-info-value">{{ timezone_abbrev }}</span>
-                </div>
-                <div class="timezone-info-item">
-                    <span class="timezone-info-label">Current Time:</span>
-                    <span class="timezone-info-value">{% now "M d, Y H:i:s" %}</span>
-                </div>
-            </div>
-
-            <div style="margin-top: var(--cds-spacing-6);">
-                <button type="submit" class="btn-submit">Save Settings</button>
-            </div>
-        </form>
-    </div>
-
-    <div class="form-card" style="background-color: var(--cds-color-gray-10);">
-        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">
-            About Settings
-        </h3>
-        <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); line-height: var(--cds-line-height-relaxed);">
-            <p style="margin: 0 0 var(--cds-spacing-3) 0;">
-                <strong>Data Storage:</strong> All timestamps are stored in UTC (Coordinated Universal Time) in the database. 
-                This ensures consistency regardless of server timezones or timezone changes.
-            </p>
-            <p style="margin: 0 0 var(--cds-spacing-3) 0;">
-                <strong>Display Conversion:</strong> Timestamps are automatically converted from UTC to your selected 
-                display timezone when shown in the UI, API responses, and charts.
-            </p>
-            <p style="margin: 0 0 var(--cds-spacing-3) 0;">
-                <strong>Changing Timezone:</strong> You can change the timezone at any time. All existing and new timestamps 
-                will immediately display in the new timezone. No data migration is required.
-            </p>
-            <p style="margin: 0;">
-                <strong>Language:</strong> Currently only English is supported. Additional languages will be available in future updates.
-            </p>
+        <div class="st-actions">
+            <button type="submit" class="st-btn">Save settings</button>
         </div>
     </div>
+</form>
+
+<div class="st-card st-about" style="background:#f8fafc;">
+    <h3>About these settings</h3>
+    <p><strong>Storage:</strong> all timestamps are stored in UTC in the database, for consistency regardless of server timezone.</p>
+    <p><strong>Display conversion:</strong> timestamps are converted from UTC to your selected timezone in the UI, API responses and charts.</p>
+    <p><strong>Changing timezone:</strong> takes effect immediately for existing and new timestamps — no data migration needed.</p>
+    <p><strong>Language:</strong> only English is supported today; more will follow.</p>
 </div>
 {% endblock %}
-
-
