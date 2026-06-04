@@ -33,7 +33,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "log_analyzer.urls"
 
-LOGIN_REDIRECT_URL = "/monitoring/"
+LOGIN_REDIRECT_URL = "/home/"  # role-aware dispatcher (Admin/Operator->Ops, CEO->Exec)
 LOGIN_URL = "/admin/login/"
 
 TEMPLATES = [

@@ -68,10 +68,12 @@
                 <span class="insight-badge" id="insight-bell-count" style="display:none;"></span>
             </button>
             {% endif %}
+            {% if 'view_executive' in rbac_caps %}
             <form method="post" action="{% url 'set_dashboard_view' %}" style="display:inline-flex;align-items:center;background:#eef1f5;border-radius:9px;padding:4px;gap:4px;">{% csrf_token %}
                 <button type="submit" name="view" value="operations" class="persona-btn {% if dashboard_view != 'executive' %}active{% endif %}">Operations</button>
                 <button type="submit" name="view" value="executive" class="persona-btn {% if dashboard_view == 'executive' %}active{% endif %}">Executive</button>
             </form>
+            {% endif %}
         </div>
     </div>
 

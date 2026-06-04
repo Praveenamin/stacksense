@@ -80,6 +80,7 @@
             Logs
         </a>
         {# 4. Security / SIEM #}
+        {% if 'manage_security' in rbac_caps %}
         <a href="/security/"
             class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if '/security' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
             <svg class="mr-3 h-5 w-5 {% if '/security' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,6 +88,7 @@
             </svg>
             Security
         </a>
+        {% endif %}
         {# 5. User Experience (Synthetic / RUM) #}
         <a href="/uptime/"
             class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if '/uptime' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
@@ -96,6 +98,7 @@
             User Experience
         </a>
         {# 6. Business KPIs #}
+        {% if 'manage_business' in rbac_caps %}
         <a href="/business/"
             class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if '/business' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
             <svg class="mr-3 h-5 w-5 {% if '/business' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,10 +106,12 @@
             </svg>
             Business
         </a>
+        {% endif %}
 
         <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             ALERTS
         </div>
+        {% if 'manage_alerts' in rbac_caps %}
         <a href="/alert-config/"
             class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'alert-config' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
             <svg class="mr-3 h-5 w-5 {% if 'alert-config' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"
@@ -117,6 +122,7 @@
             </svg>
             Alerts Configure
         </a>
+        {% endif %}
         <a href="/alerts/"
             class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if 'alerts' in request.path and 'alert-config' not in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
             <svg class="mr-3 h-5 w-5 {% if 'alerts' in request.path and 'alert-config' not in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}"

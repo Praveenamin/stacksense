@@ -76,5 +76,8 @@ Phased build with 🛑 STOP checkpoints. Server is the security boundary; deny-b
 - [x] Phase 3 — Impersonation + audit: AuditLog model, ImpersonationMiddleware
       (user-swap, no escalation, real actor preserved), start/exit endpoints,
       "Viewing as… — Exit" banner, audit on start/exit/denied. 14 tests; 77 total.
-- [ ] Phase 4 — UI gating + landing pages ← next
-- [ ] Phase 5 — Edge cases + security pass
+- [x] Phase 4 — UI gating + landing pages: sidebar (Security/Business/Alerts-
+      Configure), gear (Users/Roles/Settings/Pricing), persona toggle and add-
+      server affordances all driven by rbac_caps; per-user Impersonate buttons;
+      role-aware post-login dispatcher (/home/). 8 tests; 85 total.
+- [ ] Phase 5 — Edge cases + security pass ← next

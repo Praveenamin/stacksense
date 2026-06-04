@@ -153,6 +153,8 @@ CAPABILITY_BY_URL_NAME = {
     # by the (lower-privilege) impersonated session, so only needs view_operations.
     "impersonate_start": IMPERSONATE,
     "impersonate_exit": VIEW_OPERATIONS,
+    # Post-login dispatcher — any authenticated staff.
+    "home_redirect": VIEW_OPERATIONS,
 }
 
 

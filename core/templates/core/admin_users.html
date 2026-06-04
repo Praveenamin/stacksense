@@ -324,6 +324,12 @@
                     <td>
                         <div class="action-buttons">
                             <a href="/admin-users/edit/{{ acl.user.id }}/" class="btn-edit">Edit</a>
+                            {% if 'impersonate' in rbac_caps and not acl.user.is_superuser and acl.role.name != 'CEO' and acl.user.id != user.id %}
+                            <form action="{% url 'impersonate_start' acl.user.id %}" method="post" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-edit" title="View the app as this user" onclick="return confirm('Switch into {{ acl.user.username }}\'s account? You will see only their permissions until you exit.')">Impersonate</button>
+                            </form>
+                            {% endif %}
                             {% if not acl.user.is_superuser and acl.user.username != "admin" and acl.user.id != user.id %}
                             <form action="/admin-users/delete/{{ acl.user.id }}/" method="post" style="display: inline;">
                                 {% csrf_token %}

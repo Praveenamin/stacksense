@@ -1275,6 +1275,21 @@ def set_dashboard_view(request):
 
 
 @staff_member_required
+def home_redirect(request):
+    """Post-login dispatcher: send each role to its default landing page.
+    Admin/Operator -> Operations, CEO -> Executive."""
+    from .permissions import default_landing_for, LANDING_EXECUTIVE
+    acl = UserACL.get_or_create_for_user(request.user)
+    desired = (UserACL.DashboardView.EXECUTIVE
+               if default_landing_for(request.user) == LANDING_EXECUTIVE
+               else UserACL.DashboardView.OPERATIONS)
+    if acl.dashboard_view != desired:
+        acl.dashboard_view = desired
+        acl.save(update_fields=["dashboard_view", "updated_at"])
+    return redirect("monitoring_dashboard")
+
+
+@staff_member_required
 @require_http_methods(["POST"])
 def impersonate_start(request, user_id):
     """Begin impersonating a lower-privilege user. Admin/CEO only; never a peer
