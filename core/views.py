@@ -6981,7 +6981,7 @@ def dashboard_servers_list_api(request):
     """API endpoint for getting list of all servers (for dropdowns)"""
     try:
         servers = Server.objects.all().order_by('name')
-        server_list = [{'id': s.id, 'name': s.name} for s in servers]
+        server_list = [{'id': s.id, 'name': s.name, 'ip_address': s.ip_address} for s in servers]
         
         return JsonResponse({
             'success': True,
