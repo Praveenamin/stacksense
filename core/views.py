@@ -4250,9 +4250,14 @@ def create_admin_user(request):
             # Assign role for non-superuser staff
             if not is_superuser:
                 try:
+                    from .permissions import ROLE_LANDING
                     role = Role.objects.get(id=role_id)
                     acl = UserACL.get_or_create_for_user(user)
                     acl.role = role
+                    # Initialise the persona to the role's default landing
+                    # (e.g. CEO -> Executive) so the first login lands correctly.
+                    acl.dashboard_view = ROLE_LANDING.get(
+                        role.name, UserACL.DashboardView.OPERATIONS)
                     acl.save()
                 except Role.DoesNotExist:
                     messages.error(request, "Selected role does not exist.")
@@ -4319,8 +4324,16 @@ def edit_admin_user(request, user_id):
         # Update role for non-superuser accounts
         if not is_superuser and role_id:
             try:
+                from .permissions import ROLE_LANDING
                 role = Role.objects.get(id=role_id)
+                role_changed = acl.role_id != role.id
                 acl.role = role
+                # When the role changes, reset the persona to the new role's
+                # default landing (e.g. CEO -> Executive). A same-role edit
+                # leaves the user's current persona preference untouched.
+                if role_changed:
+                    acl.dashboard_view = ROLE_LANDING.get(
+                        role.name, UserACL.DashboardView.OPERATIONS)
                 acl.save()
             except Role.DoesNotExist:
                 messages.warning(request, "Selected role does not exist.")

@@ -42,6 +42,18 @@ class RBACUITests(TestCase):
     def test_landing_operator_operations(self):
         self.assertEqual(self._landing(self.operator), UserACL.DashboardView.OPERATIONS)
 
+    def test_new_ceo_user_gets_executive_persona_at_creation(self):
+        # A CEO created via the form should default to the Executive persona,
+        # independent of the login dispatcher (covers direct-URL logins).
+        self.client.force_login(self.admin)
+        ceo_role = Role.objects.get(name=perms.ROLE_CEO).id
+        self.client.post(reverse("create_admin_user"),
+                         {"username": "land_ceo", "email": "l@x.com",
+                          "password": "pw12345678", "role": str(ceo_role)})
+        u = User.objects.get(username="land_ceo")
+        self.assertEqual(UserACL.objects.get(user=u).dashboard_view,
+                         UserACL.DashboardView.EXECUTIVE)
+
     # --- sidebar / nav gating (UI mirrors server caps) --------------------
     def test_operator_sidebar_hides_manage_sections(self):
         self.client.force_login(self.operator)
