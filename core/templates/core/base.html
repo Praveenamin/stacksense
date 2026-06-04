@@ -137,10 +137,7 @@
             </button>
             <div id="settings-dropdown" style="display:none;position:absolute;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 6px 18px rgba(15,23,42,.12);z-index:1500;min-width:200px;margin-top:6px;overflow:hidden;">
                 <div style="padding:8px 16px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #f1f5f9;">Admin &amp; Settings</div>
-                {% if 'manage_users' in rbac_caps %}<a href="/admin-users/" class="settings-item">Users</a>{% endif %}
-                {% if 'manage_roles' in rbac_caps %}<a href="/roles/" class="settings-item" style="border-top:1px solid #f1f5f9;">Roles</a>{% endif %}
-                {% if 'manage_monitoring' in rbac_caps %}<a href="/settings/" class="settings-item" style="border-top:1px solid #f1f5f9;">Settings</a>{% endif %}
-                {% if 'manage_pricing' in rbac_caps %}<a href="/settings/pricing/" class="settings-item" style="border-top:1px solid #f1f5f9;">Cost / Pricing</a>{% endif %}
+                {% if 'manage_pricing' in rbac_caps %}<a href="/settings/pricing/" class="settings-item">Cost / Pricing</a>{% endif %}
                 <a href="/help/" class="settings-item" style="border-top:1px solid #f1f5f9;">Help Docs</a>
             </div>
         </div>
