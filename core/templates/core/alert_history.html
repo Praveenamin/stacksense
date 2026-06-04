@@ -10,13 +10,13 @@
 {% block content %}
 <!-- Page Header -->
 <div style="margin-bottom: var(--cds-spacing-8);">
-    <h1 style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Alert History</h1>
-    <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0;">Comprehensive view of all critical alerts in your infrastructure</p>
+    <h1 style="font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2;">Alerts</h1>
+    <p style="font-size:14px; color:#525252; margin:0;">All critical alerts across your infrastructure.</p>
 </div>
 
 <!-- Summary Cards -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-8);">
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #dc2626;">{{ triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -28,7 +28,7 @@
         <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Total Critical Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #22c55e;">{{ acknowledged_count|default:0 }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -38,7 +38,7 @@
         <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Acknowledged Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #f59e0b;">{{ unacknowledged_count|default:triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -49,7 +49,7 @@
         <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Unacknowledged Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #ea580c;">{{ critical_severity_count|default:triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -61,7 +61,7 @@
 </div>
 
 <!-- Alert Filters -->
-<div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: var(--cds-spacing-8);">
+<div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0; margin-bottom: var(--cds-spacing-8);">
     <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); margin-bottom: var(--cds-spacing-6);">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
@@ -72,7 +72,7 @@
     <form method="get" action="{% url 'alert_history' %}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4); align-items: end;">
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Time Range</label>
-            <select name="time_range" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #d1d5db; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="time_range" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
                 <option value="24h" {% if selected_time_range == '24h' or not selected_time_range %}selected{% endif %}>Last 24 hours</option>
                 <option value="7d" {% if selected_time_range == '7d' %}selected{% endif %}>Last 7 days</option>
                 <option value="30d" {% if selected_time_range == '30d' %}selected{% endif %}>Last 30 days</option>
@@ -81,7 +81,7 @@
         </div>
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Alert Type</label>
-            <select name="alert_type" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #d1d5db; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="alert_type" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
                 <option value="">All</option>
                 {% for type_code, type_label in alert_types %}
                 <option value="{{ type_code }}" {% if selected_alert_type == type_code %}selected{% endif %}>{{ type_label }}</option>
@@ -90,7 +90,7 @@
         </div>
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Acknowledged Status</label>
-            <select name="acknowledged" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #d1d5db; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="acknowledged" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
                 <option value="">All</option>
                 <option value="true" {% if selected_acknowledged == 'true' %}selected{% endif %}>Acknowledged</option>
                 <option value="false" {% if selected_acknowledged == 'false' %}selected{% endif %}>Unacknowledged</option>
@@ -98,7 +98,7 @@
         </div>
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Instance</label>
-            <select name="server_id" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #d1d5db; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="server_id" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
                 <option value="">All Instances</option>
                 {% for server in servers %}
                 <option value="{{ server.id }}" {% if selected_server_id|stringformat:"s" == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }} ({{ server.ip_address }})</option>
@@ -106,14 +106,14 @@
             </select>
         </div>
         <div style="display: flex; gap: var(--cds-spacing-2);">
-            <button type="submit" style="flex: 1; padding: var(--cds-spacing-3) var(--cds-spacing-6); background-color: #3b82f6; color: white; border: none; border-radius: 6px; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); cursor: pointer;">Filter</button>
-            <a href="{% url 'alert_history' %}" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); background-color: #6b7280; color: white; border: none; border-radius: 6px; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; display: inline-block;">Reset Filters</a>
+            <button type="submit" style="flex: 1; padding: var(--cds-spacing-3) var(--cds-spacing-6); background-color: #0f62fe; color: white; border: none; border-radius: 6px; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); cursor: pointer;">Filter</button>
+            <a href="{% url 'alert_history' %}" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); background-color: #fff; color: #475569; border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; display: inline-block;">Reset</a>
         </div>
     </form>
 </div>
 
 <!-- Alert Details Table -->
-<div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+<div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--cds-spacing-6);">
         <div>
             <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">Alert Details</h2>
@@ -149,14 +149,14 @@
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px; width: 40px;">
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; width: 40px;">
                         <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="cursor: pointer; width: 18px; height: 18px;">
                     </th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px;">Alert Name</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px;">Affected VM</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px;">Triggered Time</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px;">Duration</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); font-size: var(--cds-font-size-sm); text-transform: uppercase; letter-spacing: 0.5px;">Actions</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Alert Name</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Affected VM</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Triggered Time</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Duration</th>
+                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -169,8 +169,8 @@
                     </td>
                     <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
-                            <a href="{% url 'server_details' alert.server.id %}" style="color: #3b82f6; text-decoration: none; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-base);">{{ alert.alert_type }}</a>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;">
+                            <a href="{% url 'server_details' alert.server.id %}" style="color: #0f62fe; text-decoration: none; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-base);">{{ alert.alert_type }}</a>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f62fe" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;">
                                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                                 <polyline points="15 3 21 3 21 9"></polyline>
                                 <line x1="10" y1="14" x2="21" y2="3"></line>
@@ -221,7 +221,7 @@
                     <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-3);">
                             {% if alert.status == 'triggered' %}
-                            <a href="{% url 'server_details' alert.server.id %}" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; background-color: #eff6ff; color: #3b82f6; cursor: pointer;" title="View Details">
+                            <a href="{% url 'server_details' alert.server.id %}" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; background-color: #eff6ff; color: #0f62fe; cursor: pointer;" title="View Details">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                                     <line x1="8" y1="21" x2="16" y2="21"></line>
