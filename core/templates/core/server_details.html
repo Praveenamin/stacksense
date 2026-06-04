@@ -11,10 +11,18 @@
      dashboard blue by overriding the inherited CDS token on this wrapper. -->
 <div style="--cds-color-blue-60:#0f62fe; --cds-color-blue-50:#eef4ff; --cds-color-blue-70:#0353e9;">
 <style>
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .sd-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:18px 20px; box-shadow:0 1px 2px rgba(15,23,42,.04); margin-bottom:14px; }
+    .sd-card h2 { font-size:14px; font-weight:600; color:#0f172a; margin:0 0 14px; }
+    .sd-card h2.row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .sd-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(115px,1fr)); gap:16px; }
+    .sd-stat .l { font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; }
+    .sd-stat .v { font-size:20px; font-weight:700; color:#0f172a; line-height:1.2; margin-top:3px; }
+    .sd-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:14px; margin-bottom:14px; }
+    .sd-chart-wrap { position:relative; height:215px; }
+    .sd-two { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+    .sd-btn-sm { padding:5px 12px; font-size:12px; font-weight:500; border-radius:6px; cursor:pointer; }
+    @media (max-width:900px){ .sd-two { grid-template-columns:1fr; } }
 </style>
 <!-- Page Header -->
 <div style="margin-bottom: var(--cds-spacing-8);">
@@ -69,95 +77,61 @@
 
 <input type="hidden" id="server-id" value="{{ server.id }}">
 
-<!-- CPU Section -->
-<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
-    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">CPU</h2>
-    
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4); margin-bottom: var(--cds-spacing-4);">
-        <div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">CPU Usage</div>
-            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="cpu-percent">{% if latest_metric %}{{ latest_metric.cpu_percent|default:"--"|floatformat:1 }}%{% else %}--%{% endif %}</div>
-        </div>
-        <div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Cores</div>
-            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="cpu-cores">{% if latest_metric %}{{ latest_metric.cpu_count|default:"--" }}{% else %}--{% endif %}</div>
-        </div>
-        <div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Load Average (1m)</div>
-            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="cpu-load-avg">{% if latest_metric and latest_metric.cpu_load_avg_1m %}{{ latest_metric.cpu_load_avg_1m|floatformat:2 }}{% else %}--{% endif %}</div>
-        </div>
-    </div>
-    
-    <div>
-        <div style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Top 3 CPU Processes</div>
-        <div id="top-cpu-processes" style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
-            <div style="padding: var(--cds-spacing-2); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius);">Loading...</div>
-        </div>
-    </div>
-</div>
-
-<!-- RAM Section -->
-<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
-    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">RAM</h2>
-    
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4); margin-bottom: var(--cds-spacing-4);">
-        <div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Total RAM</div>
-            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="ram-total">{% if latest_metric %}{{ latest_metric.memory_total|filesizeformat }}{% else %}--{% endif %}</div>
-        </div>
-        <div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Free RAM</div>
-            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="ram-free">{% if latest_metric %}{{ latest_metric.memory_available|filesizeformat }}{% else %}--{% endif %}</div>
-        </div>
-        <div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Cached</div>
-            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="ram-cached">{% if latest_metric and latest_metric.memory_cached %}{{ latest_metric.memory_cached|filesizeformat }}{% else %}--{% endif %}</div>
-        </div>
+<!-- Resources (compact stat tiles) -->
+<div class="sd-card">
+    <h2>Resources</h2>
+    <div class="sd-stats">
+        <div class="sd-stat"><div class="l">CPU Usage</div><div class="v" id="cpu-percent">{% if latest_metric %}{{ latest_metric.cpu_percent|default:"--"|floatformat:1 }}%{% else %}--%{% endif %}</div></div>
+        <div class="sd-stat"><div class="l">Memory Usage</div><div class="v" id="ram-percent">{% if latest_metric %}{{ latest_metric.memory_percent|default:"--"|floatformat:1 }}%{% else %}--%{% endif %}</div></div>
+        <div class="sd-stat"><div class="l">Cores</div><div class="v" id="cpu-cores">{% if latest_metric %}{{ latest_metric.cpu_count|default:"--" }}{% else %}--{% endif %}</div></div>
+        <div class="sd-stat"><div class="l">Load (1m)</div><div class="v" id="cpu-load-avg">{% if latest_metric and latest_metric.cpu_load_avg_1m %}{{ latest_metric.cpu_load_avg_1m|floatformat:2 }}{% else %}--{% endif %}</div></div>
+        <div class="sd-stat"><div class="l">Total RAM</div><div class="v" style="font-size:16px;" id="ram-total">{% if latest_metric %}{{ latest_metric.memory_total|filesizeformat }}{% else %}--{% endif %}</div></div>
+        <div class="sd-stat"><div class="l">Free RAM</div><div class="v" style="font-size:16px;" id="ram-free">{% if latest_metric %}{{ latest_metric.memory_available|filesizeformat }}{% else %}--{% endif %}</div></div>
+        <div class="sd-stat"><div class="l">Cached</div><div class="v" style="font-size:16px;" id="ram-cached">{% if latest_metric and latest_metric.memory_cached %}{{ latest_metric.memory_cached|filesizeformat }}{% else %}--{% endif %}</div></div>
         {% if latest_metric and latest_metric.swap_total %}
-        <div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Swap (Total/Used)</div>
-            <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);" id="swap-info">{{ latest_metric.swap_total|filesizeformat }} / {{ latest_metric.swap_used|default:0|filesizeformat }}</div>
-        </div>
+        <div class="sd-stat"><div class="l">Swap (used/total)</div><div class="v" style="font-size:14px;" id="swap-info">{{ latest_metric.swap_used|default:0|filesizeformat }} / {{ latest_metric.swap_total|filesizeformat }}</div></div>
         {% endif %}
     </div>
-    
-    <div>
-        <div style="font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Top 3 RAM Processes</div>
-        <div id="top-ram-processes" style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
-            <div style="padding: var(--cds-spacing-2); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius);">Loading...</div>
-        </div>
+</div>
+
+<!-- Metrics charts (compact, dashboard-style grid) -->
+<div class="sd-charts">
+    <div class="sd-card" style="margin-bottom:0;"><h2>CPU &amp; Memory</h2><div class="sd-chart-wrap"><canvas id="cpu-memory-chart"></canvas></div></div>
+    <div class="sd-card" style="margin-bottom:0;"><h2>Disk I/O</h2><div class="sd-chart-wrap"><canvas id="disk-io-chart"></canvas></div></div>
+    <div class="sd-card" style="margin-bottom:0;"><h2>Network I/O (In/Out)</h2><div class="sd-chart-wrap"><canvas id="network-io-chart"></canvas></div></div>
+</div>
+
+<!-- Top processes -->
+<div class="sd-two">
+    <div class="sd-card" style="margin-bottom:0;">
+        <h2>Top CPU processes</h2>
+        <div id="top-cpu-processes" style="font-size:13px;color:#64748b;"><div style="padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">Loading…</div></div>
+    </div>
+    <div class="sd-card" style="margin-bottom:0;">
+        <h2>Top RAM processes</h2>
+        <div id="top-ram-processes" style="font-size:13px;color:#64748b;"><div style="padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">Loading…</div></div>
     </div>
 </div>
 
-<!-- Disk Usage Section -->
-<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
-        <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Disk Usage</h2>
-        <button onclick="openDiskModal()" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-blue-60); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-blue-60); border-radius: var(--cds-border-radius); cursor: pointer;">Select Disks</button>
-    </div>
-    
-    <div style="margin-bottom: var(--cds-spacing-4);">
-        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--cds-spacing-1);">Number of Disks</div>
-        <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">{{ disk_summary.total_disks|default:0 }}</div>
-    </div>
-    
-    <div id="disk-list">
-        <!-- Show all monitored disks -->
+<!-- Disk usage (compact) -->
+<div class="sd-card">
+    <h2 class="row"><span>Disk usage <span style="color:#94a3b8;font-weight:400;">· {{ disk_summary.total_disks|default:0 }} disk{{ disk_summary.total_disks|pluralize }}</span></span>
+        <button onclick="openDiskModal()" class="sd-btn-sm" style="color:#0f62fe;background:#fff;border:1px solid #0f62fe;">Select disks</button>
+    </h2>
+    <div id="disk-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
         {% if disk_data %}
         {% for mount_point in monitored_disks %}
         {% for disk_mount, info in disk_data.items %}
         {% if disk_mount == mount_point %}
-        <div style="padding: var(--cds-spacing-3); background-color: var(--cds-color-gray-10); border-radius: var(--cds-border-radius); margin-bottom: var(--cds-spacing-2);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-2);">
-                <div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ mount_point }}{% if mount_point == "/" %} (Root){% endif %}</div>
-                <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">{{ info.percent|default:0|floatformat:1 }}%</div>
+        <div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+                <span style="font-size:13px;font-weight:600;color:#0f172a;">{{ mount_point }}{% if mount_point == "/" %} (Root){% endif %}</span>
+                <span style="font-size:12px;color:#64748b;">{{ info.percent|default:0|floatformat:1 }}%</span>
             </div>
-            <div style="height: 8px; background-color: var(--cds-color-gray-20); border-radius: 4px; overflow: hidden;">
-                <div style="height: 100%; background-color: var(--cds-color-blue-60); width: {{ info.percent|default:0 }}%; transition: width 0.3s ease;"></div>
+            <div style="height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
+                <div style="height:100%;background:#0f62fe;width:{{ info.percent|default:0 }}%;transition:width .3s ease;"></div>
             </div>
-            <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">
-                {{ info.used|filesizeformat }} / {{ info.total|filesizeformat }}
-            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:6px;">{{ info.used|filesizeformat }} / {{ info.total|filesizeformat }}</div>
         </div>
         {% endif %}
         {% endfor %}
@@ -166,38 +140,11 @@
     </div>
 </div>
 
-<!-- Graphs Section -->
-<div style="margin-bottom: var(--cds-spacing-6);">
-    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Anomaly and Metrics Graphs</h2>
-    
-    <!-- CPU & Memory Graph -->
-    <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-4);">
-        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">CPU & Memory</h3>
-        <div style="position: relative; height: 300px;">
-            <canvas id="cpu-memory-chart"></canvas>
-        </div>
-    </div>
-    
-    <!-- Disk I/O Graph -->
-    <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-4);">
-        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Disk I/O</h3>
-        <div style="position: relative; height: 300px;">
-            <canvas id="disk-io-chart"></canvas>
-        </div>
-    </div>
-    
-    <!-- Network I/O Graph -->
-    <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6);">
-        <h3 style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Network I/O (In/Out)</h3>
-        <div style="position: relative; height: 300px;">
-            <canvas id="network-io-chart"></canvas>
-        </div>
-    </div>
-</div>
+<!-- (metrics charts moved up, next to the resource tiles) -->
 
 <!-- SLO Configuration and Compliance Section -->
 <div id="slo-configuration-section" style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
-    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">SLO Configuration & Compliance</h2>
+    <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0 0 var(--cds-spacing-4) 0;">SLO Configuration & Compliance</h2>
     <div id="slo-configuration-container">
         <!-- SLO configuration will be loaded here by JavaScript -->
     </div>
@@ -206,7 +153,7 @@
 <!-- Services Status Section -->
 <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
-        <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Services Status</h2>
+        <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0;">Services Status</h2>
         <div style="display: flex; gap: var(--cds-spacing-2);">
             <button onclick="showServices('enabled')" id="btn-enabled" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-white); background-color: var(--cds-color-blue-60); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Enabled</button>
             <button onclick="showServices('critical')" id="btn-critical" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); cursor: pointer;">Critical</button>
@@ -221,7 +168,7 @@
 
 <!-- Threshold Values Section -->
 <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6);">
-    <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-4) 0;">Threshold Values</h2>
+    <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0 0 var(--cds-spacing-4) 0;">Threshold Values</h2>
     
     <form id="thresholds-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--cds-spacing-4);">
         <div>
@@ -254,7 +201,7 @@
 <div id="disk-modal" style="display: none; position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
     <div style="background-color: var(--cds-color-white); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
-            <h3 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Select Disks to Monitor</h3>
+            <h3 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0;">Select Disks to Monitor</h3>
             <button onclick="closeDiskModal()" style="background: none; border: none; font-size: var(--cds-font-size-xl); color: var(--cds-color-gray-70); cursor: pointer; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">×</button>
         </div>
         <div id="disk-modal-list">
