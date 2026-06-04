@@ -273,7 +273,7 @@
             <thead>
                 <tr>
                     <th>Role Name</th>
-                    <th># of Privileges</th>
+                    <th>Capabilities</th>
                     <th># of Assigned Users</th>
                     <th>Actions</th>
                 </tr>
@@ -298,26 +298,29 @@
                         </div>
                     </td>
                     <td>
-                        <span class="count-badge">{{ role.role_privileges.count }}</span>
-                        <span class="table-text">privilege{{ role.role_privileges.count|pluralize }}</span>
+                        <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:560px;">
+                            {% for rp in role.role_privileges.all %}
+                            <span style="font-size:11px;font-weight:600;color:#334155;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px;white-space:nowrap;">{{ rp.privilege.label }}</span>
+                            {% empty %}
+                            <span class="table-text" style="color:#94a3b8;">No capabilities</span>
+                            {% endfor %}
+                        </div>
                     </td>
                     <td>
                         <span class="count-badge count-badge-success">{{ role.user_count }}</span>
                         <span class="table-text">user{{ role.user_count|pluralize }}</span>
                     </td>
                     <td>
-                        {% if can_manage_roles %}
+                        {% if can_manage_roles and not role.is_protected %}
                         <div class="action-buttons">
                             <a href="/roles/edit/{{ role.id }}/" class="btn-edit">Edit</a>
-                            {% if not role.is_protected %}
                             <form action="/roles/delete/{{ role.id }}/" method="post" style="display: inline;">
                                 {% csrf_token %}
                                 <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete the role \"{{ role.name }}\"? This action cannot be undone.')">Delete</button>
                             </form>
-                            {% endif %}
                         </div>
                         {% else %}
-                        <span style="font-size: 12px; color: #64748b;">No permissions</span>
+                        <span style="font-size: 12px; color: #94a3b8;">{% if role.is_protected %}View only · protected{% else %}—{% endif %}</span>
                         {% endif %}
                     </td>
                 </tr>

@@ -671,25 +671,15 @@ class UserACL(models.Model):
         """Get or create ACL for a user"""
         acl, created = cls.objects.get_or_create(user=user)
         if created:
-            if user.is_superuser:
-                # For superusers, assign Root Admin role if it exists
-                try:
-                    root_admin_role = Role.objects.get(name="Root Admin")
-                    acl.role = root_admin_role
-                    acl.save()
-                except Role.DoesNotExist:
-                    # If Root Admin role doesn't exist, superuser still gets all privileges via has_privilege checks
-                    pass
-            else:
-                # For regular staff users, assign default Viewer role if it exists
-                try:
-                    viewer_role = Role.objects.get(name="Viewer")
-                    acl.role = viewer_role
-                    acl.save()
-                except Role.DoesNotExist:
-                    # Fallback to old boolean system if roles not yet set up
-                    acl.can_view_dashboard = True
-                    acl.save()
+            # Superusers -> Admin; other staff -> Operator (safe read-only default).
+            # Superusers still get all privileges via the superuser bypass even if
+            # the role rows aren't seeded yet.
+            default_name = "Admin" if user.is_superuser else "Operator"
+            try:
+                acl.role = Role.objects.get(name=default_name)
+                acl.save()
+            except Role.DoesNotExist:
+                pass
         return acl
 
 

@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core import permissions as perms
-from core.models import Role, UserACL
+from core.models import Privilege, Role, UserACL
 
 
 class RBACTestBase(TestCase):
@@ -64,9 +64,19 @@ class CapabilityResolutionTests(TestCase):
         self.assertEqual(perms.effective_capabilities(u), perms.ALL_CAPABILITIES)
 
     def test_no_role_denied_everything(self):
+        # New staff default to Operator; a deliberately role-less ACL must still
+        # resolve to no capabilities (deny-by-default invariant).
         u = User.objects.create_user("nr", "n@x.com", "pw", is_staff=True)
-        UserACL.get_or_create_for_user(u)
+        acl = UserACL.get_or_create_for_user(u)
+        acl.role = None
+        acl.save()
         self.assertEqual(perms.effective_capabilities(u), frozenset())
+
+    def test_new_staff_defaults_to_operator(self):
+        u = User.objects.create_user("fresh", "f@x.com", "pw", is_staff=True)
+        acl = UserACL.get_or_create_for_user(u)
+        self.assertEqual(acl.role.name, perms.ROLE_OPERATOR)
+        self.assertEqual(perms.effective_capabilities(u), frozenset({perms.VIEW_OPERATIONS}))
 
     def test_landing_pages(self):
         self.assertEqual(perms.ROLE_LANDING[perms.ROLE_CEO], perms.LANDING_EXECUTIVE)
@@ -121,6 +131,40 @@ class ViewAccessTests(RBACTestBase):
     def test_public_health_no_auth(self):
         self.client.logout()
         self.assertEqual(self.client.get(reverse("health")).status_code, 200)
+
+
+class RolesManagementTests(RBACTestBase):
+    def test_protected_role_cannot_be_edited(self):
+        self.client.force_login(self.admin)
+        role = Role.objects.get(name=perms.ROLE_ADMIN)
+        before = set(role.role_privileges.values_list("privilege__key", flat=True))
+        r = self.client.post(reverse("edit_role", kwargs={"role_id": role.id}),
+                             {"name": "Admin", "description": "x", "privileges": []})
+        self.assertEqual(r.status_code, 302)  # blocked -> redirected, not applied
+        after = set(Role.objects.get(id=role.id).role_privileges.values_list("privilege__key", flat=True))
+        self.assertEqual(before, after)
+
+    def test_protected_role_cannot_be_deleted(self):
+        self.client.force_login(self.admin)
+        op = Role.objects.get(name=perms.ROLE_OPERATOR)
+        self.client.post(reverse("delete_role", kwargs={"role_id": op.id}))
+        self.assertTrue(Role.objects.filter(name=perms.ROLE_OPERATOR).exists())
+
+    def test_create_custom_role_is_unprotected(self):
+        self.client.force_login(self.admin)
+        view_ops = Privilege.objects.get(key=perms.VIEW_OPERATIONS)
+        r = self.client.post(reverse("create_role"),
+                             {"name": "Analyst", "description": "custom",
+                              "privileges": [str(view_ops.id)]})
+        self.assertEqual(r.status_code, 302)
+        role = Role.objects.get(name="Analyst")
+        self.assertFalse(role.is_protected)
+        self.assertEqual(list(role.role_privileges.values_list("privilege__key", flat=True)),
+                         [perms.VIEW_OPERATIONS])
+
+    def test_operator_cannot_open_role_editor(self):
+        self.client.force_login(self.operator)
+        self.assertEqual(self.client.get(reverse("create_role")).status_code, 403)
 
 
 class WriteEnforcementTests(RBACTestBase):
