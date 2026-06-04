@@ -16,7 +16,7 @@
 
 <!-- Summary Cards -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-8);">
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #dc2626;">{{ triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -28,7 +28,7 @@
         <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Total Critical Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #22c55e;">{{ acknowledged_count|default:0 }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -38,7 +38,7 @@
         <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Acknowledged Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #f59e0b;">{{ unacknowledged_count|default:triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -49,7 +49,7 @@
         <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Unacknowledged Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
             <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #ea580c;">{{ critical_severity_count|default:triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -61,7 +61,7 @@
 </div>
 
 <!-- Alert Filters -->
-<div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0; margin-bottom: var(--cds-spacing-8);">
+<div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0; margin-bottom: var(--cds-spacing-8);">
     <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); margin-bottom: var(--cds-spacing-6);">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
@@ -113,7 +113,7 @@
 </div>
 
 <!-- Alert Details Table -->
-<div style="background-color: white; border-radius: 8px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+<div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--cds-spacing-6);">
         <div>
             <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">Alert Details</h2>
@@ -148,7 +148,7 @@
     <div style="overflow-x: auto;">
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
+                <tr style="border-bottom: 1px solid #e2e8f0;">
                     <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; width: 40px;">
                         <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="cursor: pointer; width: 18px; height: 18px;">
                     </th>

@@ -1040,7 +1040,7 @@ function updateEnabledPartitionsList() {
             html += '<div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">' + server.name + '</div>';
             html += '<div style="display: flex; flex-wrap: wrap; gap: var(--cds-spacing-2);">';
             server.monitored_disks.forEach(partition => {
-                html += '<span style="padding: 4px 8px; background-color: #d1f7c4; color: #0e6027; border-radius: 12px; font-size: 12px; font-weight: 400;">' + partition + '</span>';
+                html += '<span style="padding: 4px 8px; background-color: #f0fdf4; color: #166534; border-radius: 12px; font-size: 12px; font-weight: 400;">' + partition + '</span>';
             });
             html += '</div>';
             html += '</div>';
@@ -1284,11 +1284,11 @@ function renderServices(services, serverId, showAll, filterRunning, filterStoppe
     
     filteredServices.forEach(service => {
         const checkboxId = 'service-' + serverId + '-' + service.id;
-        const statusColor = service.status === 'running' ? '#d1f7c4' : (service.status === 'stopped' ? '#ffe6cc' : '#f4f4f4');
-        const statusTextColor = service.status === 'running' ? '#0e6027' : (service.status === 'stopped' ? '#8e3b00' : '#525252');
+        const statusColor = service.status === 'running' ? '#f0fdf4' : (service.status === 'stopped' ? '#fffbeb' : '#f4f4f4');
+        const statusTextColor = service.status === 'running' ? '#166534' : (service.status === 'stopped' ? '#92400e' : '#525252');
         const isCritical = isCriticalService(service);
         const criticalBadge = isCritical && (service.status === 'stopped' || service.status === 'failed') 
-            ? '<span style="padding: 2px 6px; background-color: #ff6b6b; color: white; border-radius: 8px; font-size: 10px; font-weight: 600; margin-left: 4px;">CRITICAL</span>' 
+            ? '<span style="padding: 2px 6px; background-color: #da1e28; color: white; border-radius: 8px; font-size: 10px; font-weight: 600; margin-left: 4px;">CRITICAL</span>' 
             : '';
         
         checkboxesDiv.innerHTML += `
@@ -1410,8 +1410,8 @@ function updateEnabledServicesList() {
             html += '<div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">' + server.name + '</div>';
             html += '<div style="display: flex; flex-wrap: wrap; gap: var(--cds-spacing-2);">';
             enabledServices.forEach(service => {
-                const statusColor = service.status === 'running' ? '#d1f7c4' : (service.status === 'stopped' ? '#ffe6cc' : '#f4f4f4');
-                const statusTextColor = service.status === 'running' ? '#0e6027' : (service.status === 'stopped' ? '#8e3b00' : '#525252');
+                const statusColor = service.status === 'running' ? '#f0fdf4' : (service.status === 'stopped' ? '#fffbeb' : '#f4f4f4');
+                const statusTextColor = service.status === 'running' ? '#166534' : (service.status === 'stopped' ? '#92400e' : '#525252');
                 html += '<span style="padding: 4px 8px; background-color: ' + statusColor + '; color: ' + statusTextColor + '; border-radius: 12px; font-size: 12px; font-weight: 400;">' + service.name + ' (' + service.status + ')</span>';
             });
             html += '</div>';
