@@ -592,22 +592,22 @@
             options: baseOptions({ min: 0, max: 100, ticks: { stepSize: 20, callback: v => v + '%', font: { size: 10 } } }),
         });
 
-        // Disk I/O (KB/s)
+        // Disk I/O (MB/s)
         diskIOChart = new Chart(document.getElementById('disk-io-chart').getContext('2d'), {
             type: 'line',
             data: { labels: [], datasets: [
-                series('Read (KB/s)', '#0f62fe', 'rgba(15,98,254,0.12)'),
-                series('Write (KB/s)', '#ef4444', 'rgba(239,68,68,0.12)'),
+                series('Read (MB/s)', '#0f62fe', 'rgba(15,98,254,0.12)'),
+                series('Write (MB/s)', '#ef4444', 'rgba(239,68,68,0.12)'),
             ]},
             options: baseOptions({ beginAtZero: true }),
         });
 
-        // Network I/O (KB/s)
+        // Network I/O (MB/s)
         networkIOChart = new Chart(document.getElementById('network-io-chart').getContext('2d'), {
             type: 'line',
             data: { labels: [], datasets: [
-                series('In (KB/s)', '#10b981', 'rgba(16,185,129,0.12)'),
-                series('Out (KB/s)', '#f59e0b', 'rgba(245,158,11,0.12)'),
+                series('In (MB/s)', '#10b981', 'rgba(16,185,129,0.12)'),
+                series('Out (MB/s)', '#f59e0b', 'rgba(245,158,11,0.12)'),
             ]},
             options: baseOptions({ beginAtZero: true }),
         });
@@ -633,8 +633,8 @@
                 return date.toLocaleTimeString();
             });
             diskIOChart.data.labels = timestamps;
-            diskIOChart.data.datasets[0].data = data.disk_io.map(d => (d.read || 0) / 1024);
-            diskIOChart.data.datasets[1].data = data.disk_io.map(d => (d.write || 0) / 1024);
+            diskIOChart.data.datasets[0].data = data.disk_io.map(d => (d.read || 0) / (1024 * 1024));
+            diskIOChart.data.datasets[1].data = data.disk_io.map(d => (d.write || 0) / (1024 * 1024));
             diskIOChart.update('none');
         }
         
@@ -645,8 +645,8 @@
                 return date.toLocaleTimeString();
             });
             networkIOChart.data.labels = timestamps;
-            networkIOChart.data.datasets[0].data = data.network.map(d => (d.rx || 0) / 1024);
-            networkIOChart.data.datasets[1].data = data.network.map(d => (d.tx || 0) / 1024);
+            networkIOChart.data.datasets[0].data = data.network.map(d => (d.rx || 0) / (1024 * 1024));
+            networkIOChart.data.datasets[1].data = data.network.map(d => (d.tx || 0) / (1024 * 1024));
             networkIOChart.update('none');
         }
     }
