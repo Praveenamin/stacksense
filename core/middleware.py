@@ -111,11 +111,11 @@ class RBACMiddleware:
     def _deny(self, request):
         if _is_api(request):
             return JsonResponse({"error": "permission denied"}, status=403)
-        return HttpResponseForbidden(
-            "<h1>403 — Access denied</h1>"
-            "<p>You don't have permission to access this page.</p>"
-            "<p><a href=\"/\">Return to dashboard</a></p>"
-        )
+        from django.shortcuts import render
+        try:
+            return render(request, "403.html", status=403)
+        except Exception:
+            return HttpResponseForbidden("403 — Access denied")
 
 
 class ImpersonationMiddleware:

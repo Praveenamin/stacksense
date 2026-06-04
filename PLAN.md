@@ -80,4 +80,9 @@ Phased build with 🛑 STOP checkpoints. Server is the security boundary; deny-b
       Configure), gear (Users/Roles/Settings/Pricing), persona toggle and add-
       server affordances all driven by rbac_caps; per-user Impersonate buttons;
       role-aware post-login dispatcher (/home/). 8 tests; 85 total.
-- [ ] Phase 5 — Edge cases + security pass ← next
+- [x] Phase 5 — Edge cases + security pass: direct-URL blocks, mid-session role
+      changes, impersonation session edge cases (target deactivated/deleted/
+      elevated), client-supplied role ignored, accessible 403 page, docs/RBAC.md.
+      12 edge tests; 97 total green; py_compile + system check clean.
+
+## RBAC DONE — all phases complete.
