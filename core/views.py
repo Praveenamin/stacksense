@@ -950,7 +950,6 @@ def edit_server(request, server_id):
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
         ip_address = request.POST.get('ip_address', '').strip()
-        port = request.POST.get('port', '').strip()
 
         if not name or not ip_address:
             messages.error(request, "Server name and IP address are required.")
@@ -958,8 +957,6 @@ def edit_server(request, server_id):
 
         server.name = name
         server.ip_address = ip_address
-        if port:
-            server.port = int(port)
         server.save()
 
         messages.success(request, f"Server '{name}' updated successfully.")
@@ -5259,6 +5256,93 @@ def server_metrics_api(request, server_id):
             {"error": "Internal server error", "message": str(e)},
             status=500
         )
+
+
+@require_http_methods(["GET"])
+def server_memory_trend_api(request, server_id):
+    """
+    Long-window memory trend for the server page's "Memory Trend" chart.
+
+    Plots absolute RAM used (memory_used, bytes) over 24h/7d with a fitted trend
+    line and a projected time-to-full, so a slow memory leak is visible (the live
+    1h percent chart can't show it). Reuses the leak-detection regression.
+
+    GET /api/server/<id>/memory-trend/?range=24h|7d
+    """
+    from .models import MonitoringConfig
+    from .utils.leak_detection import linear_trend, SYS_MIN_RATE_BYTES_HR, MIN_R2
+
+    try:
+        server = Server.objects.get(id=server_id)
+    except Server.DoesNotExist:
+        return JsonResponse({"error": "Server not found"}, status=404)
+
+    try:
+        is_suspended = server.monitoring_config.monitoring_suspended
+    except (AttributeError, MonitoringConfig.DoesNotExist):
+        is_suspended = False
+    if is_suspended:
+        return JsonResponse({"points": [], "trend_line": [], "leaking": False, "suspended": True})
+
+    range_param = request.GET.get("range", "24h").lower()
+    now = timezone.now()
+    if range_param == "7d":
+        since, max_points = now - timedelta(days=7), 168
+    else:
+        range_param = "24h"
+        since, max_points = now - timedelta(hours=24), 144
+
+    metrics = list(
+        SystemMetric.objects.filter(server=server, timestamp__gte=since)
+        .order_by("timestamp")
+        .only("timestamp", "memory_used", "memory_total")
+    )
+    series = [(m, float(m.memory_used)) for m in metrics if m.memory_used]
+    if len(series) < 2:
+        return JsonResponse({"points": [], "trend_line": [], "leaking": False,
+                             "range": range_param, "suspended": False})
+
+    # Trend over the FULL series (before downsampling) for an accurate fit.
+    pts = [(m.timestamp.timestamp(), used) for m, used in series]
+    t0 = pts[0][0]
+    slope, intercept, r2 = linear_trend([(t - t0, y) for t, y in pts])
+    rate_bytes_hr = slope * 3600
+    last_used = series[-1][1]
+    total = next((float(m.memory_total) for m, _ in reversed(series) if m.memory_total), 0)
+    headroom = (total - last_used) if total else 0
+    days_to_full = (headroom / rate_bytes_hr / 24) if (rate_bytes_hr > 0 and headroom > 0) else None
+
+    # Dashed projection line: y at the first and last sample from the fit.
+    first_m, last_m = series[0][0], series[-1][0]
+    span = pts[-1][0] - t0
+    trend_line = [
+        {"t": first_m.timestamp.isoformat(), "value": intercept},
+        {"t": last_m.timestamp.isoformat(), "value": intercept + slope * span},
+    ]
+
+    leaking = bool(rate_bytes_hr >= SYS_MIN_RATE_BYTES_HR and r2 >= MIN_R2)
+    if not leaking:
+        leaking = Anomaly.objects.filter(
+            server=server, resolved=False, metric_name__startswith="memory_leak"
+        ).exists()
+
+    # Down-sample the plotted line.
+    if len(series) > max_points:
+        step = max(1, len(series) // max_points)
+        series = series[::step]
+    points = [{"t": m.timestamp.isoformat(), "used": used} for m, used in series]
+
+    return JsonResponse({
+        "points": points,
+        "total": total,
+        "trend_line": trend_line,
+        "rate_bytes_hr": rate_bytes_hr,
+        "r2": round(r2, 3),
+        "days_to_full": days_to_full,
+        "leaking": leaking,
+        "range": range_param,
+        "suspended": False,
+    })
 
 
 @require_http_methods(["GET"])

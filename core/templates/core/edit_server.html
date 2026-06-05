@@ -238,7 +238,7 @@
     </div>
     {% endif %}
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;">
         <!-- Server Configuration Form -->
         <div class="form-card">
             <h2 class="form-title">Server Configuration</h2>
@@ -260,22 +260,13 @@
                         <div class="form-hint">A friendly name to identify this server</div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="ip_address">
-                                Server IP <span class="required">*</span>
-                            </label>
-                            <input type="text" id="ip_address" name="ip_address" class="form-input" 
-                                   value="{{ server.ip_address }}" placeholder="192.168.1.100" required>
-                            <div class="form-hint">IP address or hostname</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="port">
-                                SSH Port <span class="required">*</span>
-                            </label>
-                            <input type="number" id="port" name="port" class="form-input" 
-                                   value="{{ server.port|default:22 }}" min="1" max="65535" required>
-                        </div>
+                    <div class="form-group">
+                        <label class="form-label" for="ip_address">
+                            Server IP <span class="required">*</span>
+                        </label>
+                        <input type="text" id="ip_address" name="ip_address" class="form-input"
+                               value="{{ server.ip_address }}" placeholder="192.168.1.100" required>
+                        <div class="form-hint">IP address or hostname — for your reference only; the agent dials out to us.</div>
                     </div>
                 </div>
 
@@ -327,30 +318,19 @@
                 </span>
             </div>
 
-            <div class="status-note">
-                <p class="status-note-title">⚠️ Important Note</p>
-                <p class="status-note-text">SSH connection details (username, password, keys) cannot be modified after server creation. To change authentication, remove and re-add the server.</p>
-            </div>
         </div>
     </div>
 
     <script>
         function confirmDeleteServer(serverName, serverId) {
-            var message = '⚠️ WARNING: Delete Server\n\n' +
-                'Are you sure you want to delete the server "' + serverName + '"?\n\n' +
-                'This action will permanently delete:\n' +
-                '• All server configuration\n' +
-                '• All collected metrics\n' +
-                '• All alert history\n' +
-                '• All monitoring data\n\n' +
-                'This action CANNOT be undone!\n\n' +
-                'Click OK to confirm deletion, or Cancel to abort.';
-            
-            if (confirm(message)) {
-                // User confirmed, submit the form
-                document.getElementById('delete-server-form').submit();
-            }
-            // If user cancels, do nothing (form won't submit)
+            appConfirm({
+                title: 'Delete server',
+                body: 'Delete "' + serverName + '"? This permanently removes its configuration, ' +
+                      'collected metrics, alert history and monitoring data. This cannot be undone.',
+                confirmText: 'Delete',
+                danger: true,
+                onConfirm: function () { document.getElementById('delete-server-form').submit(); }
+            });
         }
     </script>
 {% endblock %}

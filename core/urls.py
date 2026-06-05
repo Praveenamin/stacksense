@@ -86,6 +86,7 @@ urlpatterns = [
     path("api/server/<int:server_id>/anomaly-status/", views.anomaly_status_api, name="anomaly_status_api"),
     path("api/server/<int:server_id>/metric-history/", views.metric_history_api, name="metric_history_api"),
     path("api/server/<int:server_id>/metrics/", views.server_metrics_api, name="server_metrics_api"),
+    path("api/server/<int:server_id>/memory-trend/", views.server_memory_trend_api, name="server_memory_trend_api"),
     path("api/server/<int:server_id>/disk-io/", views.disk_io_api, name="disk_io_api"),
     path("api/server/<int:server_id>/network-io/", views.network_io_api, name="network_io_api"),
     path("api/server/<int:server_id>/monitored-disks/", views.update_monitored_disks, name="update_monitored_disks"),

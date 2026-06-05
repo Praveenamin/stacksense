@@ -133,6 +133,21 @@
     <div class="sd-card" style="margin-bottom:0;"><h2>Network I/O (In/Out)</h2><div class="sd-chart-wrap"><canvas id="network-io-chart"></canvas></div></div>
 </div>
 
+<!-- Memory Trend (long window) — reveals slow memory leaks the 1h chart can't show -->
+<div class="sd-card">
+    <h2 class="row">
+        <span>Memory Trend</span>
+        <span style="display:flex; align-items:center; gap:12px;">
+            <span id="mem-trend-summary" style="font-size:12px; font-weight:500; color:#94a3b8;"></span>
+            <span style="display:flex; gap:6px;">
+                <button type="button" id="mem-range-24h" class="sd-btn-sm" onclick="loadMemoryTrend('24h')" style="background:#0f62fe; color:#fff; border:none;">24h</button>
+                <button type="button" id="mem-range-7d" class="sd-btn-sm" onclick="loadMemoryTrend('7d')" style="background:#fff; color:#334155; border:1px solid #e2e8f0;">7d</button>
+            </span>
+        </span>
+    </h2>
+    <div class="sd-chart-wrap"><canvas id="memory-trend-chart"></canvas></div>
+</div>
+
 <!-- Top processes -->
 <div class="sd-two">
     <div class="sd-card" style="margin-bottom:0;">
@@ -393,7 +408,7 @@
 <script>
     const serverId = document.getElementById('server-id').value;
     let refreshInterval;
-    let cpuMemoryChart, diskIOChart, networkIOChart;
+    let cpuMemoryChart, diskIOChart, networkIOChart, memoryTrendChart;
     
     // Initialize charts
     document.addEventListener('DOMContentLoaded', function() {
@@ -577,6 +592,57 @@
         .catch(() => { el.checked = !el.checked; alert('Failed to update monitoring'); });
     }
     
+    async function loadMemoryTrend(range) {
+        range = range || '24h';
+        const b24 = document.getElementById('mem-range-24h');
+        const b7 = document.getElementById('mem-range-7d');
+        function setActive(btn, on) {
+            if (!btn) return;
+            btn.style.background = on ? '#0f62fe' : '#fff';
+            btn.style.color = on ? '#fff' : '#334155';
+            btn.style.border = on ? 'none' : '1px solid #e2e8f0';
+        }
+        setActive(b24, range === '24h');
+        setActive(b7, range === '7d');
+        const summary = document.getElementById('mem-trend-summary');
+        try {
+            const res = await fetch(`/api/server/${serverId}/memory-trend/?range=${range}`);
+            if (!res.ok) throw new Error('Failed to load memory trend');
+            const d = await res.json();
+            const GB = 1024 * 1024 * 1024;
+            const pts = d.points || [];
+            const labels = pts.map(p => new Date(p.t).toLocaleString());
+            const used = pts.map(p => p.used / GB);
+            const n = used.length;
+            const trend = [];
+            if (d.trend_line && d.trend_line.length === 2 && n > 1) {
+                const y0 = d.trend_line[0].value / GB, y1 = d.trend_line[1].value / GB;
+                for (let i = 0; i < n; i++) trend.push(y0 + (y1 - y0) * (i / (n - 1)));
+            }
+            if (memoryTrendChart) {
+                memoryTrendChart.data.labels = labels;
+                memoryTrendChart.data.datasets[0].data = used;
+                memoryTrendChart.data.datasets[1].data = trend;
+                memoryTrendChart.update('none');
+            }
+            if (summary) {
+                if (!n) {
+                    summary.textContent = 'No data yet'; summary.style.color = '#94a3b8';
+                } else if (d.leaking) {
+                    const rateMB = (d.rate_bytes_hr || 0) / (1024 * 1024);
+                    let t = `${rateMB >= 0 ? '+' : ''}${rateMB.toFixed(1)} MB/hr · R² ${d.r2}`;
+                    if (d.days_to_full != null) t += ` · projected full in ~${d.days_to_full.toFixed(1)} days`;
+                    summary.textContent = t; summary.style.color = '#b91c1c';
+                } else {
+                    summary.textContent = 'Stable'; summary.style.color = '#166534';
+                }
+            }
+        } catch (e) {
+            console.error('memory trend load failed', e);
+            if (summary) { summary.textContent = ''; }
+        }
+    }
+
     function initializeCharts() {
         // Clean line style matching the dashboard trend charts: smooth, no point
         // markers, thin line, translucent fill.
@@ -627,6 +693,18 @@
             ]},
             options: baseOptions({ min: 0, max: 15, ticks: { stepSize: 5, callback: function (v) { return v + ' MB/s'; }, font: { size: 10 } } }),
         });
+
+        // Memory Trend (GB, long window) — RAM used + dashed fitted trend line
+        memoryTrendChart = new Chart(document.getElementById('memory-trend-chart').getContext('2d'), {
+            type: 'line',
+            data: { labels: [], datasets: [
+                series('RAM used (GB)', '#0f62fe', 'rgba(15,98,254,0.12)'),
+                Object.assign(series('Trend', '#da1e28', 'rgba(0,0,0,0)'),
+                              { fill: false, borderDash: [6, 4], pointHoverRadius: 0 }),
+            ]},
+            options: baseOptions({ min: 0, ticks: { callback: function (v) { return v.toFixed(1) + ' GB'; }, font: { size: 10 } } }),
+        });
+        loadMemoryTrend('24h');
     }
     
     function updateCharts(data) {
