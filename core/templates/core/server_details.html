@@ -274,7 +274,7 @@
         <tbody>
         {% for c in server_containers %}
             <tr style="border-top:1px solid #f1f5f9;">
-                <td style="padding:9px 12px;color:#0f172a;font-weight:500;">{{ c.name }}</td>
+                <td style="padding:9px 12px;color:#0f172a;font-weight:500;">{{ c.name }} <span style="margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600;background:#f1f5f9;color:#475569;text-transform:uppercase;letter-spacing:.03em;">{{ c.runtime|default:"docker" }}</span></td>
                 <td style="padding:9px 12px;color:#64748b;word-break:break-all;">{{ c.image|default:"—" }}</td>
                 <td style="padding:9px 12px;">
                     {% if c.state == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>
@@ -283,6 +283,7 @@
                     {% if c.status_text %}<span style="color:#94a3b8;font-size:12px;margin-left:6px;">{{ c.status_text }}</span>{% endif %}
                 </td>
                 <td style="padding:9px 12px;text-align:right;">
+                    <button type="button" onclick="showContainerInspect({{ server.id }}, {{ c.id }})" style="margin-right:10px;padding:4px 10px;font-size:11px;font-weight:600;color:#0f62fe;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;">Report</button>
                     <label class="switch"><input type="checkbox" {% if c.monitoring_enabled %}checked{% endif %} onchange="toggleContainerMonitoring({{ server.id }}, {{ c.id }}, this)"><span class="slider"></span></label>
                 </td>
             </tr>

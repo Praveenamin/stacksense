@@ -23,6 +23,7 @@ urlpatterns = [
     path("services/", views.services_overview, name="services_overview"),
     path("containers/", views.containers_overview, name="containers_overview"),
     path("api/server/<int:server_id>/container/<int:container_id>/toggle-monitoring/", views.toggle_container_monitoring, name="toggle_container_monitoring"),
+    path("api/server/<int:server_id>/container/<int:container_id>/inspect/", views.container_inspect_api, name="container_inspect_api"),
     path("server/edit/<int:server_id>/", views.edit_server, name="edit_server"),
     path("server/delete/<int:server_id>/", views.delete_server, name="delete_server"),
     path("remove-server/<int:server_id>/", views.remove_server, name="remove_server"),

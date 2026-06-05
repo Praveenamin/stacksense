@@ -8803,6 +8803,26 @@ def toggle_container_monitoring(request, server_id, container_id):
     return JsonResponse({"success": True, "monitoring_enabled": container.monitoring_enabled})
 
 
+@staff_member_required
+@require_http_methods(["GET"])
+def container_inspect_api(request, server_id, container_id):
+    """Return the stored, sanitized `inspect` summary for one container (read-only).
+
+    The agent collects this on a slow cadence (~5 min) and the value is rendered
+    as a config report in the UI. `inspect` never modifies a container.
+    """
+    server = get_object_or_404(Server, id=server_id)
+    container = get_object_or_404(Container, id=container_id, server=server)
+    return JsonResponse({
+        "name": container.name,
+        "runtime": container.runtime,
+        "image": container.image,
+        "state": container.state,
+        "inspect": container.inspect_data,
+        "inspect_at": container.inspect_at.isoformat() if container.inspect_at else None,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Business KPI monitoring
 # ---------------------------------------------------------------------------

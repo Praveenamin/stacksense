@@ -45,7 +45,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.1.0"
+AGENT_VERSION = "push-1.3.0"
 CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
 DEFAULT_INTERVAL = 30
 HTTP_TIMEOUT = 15
@@ -244,42 +244,234 @@ def collect_ssh_auth(state, max_events=500):
     return events
 
 
-def collect_containers():
-    """Detect containers via the Docker CLI (best-effort).
-
-    Returns [] if Docker isn't installed or the agent user can't access the
-    Docker socket. Requires the agent user to be in the 'docker' group.
-    """
-    out = []
+def _have(binary):
+    """True if `binary` is on PATH (best-effort)."""
     try:
-        res = subprocess.run(
-            ["docker", "ps", "-a", "--no-trunc", "--format", "{{json .}}"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if res.returncode != 0:
-            return out
-        for line in res.stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                c = json.loads(line)
-            except ValueError:
-                continue
-            status = c.get("Status") or ""
-            state = (c.get("State") or "").lower()
-            if not state:
-                state = "running" if status.startswith("Up") else "exited"
-            out.append({
-                "container_id": (c.get("ID") or "")[:64],
-                "name": c.get("Names") or "",
-                "image": c.get("Image") or "",
-                "state": state,
-                "status_text": status[:200],
-                "ports": (c.get("Ports") or "")[:300],
-            })
+        return subprocess.run(["command", "-v", binary], shell=False,
+                              capture_output=True, timeout=5).returncode == 0 \
+            or subprocess.run(["/bin/sh", "-c", "command -v " + binary],
+                              capture_output=True, timeout=5).returncode == 0
     except Exception:
-        pass
+        return False
+
+
+def _run(cmd):
+    """Run an argv list (no shell), return stdout or None on any failure."""
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        return res.stdout if res.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _docker_like(out, runtime):
+    """Parse docker/nerdctl `ps --format {{json .}}` (one JSON object per line)."""
+    rows = []
+    for line in (out or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            c = json.loads(line)
+        except ValueError:
+            continue
+        status = c.get("Status") or ""
+        state = (c.get("State") or "").lower()
+        if not state:
+            state = "running" if status.startswith("Up") else "exited"
+        rows.append({
+            "container_id": (c.get("ID") or "")[:64],
+            "name": c.get("Names") or c.get("Name") or "",
+            "image": c.get("Image") or "",
+            "state": state,
+            "status_text": status[:200],
+            "ports": (c.get("Ports") or "")[:300],
+            "runtime": runtime,
+        })
+    return rows
+
+
+def _podman(out):
+    """Parse `podman ps -a --format json` (a single JSON array)."""
+    rows = []
+    try:
+        data = json.loads(out) if out else []
+    except ValueError:
+        return rows
+    for c in data if isinstance(data, list) else []:
+        names = c.get("Names") or c.get("Name") or []
+        name = names[0] if isinstance(names, list) and names else (names if isinstance(names, str) else "")
+        state = (c.get("State") or "").lower() or "running"
+        ports = c.get("Ports") or ""
+        if isinstance(ports, list):
+            ports = ", ".join(str(p) for p in ports)
+        rows.append({
+            "container_id": (c.get("Id") or c.get("ID") or "")[:64],
+            "name": name,
+            "image": c.get("Image") or "",
+            "state": state,
+            "status_text": (c.get("Status") or "")[:200],
+            "ports": str(ports)[:300],
+            "runtime": "podman",
+        })
+    return rows
+
+
+def _crictl(out):
+    """Parse `crictl ps -a -o json` (CRI / containerd in Kubernetes)."""
+    rows = []
+    try:
+        data = json.loads(out) if out else {}
+    except ValueError:
+        return rows
+    state_map = {"CONTAINER_RUNNING": "running", "CONTAINER_EXITED": "exited",
+                 "CONTAINER_CREATED": "created", "CONTAINER_UNKNOWN": "unknown"}
+    for c in data.get("containers", []):
+        meta = c.get("metadata") or {}
+        img = c.get("image") or {}
+        rows.append({
+            "container_id": (c.get("id") or "")[:64],
+            "name": meta.get("name") or "",
+            "image": (img.get("image") if isinstance(img, dict) else img) or "",
+            "state": state_map.get(c.get("state") or "", "unknown"),
+            "status_text": (c.get("state") or "")[:200],
+            "ports": "",
+            "runtime": "containerd",
+        })
+    return rows
+
+
+_SECRET_ENV_RE = re.compile(r"(pass|secret|token|key|cred|auth|pwd)", re.I)
+INSPECT_CAP = 50  # max containers inspected per inspect cycle (keeps it light)
+
+
+def _redact_env(env_list):
+    """[`K=V`, ...] -> [{k, v}], redacting secret-looking values (at the source)."""
+    out = []
+    for e in env_list or []:
+        if not isinstance(e, str) or "=" not in e:
+            continue
+        k, v = e.split("=", 1)
+        if _SECRET_ENV_RE.search(k):
+            v = "***redacted***"
+        out.append({"k": k[:80], "v": v[:200]})
+    return out[:60]
+
+
+def _summ_docker_inspect(obj):
+    """Compact, sanitized summary from a docker/podman/nerdctl `inspect` object."""
+    cfg = obj.get("Config") or {}
+    host = obj.get("HostConfig") or {}
+    state = obj.get("State") or {}
+    netset = obj.get("NetworkSettings") or {}
+    mem = host.get("Memory") or 0
+    nanocpus = host.get("NanoCpus") or 0
+    ports = []
+    for cport, binds in (netset.get("Ports") or {}).items():
+        if binds:
+            for b in binds:
+                ports.append(f"{b.get('HostPort','')}->{cport}")
+        else:
+            ports.append(cport)
+    mounts = []
+    for mnt in obj.get("Mounts") or []:
+        src = mnt.get("Source") or mnt.get("Name") or ""
+        dst = mnt.get("Destination") or ""
+        rw = "rw" if mnt.get("RW", True) else "ro"
+        mounts.append(f"{src}:{dst} ({rw})")
+    cmd = cfg.get("Cmd") or obj.get("Args") or []
+    if isinstance(cmd, list):
+        cmd = " ".join(str(x) for x in cmd)
+    return {
+        "id": (obj.get("Id") or "")[:64],
+        "image": cfg.get("Image") or obj.get("Image") or "",
+        "created": obj.get("Created") or "",
+        "command": str(cmd)[:300],
+        "restart_policy": (host.get("RestartPolicy") or {}).get("Name") or "no",
+        "cpus": round(nanocpus / 1e9, 2) if nanocpus else None,
+        "mem_limit": int(mem) if mem else None,
+        "status": state.get("Status") or "",
+        "health": (state.get("Health") or {}).get("Status") or "",
+        "ports": ports[:30],
+        "networks": list((netset.get("Networks") or {}).keys())[:20],
+        "mounts": mounts[:30],
+        "env": _redact_env(cfg.get("Env")),
+    }
+
+
+def _inspect_one(runtime, cid):
+    """Run the runtime's read-only `inspect` and return a compact summary, or None."""
+    if not cid:
+        return None
+    try:
+        if runtime == "docker":
+            out = _run(["docker", "inspect", cid])
+        elif runtime == "podman":
+            out = _run(["sudo", "-n", "podman", "inspect", cid])
+        elif runtime == "containerd":
+            out = _run(["sudo", "-n", "nerdctl", "inspect", cid]) or _run(["sudo", "-n", "crictl", "inspect", cid])
+        else:
+            return None
+        if not out:
+            return None
+        data = json.loads(out)
+        if isinstance(data, list) and data:                 # docker / podman / nerdctl
+            return _summ_docker_inspect(data[0])
+        if isinstance(data, dict):                          # crictl (CRI) shape -- best-effort
+            st = data.get("status") or {}
+            cfg = (data.get("info") or {}).get("config") or {}
+            return {
+                "id": (st.get("id") or cid)[:64],
+                "image": ((st.get("image") or {}).get("image")) or "",
+                "created": st.get("createdAt") or "",
+                "command": "", "restart_policy": "", "cpus": None, "mem_limit": None,
+                "status": (st.get("state") or "").replace("CONTAINER_", "").lower(),
+                "health": "",
+                "ports": [],
+                "networks": [],
+                "mounts": [f"{m.get('hostPath','')}:{m.get('containerPath','')}" for m in (st.get("mounts") or [])][:30],
+                "env": _redact_env([f"{e.get('key')}={e.get('value')}" for e in (cfg.get("envs") or [])]),
+            }
+    except Exception:
+        return None
+    return None
+
+
+def collect_containers(inspect=False):
+    """Detect containers across runtimes (best-effort, read-only).
+
+    Docker is read directly (agent in the 'docker' group). Podman / containerd
+    (nerdctl, crictl) are read via `sudo -n <cmd> ps ...` -- the installer adds a
+    scoped, read-only sudoers entry for exactly those list commands. Any runtime
+    that's absent or not permitted simply contributes nothing.
+    """
+    rows = []
+    if _have("docker"):
+        rows += _docker_like(_run(["docker", "ps", "-a", "--no-trunc", "--format", "{{json .}}"]), "docker")
+    if _have("podman"):
+        rows += _podman(_run(["sudo", "-n", "podman", "ps", "-a", "--format", "json"]))
+    if _have("nerdctl"):
+        rows += _docker_like(_run(["sudo", "-n", "nerdctl", "ps", "-a", "--format", "{{json .}}"]), "containerd")
+    if _have("crictl"):
+        rows += _crictl(_run(["sudo", "-n", "crictl", "ps", "-a", "-o", "json"]))
+
+    # De-dupe by (runtime, name); keep the first non-empty-named entry.
+    seen, out = set(), []
+    for r in rows:
+        if not r.get("name"):
+            continue
+        key = (r["runtime"], r["name"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+
+    # Optionally enrich with a read-only `inspect` summary (slow cadence; capped).
+    if inspect:
+        for item in out[:INSPECT_CAP]:
+            data = _inspect_one(item["runtime"], item.get("container_id") or item["name"])
+            if data:
+                item["inspect"] = data
     return out
 
 
@@ -515,6 +707,8 @@ def main():
     last_services_push = 0  # force a services push on the first loop
     last_ipc = 0           # refresh IPC stats on the same (cheap) ~60s cadence
     ipc_cache = None
+    inspect_interval = int(os.environ.get("STACKSENSE_INSPECT_INTERVAL", 300))  # deep `inspect` every ~5 min
+    last_inspect = 0
     ssh_state = {}  # incremental SSH auth-log tail state
 
     prev = None
@@ -564,10 +758,13 @@ def main():
             except Exception as e:
                 sys.stderr.write(f"Service push error: {e}\n")
             try:
-                containers = collect_containers()
+                do_inspect = time.monotonic() - last_inspect >= inspect_interval
+                containers = collect_containers(inspect=do_inspect)
+                if do_inspect:
+                    last_inspect = time.monotonic()
                 res = push(config, opener, "/api/agent/containers/", {"containers": containers, "agent_version": AGENT_VERSION})
                 if res and res.get("status") == "ok":
-                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] containers pushed ({len(containers)})")
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] containers pushed ({len(containers)}, inspect={do_inspect})")
             except Exception as e:
                 sys.stderr.write(f"Container push error: {e}\n")
             last_services_push = time.monotonic()

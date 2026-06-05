@@ -49,6 +49,7 @@ if [ "$UNINSTALL" = "true" ]; then
   echo "Removing StackSense agent..."
   systemctl disable --now "$SERVICE_NAME" >/dev/null 2>&1 || true
   rm -f "/etc/systemd/system/$SERVICE_NAME.service"
+  rm -f /etc/sudoers.d/stacksense-agent
   systemctl daemon-reload || true
   rm -rf "$INSTALL_DIR" "$CONF_DIR"
   echo "Done. (The '$SERVICE_USER' system user was left in place.)"
@@ -96,6 +97,34 @@ fi
 if getent group adm >/dev/null 2>&1; then
   usermod -aG adm "$SERVICE_USER" 2>/dev/null && \
     echo "      Added '$SERVICE_USER' to the adm group (to read auth logs for SSH monitoring)."
+fi
+
+# For Podman / containerd container LISTING + INSPECT: the agent is non-root and
+# can't read those root-owned sockets. Grant a tightly-scoped, READ-ONLY sudo rule
+# for ONLY the 'ps' (list) and 'inspect' (read config) commands of whichever
+# runtimes are installed. Neither can start, stop, or modify a container. (Docker
+# uses the docker group above; this is just for podman/nerdctl/crictl.)
+SUDOERS_FILE="/etc/sudoers.d/stacksense-agent"
+if command -v sudo >/dev/null 2>&1; then
+  RULES=""
+  for bin in podman nerdctl crictl; do
+    BINPATH="$(command -v "$bin" 2>/dev/null || true)"
+    [ -n "$BINPATH" ] && RULES="${RULES}${RULES:+, }${BINPATH} ps *, ${BINPATH} inspect *"
+  done
+  if [ -n "$RULES" ]; then
+    TMP="$(mktemp)"
+    echo "$SERVICE_USER ALL=(root) NOPASSWD: $RULES" > "$TMP"
+    if visudo -cf "$TMP" >/dev/null 2>&1; then
+      install -m 0440 -o root -g root "$TMP" "$SUDOERS_FILE"
+      echo "      Wrote $SUDOERS_FILE (read-only 'ps' listing for podman/nerdctl/crictl)."
+    else
+      echo "      WARNING: generated sudoers failed validation; skipping (podman/containerd won't be listed)."
+    fi
+    rm -f "$TMP"
+  else
+    # No podman/nerdctl/crictl present -> ensure no stale rule remains.
+    rm -f "$SUDOERS_FILE" 2>/dev/null || true
+  fi
 fi
 
 echo "[3/6] Downloading agent from $URL ..."

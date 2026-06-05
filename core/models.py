@@ -1414,10 +1414,11 @@ class BusinessKPIValue(models.Model):
 
 
 class Container(models.Model):
-    """A container (Docker) detected on a server by the agent."""
+    """A container detected on a server by the agent (Docker / Podman / containerd)."""
     server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="containers")
     container_id = models.CharField(max_length=64, blank=True, help_text="Container ID")
     name = models.CharField(max_length=200)
+    runtime = models.CharField(max_length=20, default="docker", help_text="Container runtime: docker, podman, or containerd")
     image = models.CharField(max_length=300, blank=True)
     state = models.CharField(max_length=30, default="running", help_text="running, exited, paused, ...")
     status_text = models.CharField(max_length=200, blank=True, help_text="e.g. 'Up 3 hours'")
@@ -1425,6 +1426,8 @@ class Container(models.Model):
     monitoring_enabled = models.BooleanField(default=False)
     auto_detected = models.BooleanField(default=True)
     last_checked = models.DateTimeField(default=timezone.now)
+    inspect_data = models.JSONField(null=True, blank=True, help_text="Compact, sanitized `inspect` summary (config/mounts/networks/env-redacted) from the agent")
+    inspect_at = models.DateTimeField(null=True, blank=True, help_text="When the inspect summary was last collected")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

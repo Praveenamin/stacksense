@@ -443,19 +443,22 @@ def agent_ingest_containers(request):
         if not name:
             continue
         reported.add(name)
-        Container.objects.update_or_create(
-            server=server,
-            name=name,
-            defaults={
-                "container_id": (item.get("container_id") or "")[:64],
-                "image": (item.get("image") or "")[:300],
-                "state": (item.get("state") or "running")[:30],
-                "status_text": (item.get("status_text") or "")[:200],
-                "ports": (item.get("ports") or "")[:300],
-                "last_checked": now,
-                "auto_detected": True,
-            },
-        )
+        defaults = {
+            "container_id": (item.get("container_id") or "")[:64],
+            "runtime": (item.get("runtime") or "docker")[:20],
+            "image": (item.get("image") or "")[:300],
+            "state": (item.get("state") or "running")[:30],
+            "status_text": (item.get("status_text") or "")[:200],
+            "ports": (item.get("ports") or "")[:300],
+            "last_checked": now,
+            "auto_detected": True,
+        }
+        # Inspect summary rides along only on the slow inspect cycle; persist it
+        # only when present so normal pushes don't wipe the last report.
+        if isinstance(item.get("inspect"), dict):
+            defaults["inspect_data"] = item["inspect"]
+            defaults["inspect_at"] = now
+        Container.objects.update_or_create(server=server, name=name, defaults=defaults)
 
     if reported:
         (Container.objects
