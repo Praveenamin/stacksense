@@ -9,70 +9,70 @@
 
 {% block content %}
 <!-- Page Header -->
-<div style="margin-bottom: var(--cds-spacing-8);">
+<div style="margin-bottom: 20px;">
     <h1 style="font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2;">Alerts</h1>
     <p style="font-size:14px; color:#525252; margin:0;">All critical alerts across your infrastructure.</p>
 </div>
 
 <!-- Summary Cards -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-8);">
-    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 20px;">
+    <div style="background-color: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
-            <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #dc2626;">{{ triggered_count }}</div>
+            <div style="font-size: 26px; font-weight: var(--cds-font-weight-bold); color: #dc2626;">{{ triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                 <line x1="12" y1="9" x2="12" y2="13"></line>
                 <line x1="12" y1="17" x2="12.01" y2="17"></line>
             </svg>
         </div>
-        <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Total Critical Alerts</div>
+        <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Total Critical Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="background-color: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
-            <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #22c55e;">{{ acknowledged_count|default:0 }}</div>
+            <div style="font-size: 26px; font-weight: var(--cds-font-weight-bold); color: #22c55e;">{{ acknowledged_count|default:0 }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
         </div>
-        <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Acknowledged Alerts</div>
+        <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Acknowledged Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="background-color: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
-            <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #f59e0b;">{{ unacknowledged_count|default:triggered_count }}</div>
+            <div style="font-size: 26px; font-weight: var(--cds-font-weight-bold); color: #f59e0b;">{{ unacknowledged_count|default:triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
         </div>
-        <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Unacknowledged Alerts</div>
+        <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Unacknowledged Alerts</div>
     </div>
     
-    <div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="background-color: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--cds-spacing-4);">
-            <div style="font-size: var(--cds-font-size-3xl); font-weight: var(--cds-font-weight-bold); color: #ea580c;">{{ critical_severity_count|default:triggered_count }}</div>
+            <div style="font-size: 26px; font-weight: var(--cds-font-weight-bold); color: #ea580c;">{{ critical_severity_count|default:triggered_count }}</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
         </div>
-        <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Critical Severity</div>
+        <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">Critical Severity</div>
     </div>
 </div>
 
 <!-- Alert Filters -->
-<div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0; margin-bottom: var(--cds-spacing-8);">
-    <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); margin-bottom: var(--cds-spacing-6);">
+<div style="background-color: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); margin-bottom: 16px;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
         </svg>
-        <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Alert Filters</h2>
+        <h2 style="font-size: 14px; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0;">Alert Filters</h2>
     </div>
     
     <form method="get" action="{% url 'alert_history' %}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--cds-spacing-4); align-items: end;">
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Time Range</label>
-            <select name="time_range" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="time_range" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; background-color: white;">
                 <option value="24h" {% if selected_time_range == '24h' or not selected_time_range %}selected{% endif %}>Last 24 hours</option>
                 <option value="7d" {% if selected_time_range == '7d' %}selected{% endif %}>Last 7 days</option>
                 <option value="30d" {% if selected_time_range == '30d' %}selected{% endif %}>Last 30 days</option>
@@ -81,7 +81,7 @@
         </div>
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Alert Type</label>
-            <select name="alert_type" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="alert_type" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; background-color: white;">
                 <option value="">All</option>
                 {% for type_code, type_label in alert_types %}
                 <option value="{{ type_code }}" {% if selected_alert_type == type_code %}selected{% endif %}>{{ type_label }}</option>
@@ -90,7 +90,7 @@
         </div>
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Acknowledged Status</label>
-            <select name="acknowledged" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="acknowledged" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; background-color: white;">
                 <option value="">All</option>
                 <option value="true" {% if selected_acknowledged == 'true' %}selected{% endif %}>Acknowledged</option>
                 <option value="false" {% if selected_acknowledged == 'false' %}selected{% endif %}>Unacknowledged</option>
@@ -98,7 +98,7 @@
         </div>
         <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Instance</label>
-            <select name="server_id" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); background-color: white;">
+            <select name="server_id" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; background-color: white;">
                 <option value="">All Instances</option>
                 {% for server in servers %}
                 <option value="{{ server.id }}" {% if selected_server_id|stringformat:"s" == server.id|stringformat:"s" %}selected{% endif %}>{{ server.name }} ({{ server.ip_address }})</option>
@@ -106,17 +106,17 @@
             </select>
         </div>
         <div style="display: flex; gap: var(--cds-spacing-2);">
-            <button type="submit" style="flex: 1; padding: var(--cds-spacing-3) var(--cds-spacing-6); background-color: #0f62fe; color: white; border: none; border-radius: 6px; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); cursor: pointer;">Filter</button>
-            <a href="{% url 'alert_history' %}" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); background-color: #fff; color: #475569; border: 1px solid #e2e8f0; border-radius: 6px; font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; display: inline-block;">Reset</a>
+            <button type="submit" style="flex: 1; padding: var(--cds-spacing-3) 16px; background-color: #0f62fe; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: var(--cds-font-weight-medium); cursor: pointer;">Filter</button>
+            <a href="{% url 'alert_history' %}" style="padding: var(--cds-spacing-3) 16px; background-color: #fff; color: #475569; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; font-weight: var(--cds-font-weight-medium); text-decoration: none; display: inline-block;">Reset</a>
         </div>
     </form>
 </div>
 
 <!-- Alert Details Table -->
-<div style="background-color: white; border-radius: 10px; padding: var(--cds-spacing-6); box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--cds-spacing-6);">
+<div style="background-color: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04); border:1px solid #e2e8f0;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
         <div>
-            <h2 style="font-size: var(--cds-font-size-xl); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">Alert Details</h2>
+            <h2 style="font-size: 14px; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-1) 0;">Alert Details</h2>
             <p style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); margin: 0;">Comprehensive view of all critical alerts in your infrastructure</p>
         </div>
         <!-- Bulk Actions Bar -->
@@ -149,14 +149,14 @@
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; width: 40px;">
+                    <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; width: 40px;">
                         <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="cursor: pointer; width: 18px; height: 18px;">
                     </th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Alert Name</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Affected VM</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Triggered Time</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Duration</th>
-                    <th style="padding: var(--cds-spacing-4) var(--cds-spacing-6); text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Actions</th>
+                    <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Alert Name</th>
+                    <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Affected VM</th>
+                    <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Triggered Time</th>
+                    <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Duration</th>
+                    <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -164,12 +164,12 @@
                 {% if item.type == 'alert' %}
                 {% with alert=item.object %}
                 <tr style="border-bottom: 1px solid #f3f4f6; transition: background-color 150ms ease;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor=''">
-                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
+                    <td style="padding: 10px 16px; vertical-align: middle;">
                         <input type="checkbox" class="alert-checkbox" data-status="{{ alert.status }}" value="{{ alert.id }}" onchange="updateBulkActionsBar()" style="cursor: pointer; width: 18px; height: 18px;">
                     </td>
-                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
+                    <td style="padding: 10px 16px; vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
-                            <a href="{% url 'server_details' alert.server.id %}" style="color: #0f62fe; text-decoration: none; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-base);">{{ alert.alert_type }}</a>
+                            <a href="{% url 'server_details' alert.server.id %}" style="color: #0f62fe; text-decoration: none; font-weight: var(--cds-font-weight-medium); font-size: 13px;">{{ alert.alert_type }}</a>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f62fe" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;">
                                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                                 <polyline points="15 3 21 3 21 9"></polyline>
@@ -199,7 +199,7 @@
                         </div>
                         {% endif %}
                     </td>
-                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
+                    <td style="padding: 10px 16px; vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--cds-color-gray-70);">
                                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -207,18 +207,18 @@
                                 <line x1="12" y1="17" x2="12" y2="21"></line>
                             </svg>
                             <div>
-                                <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ alert.server.name }}</div>
+                                <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ alert.server.name }}</div>
                                 <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">{{ alert.server.ip_address }}</div>
                             </div>
                         </div>
                     </td>
-                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle; color: var(--cds-color-gray-70); font-size: var(--cds-font-size-base);">
+                    <td style="padding: 10px 16px; vertical-align: middle; color: var(--cds-color-gray-70); font-size: 13px;">
                         {{ alert.sent_at|timezone_date:"n/j/Y, g:i:s A" }}
                     </td>
-                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
+                    <td style="padding: 10px 16px; vertical-align: middle;">
                         <span style="background-color: #dbeafe; color: #1e40af; padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: 9999px; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium);">{{ item.duration_seconds|format_duration }}</span>
                     </td>
-                    <td style="padding: var(--cds-spacing-4) var(--cds-spacing-6); vertical-align: middle;">
+                    <td style="padding: 10px 16px; vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-3);">
                             {% if alert.status == 'triggered' %}
                             <a href="{% url 'server_details' alert.server.id %}" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; background-color: #eff6ff; color: #0f62fe; cursor: pointer;" title="View Details">
@@ -240,6 +240,47 @@
                     </td>
                 </tr>
                 {% endwith %}
+                {% elif item.type == 'anomaly' %}
+                {% with anomaly=item.object %}
+                <tr style="border-bottom: 1px solid #f3f4f6; transition: background-color 150ms ease;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor=''">
+                    <td style="padding: 10px 16px; vertical-align: middle;"></td>
+                    <td style="padding: 10px 16px; vertical-align: middle;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <a href="{% url 'server_anomalies_log' anomaly.server.id %}" style="color: #0f62fe; text-decoration: none; font-weight: var(--cds-font-weight-medium); font-size: 13px;">{{ anomaly.metric_type|upper }} anomaly</a>
+                            <span style="flex-shrink:0; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; {% if anomaly.severity == 'CRITICAL' %}background:#fef2f2; color:#b91c1c;{% elif anomaly.severity == 'HIGH' %}background:#fff7ed; color:#c2410c;{% elif anomaly.severity == 'MEDIUM' %}background:#fffbeb; color:#92400e;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{{ anomaly.severity|title }}</span>
+                        </div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">{{ anomaly.explanation|default:anomaly.metric_name|truncatewords:18 }}</div>
+                    </td>
+                    <td style="padding: 10px 16px; vertical-align: middle;">
+                        <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ anomaly.server.name }}</div>
+                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">{{ anomaly.server.ip_address }}</div>
+                    </td>
+                    <td style="padding: 10px 16px; vertical-align: middle; color: var(--cds-color-gray-70); font-size: 13px;">
+                        {{ anomaly.timestamp|timezone_date:"n/j/Y, g:i:s A" }}
+                    </td>
+                    <td style="padding: 10px 16px; vertical-align: middle;">
+                        <span style="background-color: #dbeafe; color: #1e40af; padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: 9999px; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium);">{{ item.duration_seconds|format_duration }}</span>
+                    </td>
+                    <td style="padding: 10px 16px; vertical-align: middle;">
+                        <div style="display: flex; align-items: center; gap: var(--cds-spacing-3);">
+                            {% if not anomaly.resolved %}
+                            <a href="{% url 'server_anomalies_log' anomaly.server.id %}" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; background-color: #eff6ff; color: #0f62fe;" title="View in anomalies log">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </a>
+                            <button onclick="resolveAnomalyRow({{ anomaly.id }})" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; background-color: #dcfce7; color: #22c55e; border: none; cursor: pointer;" title="Resolve">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </button>
+                            {% else %}
+                            <span style="color: var(--cds-color-gray-70); font-size: var(--cds-font-size-sm);">Acknowledged</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endwith %}
                 {% endif %}
                 {% endfor %}
             </tbody>
@@ -247,8 +288,8 @@
     </div>
     {% elif group_by_incident and alert_groups %}
     <!-- Grouped Alerts View -->
-    <div style="margin-bottom: var(--cds-spacing-8);">
-        <div style="font-size: var(--cds-font-size-lg); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-4);">
+    <div style="margin-bottom: 20px;">
+        <div style="font-size: 14px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-4);">
             Alerts grouped by incident ({{ alert_groups|length }} incident{{ alert_groups|length|pluralize }})
         </div>
         <div style="display: flex; flex-direction: column; gap: var(--cds-spacing-4);">
@@ -256,7 +297,7 @@
             <div style="background-color: #f9fafb; border-left: 4px solid {% if group.0.status == 'triggered' %}#ef4444{% else %}#22c55e{% endif %}; padding: var(--cds-spacing-4); border-radius: 6px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-3);">
                     <div>
-                        <div style="font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">
+                        <div style="font-size: 13px; font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100);">
                             {{ group.0.server.name }} - {{ group|length }} alert{{ group|length|pluralize }}
                         </div>
                         <div style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">
@@ -289,8 +330,8 @@
         </div>
     </div>
     {% else %}
-    <div style="text-align: center; padding: var(--cds-spacing-12); color: var(--cds-color-gray-70);">
-        <p style="font-size: var(--cds-font-size-lg); margin: 0;">No alerts found</p>
+    <div style="text-align: center; padding: 40px; color: var(--cds-color-gray-70);">
+        <p style="font-size: 14px; margin: 0;">No alerts found</p>
     </div>
     {% endif %}
 </div>
@@ -361,103 +402,95 @@ function clearSelection() {
 
 // Resolve single alert
 function resolveAlert(alertId) {
-    if (confirm('Are you sure you want to acknowledge this alert?')) {
-        fetch(`/api/alerts/${alertId}/resolve/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin'
-        })
-        .then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                alert('Failed to acknowledge alert');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to acknowledge alert');
-        });
-    }
+    appConfirm({
+        title: 'Acknowledge alert',
+        body: 'Are you sure you want to acknowledge this alert?',
+        confirmText: 'Acknowledge',
+        onConfirm: function () {
+            fetch(`/api/alerts/${alertId}/resolve/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+                credentials: 'same-origin'
+            })
+            .then(response => { if (response.ok) { location.reload(); } else { appAlert('Failed to acknowledge alert', 'Error'); } })
+            .catch(error => { console.error('Error:', error); appAlert('Failed to acknowledge alert', 'Error'); });
+        }
+    });
+}
+
+// Resolve single anomaly (anomalies use a different endpoint than alerts)
+function resolveAnomalyRow(anomalyId) {
+    appConfirm({
+        title: 'Resolve anomaly',
+        body: 'Are you sure you want to resolve this anomaly?',
+        confirmText: 'Resolve',
+        onConfirm: function () {
+            fetch(`/api/anomalies/${anomalyId}/resolve/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+                credentials: 'same-origin'
+            })
+            .then(response => { if (response.ok) { location.reload(); } else { appAlert('Failed to resolve anomaly', 'Error'); } })
+            .catch(error => { console.error('Error:', error); appAlert('Failed to resolve anomaly', 'Error'); });
+        }
+    });
 }
 
 // Bulk acknowledge alerts
 function bulkAcknowledgeAlerts() {
     const checked = document.querySelectorAll('.alert-checkbox:checked');
     if (checked.length === 0) {
-        alert('Please select at least one alert');
+        appAlert('Please select at least one alert');
         return;
     }
-    
-    if (confirm(`Are you sure you want to mark ${checked.length} alert(s) as acknowledged?`)) {
-        const alertIds = Array.from(checked).map(cb => cb.value);
-        
-        fetch('/api/alerts/bulk-resolve/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ alert_ids: alertIds })
-        })
-        .then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                response.json().then(data => {
-                    alert(data.error || 'Failed to acknowledge alerts');
-                }).catch(() => {
-                    alert('Failed to acknowledge alerts');
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to acknowledge alerts');
-        });
-    }
+    appConfirm({
+        title: 'Acknowledge alerts',
+        body: `Are you sure you want to mark ${checked.length} alert(s) as acknowledged?`,
+        confirmText: 'Acknowledge',
+        onConfirm: function () {
+            const alertIds = Array.from(checked).map(cb => cb.value);
+            fetch('/api/alerts/bulk-resolve/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ alert_ids: alertIds })
+            })
+            .then(response => {
+                if (response.ok) { location.reload(); }
+                else { response.json().then(data => appAlert(data.error || 'Failed to acknowledge alerts', 'Error')).catch(() => appAlert('Failed to acknowledge alerts', 'Error')); }
+            })
+            .catch(error => { console.error('Error:', error); appAlert('Failed to acknowledge alerts', 'Error'); });
+        }
+    });
 }
 
 // Bulk delete alerts
 function bulkDeleteAlerts() {
     const checked = document.querySelectorAll('.alert-checkbox:checked');
     if (checked.length === 0) {
-        alert('Please select at least one alert');
+        appAlert('Please select at least one alert');
         return;
     }
-    
-    if (confirm(`Are you sure you want to permanently DELETE ${checked.length} alert(s)? This action cannot be undone.`)) {
-        const alertIds = Array.from(checked).map(cb => cb.value);
-        
-        fetch('/api/alerts/bulk-delete/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ alert_ids: alertIds })
-        })
-        .then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                response.json().then(data => {
-                    alert(data.error || 'Failed to delete alerts');
-                }).catch(() => {
-                    alert('Failed to delete alerts');
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to delete alerts');
-        });
-    }
+    appConfirm({
+        title: 'Delete alerts',
+        body: `Are you sure you want to permanently DELETE ${checked.length} alert(s)? This action cannot be undone.`,
+        confirmText: 'Delete',
+        danger: true,
+        onConfirm: function () {
+            const alertIds = Array.from(checked).map(cb => cb.value);
+            fetch('/api/alerts/bulk-delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ alert_ids: alertIds })
+            })
+            .then(response => {
+                if (response.ok) { location.reload(); }
+                else { response.json().then(data => appAlert(data.error || 'Failed to delete alerts', 'Error')).catch(() => appAlert('Failed to delete alerts', 'Error')); }
+            })
+            .catch(error => { console.error('Error:', error); appAlert('Failed to delete alerts', 'Error'); });
+        }
+    });
 }
 
 function toggleGrouping() {

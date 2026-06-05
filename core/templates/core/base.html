@@ -263,6 +263,55 @@
 
     <!-- JavaScript -->
     {% block extrajs %}{% endblock %}
+
+    <!-- Global styled confirm/alert dialog (replaces native confirm()/alert()) -->
+    <div id="app-modal-overlay" class="app-modal-overlay" style="display:none;">
+        <div class="app-modal" role="dialog" aria-modal="true">
+            <div class="app-modal-title" id="app-modal-title">Confirm</div>
+            <div class="app-modal-body" id="app-modal-body"></div>
+            <div class="app-modal-actions">
+                <button type="button" id="app-modal-cancel" class="app-modal-btn app-modal-btn-secondary">Cancel</button>
+                <button type="button" id="app-modal-confirm" class="app-modal-btn app-modal-btn-primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+    <style>
+    .app-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:3000; padding:16px; }
+    .app-modal { background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.25); width:100%; max-width:420px; padding:24px; animation:appModalIn .14s ease; }
+    @keyframes appModalIn { from { opacity:0; transform:translateY(6px) scale(.98); } to { opacity:1; transform:none; } }
+    .app-modal-title { font-size:17px; font-weight:600; color:#0f172a; margin-bottom:8px; }
+    .app-modal-body { font-size:14px; color:#475569; line-height:1.6; margin-bottom:22px; }
+    .app-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+    .app-modal-btn { padding:9px 18px; font-size:14px; font-weight:500; border-radius:7px; cursor:pointer; border:1px solid transparent; }
+    .app-modal-btn-secondary { background:#fff; color:#334155; border-color:#e2e8f0; }
+    .app-modal-btn-secondary:hover { background:#f8fafc; }
+    .app-modal-btn-primary { background:#0f62fe; color:#fff; }
+    .app-modal-btn-primary:hover { background:#0353e9; }
+    .app-modal-btn-danger { background:#da1e28; color:#fff; }
+    .app-modal-btn-danger:hover { background:#ba1b25; }
+    </style>
+    <script>
+    // Global styled confirm. opts: {title, body, confirmText, danger, alert, onConfirm}
+    window.appConfirm = function (opts) {
+        opts = opts || {};
+        var overlay = document.getElementById('app-modal-overlay');
+        var confirmBtn = document.getElementById('app-modal-confirm');
+        var cancelBtn = document.getElementById('app-modal-cancel');
+        document.getElementById('app-modal-title').textContent = opts.title || 'Confirm';
+        document.getElementById('app-modal-body').textContent = opts.body || '';
+        confirmBtn.textContent = opts.confirmText || 'Confirm';
+        confirmBtn.className = 'app-modal-btn ' + (opts.danger ? 'app-modal-btn-danger' : 'app-modal-btn-primary');
+        cancelBtn.style.display = opts.alert ? 'none' : '';
+        function close() { overlay.style.display = 'none'; confirmBtn.onclick = null; cancelBtn.onclick = null; overlay.onclick = null; document.onkeydown = null; }
+        confirmBtn.onclick = function () { close(); if (opts.onConfirm) opts.onConfirm(); };
+        cancelBtn.onclick = close;
+        overlay.onclick = function (e) { if (e.target === overlay) close(); };
+        document.onkeydown = function (e) { if (e.key === 'Escape') close(); };
+        overlay.style.display = 'flex';
+        confirmBtn.focus();
+    };
+    window.appAlert = function (message, title) { window.appConfirm({ title: title || 'Notice', body: message, confirmText: 'OK', alert: true }); };
+    </script>
 </body>
 
 </html>

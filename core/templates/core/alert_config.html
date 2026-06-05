@@ -10,48 +10,48 @@
         background-color: #ffffff;
         border: 1px solid #e2e8f0;
         border-radius: 10px;
-        padding: var(--cds-spacing-8);
+        padding: 20px;
         box-shadow: 0 1px 2px rgba(15,23,42,.04);
-        margin-bottom: var(--cds-spacing-6);
+        margin-bottom: 16px;
     }
     .email-config-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: var(--cds-spacing-8);
+        gap: 16px;
         align-items: start;
-        margin-bottom: var(--cds-spacing-6);
+        margin-bottom: 16px;
     }
     .email-config-grid .form-card,
     .email-config-grid .requirements-card {
         margin-bottom: 0;
     }
     .form-title {
-        font-size: var(--cds-font-size-lg);
-        font-weight: var(--cds-font-weight-semibold);
-        color: var(--cds-color-gray-100);
-        margin: 0 0 var(--cds-spacing-2) 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 4px 0;
     }
     .form-subtitle {
-        font-size: var(--cds-font-size-sm);
-        color: var(--cds-color-gray-50);
-        margin: 0 0 var(--cds-spacing-6) 0;
+        font-size: 13px;
+        color: #64748b;
+        margin: 0 0 16px 0;
     }
     .form-section-title {
-        font-size: var(--cds-font-size-base);
-        font-weight: var(--cds-font-weight-semibold);
-        color: var(--cds-color-gray-100);
-        margin: 0 0 var(--cds-spacing-4) 0;
-        padding-bottom: var(--cds-spacing-2);
-        border-bottom: 1px solid var(--cds-color-gray-20);
+        font-size: 13px;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0 0 12px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
     }
     .form-group {
-        margin-bottom: var(--cds-spacing-5);
+        margin-bottom: 14px;
     }
     .form-label {
         display: block;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 500;
-        color: #0f172a;
+        color: #475569;
         margin-bottom: 6px;
     }
     .form-label .required {
@@ -59,8 +59,8 @@
     }
     .form-input {
         width: 100%;
-        padding: 10px 14px;
-        font-size: 14px;
+        padding: 9px 12px;
+        font-size: 13px;
         color: #0f172a;
         background-color: #ffffff;
         border: 1px solid #e2e8f0;
@@ -85,22 +85,22 @@
     .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 16px;
+        gap: 14px;
     }
     .btn-submit {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: 500;
+        padding: 9px 18px;
+        font-size: 13px;
+        font-weight: 600;
         color: #ffffff;
         background-color: #0f62fe;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         cursor: pointer;
         transition: background-color 150ms ease;
-        width: 100%;
+        width: auto;
     }
     .btn-submit:hover {
         background-color: #0353e9;
@@ -109,13 +109,13 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 10px 20px;
-        font-size: 14px;
+        padding: 8px 14px;
+        font-size: 13px;
         font-weight: 500;
         color: #0f172a;
         background-color: #f1f5f9;
         border: 1px solid #e2e8f0;
-        border-radius: 6px;
+        border-radius: 8px;
         cursor: pointer;
         transition: background-color 150ms ease;
     }
@@ -235,7 +235,7 @@
         background-color: var(--cds-color-gray-5);
         border: 1px solid var(--cds-color-gray-20);
         border-radius: var(--cds-border-radius);
-        padding: var(--cds-spacing-8);
+        padding: 20px;
     }
     .requirements-title {
         font-size: var(--cds-font-size-lg);
@@ -287,7 +287,7 @@
          dashboard blue by overriding the inherited CDS token on this wrapper. -->
     <div style="--cds-color-blue-60:#0f62fe; --cds-color-blue-50:#eef4ff; --cds-color-blue-70:#0353e9; --color-primary-interactive:#0f62fe;">
     <!-- Page Header -->
-    <div style="margin-bottom: var(--cds-spacing-8);">
+    <div style="margin-bottom: 20px;">
         <h1 style="font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2;">Alert configuration</h1>
         <p style="font-size:14px; color:#525252; margin:0;">Email &amp; Slack notifications and alert thresholds for your servers.</p>
     </div>
@@ -306,16 +306,16 @@
     <!-- Tabs -->
     <div style="margin-bottom: var(--cds-spacing-6); border-bottom: 1px solid var(--cds-color-gray-20);">
         <div style="display: flex; gap: var(--cds-spacing-2);">
-            <button class="tab-button active" data-tab="email-config" onclick="switchTab('email-config')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background: none; border: none; border-bottom: 2px solid var(--color-primary-interactive); cursor: pointer; transition: all 0.2s;">
+            <button class="tab-button active" data-tab="email-config" onclick="switchTab('email-config')" style="padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--cds-color-gray-100); background: none; border: none; border-bottom: 2px solid var(--color-primary-interactive); cursor: pointer; transition: all 0.2s;">
                 Email Configuration
             </button>
-            <button class="tab-button" data-tab="slack-config" onclick="switchTab('slack-config')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
+            <button class="tab-button" data-tab="slack-config" onclick="switchTab('slack-config')" style="padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
                 Slack Configuration
             </button>
-            <button class="tab-button" data-tab="disk-alerts" onclick="switchTab('disk-alerts')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
+            <button class="tab-button" data-tab="disk-alerts" onclick="switchTab('disk-alerts')" style="padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
                 Configure Disk Alerts
             </button>
-            <button class="tab-button" data-tab="service-alerts" onclick="switchTab('service-alerts')" style="padding: var(--cds-spacing-3) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
+            <button class="tab-button" data-tab="service-alerts" onclick="switchTab('service-alerts')" style="padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
                 Configure Service Alerts
             </button>
         </div>
@@ -895,7 +895,7 @@ async function loadDiskAlertsConfig() {
             html += '</form>';
             
             // Server Selection and Partition Configuration
-            html += '<div style="margin-top: var(--cds-spacing-8); padding-top: var(--cds-spacing-8); border-top: 1px solid var(--cds-color-gray-20);">';
+            html += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--cds-color-gray-20);">';
             html += '<h3 class="form-section-title">Configure Disk Partition Monitoring</h3>';
             html += '<div class="form-group">';
             html += '<label class="form-label">Select Server</label>';
@@ -918,7 +918,7 @@ async function loadDiskAlertsConfig() {
             html += '</div>';
             
             // List of enabled partitions
-            html += '<div style="margin-top: var(--cds-spacing-8); padding-top: var(--cds-spacing-8); border-top: 1px solid var(--cds-color-gray-20);">';
+            html += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--cds-color-gray-20);">';
             html += '<h3 class="form-section-title">Enabled Partition Monitoring</h3>';
             html += '<div id="enabled-partitions-list"></div>';
             html += '</div>';
@@ -1118,7 +1118,7 @@ async function loadServiceAlertsConfig() {
             html += '</div>';
             
             // List of enabled services
-            html += '<div style="margin-top: var(--cds-spacing-8); padding-top: var(--cds-spacing-8); border-top: 1px solid var(--cds-color-gray-20);">';
+            html += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--cds-color-gray-20);">';
             html += '<h3 class="form-section-title">Enabled Service Monitoring</h3>';
             html += '<div id="enabled-services-list"></div>';
             html += '</div>';

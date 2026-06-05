@@ -77,6 +77,38 @@
 
 <input type="hidden" id="server-id" value="{{ server.id }}">
 
+<!-- Active issues banner (this server): triggered alerts + unresolved anomalies -->
+{% if recent_alerts or active_anomaly_count %}
+<div style="background:#fef2f2; border:1px solid #fecaca; border-left:4px solid #dc2626; border-radius:10px; padding:14px 18px; margin-bottom:14px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+            <span style="font-size:18px; line-height:1;">⚠️</span>
+            <span style="font-size:14px; font-weight:600; color:#b91c1c;">
+                {% if recent_alerts %}{{ recent_alerts|length }} active alert{{ recent_alerts|length|pluralize }}{% endif %}{% if recent_alerts and active_anomaly_count %} · {% endif %}{% if active_anomaly_count %}{{ active_anomaly_count }} open anomal{{ active_anomaly_count|pluralize:"y,ies" }}{% endif %} on this server
+            </span>
+        </div>
+        <a href="{% url 'server_anomalies_log' server.id %}" style="font-size:13px; font-weight:500; color:#0f62fe; text-decoration:none; white-space:nowrap;">View anomalies log →</a>
+    </div>
+    <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+        {% for alert in recent_alerts|slice:":4" %}
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#fff; border:1px solid #fee2e2; border-radius:8px;">
+            <span style="flex-shrink:0; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; background:#fef2f2; color:#b91c1c;">Alert · {{ alert.alert_type }}</span>
+            <span style="flex:1; min-width:0; font-size:13px; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ alert.message|default:"Threshold exceeded" }}</span>
+            <span style="flex-shrink:0; font-size:12px; color:#94a3b8;">{{ alert.sent_at|timesince }} ago</span>
+        </div>
+        {% endfor %}
+        {% for a in active_anomalies|slice:":4" %}
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#fff; border:1px solid #fee2e2; border-radius:8px;">
+            <span style="flex-shrink:0; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600;
+                {% if a.severity == 'CRITICAL' %}background:#fef2f2; color:#b91c1c;{% elif a.severity == 'HIGH' %}background:#fff7ed; color:#c2410c;{% elif a.severity == 'MEDIUM' %}background:#fffbeb; color:#92400e;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{{ a.severity|title }} · {{ a.metric_type|upper }}</span>
+            <span style="flex:1; min-width:0; font-size:13px; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.explanation|default:"Anomalous reading detected" }}</span>
+            <span style="flex-shrink:0; font-size:12px; color:#94a3b8;">{{ a.timestamp|timesince }} ago</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Resources (compact stat tiles) -->
 <div class="sd-card">
     <h2>Resources</h2>
@@ -142,60 +174,191 @@
 
 <!-- (metrics charts moved up, next to the resource tiles) -->
 
-<!-- SLO Configuration and Compliance Section -->
-<div id="slo-configuration-section" style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
-    <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0 0 var(--cds-spacing-4) 0;">SLO Configuration & Compliance</h2>
-    <div id="slo-configuration-container">
-        <!-- SLO configuration will be loaded here by JavaScript -->
-    </div>
-</div>
-
-<!-- Services Status Section -->
+<!-- Services Status Section — same data as the Services page, this server only -->
 <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
-        <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0;">Services Status</h2>
-        <div style="display: flex; gap: var(--cds-spacing-2);">
-            <button onclick="showServices('enabled')" id="btn-enabled" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-white); background-color: var(--cds-color-blue-60); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Enabled</button>
-            <button onclick="showServices('critical')" id="btn-critical" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); cursor: pointer;">Critical</button>
-            <button onclick="showServices('all')" id="btn-all" style="padding: var(--cds-spacing-1) var(--cds-spacing-3); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); cursor: pointer;">All</button>
+        <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0;">Services</h2>
+        <div style="display:flex; align-items:center; gap:12px;">
+            {% if services_monitored_count %}<span style="font-size:11px;font-weight:600;color:#0f62fe;background:#eef4ff;padding:2px 9px;border-radius:999px;">{{ services_monitored_count }} monitored</span>{% endif %}
+            <span style="font-size:12px;color:#64748b;">{{ notable_services|length }} service{{ notable_services|length|pluralize }}</span>
         </div>
     </div>
-    
-    <div id="services-list">
-        <!-- Services will be loaded here -->
+
+    {% if notable_services %}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+            <th style="padding:9px 12px;font-weight:500;">Service</th>
+            <th style="padding:9px 12px;font-weight:500;">Type</th>
+            <th style="padding:9px 12px;font-weight:500;">Status</th>
+            <th style="padding:9px 12px;font-weight:500;text-align:right;">Monitor</th>
+        </tr></thead>
+        <tbody>
+        {% for s in notable_services %}
+            <tr style="border-top:1px solid #f1f5f9;">
+                <td style="padding:9px 12px;color:#0f172a;font-weight:500;">{{ s.name }}</td>
+                <td style="padding:9px 12px;color:#64748b;">{{ s.service_type }}</td>
+                <td style="padding:9px 12px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
+                <td style="padding:9px 12px;text-align:right;">
+                    <label class="switch"><input type="checkbox" {% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:18px;color:#94a3b8;font-size:13px;">No key services detected yet. The agent reports running services every few minutes.</div>
+    {% endif %}
+
+    {% if background_services %}
+    <div style="border-top:1px solid #f1f5f9;margin-top:4px;">
+        <button type="button" onclick="toggleBgServices('bg-services', this)" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;padding:11px 4px;font-size:13px;color:#64748b;">
+            ▸ Show {{ background_services|length }} background / system service{{ background_services|length|pluralize }}
+        </button>
+        <table id="bg-services" style="display:none;width:100%;border-collapse:collapse;font-size:13px;">
+            <tbody>
+            {% for s in background_services %}
+                <tr style="border-top:1px solid #f1f5f9;background:#fcfcfd;">
+                    <td style="padding:8px 12px;color:#475569;">{{ s.name }}</td>
+                    <td style="padding:8px 12px;color:#94a3b8;">{{ s.service_type }}</td>
+                    <td style="padding:8px 12px;">{% if s.status == 'running' %}<span style="color:#166534;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
+                    <td style="padding:8px 12px;text-align:right;"><label class="switch"><input type="checkbox" {% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
+    {% endif %}
+</div>
+<style>
+.switch { position:relative; display:inline-block; width:38px; height:22px; }
+.switch input { opacity:0; width:0; height:0; }
+.slider { position:absolute; cursor:pointer; inset:0; background:#cbd5e1; border-radius:999px; transition:.2s; }
+.slider:before { content:""; position:absolute; height:16px; width:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+.switch input:checked + .slider { background:#0f62fe; }
+.switch input:checked + .slider:before { transform:translateX(16px); }
+</style>
+
+<!-- Containers Section — same data as the Containers page, this server only -->
+<div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-6);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--cds-spacing-4);">
+        <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0;">Containers</h2>
+        <div style="display:flex; align-items:center; gap:12px;">
+            {% if containers_monitored_count %}<span style="font-size:11px;font-weight:600;color:#0f62fe;background:#eef4ff;padding:2px 9px;border-radius:999px;">{{ containers_monitored_count }} monitored</span>{% endif %}
+            <span style="font-size:12px;color:#64748b;">{{ server_containers|length }} container{{ server_containers|length|pluralize }}</span>
+        </div>
+    </div>
+
+    {% if server_containers %}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+            <th style="padding:9px 12px;font-weight:500;">Container</th>
+            <th style="padding:9px 12px;font-weight:500;">Image</th>
+            <th style="padding:9px 12px;font-weight:500;">Status</th>
+            <th style="padding:9px 12px;font-weight:500;text-align:right;">Monitor</th>
+        </tr></thead>
+        <tbody>
+        {% for c in server_containers %}
+            <tr style="border-top:1px solid #f1f5f9;">
+                <td style="padding:9px 12px;color:#0f172a;font-weight:500;">{{ c.name }}</td>
+                <td style="padding:9px 12px;color:#64748b;word-break:break-all;">{{ c.image|default:"—" }}</td>
+                <td style="padding:9px 12px;">
+                    {% if c.state == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>
+                    {% elif c.state == 'paused' %}<span style="color:#b45309;font-weight:600;">● Paused</span>
+                    {% else %}<span style="color:#b91c1c;font-weight:600;">● {{ c.state|capfirst }}</span>{% endif %}
+                    {% if c.status_text %}<span style="color:#94a3b8;font-size:12px;margin-left:6px;">{{ c.status_text }}</span>{% endif %}
+                </td>
+                <td style="padding:9px 12px;text-align:right;">
+                    <label class="switch"><input type="checkbox" {% if c.monitoring_enabled %}checked{% endif %} onchange="toggleContainerMonitoring({{ server.id }}, {{ c.id }}, this)"><span class="slider"></span></label>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:18px;color:#94a3b8;font-size:13px;">No containers detected. The agent reports Docker containers every few minutes (the agent user needs Docker access).</div>
+    {% endif %}
 </div>
 
-<!-- Threshold Values Section -->
+<!-- Anomaly Detection Section -->
 <div style="background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6);">
-    <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0 0 var(--cds-spacing-4) 0;">Threshold Values</h2>
-    
-    <form id="thresholds-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--cds-spacing-4);">
-        <div>
-            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">CPU Threshold (%)</label>
-            <input type="number" name="cpu_threshold" value="{{ server.monitoring_config.cpu_threshold|default:80 }}" min="0" max="100" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+    <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin: 0 0 4px 0;">Anomaly Detection</h2>
+    <p style="font-size:13px; color:#64748b; margin:0 0 18px 0;">Choose how aggressively StackSense flags unusual behaviour on this server. Alerts also always fire when a metric crosses a ceiling below.</p>
+
+    <form id="thresholds-form">
+        <input type="hidden" name="anomaly_sensitivity" id="anomaly-sensitivity-input" value="{{ server.monitoring_config.anomaly_sensitivity|default:'BALANCED' }}">
+
+        <label class="th-label">Detection sensitivity</label>
+        <div class="sens-group" id="sens-group">
+            <button type="button" class="sens-btn" data-value="OFF">Off</button>
+            <button type="button" class="sens-btn" data-value="LOW">Low</button>
+            <button type="button" class="sens-btn" data-value="BALANCED">Balanced</button>
+            <button type="button" class="sens-btn" data-value="HIGH">High</button>
         </div>
-        <div>
-            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Memory Threshold (%)</label>
-            <input type="number" name="memory_threshold" value="{{ server.monitoring_config.memory_threshold|default:85 }}" min="0" max="100" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
+        <p id="sens-hint" style="font-size:12px;color:#94a3b8;margin:8px 0 20px 0;"></p>
+
+        <label class="th-label" style="margin-bottom:10px;">Alert ceilings <span style="color:#94a3b8;font-weight:400;">— always alert when a metric crosses these</span></label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+            <div>
+                <label class="th-label">CPU (%)</label>
+                <input type="number" name="cpu_threshold" value="{{ server.monitoring_config.cpu_threshold|default:80 }}" min="0" max="100" step="0.1" class="th-input">
+            </div>
+            <div>
+                <label class="th-label">Memory (%)</label>
+                <input type="number" name="memory_threshold" value="{{ server.monitoring_config.memory_threshold|default:85 }}" min="0" max="100" step="0.1" class="th-input">
+            </div>
+            <div>
+                <label class="th-label">Disk Usage (%)</label>
+                <input type="number" name="disk_threshold" value="{{ server.monitoring_config.disk_threshold|default:90 }}" min="0" max="100" step="0.1" class="th-input">
+            </div>
+            <div>
+                <label class="th-label">Disk I/O (MB/s)</label>
+                <input type="number" name="disk_io_threshold" value="{% if server.monitoring_config.disk_io_threshold %}{{ server.monitoring_config.disk_io_threshold|floatformat:2 }}{% else %}1000{% endif %}" min="0" step="0.1" class="th-input">
+            </div>
+            <div>
+                <label class="th-label">Network I/O (MB/s)</label>
+                <input type="number" name="network_io_threshold" value="{% if server.monitoring_config.network_io_threshold %}{{ server.monitoring_config.network_io_threshold|floatformat:2 }}{% else %}1000{% endif %}" min="0" step="0.1" class="th-input">
+            </div>
         </div>
-        <div>
-            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Disk Usage Threshold (%)</label>
-            <input type="number" name="disk_threshold" value="{{ server.monitoring_config.disk_threshold|default:90 }}" min="0" max="100" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
-        </div>
-        <div>
-            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Disk I/O Threshold (MB/s)</label>
-            <input type="number" name="disk_io_threshold" value="{% if server.monitoring_config.disk_io_threshold %}{{ server.monitoring_config.disk_io_threshold|floatformat:2 }}{% else %}1000{% endif %}" min="0" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
-        </div>
-        <div>
-            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-1);">Network I/O Threshold (MB/s)</label>
-            <input type="number" name="network_io_threshold" value="{% if server.monitoring_config.network_io_threshold %}{{ server.monitoring_config.network_io_threshold|floatformat:2 }}{% else %}1000{% endif %}" min="0" step="0.1" style="width: 100%; padding: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius);">
-        </div>
-        <div style="display: flex; align-items: flex-end;">
-            <button type="submit" style="padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-white); background-color: var(--cds-color-blue-60); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Save Thresholds</button>
+        <div style="display:flex; justify-content:flex-end; margin-top:18px; padding-top:16px; border-top:1px solid #f1f5f9;">
+            <button type="submit" class="th-save">Save</button>
         </div>
     </form>
 </div>
+<style>
+.th-label { display:block; font-size:12px; font-weight:500; color:#475569; margin-bottom:6px; }
+.th-input { width:100%; padding:9px 12px; font-size:13px; color:#0f172a; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-sizing:border-box; transition:border-color .15s, box-shadow .15s; }
+.th-input:focus { outline:none; border-color:#0f62fe; box-shadow:0 0 0 3px rgba(15,98,254,.12); }
+.th-input::-webkit-outer-spin-button, .th-input::-webkit-inner-spin-button { opacity:1; }
+.th-save { padding:9px 18px; font-size:13px; font-weight:600; color:#fff; background:#0f62fe; border:none; border-radius:8px; cursor:pointer; transition:background .15s; }
+.th-save:hover { background:#0353e9; }
+.sens-group { display:inline-flex; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; }
+.sens-btn { padding:8px 18px; font-size:13px; font-weight:500; color:#475569; background:#fff; border:none; border-right:1px solid #e2e8f0; cursor:pointer; transition:all .12s; }
+.sens-btn:last-child { border-right:none; }
+.sens-btn:hover { background:#f8fafc; }
+.sens-btn.active { background:#0f62fe; color:#fff; }
+</style>
+<script>
+(function(){
+    var input=document.getElementById('anomaly-sensitivity-input');
+    var group=document.getElementById('sens-group');
+    var hint=document.getElementById('sens-hint');
+    if(!input||!group) return;
+    var hints={
+        OFF:'Detection is turned off for this server.',
+        LOW:'Only extreme outliers are flagged.',
+        BALANCED:'Recommended — flags clearly unusual spikes.',
+        HIGH:'More sensitive — flags smaller deviations.'
+    };
+    function render(val){
+        group.querySelectorAll('.sens-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.value===val); });
+        if(hint) hint.textContent=hints[val]||'';
+    }
+    group.querySelectorAll('.sens-btn').forEach(function(b){
+        b.addEventListener('click', function(){ input.value=b.dataset.value; render(b.dataset.value); });
+    });
+    render((input.value||'BALANCED').toUpperCase());
+})();
+</script>
 
 <!-- Disk Selection Modal -->
 <div id="disk-modal" style="display: none; position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
@@ -227,7 +390,6 @@
 
 {% block extrajs %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script src="{% static 'core/js/components/server/SLOConfiguration.js' %}"></script>
 <script>
     const serverId = document.getElementById('server-id').value;
     let refreshInterval;
@@ -236,12 +398,7 @@
     // Initialize charts
     document.addEventListener('DOMContentLoaded', function() {
         loadTopProcesses();
-        loadServices('enabled');
         initializeCharts();
-        // Initialize SLO Configuration
-        if (typeof window.initSLOConfiguration !== 'undefined') {
-            window.initSLOConfiguration(serverId);
-        }
         fetchMetrics();
         
         const toggle = document.getElementById('auto-refresh-toggle');
@@ -393,172 +550,31 @@
         `).join('');
     }
     
-    async function loadServices(filter) {
-        try {
-            currentFilter = filter;  // Store current filter
-            
-            // Show loading indicator
-            const container = document.getElementById('services-list');
-            if (container) {
-                container.innerHTML = '<div style="padding: var(--cds-spacing-4); text-align: center; color: var(--cds-color-gray-70);"><div style="display: inline-block; width: 20px; height: 20px; border: 3px solid var(--cds-color-gray-20); border-top-color: var(--cds-color-blue-60); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px;"></div>Loading...</div>';
-            }
-            
-            const res = await fetch(`/api/server/${serverId}/services/`);
-            if (!res.ok) throw new Error('Failed to load services');
-            
-            const data = await res.json();
-            let services = [];
-            
-            // Get services based on filter
-            if (filter === 'enabled') {
-                // Get monitored services (services with monitoring enabled)
-                services = data.monitored || [];
-            } else if (filter === 'critical') {
-                // Get critical services (monitored + pattern-matched critical services)
-                services = data.critical || [];
-            } else if (filter === 'all') {
-                // Get all services
-                services = data.all || [];
-            }
-            
-            displayServices(services);
-            
-            // Update button states
-            document.querySelectorAll('[id^="btn-"]').forEach(btn => {
-                btn.style.backgroundColor = 'var(--cds-color-white)';
-                btn.style.color = 'var(--cds-color-gray-100)';
-            });
-            const btn = document.getElementById(`btn-${filter}`);
-            if (btn) {
-                btn.style.backgroundColor = 'var(--cds-color-blue-60)';
-                btn.style.color = 'var(--cds-color-white)';
-            }
-            
-        } catch (e) {
-            console.error('Error loading services:', e);
-            const container = document.getElementById('services-list');
-            if (container) {
-                container.innerHTML = '<div style="padding: var(--cds-spacing-4); text-align: center; color: var(--cds-color-red-60);">Error loading services: ' + e.message + '</div>';
-            }
-        }
+    // Services panel is server-rendered (same data as the Services page). These
+    // helpers handle the monitoring toggle (shared endpoint) + background expand.
+    function toggleBgServices(id, btn) {
+        const t = document.getElementById(id);
+        const show = t.style.display === 'none';
+        t.style.display = show ? 'table' : 'none';
+        btn.textContent = (show ? '▾ Hide ' : '▸ Show ') + btn.textContent.replace(/^[▸▾]\s*(Show|Hide)\s*/, '');
     }
-    
-    let currentFilter = 'enabled';  // Track current filter
-    
-    function showServices(filter) {
-        loadServices(filter);
+    function toggleServiceMonitoring(serverId, serviceId, el) {
+        fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(d => { if (!d.success) { el.checked = !el.checked; alert('Failed to update monitoring'); } })
+        .catch(() => { el.checked = !el.checked; alert('Failed to update monitoring'); });
     }
-    
-    function displayServices(services) {
-        const container = document.getElementById('services-list');
-        if (!container) {
-            console.error('Services list container not found');
-            return;
-        }
-        
-        if (!services || services.length === 0) {
-            container.innerHTML = '<div style="padding: var(--cds-spacing-4); text-align: center; color: var(--cds-color-gray-70);">No services found</div>';
-            return;
-        }
-        
-        container.innerHTML = services.map(s => {
-            const status = s.status || 'unknown';
-            const statusColor = status === 'running' ? 'background-color: #dcfce7; color: #166534;' : 
-                               status === 'failed' ? 'background-color: #fee2e2; color: #991b1b;' :
-                               'background-color: #f8fafc; color: #64748b;';
-            const isCritical = s.is_critical || false;
-            const monitoringEnabled = s.monitoring_enabled || false;
-            const serviceId = s.id || null;
-            
-            // Show Enable/Disable button only for Critical and All filters
-            const showToggleButton = (currentFilter === 'critical' || currentFilter === 'all') && serviceId;
-            const toggleButton = showToggleButton ? `
-                <button onclick="toggleServiceMonitoring(${serviceId}, ${!monitoringEnabled})" 
-                        style="padding: var(--cds-spacing-1) var(--cds-spacing-2); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); 
-                               ${monitoringEnabled ? 'background-color: #dc2626; color: #ffffff;' : 'background-color: #22c55e; color: #ffffff;'} 
-                               border: none; border-radius: var(--cds-border-radius); cursor: pointer;">
-                    ${monitoringEnabled ? 'Disable' : 'Enable'} Monitoring
-                </button>
-            ` : '';
-            
-            return `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--cds-spacing-3); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); margin-bottom: var(--cds-spacing-2);">
-                <div style="flex: 1;">
-                    <div style="font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">${s.name || 'Unknown'}</div>
-                    <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">${s.description || s.status || 'Unknown'}</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
-                    <span style="padding: var(--cds-spacing-1) var(--cds-spacing-2); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); border-radius: var(--cds-border-radius); ${statusColor}">${status}</span>
-                    ${isCritical ? '<span style="padding: var(--cds-spacing-1) var(--cds-spacing-2); font-size: var(--cds-font-size-xs); font-weight: var(--cds-font-weight-medium); background-color: #fef3c7; color: #92400e; border-radius: var(--cds-border-radius);">Critical</span>' : ''}
-                    ${toggleButton}
-                </div>
-            </div>
-            `;
-        }).join('');
-    }
-    
-    async function toggleServiceMonitoring(serviceId, enable) {
-        try {
-            // Show loading state on the button
-            const toggleBtn = document.getElementById(`toggle-btn-${serviceId}`);
-            if (toggleBtn) {
-                const originalText = toggleBtn.textContent;
-                toggleBtn.disabled = true;
-                toggleBtn.style.opacity = '0.6';
-                toggleBtn.style.cursor = 'not-allowed';
-                toggleBtn.innerHTML = '<div style="display: inline-block; width: 12px; height: 12px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 4px;"></div>Loading...';
-            }
-            
-            function getCookie(name) {
-                let cookieValue = null;
-                if (document.cookie && document.cookie !== '') {
-                    const cookies = document.cookie.split(';');
-                    for (let i = 0; i < cookies.length; i++) {
-                        const cookie = cookies[i].trim();
-                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                            break;
-                        }
-                    }
-                }
-                return cookieValue;
-            }
-            
-            const res = await fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
-            });
-            
-            if (!res.ok) throw new Error('Failed to toggle monitoring');
-            
-            const data = await res.json();
-            if (data.success) {
-                // Reload services to reflect the change
-                loadServices(currentFilter);
-            } else {
-                // Restore button state on error
-                if (toggleBtn) {
-                    toggleBtn.disabled = false;
-                    toggleBtn.style.opacity = '1';
-                    toggleBtn.style.cursor = 'pointer';
-                    toggleBtn.textContent = originalText;
-                }
-                alert('Error: ' + (data.error || 'Failed to toggle monitoring'));
-            }
-        } catch (e) {
-            console.error('Error toggling service monitoring:', e);
-            // Restore button state on error
-            const toggleBtn = document.getElementById(`toggle-btn-${serviceId}`);
-            if (toggleBtn) {
-                toggleBtn.disabled = false;
-                toggleBtn.style.opacity = '1';
-                toggleBtn.style.cursor = 'pointer';
-            }
-            alert('Error toggling service monitoring: ' + e.message);
-        }
+    function toggleContainerMonitoring(serverId, containerId, el) {
+        fetch(`/api/server/${serverId}/container/${containerId}/toggle-monitoring/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(d => { if (!d.success) { el.checked = !el.checked; alert('Failed to update monitoring'); } })
+        .catch(() => { el.checked = !el.checked; alert('Failed to update monitoring'); });
     }
     
     function initializeCharts() {
@@ -599,7 +615,7 @@
                 series('Read (MB/s)', '#0f62fe', 'rgba(15,98,254,0.12)'),
                 series('Write (MB/s)', '#ef4444', 'rgba(239,68,68,0.12)'),
             ]},
-            options: baseOptions({ min: 0, max: 10, ticks: { stepSize: 1, callback: function (v) { return v + ' MB/s'; }, font: { size: 10 } } }),
+            options: baseOptions({ min: 0, max: 15, ticks: { stepSize: 5, callback: function (v) { return v + ' MB/s'; }, font: { size: 10 } } }),
         });
 
         // Network I/O (MB/s)
@@ -609,7 +625,7 @@
                 series('In (MB/s)', '#10b981', 'rgba(16,185,129,0.12)'),
                 series('Out (MB/s)', '#f59e0b', 'rgba(245,158,11,0.12)'),
             ]},
-            options: baseOptions({ min: 0, max: 10, ticks: { stepSize: 1, callback: function (v) { return v + ' MB/s'; }, font: { size: 10 } } }),
+            options: baseOptions({ min: 0, max: 15, ticks: { stepSize: 5, callback: function (v) { return v + ' MB/s'; }, font: { size: 10 } } }),
         });
     }
     
@@ -702,7 +718,7 @@
         const formData = new FormData(form);
         const data = {};
         for (let [key, value] of formData.entries()) {
-            data[key] = parseFloat(value);
+            data[key] = (key === 'anomaly_sensitivity') ? value : parseFloat(value);
         }
         
         try {
