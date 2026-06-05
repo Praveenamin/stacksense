@@ -632,7 +632,11 @@ def server_details(request, server_id):
     
     # Get recent anomalies (last 50)
     recent_anomalies = Anomaly.objects.filter(server=server).select_related("metric").order_by("-timestamp")[:50]
-    
+    # Unresolved anomalies drive the active-issues banner (same notion the dashboard
+    # counts as "active alerts": triggered AlertHistory + unresolved Anomaly).
+    active_anomalies = Anomaly.objects.filter(server=server, resolved=False).order_by("-timestamp")
+    active_anomaly_count = active_anomalies.count()
+
     # Parse disk usage
     disk_data = {}
     disk_percent = 0
@@ -754,7 +758,21 @@ def server_details(request, server_id):
     
     # Get monitored services for latency display (services with monitoring_enabled=True)
     monitored_services = all_services.filter(monitoring_enabled=True)
-    
+
+    # Service Status panel: same data + notable/background split as the Services
+    # page (services_overview), but scoped to this one server. Reads the agent-
+    # pushed Service rows straight from the DB — no SSH — so the two pages can
+    # never disagree, and the monitoring toggle hits the same shared endpoint.
+    panel_services = [s for s in all_services if s.service_type != "port"]
+    notable_services = [s for s in panel_services if not _is_background_service(s)]
+    background_services = [s for s in panel_services if _is_background_service(s)]
+    services_monitored_count = sum(1 for s in panel_services if s.monitoring_enabled)
+
+    # Containers panel: same data + toggle as the Containers page, this server
+    # only. Reads the agent-pushed Container rows from the DB; shared endpoint.
+    server_containers = list(server.containers.all())
+    containers_monitored_count = sum(1 for c in server_containers if c.monitoring_enabled)
+
     context = {
         "server": server,
         "server_status": server_status,
@@ -762,7 +780,14 @@ def server_details(request, server_id):
         "recent_metrics": recent_metrics,
         "all_services": all_services,
         "monitored_services": monitored_services,
+        "notable_services": notable_services,
+        "background_services": background_services,
+        "services_monitored_count": services_monitored_count,
+        "server_containers": server_containers,
+        "containers_monitored_count": containers_monitored_count,
         "recent_anomalies": recent_anomalies,
+        "active_anomalies": active_anomalies,
+        "active_anomaly_count": active_anomaly_count,
         "disk_summary": disk_summary,
         "disk_data": disk_data,
         "disk_percent": disk_percent,
@@ -4168,9 +4193,14 @@ def update_thresholds(request, server_id):
             config.disk_io_threshold = float(data['disk_io_threshold'])
         if 'network_io_threshold' in data:
             config.network_io_threshold = float(data['network_io_threshold'])
-        
+        if 'anomaly_sensitivity' in data:
+            valid = {c[0] for c in MonitoringConfig.AnomalySensitivity.choices}
+            sensitivity = str(data['anomaly_sensitivity']).upper()
+            if sensitivity in valid:
+                config.anomaly_sensitivity = sensitivity
+
         config.save()
-        
+
         return JsonResponse({
             'success': True,
             'message': 'Thresholds updated successfully'

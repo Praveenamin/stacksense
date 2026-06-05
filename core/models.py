@@ -188,9 +188,16 @@ class SystemMetric(models.Model):
     
     # Process context (collected during normal metric collection)
     top_processes = models.JSONField(
-        null=True, 
+        null=True,
         blank=True,
         help_text="Top processes by CPU/Memory at collection time. Format: {'cpu': [...], 'memory': [...]}"
+    )
+    ipc_stats = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="SysV IPC / POSIX shared-memory summary for leak detection. "
+                  "Keys: shm_segments, shm_bytes, shm_orphaned, shm_orphaned_bytes, "
+                  "sem_arrays, msg_queues, msg_bytes, devshm_bytes."
     )
     
     class Meta:
@@ -276,6 +283,18 @@ class MonitoringConfig(models.Model):
     enabled = models.BooleanField(default=True)
     
     # Anomaly detection settings
+    class AnomalySensitivity(models.TextChoices):
+        OFF = "OFF", "Off"
+        LOW = "LOW", "Low"
+        BALANCED = "BALANCED", "Balanced"
+        HIGH = "HIGH", "High"
+
+    anomaly_sensitivity = models.CharField(
+        max_length=10,
+        choices=AnomalySensitivity.choices,
+        default=AnomalySensitivity.BALANCED,
+        help_text="Anomaly detection sensitivity. 'Off' disables detection for this server.",
+    )
     use_adtk = models.BooleanField(default=True, help_text="Use ADTK (primary) vs IsolationForest (fallback)")
     use_isolation_forest = models.BooleanField(default=False, help_text="Use IsolationForest (fallback)")
     contamination = models.FloatField(default=0.1, help_text="Expected proportion of anomalies (0.0-0.5)")
@@ -296,7 +315,7 @@ class MonitoringConfig(models.Model):
     monitored_disks = models.JSONField(default=list, help_text="List of disk mount points to monitor (e.g., ['/', '/home'])")
     
     # LLM settings
-    use_llm_explanation = models.BooleanField(default=True, help_text="Always generate LLM explanations for anomalies")
+    use_llm_explanation = models.BooleanField(default=False, help_text="Optionally add an LLM explanation on top of the built-in deterministic one")
     
     # Data retention settings
     retention_period_days = models.IntegerField(default=30, help_text="Days to keep raw metrics before deletion")

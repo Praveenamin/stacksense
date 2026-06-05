@@ -88,6 +88,7 @@ JSON_FIELDS = (
     "disk_usage",
     "network_io",
     "top_processes",
+    "ipc_stats",
 )
 
 

@@ -25,36 +25,218 @@ logger = logging.getLogger('core.anomaly_detector')
 
 
 class AnomalyDetector:
+    # Robust-z (MAD-based) thresholds per sensitivity level. Higher k = less sensitive.
+    SENSITIVITY_K = {"LOW": 5.0, "BALANCED": 3.5, "HIGH": 2.5}
+    MIN_BASELINE_POINTS = 20      # need at least this much history before statistical flags
+    BASELINE_WINDOW = 240         # trailing metrics used to build the baseline
+    MIN_ABS_DELTA = 15.0          # percentage points; ignore trivial wiggles on flat baselines
+
     def __init__(self, server, config):
         self.server = server
         self.config = config
         self.model = None
-        
-        # Initialize ADTK Pipeline subsystem if available
-        # This provides enhanced detection with multiple detectors
-        self.pipeline = None
-        if PIPELINE_AVAILABLE and ADTK_AVAILABLE and getattr(config, 'use_adtk', True):
-            try:
-                self.pipeline = ADTKPipeline(server, config)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to initialize ADTK Pipeline for server {server.name}: {e}. "
-                    f"Falling back to legacy ADTK detection."
-                )
-                self.pipeline = None
-        
+        self.pipeline = None  # legacy ADTK pipeline retained but no longer used
+
+    def _sensitivity(self):
+        return (getattr(self.config, "anomaly_sensitivity", "BALANCED") or "BALANCED").upper()
+
     def detect_anomalies(self, metric):
-        """Detect anomalies in a new metric - ADTK primary, IsolationForest fallback"""
-        if self.config.use_adtk and ADTK_AVAILABLE:
-            return self._detect_with_adtk(metric)
-        elif self.config.use_isolation_forest:
-            return self._detect_with_isolation_forest(metric)
+        """
+        Transparent baseline detector.
+
+        For CPU / memory / each monitored disk%: a value is flagged when it crosses its
+        configured hard ceiling, OR when it deviates *upward* from the server's own recent
+        baseline (robust median + MAD) by more than the sensitivity-derived number of
+        robust sigmas. Network I/O is ceiling-only for now. Every anomaly carries a
+        deterministic, human-readable explanation — no LLM required.
+        """
+        if self._sensitivity() == "OFF":
+            return []
+
+        anomalies = []
+
+        # Strictly-trailing history (before this metric) used to build baselines.
+        history = list(
+            SystemMetric.objects.filter(server=self.server, timestamp__lt=metric.timestamp)
+            .order_by("-timestamp")[: self.BASELINE_WINDOW]
+        )
+
+        # CPU
+        a = self._baseline_anomaly(
+            "cpu", "cpu_percent", "CPU", metric.cpu_percent,
+            self.config.cpu_threshold, [m.cpu_percent for m in history],
+        )
+        if a:
+            anomalies.append(a)
+
+        # Memory
+        a = self._baseline_anomaly(
+            "memory", "memory_percent", "Memory", metric.memory_percent,
+            self.config.memory_threshold, [m.memory_percent for m in history],
+        )
+        if a:
+            anomalies.append(a)
+
+        # Disk (per monitored mount)
+        current_disks = self._disk_percents(metric)
+        monitored = self.config.monitored_disks or []
+        for mount, value in current_disks.items():
+            if monitored and mount not in monitored:
+                continue
+            mount_history = []
+            for m in history:
+                dp = self._disk_percents(m)
+                if mount in dp:
+                    mount_history.append(dp[mount])
+            a = self._baseline_anomaly(
+                "disk", f"disk_percent_{mount}", f"Disk {mount}", value,
+                self.config.disk_threshold, mount_history,
+            )
+            if a:
+                anomalies.append(a)
+
+        # Network I/O (ceiling-only)
+        net = self._network_ceiling(metric)
+        if net:
+            anomalies.append(net)
+
+        return anomalies
+
+    def _baseline_anomaly(self, metric_type, metric_name, label, value, threshold, history):
+        """Return an anomaly dict for `value` (hard ceiling OR robust-z baseline), else None."""
+        if value is None:
+            return None
+        value = float(value)
+        k = self.SENSITIVITY_K[self._sensitivity()]
+
+        # 1) Hard ceiling — always fires (any sensitivity except OFF).
+        if threshold and value >= float(threshold):
+            return {
+                "metric_type": metric_type,
+                "metric_name": metric_name,
+                "metric_value": value,
+                "anomaly_score": 1.0,
+                "severity": self._calculate_severity(value, float(threshold)),
+                "explanation": f"{label} {value:.1f}% reached the alert ceiling of {float(threshold):.0f}%.",
+            }
+
+        # 2) Robust baseline — upward deviation only.
+        vals = [float(v) for v in history if v is not None]
+        if len(vals) < self.MIN_BASELINE_POINTS:
+            return None
+        arr = np.array(vals, dtype=float)
+        median = float(np.median(arr))
+        mad = float(np.median(np.abs(arr - median)))
+        if mad >= 1e-6:
+            z = 0.6745 * (value - median) / mad
+            normal_hi = median + (k / 0.6745) * mad
         else:
-            # Default to ADTK if available, else IsolationForest
-            if ADTK_AVAILABLE:
-                return self._detect_with_adtk(metric)
-            return self._detect_with_isolation_forest(metric)
-    
+            std = float(np.std(arr))
+            if std < 1e-6:
+                return None  # perfectly flat history and below ceiling → not anomalous
+            z = (value - median) / std
+            normal_hi = median + k * std
+
+        if z < k:
+            return None
+        # Absolute-deviation floor: ignore statistically-large but practically-trivial
+        # wiggles on very flat baselines (e.g. CPU 4% on an idle box is NOT an incident).
+        if (value - median) < self.MIN_ABS_DELTA:
+            return None
+
+        # Severity from the actual level relative to the ceiling (impact-based, not σ).
+        # A baseline deviation stays below CRITICAL — only a ceiling crossing is CRITICAL.
+        if threshold:
+            ratio = value / float(threshold)
+            if ratio >= 0.75:
+                severity = Anomaly.Severity.HIGH
+            elif ratio >= 0.5:
+                severity = Anomaly.Severity.MEDIUM
+            else:
+                severity = Anomaly.Severity.LOW
+        else:
+            severity = Anomaly.Severity.MEDIUM
+
+        z_disp = f"{z:.1f}σ" if z < 20 else ">20σ"
+        return {
+            "metric_type": metric_type,
+            "metric_name": metric_name,
+            "metric_value": value,
+            "anomaly_score": min(z / 6.0, 1.0),
+            "severity": severity,
+            "explanation": (
+                f"{label} {value:.1f}% is {z_disp} above its recent median of "
+                f"{median:.1f}% (normal ≤ ~{normal_hi:.0f}%)."
+            ),
+        }
+
+    def _disk_percents(self, metric):
+        """{mount: percent} parsed from a metric's disk_usage (dict or JSON string)."""
+        out = {}
+        data = getattr(metric, "disk_usage", None)
+        if not data:
+            return out
+        try:
+            if isinstance(data, str):
+                data = json.loads(data)
+            for mount, usage in data.items():
+                if isinstance(usage, dict):
+                    out[mount] = float(usage.get("percent", 0) or 0)
+                elif isinstance(usage, (int, float)):
+                    out[mount] = float(usage)
+        except Exception as e:
+            logger.warning(f"disk_usage parse failed for {self.server.name}: {e}")
+        return out
+
+    def _network_ceiling(self, metric):
+        """Ceiling-only network throughput check (MB/s vs config.network_io_threshold)."""
+        if not getattr(metric, "network_io", None):
+            return None
+        threshold = float(getattr(self.config, "network_io_threshold", 0) or 0)
+        if threshold <= 0:
+            return None
+        try:
+            previous = (
+                SystemMetric.objects.filter(server=self.server, timestamp__lt=metric.timestamp)
+                .order_by("-timestamp")
+                .first()
+            )
+            if not previous or not previous.network_io:
+                return None
+            cur, prev = metric.network_io, previous.network_io
+            if isinstance(cur, str):
+                cur = json.loads(cur)
+            if isinstance(prev, str):
+                prev = json.loads(prev)
+            dt = (metric.timestamp - previous.timestamp).total_seconds() or 60
+            worst = None
+            for iface, c in cur.items():
+                if iface == "lo" or iface not in prev:
+                    continue
+                p = prev[iface]
+                if not (isinstance(c, dict) and isinstance(p, dict)):
+                    continue
+                delta = (c.get("bytes_sent", 0) - p.get("bytes_sent", 0)) + \
+                        (c.get("bytes_recv", 0) - p.get("bytes_recv", 0))
+                mbps = (delta / (1024 * 1024)) / dt if dt > 0 else 0  # MB/s
+                if mbps > threshold and (worst is None or mbps > worst[1]):
+                    worst = (iface, mbps)
+            if not worst:
+                return None
+            iface, mbps = worst
+            return {
+                "metric_type": "network",
+                "metric_name": f"network_throughput_{iface}",
+                "metric_value": mbps,
+                "anomaly_score": min(mbps / (threshold * 5.0), 1.0),
+                "severity": self._calculate_severity(mbps, threshold),
+                "explanation": f"Network {iface} throughput {mbps:.1f} MB/s exceeded the ceiling of {threshold:.0f} MB/s.",
+            }
+        except Exception as e:
+            logger.warning(f"Network ceiling check failed for {self.server.name}: {e}")
+            return None
+
+
     def _detect_with_adtk(self, metric):
         """
         Use ADTK for time-series anomaly detection.

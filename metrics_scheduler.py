@@ -28,6 +28,7 @@ latency_collection_interval = 60  # Run latency collection every minute
 synthetic_check_interval = 30  # Run due synthetic (uptime) checks every 30s
 security_detection_interval = 60  # Run security detection every minute
 connectivity_check_interval = 60  # Check for down/recovered servers every minute
+leak_detection_interval = 3600  # Run memory-leak detection hourly (leaks evolve slowly)
 
 last_anomaly_check = timezone.now()
 last_log_scan = timezone.now()
@@ -35,6 +36,7 @@ last_latency_collection = timezone.now()
 last_synthetic_check = timezone.now()
 last_security_detection = timezone.now()
 last_connectivity_check = timezone.now()
+last_leak_check = timezone.now()
 
 while running:
     try:
@@ -114,6 +116,17 @@ while running:
                 print("Connectivity check completed.")
             except Exception as e:
                 print(f"Error in connectivity check: {str(e)}")
+
+        # Run memory-leak detection hourly (system RAM / per-process RSS / SysV IPC)
+        time_since_last_leak = (timezone.now() - last_leak_check).total_seconds()
+        if time_since_last_leak >= leak_detection_interval:
+            try:
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running memory-leak detection...")
+                call_command("detect_memory_leaks", verbosity=1)
+                last_leak_check = timezone.now()
+                print("Memory-leak detection completed.")
+            except Exception as e:
+                print(f"Error in memory-leak detection: {str(e)}")
     except Exception as e:
         print(f"Error: {str(e)}")
     

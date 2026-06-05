@@ -5,7 +5,6 @@ from core.models import SystemMetric, Anomaly, MonitoringConfig, EmailAlertConfi
 from core.views import _send_alert_email, _send_slack_alert
 from core.anomaly_detector import AnomalyDetector
 from core.llm_analyzer import OllamaAnalyzer
-from core.utils import collect_processes_on_demand
 
 
 class Command(BaseCommand):
@@ -39,6 +38,9 @@ class Command(BaseCommand):
         for metric in metrics_to_check:
             config = getattr(metric.server, "monitoring_config", None)
             if not config or not config.enabled:
+                continue
+            # Sensitivity "Off" disables anomaly detection for this server.
+            if getattr(config, "anomaly_sensitivity", "BALANCED") == "OFF":
                 continue
             
             try:
@@ -114,20 +116,9 @@ class Command(BaseCommand):
                                 else:
                                     process_context = None  # No relevant processes found
                             
-                            # Tier 2: On-demand collection (fallback for HIGH/CRITICAL if data missing)
-                            if not process_context and anomaly_data.get('severity') in ['HIGH', 'CRITICAL']:
-                                try:
-                                    on_demand_data = collect_processes_on_demand(
-                                        server=metric.server,
-                                        metric_type=anomaly_data["metric_type"],
-                                        timeout=5  # Short timeout to avoid blocking
-                                    )
-                                    if on_demand_data:
-                                        process_context = on_demand_data
-                                except Exception as e:
-                                    # Log but don't fail - fall back to generic explanation
-                                    self.stdout.write(self.style.WARNING(f"On-demand process collection failed: {e}"))
-                            
+                            # (On-demand SSH process collection removed — Tier 1 pre-collected
+                            # data only; no outbound connection to the monitored server.)
+
                             # Generate explanation with or without process context
                             explanation = llm_analyzer.explain_anomaly(
                                 metric_type=anomaly_data["metric_type"],

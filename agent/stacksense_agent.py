@@ -45,7 +45,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.0.0"
+AGENT_VERSION = "push-1.1.0"
 CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
 DEFAULT_INTERVAL = 30
 HTTP_TIMEOUT = 15
@@ -118,6 +118,10 @@ def collect_top_processes(limit=5):
                 "user": p.info.get("username") or "",
                 "cpu_percent": round(p.cpu_percent(None), 1),
                 "memory_percent": round(p.memory_percent(), 1),
+                # Absolute resident memory (bytes) + process start time. These let the
+                # server track one process's memory growth over time (leak detection).
+                "rss": _safe(lambda: p.memory_info().rss, 0),
+                "start_time": _safe(lambda: int(p.create_time()), 0),
             })
         except Exception:
             continue
@@ -279,6 +283,77 @@ def collect_containers():
     return out
 
 
+def collect_ipc_stats():
+    """System V IPC + POSIX /dev/shm summary (best-effort).
+
+    Used by the server to spot shared-memory / semaphore leaks -- e.g. orphaned
+    SysV segments (nattch=0) that hold RAM forever, or a growing number of
+    semaphore arrays. Non-root can read system-wide IPC via /proc/sysvipc.
+    Returns a dict, or None if nothing could be read (never raises).
+    """
+    stats = {}
+
+    # SysV shared memory: `ipcs -m -b`  (cols: key shmid owner perms bytes nattch status)
+    try:
+        res = subprocess.run(["ipcs", "-m", "-b"], capture_output=True, text=True, timeout=10)
+        seg = total = orphan = orphan_bytes = 0
+        for line in res.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 6 and parts[1].isdigit():  # data row (numeric shmid)
+                try:
+                    nbytes, nattch = int(parts[4]), int(parts[5])
+                except ValueError:
+                    continue
+                seg += 1
+                total += nbytes
+                if nattch == 0:           # orphaned: no process attached
+                    orphan += 1
+                    orphan_bytes += nbytes
+        stats.update(shm_segments=seg, shm_bytes=total,
+                     shm_orphaned=orphan, shm_orphaned_bytes=orphan_bytes)
+    except Exception:
+        pass
+
+    # SysV semaphore arrays: `ipcs -s`  (count data rows)
+    try:
+        res = subprocess.run(["ipcs", "-s"], capture_output=True, text=True, timeout=10)
+        stats["sem_arrays"] = sum(
+            1 for ln in res.stdout.splitlines()
+            if len(ln.split()) >= 2 and ln.split()[1].isdigit()
+        )
+    except Exception:
+        pass
+
+    # SysV message queues: `ipcs -q -b`  (cols: key msqid owner perms used-bytes messages)
+    try:
+        res = subprocess.run(["ipcs", "-q", "-b"], capture_output=True, text=True, timeout=10)
+        cnt = qbytes = 0
+        for line in res.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 5 and parts[1].isdigit():
+                cnt += 1
+                qbytes += int(parts[4]) if parts[4].isdigit() else 0
+        stats.update(msg_queues=cnt, msg_bytes=qbytes)
+    except Exception:
+        pass
+
+    # POSIX shared memory: total bytes under /dev/shm
+    try:
+        total = 0
+        with os.scandir("/dev/shm") as it:
+            for e in it:
+                try:
+                    if e.is_file(follow_symlinks=False):
+                        total += e.stat(follow_symlinks=False).st_size
+                except Exception:
+                    continue
+        stats["devshm_bytes"] = total
+    except Exception:
+        pass
+
+    return stats or None
+
+
 def collect_metrics(prev):
     """Collect one metrics sample. `prev` carries counters from the last sample
     so we can compute per-second I/O rates. Returns (metrics_dict, new_prev)."""
@@ -438,6 +513,8 @@ def main():
 
     services_interval = int(os.environ.get("STACKSENSE_SERVICES_INTERVAL", 60))
     last_services_push = 0  # force a services push on the first loop
+    last_ipc = 0           # refresh IPC stats on the same (cheap) ~60s cadence
+    ipc_cache = None
     ssh_state = {}  # incremental SSH auth-log tail state
 
     prev = None
@@ -447,6 +524,14 @@ def main():
         except Exception as e:
             sys.stderr.write(f"Metric collection error: {e}\n")
             metrics = None
+
+        # Refresh SysV IPC / shared-memory summary every ~60s and attach the latest
+        # snapshot to each metrics push (so it lands on every SystemMetric row).
+        if time.monotonic() - last_ipc >= services_interval:
+            ipc_cache = collect_ipc_stats()
+            last_ipc = time.monotonic()
+        if metrics is not None and ipc_cache is not None:
+            metrics["ipc_stats"] = ipc_cache
 
         if dry_run:
             print(json.dumps({"metrics": metrics, "services": collect_services(), "containers": collect_containers()}, indent=2, default=str))
