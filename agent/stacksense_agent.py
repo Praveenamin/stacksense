@@ -28,6 +28,7 @@ Usage:
 import json
 import os
 import re
+import shutil
 import ssl
 import subprocess
 import sys
@@ -45,7 +46,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.3.0"
+AGENT_VERSION = "push-1.3.1"
 CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
 DEFAULT_INTERVAL = 30
 HTTP_TIMEOUT = 15
@@ -245,14 +246,8 @@ def collect_ssh_auth(state, max_events=500):
 
 
 def _have(binary):
-    """True if `binary` is on PATH (best-effort)."""
-    try:
-        return subprocess.run(["command", "-v", binary], shell=False,
-                              capture_output=True, timeout=5).returncode == 0 \
-            or subprocess.run(["/bin/sh", "-c", "command -v " + binary],
-                              capture_output=True, timeout=5).returncode == 0
-    except Exception:
-        return False
+    """True if `binary` is on PATH."""
+    return shutil.which(binary) is not None
 
 
 def _run(cmd):
