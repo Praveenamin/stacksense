@@ -6191,7 +6191,19 @@ def anomaly_detail_api(request, anomaly_id):
             "resolved": anomaly.resolved,
             "resolved_at": convert_to_display_timezone(anomaly.resolved_at).isoformat() if anomaly.resolved_at else None,
         }
-        
+
+        # Plain-language "what to do" + when it started / how long.
+        response_data["recommendation"] = _anomaly_recommendation(anomaly)
+        if anomaly.timestamp:
+            if anomaly.resolved and anomaly.resolved_at:
+                response_data["duration_text"] = "lasted " + _humanize_duration(
+                    (anomaly.resolved_at - anomaly.timestamp).total_seconds())
+            else:
+                response_data["duration_text"] = "ongoing for " + _humanize_duration(
+                    (timezone.now() - anomaly.timestamp).total_seconds())
+        else:
+            response_data["duration_text"] = None
+
         # If explanation is empty and LLM is enabled, generate it
         if not anomaly.explanation:
             try:
@@ -6221,7 +6233,9 @@ def anomaly_detail_api(request, anomaly_id):
         # If still no explanation, generate fallback
         if not response_data["explanation"]:
             response_data["explanation"] = _generate_fallback_explanation(anomaly)
-        
+
+        # Re-word any legacy "Nσ above its recent median" text into plain English.
+        response_data["explanation"] = _plainify_explanation(response_data["explanation"])
         return JsonResponse(response_data)
         
     except Exception as e:
@@ -6246,6 +6260,71 @@ def _generate_fallback_explanation(anomaly):
     }
     
     return explanations.get(metric_type, f"Anomaly detected in {metric_type} metric with value {metric_value:.2f} ({severity} severity). Please investigate the system state and recent changes.")
+
+
+def _plainify_explanation(text):
+    """Re-word legacy sigma/median anomaly text into plain English (display only)."""
+    if not text:
+        return text
+    import re
+    m = re.match(r"\s*(.+?) ([\d.]+)% is .*?median of ([\d.]+)% \(normal\s*[≤<=]+\s*~?([\d.]+)%\)\.?", text)
+    if m:
+        label, val, med, hi = m.groups()
+        return f"{label} rose to {val}%, well above its usual ~{med}% (normally under ~{hi}%)."
+    return text
+
+
+def _humanize_duration(seconds):
+    """Seconds -> short human string (e.g. '45s', '12 min', '3h 5m', '2d 4h')."""
+    seconds = int(max(0, seconds or 0))
+    if seconds < 60:
+        return f"{seconds}s"
+    mins = seconds // 60
+    if mins < 60:
+        return f"{mins} min"
+    hours = mins // 60
+    if hours < 24:
+        return f"{hours}h {mins % 60}m"
+    days = hours // 24
+    return f"{days}d {hours % 24}h"
+
+
+def _anomaly_recommendation(anomaly):
+    """Plain-language 'what it likely means and what to do' for an anomaly."""
+    mt = (anomaly.metric_type or "").lower()
+    mn = (anomaly.metric_name or "").lower()
+    if mn.startswith("memory_leak:"):
+        proc = anomaly.metric_name.split(":", 1)[1]
+        return (f"The process “{proc}” is steadily using more and more memory — this usually means a memory leak. "
+                "Restarting that process frees the memory as a quick fix; for a real fix, update or patch the app. "
+                "The server’s Memory Trend chart shows whether it climbs again.")
+    if mn == "memory_leak":
+        return ("The server’s overall memory keeps climbing and could eventually run out. Open the server page → "
+                "Top RAM processes to find the growing one and restart or patch it. The Memory Trend chart shows "
+                "how fast it’s rising and roughly when it would fill up.")
+    if mn == "shm_leak":
+        return ("Shared-memory segments are being left behind (no process attached) and holding RAM. On the server run "
+                "“ipcs -m” to list them and “ipcrm” to remove stale ones, or restart the app that created them.")
+    if mn == "semaphore_leak":
+        return ("Semaphore sets are piling up (a leak). Run “ipcs -s” on the server to inspect them and clean up the "
+                "leaked ones, or restart the owning application.")
+    if mn == "devshm_leak":
+        return ("Files under /dev/shm (shared memory) keep growing. Check what’s writing there and clear old files, "
+                "or restart the owning application.")
+    if mt == "cpu":
+        return ("A process is using more CPU than this server normally does. Open the server page → Top CPU processes "
+                "to see which one, and check whether it’s expected (a backup, a build, or a traffic spike). "
+                "If it stays high, investigate or restart that process.")
+    if mt == "memory":
+        return ("Memory use rose above this server’s normal level. Check Top RAM processes on the server page — one may "
+                "be using more than usual. If it keeps climbing it could be a leak; the Memory Trend chart will show that.")
+    if mt == "disk":
+        return ("A disk is filling up. Free space by clearing old logs, caches, or unused files, or expand the volume. "
+                "If it reaches 100% the server can start failing.")
+    if mt == "network":
+        return ("Network traffic briefly spiked well above normal — often a large transfer, a backup job, or unusual "
+                "traffic. Check what was running at that time. It’s only a concern if it’s unexpected or sustained.")
+    return "Check the server’s recent activity and the related resource (CPU, memory, disk, or network) around this time."
 
 
 @staff_member_required

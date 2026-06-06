@@ -117,7 +117,7 @@ class AnomalyDetector:
                 "metric_value": value,
                 "anomaly_score": 1.0,
                 "severity": self._calculate_severity(value, float(threshold)),
-                "explanation": f"{label} {value:.1f}% reached the alert ceiling of {float(threshold):.0f}%.",
+                "explanation": f"{label} reached {value:.1f}%, hitting the alert limit of {float(threshold):.0f}%.",
             }
 
         # 2) Robust baseline — upward deviation only.
@@ -157,7 +157,6 @@ class AnomalyDetector:
         else:
             severity = Anomaly.Severity.MEDIUM
 
-        z_disp = f"{z:.1f}σ" if z < 20 else ">20σ"
         return {
             "metric_type": metric_type,
             "metric_name": metric_name,
@@ -165,8 +164,8 @@ class AnomalyDetector:
             "anomaly_score": min(z / 6.0, 1.0),
             "severity": severity,
             "explanation": (
-                f"{label} {value:.1f}% is {z_disp} above its recent median of "
-                f"{median:.1f}% (normal ≤ ~{normal_hi:.0f}%)."
+                f"{label} rose to {value:.1f}%, well above its usual ~{median:.1f}% "
+                f"(normally under ~{normal_hi:.0f}%)."
             ),
         }
 
