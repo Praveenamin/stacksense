@@ -236,7 +236,9 @@ class Anomaly(models.Model):
     acknowledged = models.BooleanField(default=False)
     resolved = models.BooleanField(default=False)
     resolved_at = models.DateTimeField(null=True, blank=True)
-    
+    admin_note = models.TextField(blank=True, default="", help_text="Admin's note / reason recorded when resolving")
+    resolved_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="resolved_anomalies")
+
     class Meta:
         ordering = ["-timestamp"]
         indexes = [
@@ -554,6 +556,8 @@ class AlertHistory(models.Model):
     recipients = models.TextField(help_text="Comma-separated list of email recipients")
     sent_at = models.DateTimeField(default=timezone.now, db_index=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    admin_note = models.TextField(blank=True, default="", help_text="Admin's note / reason recorded when resolving")
+    resolved_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="resolved_alerts")
     process_context = models.JSONField(
         null=True,
         blank=True,

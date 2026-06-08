@@ -96,6 +96,9 @@ SELF_SERVICE_URL_NAMES = frozenset({"account_password"})
 WRITE_FALLBACK_CAPABILITY = MANAGE_MONITORING
 
 CAPABILITY_BY_URL_NAME = {
+    # Reports
+    "operations_report": VIEW_OPERATIONS,
+    "executive_report": VIEW_EXECUTIVE,
     # Executive
     "executive_dashboard_preview": VIEW_EXECUTIVE,
     # Persona switch is a per-user preference (executive choice re-checked in-view)

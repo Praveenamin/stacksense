@@ -404,13 +404,16 @@ function clearSelection() {
 function resolveAlert(alertId) {
     appConfirm({
         title: 'Acknowledge alert',
-        body: 'Are you sure you want to acknowledge this alert?',
+        body: 'Acknowledge this alert? Optionally record the reason / how it was resolved — it shows in reports.',
         confirmText: 'Acknowledge',
-        onConfirm: function () {
+        input: true,
+        inputPlaceholder: 'Optional note / reason',
+        onConfirm: function (note) {
             fetch(`/api/alerts/${alertId}/resolve/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                body: JSON.stringify({ note: note || '' })
             })
             .then(response => { if (response.ok) { location.reload(); } else { appAlert('Failed to acknowledge alert', 'Error'); } })
             .catch(error => { console.error('Error:', error); appAlert('Failed to acknowledge alert', 'Error'); });
@@ -445,15 +448,17 @@ function bulkAcknowledgeAlerts() {
     }
     appConfirm({
         title: 'Acknowledge alerts',
-        body: `Are you sure you want to mark ${checked.length} alert(s) as acknowledged?`,
+        body: `Acknowledge ${checked.length} alert(s)? An optional note applies to all and shows in reports.`,
         confirmText: 'Acknowledge',
-        onConfirm: function () {
+        input: true,
+        inputPlaceholder: 'Optional note / reason for these resolutions',
+        onConfirm: function (note) {
             const alertIds = Array.from(checked).map(cb => cb.value);
             fetch('/api/alerts/bulk-resolve/', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ alert_ids: alertIds })
+                body: JSON.stringify({ alert_ids: alertIds, note: note || '' })
             })
             .then(response => {
                 if (response.ok) { location.reload(); }

@@ -269,6 +269,7 @@
         <div class="app-modal" role="dialog" aria-modal="true">
             <div class="app-modal-title" id="app-modal-title">Confirm</div>
             <div class="app-modal-body" id="app-modal-body"></div>
+            <textarea id="app-modal-input" style="display:none; width:100%; box-sizing:border-box; min-height:72px; margin-bottom:18px; padding:9px 12px; font-size:13px; font-family:inherit; color:#0f172a; border:1px solid #e2e8f0; border-radius:8px; resize:vertical;"></textarea>
             <div class="app-modal-actions">
                 <button type="button" id="app-modal-cancel" class="app-modal-btn app-modal-btn-secondary">Cancel</button>
                 <button type="button" id="app-modal-confirm" class="app-modal-btn app-modal-btn-primary">Confirm</button>
@@ -291,24 +292,34 @@
     .app-modal-btn-danger:hover { background:#ba1b25; }
     </style>
     <script>
-    // Global styled confirm. opts: {title, body, confirmText, danger, alert, onConfirm}
+    // Global styled confirm. opts: {title, body, confirmText, danger, alert, onConfirm,
+    //   input (bool → show a textarea), inputPlaceholder}. onConfirm receives the textarea
+    //   value when input is enabled.
     window.appConfirm = function (opts) {
         opts = opts || {};
         var overlay = document.getElementById('app-modal-overlay');
         var confirmBtn = document.getElementById('app-modal-confirm');
         var cancelBtn = document.getElementById('app-modal-cancel');
+        var input = document.getElementById('app-modal-input');
         document.getElementById('app-modal-title').textContent = opts.title || 'Confirm';
         document.getElementById('app-modal-body').textContent = opts.body || '';
         confirmBtn.textContent = opts.confirmText || 'Confirm';
         confirmBtn.className = 'app-modal-btn ' + (opts.danger ? 'app-modal-btn-danger' : 'app-modal-btn-primary');
         cancelBtn.style.display = opts.alert ? 'none' : '';
+        if (opts.input) {
+            input.value = '';
+            input.placeholder = opts.inputPlaceholder || '';
+            input.style.display = '';
+        } else {
+            input.style.display = 'none';
+        }
         function close() { overlay.style.display = 'none'; confirmBtn.onclick = null; cancelBtn.onclick = null; overlay.onclick = null; document.onkeydown = null; }
-        confirmBtn.onclick = function () { close(); if (opts.onConfirm) opts.onConfirm(); };
+        confirmBtn.onclick = function () { var v = opts.input ? input.value : undefined; close(); if (opts.onConfirm) opts.onConfirm(v); };
         cancelBtn.onclick = close;
         overlay.onclick = function (e) { if (e.target === overlay) close(); };
         document.onkeydown = function (e) { if (e.key === 'Escape') close(); };
         overlay.style.display = 'flex';
-        confirmBtn.focus();
+        (opts.input ? input : confirmBtn).focus();
     };
     window.appAlert = function (message, title) { window.appConfirm({ title: title || 'Notice', body: message, confirmText: 'OK', alert: true }); };
     </script>

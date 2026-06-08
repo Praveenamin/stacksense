@@ -230,16 +230,19 @@ function closeAnomalyModal() {
 function resolveAnomaly(anomalyId) {
     appConfirm({
         title: 'Resolve anomaly',
-        body: 'Are you sure you want to mark this anomaly as resolved?',
+        body: 'Mark this anomaly as resolved? Optionally record what caused it / how you fixed it — it shows up in reports.',
         confirmText: 'Resolve',
-        onConfirm: function () {
+        input: true,
+        inputPlaceholder: 'Optional note / reason (e.g. nightly backup spike — no action needed)',
+        onConfirm: function (note) {
             fetch(`/api/anomalies/${anomalyId}/resolve/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken')
                 },
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                body: JSON.stringify({ note: note || '' })
             })
             .then(response => response.json())
             .then(data => {
@@ -328,9 +331,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         appConfirm({
             title: 'Resolve anomalies',
-            body: `Are you sure you want to resolve ${selected.length} anomaly/anomalies?`,
+            body: `Resolve ${selected.length} anomaly/anomalies? An optional note applies to all and shows in reports.`,
             confirmText: 'Resolve',
-            onConfirm: function () {
+            input: true,
+            inputPlaceholder: 'Optional note / reason for these resolutions',
+            onConfirm: function (note) {
                 fetch('/api/anomalies/bulk-resolve/', {
                     method: 'POST',
                     headers: {
@@ -339,7 +344,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     credentials: 'same-origin',
                     body: JSON.stringify({
-                        anomaly_ids: selected
+                        anomaly_ids: selected,
+                        note: note || ''
                     })
                 })
                 .then(response => response.json())

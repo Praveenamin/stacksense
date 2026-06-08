@@ -4841,12 +4841,23 @@ def resolve_alert(request, alert_id):
                 'error': f'Alert is already {alert.status}'
             }, status=400)
         
-        # Mark as resolved
+        # Mark as resolved (+ optional admin note / who resolved)
+        import json as _json
+        note = ""
+        try:
+            if request.body:
+                note = (_json.loads(request.body).get("note") or "").strip()
+        except (ValueError, TypeError):
+            note = ""
         alert.status = AlertHistory.AlertStatus.RESOLVED
         alert.resolved_at = timezone.now()
+        if note:
+            alert.admin_note = note[:2000]
+        if request.user.is_authenticated:
+            alert.resolved_by = request.user
         alert.save()
-        
-        _log_user_action(request, "RESOLVE_ALERT", 
+
+        _log_user_action(request, "RESOLVE_ALERT",
                         f"Alert ID: {alert_id} on server {alert.server.name}")
         
         return JsonResponse({
@@ -4886,11 +4897,17 @@ def bulk_resolve_alerts(request):
         
         # Get alerts and resolve them
         alerts = AlertHistory.objects.filter(id__in=alert_ids, status='triggered')
+        note = (data.get('note') or '').strip()
+        resolver = request.user if request.user.is_authenticated else None
         resolved_count = 0
-        
+
         for alert in alerts:
             alert.status = AlertHistory.AlertStatus.RESOLVED
             alert.resolved_at = timezone.now()
+            if note:
+                alert.admin_note = note[:2000]
+            if resolver:
+                alert.resolved_by = resolver
             alert.save()
             resolved_count += 1
         
@@ -6357,10 +6374,23 @@ def anomaly_resolve_api(request, anomaly_id):
             # Check ACL if needed - for now, allow all staff members
             pass
         
+        # Optional admin note / reason recorded at resolve time.
+        note = ""
+        try:
+            if request.body:
+                import json as _json
+                note = (_json.loads(request.body).get("note") or "").strip()
+        except (ValueError, TypeError):
+            note = ""
+
         # Mark as resolved
         anomaly.acknowledged = True
         anomaly.resolved = True
         anomaly.resolved_at = timezone.now()
+        if note:
+            anomaly.admin_note = note[:2000]
+        if request.user.is_authenticated:
+            anomaly.resolved_by = request.user
         anomaly.save()
         
         # Clear anomaly cache for this server to force refresh
@@ -6427,14 +6457,20 @@ def anomaly_bulk_resolve_api(request):
         
         # Get anomalies and verify they exist
         anomalies = Anomaly.objects.filter(id__in=anomaly_ids)
+        note = (data.get("note") or "").strip()
+        resolver = request.user if request.user.is_authenticated else None
         resolved_count = 0
         server_ids = set()
-        
+
         for anomaly in anomalies:
             # Mark as resolved
             anomaly.acknowledged = True
             anomaly.resolved = True
             anomaly.resolved_at = timezone.now()
+            if note:
+                anomaly.admin_note = note[:2000]
+            if resolver:
+                anomaly.resolved_by = resolver
             anomaly.save()
             resolved_count += 1
             server_ids.add(anomaly.server.id)
@@ -8906,6 +8942,252 @@ def container_inspect_api(request, server_id, container_id):
         "inspect": container.inspect_data,
         "inspect_at": container.inspect_at.isoformat() if container.inspect_at else None,
     })
+
+
+# ---------------------------------------------------------------------------
+# Reports
+# ---------------------------------------------------------------------------
+def _resource_label(metric_type, metric_name):
+    """Plain resource label for a report row from an anomaly's type/name."""
+    mn = (metric_name or "").lower()
+    if mn.startswith("memory_leak:"):
+        return "Memory leak (" + metric_name.split(":", 1)[1] + ")"
+    special = {"memory_leak": "Memory leak", "shm_leak": "Shared memory",
+               "semaphore_leak": "Semaphores", "devshm_leak": "/dev/shm"}
+    if mn in special:
+        return special[mn]
+    return {"cpu": "CPU", "memory": "RAM", "disk": "Disk", "network": "Network"}.get(
+        (metric_type or "").lower(), (metric_type or "").title() or "—")
+
+
+@staff_member_required
+def operations_report(request):
+    """Operational Report — Resource Spikes (anomalies) with timing + admin notes."""
+    from django.http import HttpResponse, HttpResponseForbidden
+    from .permissions import user_can, VIEW_OPERATIONS
+    if not user_can(request.user, VIEW_OPERATIONS):
+        return HttpResponseForbidden("Access denied")
+
+    try:
+        days = int(request.GET.get("days", 30))
+    except (ValueError, TypeError):
+        days = 30
+    if days not in (7, 30, 90):
+        days = 30
+    since = timezone.now() - timedelta(days=days)
+
+    server_id = request.GET.get("server_id") or ""
+    qs = (Anomaly.objects.filter(timestamp__gte=since)
+          .select_related("server", "resolved_by").order_by("-timestamp"))
+    if server_id:
+        try:
+            qs = qs.filter(server_id=int(server_id))
+        except (ValueError, TypeError):
+            server_id = ""
+
+    now = timezone.now()
+    rows, durations = [], []
+    sev_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    resolved_n = 0
+    for a in qs[:5000]:
+        if a.resolved and a.resolved_at:
+            dur_sec = (a.resolved_at - a.timestamp).total_seconds()
+            duration = _humanize_duration(dur_sec)
+            durations.append(dur_sec)
+            resolved_n += 1
+        else:
+            duration = "ongoing (" + _humanize_duration((now - a.timestamp).total_seconds()) + ")"
+        sev_counts[a.severity] = sev_counts.get(a.severity, 0) + 1
+        rows.append({
+            "server": a.server.name,
+            "resource": _resource_label(a.metric_type, a.metric_name),
+            "severity": a.severity,
+            "value": round(a.metric_value, 2),
+            "occurred": a.timestamp,
+            "duration": duration,
+            "resolved": a.resolved,
+            "note": a.admin_note or "",
+            "resolved_by": a.resolved_by.username if a.resolved_by else "",
+        })
+
+    if request.GET.get("format") == "csv":
+        import csv as _csv
+        resp = HttpResponse(content_type="text/csv")
+        resp["Content-Disposition"] = f'attachment; filename="resource-spikes-{days}d.csv"'
+        w = _csv.writer(resp)
+        w.writerow(["Server", "Resource", "Severity", "Reading", "Occurred",
+                    "Duration", "Status", "Admin note", "Resolved by"])
+        for r in rows:
+            w.writerow([r["server"], r["resource"], r["severity"], r["value"],
+                        r["occurred"].strftime("%Y-%m-%d %H:%M:%S"), r["duration"],
+                        "Resolved" if r["resolved"] else "Open", r["note"], r["resolved_by"]])
+        return resp
+
+    context = {
+        "show_sidebar": True,
+        "title": "Operational Report — Resource Spikes",
+        "days": days,
+        "server_id": str(server_id),
+        "servers": Server.objects.all().order_by("name"),
+        "rows": rows,
+        "summary": {
+            "total": len(rows), "resolved": resolved_n, "open": len(rows) - resolved_n,
+            "sev": sev_counts,
+            "avg_resolution": _humanize_duration(sum(durations) / len(durations)) if durations else "—",
+        },
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/operations_report.html", context)
+
+
+_SEV_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
+
+
+def _exec_incidents(days):
+    """Per-server spike + downtime counts and a resolution log (with admin reasons)."""
+    now = timezone.now()
+    since = now - timedelta(days=days)
+    rows = []
+    for s in Server.objects.all().order_by("name"):
+        alerts = AlertHistory.objects.filter(server=s, sent_at__gte=since)
+        spikes = Anomaly.objects.filter(server=s, timestamp__gte=since).count()
+        down = alerts.filter(alert_type="CONNECTION").count()
+        svc = alerts.filter(alert_type="SERVICE").count()
+        cont = alerts.filter(alert_type="CONTAINER").count()
+        res = alerts.filter(alert_type__in=["CPU", "Memory", "Disk"]).count()
+        total = spikes + down + svc + cont + res
+        if total:
+            rows.append({"server": s.name, "spikes": spikes, "downtime": down,
+                         "service": svc, "container": cont, "resource": res, "total": total})
+    rows.sort(key=lambda r: r["total"], reverse=True)
+
+    log = []
+    for a in (Anomaly.objects.filter(resolved=True, resolved_at__gte=since)
+              .select_related("server", "resolved_by").order_by("-resolved_at")[:150]):
+        log.append({"when": a.resolved_at, "server": a.server.name,
+                    "what": _resource_label(a.metric_type, a.metric_name) + " spike",
+                    "reason": a.admin_note or "", "by": a.resolved_by.username if a.resolved_by else ""})
+    for al in (AlertHistory.objects.filter(status="resolved", resolved_at__gte=since)
+               .select_related("server", "resolved_by").order_by("-resolved_at")[:150]):
+        log.append({"when": al.resolved_at, "server": al.server.name,
+                    "what": al.alert_type + (" — " + (al.message or "")[:60] if al.message else ""),
+                    "reason": al.admin_note or "", "by": al.resolved_by.username if al.resolved_by else ""})
+    log.sort(key=lambda r: r["when"], reverse=True)
+    return rows, log[:120]
+
+
+def _exec_risk(days):
+    """Proactive 'likely to fail' rows: disk-full ETA, memory leaks, offline, frequency."""
+    from .utils.forecast_engine import forecast_disk_usage
+    from .utils.leak_detection import detect_leaks
+    now = timezone.now()
+    rows = []
+    for s in Server.objects.select_related("monitoring_config").all().order_by("name"):
+        if _calculate_server_status(s) == "offline":
+            rows.append({"target": s.name, "kind": "Server", "risk": "Currently offline / no heartbeat",
+                         "severity": "CRITICAL", "detail": "Agent not reporting", "eta": "now"})
+        cfg = getattr(s, "monitoring_config", None)
+        mounts = (cfg.monitored_disks if cfg and cfg.monitored_disks else ["/"])
+        for mount in mounts:
+            try:
+                f = forecast_disk_usage(s, mount, days=30)
+            except Exception:
+                f = None
+            if not f:
+                continue
+            cur, gr = f.get("current_usage", 0) or 0, f.get("growth_rate", 0) or 0
+            if cur >= 90:
+                rows.append({"target": s.name, "kind": "Disk " + mount, "risk": "Disk almost full",
+                             "severity": "CRITICAL", "detail": f"{cur:.0f}% used now", "eta": "now"})
+            elif gr > 0 and cur > 0:
+                d90 = (90 - cur) / gr
+                if d90 <= 30:
+                    sev = "CRITICAL" if d90 <= 7 else "HIGH" if d90 <= 14 else "MEDIUM"
+                    rows.append({"target": s.name, "kind": "Disk " + mount, "risk": "Disk filling up",
+                                 "severity": sev, "detail": f"{cur:.0f}% now, +{gr:.1f}%/day",
+                                 "eta": f"~{d90:.0f} days to 90%"})
+        try:
+            for lk in detect_leaks(s):
+                rows.append({"target": s.name, "kind": "Memory", "risk": "Memory / shared-memory leak",
+                             "severity": lk.get("severity", "MEDIUM"),
+                             "detail": (lk.get("explanation") or "")[:140], "eta": ""})
+        except Exception:
+            pass
+        recent = AlertHistory.objects.filter(server=s, sent_at__gte=now - timedelta(days=7)).count()
+        if recent >= 5:
+            rows.append({"target": s.name, "kind": "Server", "risk": "Frequent incidents",
+                         "severity": "MEDIUM", "detail": f"{recent} alerts in the last 7 days", "eta": ""})
+    rows.sort(key=lambda r: _SEV_RANK.get(r["severity"], 0), reverse=True)
+    return rows
+
+
+@staff_member_required
+def executive_report(request):
+    """Executive Reports: fleet-optimization numbers, incidents, and forecast/risk."""
+    from django.http import HttpResponse, HttpResponseForbidden
+    from .permissions import user_can, VIEW_EXECUTIVE
+    if not user_can(request.user, VIEW_EXECUTIVE):
+        return HttpResponseForbidden("Access denied")
+
+    try:
+        days = int(request.GET.get("days", 30))
+    except (ValueError, TypeError):
+        days = 30
+    if days not in (7, 30, 90):
+        days = 30
+
+    try:
+        opt = build_executive_context()
+    except Exception as e:
+        app_logger.warning(f"executive_report optimization context failed: {e}")
+        opt = {"counts": {"underutilized": 0, "overloaded": 0, "optimized": 0},
+               "cost_opportunities": [], "total_monthly_savings": None,
+               "total_reclaim_vcpu": 0, "total_reclaim_gb": 0, "currency": "$",
+               "pricing_configured": False, "eligible_count": 0}
+
+    incident_rows, resolution_log = _exec_incidents(days)
+    risk_rows = _exec_risk(days)
+
+    fmt = request.GET.get("format")
+    section = request.GET.get("section")
+    if fmt == "csv":
+        import csv as _csv
+        resp = HttpResponse(content_type="text/csv")
+        if section == "incidents":
+            resp["Content-Disposition"] = f'attachment; filename="incidents-{days}d.csv"'
+            w = _csv.writer(resp)
+            w.writerow(["Server", "Spikes", "Downtime", "Service", "Container", "Resource", "Total"])
+            for r in incident_rows:
+                w.writerow([r["server"], r["spikes"], r["downtime"], r["service"], r["container"], r["resource"], r["total"]])
+        elif section == "risk":
+            resp["Content-Disposition"] = f'attachment; filename="forecast-risk.csv"'
+            w = _csv.writer(resp)
+            w.writerow(["Target", "Type", "Risk", "Severity", "Detail", "ETA"])
+            for r in risk_rows:
+                w.writerow([r["target"], r["kind"], r["risk"], r["severity"], r["detail"], r["eta"]])
+        else:  # optimization
+            resp["Content-Disposition"] = 'attachment; filename="fleet-optimization.csv"'
+            w = _csv.writer(resp)
+            w.writerow(["Server", "Category", "CPU avg %", "Mem avg %", "Current", "Suggested", "Monthly savings"])
+            for a in opt.get("cost_opportunities", []):
+                w.writerow([getattr(a, "name", ""), getattr(a, "category", ""),
+                            getattr(getattr(a, "cpu", None), "avg", ""), getattr(getattr(a, "memory", None), "avg", ""),
+                            f"{getattr(a,'current_vcpu','')}vCPU/{getattr(a,'current_gb','')}GB",
+                            f"{getattr(a,'suggested_vcpu','')}vCPU/{getattr(a,'suggested_gb','')}GB",
+                            getattr(a, "monthly_savings", "")])
+        return resp
+
+    context = {
+        "show_sidebar": True,
+        "title": "Executive Reports",
+        "days": days,
+        "opt": opt,
+        "incident_rows": incident_rows,
+        "resolution_log": resolution_log,
+        "risk_rows": risk_rows,
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/executive_report.html", context)
 
 
 # ---------------------------------------------------------------------------

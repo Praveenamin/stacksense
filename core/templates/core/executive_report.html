@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load timezone_tags %}
+
+{% block title %}Executive Reports{% endblock %}
+
+{% block content %}
+<style>
+.er-th { padding:10px 14px; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; text-align:left; }
+.er-td { padding:11px 14px; font-size:13px; color:#0f172a; border-top:1px solid #f1f5f9; vertical-align:top; }
+.er-pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; }
+.er-btn { padding:7px 13px; font-size:13px; font-weight:500; border-radius:7px; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; border:1px solid #e2e8f0; background:#fff; color:#334155; }
+.er-btn.active { background:#0f62fe; color:#fff; border-color:#0f62fe; }
+.er-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.er-sec-title { font-size:18px; font-weight:600; color:#0f172a; margin:26px 0 12px; }
+.er-num { font-size:26px; font-weight:600; color:#0f172a; }
+.er-lab { font-size:12px; color:#64748b; margin-top:4px; }
+@media print { aside, .no-print { display:none !important; } main { padding:0 !important; } .er-card { box-shadow:none; } }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+    <div>
+        <h1 style="font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2;">Executive Reports</h1>
+        <p style="font-size:14px; color:#525252; margin:0;">Fleet optimization, incidents, and proactive risk. Incident &amp; risk windows: last {{ days }} days.</p>
+    </div>
+    <div class="no-print" style="display:flex; gap:8px; align-items:center;">
+        <a class="er-btn {% if days == 7 %}active{% endif %}" href="?days=7">7d</a>
+        <a class="er-btn {% if days == 30 %}active{% endif %}" href="?days=30">30d</a>
+        <a class="er-btn {% if days == 90 %}active{% endif %}" href="?days=90">90d</a>
+        <button type="button" class="er-btn" onclick="window.print()">🖨 Print</button>
+    </div>
+</div>
+
+<!-- ============ 1. Fleet optimization (the numbers) ============ -->
+<div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="er-sec-title">1 · Fleet optimization</div>
+    <a class="er-btn no-print" href="?section=optimization&days={{ days }}&format=csv">⬇ CSV</a>
+</div>
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:14px;">
+    <div class="er-card" style="padding:16px 18px;"><div class="er-num" style="color:#92400e;">{{ opt.counts.underutilized }}</div><div class="er-lab">Under-utilized</div></div>
+    <div class="er-card" style="padding:16px 18px;"><div class="er-num" style="color:#b91c1c;">{{ opt.counts.overloaded }}</div><div class="er-lab">Overloaded</div></div>
+    <div class="er-card" style="padding:16px 18px;"><div class="er-num" style="color:#166534;">{{ opt.counts.optimized }}</div><div class="er-lab">Best optimized</div></div>
+    <div class="er-card" style="padding:16px 18px;"><div class="er-num" style="color:#0f62fe;">{{ opt.cost_opportunities|length }}</div><div class="er-lab">Cost opportunities</div></div>
+    {% if opt.pricing_configured %}
+    <div class="er-card" style="padding:16px 18px;"><div class="er-num">{{ opt.currency }}{{ opt.total_monthly_savings }}</div><div class="er-lab">Est. monthly savings</div></div>
+    {% endif %}
+    <div class="er-card" style="padding:16px 18px;"><div class="er-num">{{ opt.total_reclaim_vcpu }} vCPU · {{ opt.total_reclaim_gb }} GB</div><div class="er-lab">Reclaimable capacity</div></div>
+</div>
+{% if opt.cost_opportunities %}
+<div class="er-card" style="overflow:hidden; margin-top:14px;">
+    <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f8fafc;"><th class="er-th">Server</th><th class="er-th">Recommendation</th>{% if opt.pricing_configured %}<th class="er-th">Monthly savings</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for a in opt.cost_opportunities %}
+            <tr><td class="er-td" style="font-weight:500;">{{ a.name }}</td><td class="er-td" style="color:#475569;">{{ a.recommendation_text }}</td>{% if opt.pricing_configured %}<td class="er-td" style="font-weight:600; color:#166534;">{% if a.monthly_savings %}{{ opt.currency }}{{ a.monthly_savings }}{% else %}—{% endif %}</td>{% endif %}</tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p style="font-size:13px; color:#94a3b8; margin-top:8px;">No cost / right-sizing opportunities right now (or not enough data yet).</p>
+{% endif %}
+
+<!-- ============ 2. Incident report ============ -->
+<div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="er-sec-title">2 · Incidents (last {{ days }} days)</div>
+    <a class="er-btn no-print" href="?section=incidents&days={{ days }}&format=csv">⬇ CSV</a>
+</div>
+<div class="er-card" style="overflow:hidden;">
+    {% if incident_rows %}
+    <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f8fafc;">
+            <th class="er-th">Server</th><th class="er-th">Spikes</th><th class="er-th">Downtime</th>
+            <th class="er-th">Service</th><th class="er-th">Container</th><th class="er-th">Resource</th><th class="er-th">Total</th>
+        </tr></thead>
+        <tbody>
+        {% for r in incident_rows %}
+            <tr>
+                <td class="er-td" style="font-weight:500;">{{ r.server }}</td>
+                <td class="er-td">{{ r.spikes }}</td><td class="er-td">{{ r.downtime }}</td>
+                <td class="er-td">{{ r.service }}</td><td class="er-td">{{ r.container }}</td>
+                <td class="er-td">{{ r.resource }}</td><td class="er-td" style="font-weight:600;">{{ r.total }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:36px; text-align:center; color:#94a3b8; font-size:14px;">No incidents in the last {{ days }} days.</div>
+    {% endif %}
+</div>
+{% if resolution_log %}
+<div class="er-sec-title" style="font-size:14px; margin:16px 0 8px;">Resolution log — admin reasons</div>
+<div class="er-card" style="overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f8fafc;"><th class="er-th">When</th><th class="er-th">Server</th><th class="er-th">What</th><th class="er-th">Reason (admin)</th><th class="er-th">By</th></tr></thead>
+        <tbody>
+        {% for l in resolution_log %}
+            <tr>
+                <td class="er-td" style="color:#475569; white-space:nowrap;">{{ l.when|timezone_date:"M d, H:i" }}</td>
+                <td class="er-td" style="font-weight:500;">{{ l.server }}</td>
+                <td class="er-td" style="color:#475569;">{{ l.what }}</td>
+                <td class="er-td" style="max-width:320px;">{% if l.reason %}{{ l.reason }}{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
+                <td class="er-td" style="color:#94a3b8;">{{ l.by }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- ============ 3. Forecast / risk ============ -->
+<div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="er-sec-title">3 · Forecast &amp; risk — likely to need attention</div>
+    <a class="er-btn no-print" href="?section=risk&days={{ days }}&format=csv">⬇ CSV</a>
+</div>
+<div class="er-card" style="overflow:hidden;">
+    {% if risk_rows %}
+    <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f8fafc;"><th class="er-th">Target</th><th class="er-th">Type</th><th class="er-th">Risk</th><th class="er-th">Severity</th><th class="er-th">Detail</th><th class="er-th">ETA</th></tr></thead>
+        <tbody>
+        {% for r in risk_rows %}
+            <tr>
+                <td class="er-td" style="font-weight:500;">{{ r.target }}</td>
+                <td class="er-td" style="color:#475569;">{{ r.kind }}</td>
+                <td class="er-td">{{ r.risk }}</td>
+                <td class="er-td">
+                    {% if r.severity == 'CRITICAL' %}<span class="er-pill" style="background:#fef2f2; color:#b91c1c;">Critical</span>
+                    {% elif r.severity == 'HIGH' %}<span class="er-pill" style="background:#fff7ed; color:#c2410c;">High</span>
+                    {% elif r.severity == 'MEDIUM' %}<span class="er-pill" style="background:#fffbeb; color:#92400e;">Medium</span>
+                    {% else %}<span class="er-pill" style="background:#f1f5f9; color:#475569;">Low</span>{% endif %}
+                </td>
+                <td class="er-td" style="color:#475569; max-width:320px;">{{ r.detail }}</td>
+                <td class="er-td" style="color:#475569; white-space:nowrap;">{{ r.eta }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:36px; text-align:center; color:#166534; font-size:14px;">✓ Nothing is flagged as likely to fail right now.</div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load timezone_tags %}
+
+{% block title %}Operational Report — Resource Spikes{% endblock %}
+
+{% block content %}
+<style>
+.or-th { padding:10px 14px; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; text-align:left; }
+.or-td { padding:11px 14px; font-size:13px; color:#0f172a; border-top:1px solid #f1f5f9; vertical-align:top; }
+.or-pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; }
+.or-btn { padding:7px 13px; font-size:13px; font-weight:500; border-radius:7px; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; border:1px solid #e2e8f0; background:#fff; color:#334155; }
+.or-btn.active { background:#0f62fe; color:#fff; border-color:#0f62fe; }
+.or-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+@media print {
+    aside, .no-print { display:none !important; }
+    main { padding:0 !important; }
+    .or-card { box-shadow:none; }
+}
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:6px;">
+    <div>
+        <h1 style="font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2;">Operational Report</h1>
+        <p style="font-size:14px; color:#525252; margin:0;">Resource spikes (CPU, RAM, disk, network, leaks) — occurrence, resolution time, and admin notes. Last {{ days }} days.</p>
+    </div>
+    <div class="no-print" style="display:flex; gap:8px; align-items:center;">
+        <a class="or-btn" href="?days={{ days }}{% if server_id %}&server_id={{ server_id }}{% endif %}&format=csv">⬇ CSV</a>
+        <button type="button" class="or-btn" onclick="window.print()">🖨 Print</button>
+    </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="no-print" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:14px 0 18px;">
+    <span style="font-size:12px; color:#94a3b8;">Range</span>
+    <a class="or-btn {% if days == 7 %}active{% endif %}" href="?days=7{% if server_id %}&server_id={{ server_id }}{% endif %}">7 days</a>
+    <a class="or-btn {% if days == 30 %}active{% endif %}" href="?days=30{% if server_id %}&server_id={{ server_id }}{% endif %}">30 days</a>
+    <a class="or-btn {% if days == 90 %}active{% endif %}" href="?days=90{% if server_id %}&server_id={{ server_id }}{% endif %}">90 days</a>
+    <span style="width:14px;"></span>
+    <span style="font-size:12px; color:#94a3b8;">Server</span>
+    <select name="server_id" onchange="this.form.submit()" style="padding:7px 12px; font-size:13px; border:1px solid #e2e8f0; border-radius:8px; background:#fff; color:#0f172a;">
+        <option value="">All servers</option>
+        {% for s in servers %}
+        <option value="{{ s.id }}" {% if server_id == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="hidden" name="days" value="{{ days }}">
+</form>
+
+<!-- Summary tiles -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-bottom:18px;">
+    <div class="or-card" style="padding:16px 18px;"><div style="font-size:24px; font-weight:600; color:#0f172a;">{{ summary.total }}</div><div style="font-size:12px; color:#64748b; margin-top:4px;">Total spikes</div></div>
+    <div class="or-card" style="padding:16px 18px;"><div style="font-size:24px; font-weight:600; color:#b91c1c;">{{ summary.sev.CRITICAL|add:summary.sev.HIGH }}</div><div style="font-size:12px; color:#64748b; margin-top:4px;">Critical + High</div></div>
+    <div class="or-card" style="padding:16px 18px;"><div style="font-size:24px; font-weight:600; color:#92400e;">{{ summary.open }}</div><div style="font-size:12px; color:#64748b; margin-top:4px;">Still open</div></div>
+    <div class="or-card" style="padding:16px 18px;"><div style="font-size:24px; font-weight:600; color:#166534;">{{ summary.resolved }}</div><div style="font-size:12px; color:#64748b; margin-top:4px;">Resolved</div></div>
+    <div class="or-card" style="padding:16px 18px;"><div style="font-size:24px; font-weight:600; color:#0f172a;">{{ summary.avg_resolution }}</div><div style="font-size:12px; color:#64748b; margin-top:4px;">Avg time-to-resolve</div></div>
+</div>
+
+<!-- Table -->
+<div class="or-card" style="overflow:hidden;">
+    {% if rows %}
+    <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f8fafc;">
+            <th class="or-th">Server</th>
+            <th class="or-th">Resource</th>
+            <th class="or-th">Severity</th>
+            <th class="or-th">Reading</th>
+            <th class="or-th">Occurred</th>
+            <th class="or-th">Duration</th>
+            <th class="or-th">Status</th>
+            <th class="or-th">Admin note</th>
+        </tr></thead>
+        <tbody>
+        {% for r in rows %}
+            <tr>
+                <td class="or-td" style="font-weight:500;">{{ r.server }}</td>
+                <td class="or-td">{{ r.resource }}</td>
+                <td class="or-td">
+                    {% if r.severity == 'CRITICAL' %}<span class="or-pill" style="background:#fef2f2; color:#b91c1c;">Critical</span>
+                    {% elif r.severity == 'HIGH' %}<span class="or-pill" style="background:#fff7ed; color:#c2410c;">High</span>
+                    {% elif r.severity == 'MEDIUM' %}<span class="or-pill" style="background:#fffbeb; color:#92400e;">Medium</span>
+                    {% else %}<span class="or-pill" style="background:#f1f5f9; color:#475569;">Low</span>{% endif %}
+                </td>
+                <td class="or-td" style="font-variant-numeric:tabular-nums;">{{ r.value }}</td>
+                <td class="or-td" style="color:#475569;">{{ r.occurred|timezone_date:"M d, Y H:i" }}</td>
+                <td class="or-td" style="color:#475569;">{{ r.duration }}</td>
+                <td class="or-td">
+                    {% if r.resolved %}<span class="or-pill" style="background:#f0fdf4; color:#166534;">Resolved</span>
+                    {% else %}<span class="or-pill" style="background:#fffbeb; color:#92400e;">Open</span>{% endif %}
+                </td>
+                <td class="or-td" style="color:#334155; max-width:280px;">
+                    {% if r.note %}{{ r.note }}{% if r.resolved_by %}<span style="color:#94a3b8;"> — {{ r.resolved_by }}</span>{% endif %}{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:48px; text-align:center; color:#94a3b8; font-size:14px;">No resource spikes recorded in the last {{ days }} days{% if server_id %} for this server{% endif %}.</div>
+    {% endif %}
+</div>
+<p style="font-size:12px; color:#94a3b8; margin-top:10px;">Tip: add a note when you resolve an anomaly (Anomalies Log → Resolve) and it appears here for the report.</p>
+{% endblock %}
