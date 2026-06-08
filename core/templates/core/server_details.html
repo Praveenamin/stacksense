@@ -127,6 +127,13 @@
 </div>
 
 <!-- Metrics charts (compact, dashboard-style grid) -->
+<!-- Shared time-range filter for the metric charts (24h default) -->
+<div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:8px;">
+    <span style="font-size:12px; color:#94a3b8;">Range</span>
+    <button type="button" id="range-24h" class="sd-btn-sm" onclick="setChartRange('24h')" style="background:#0f62fe; color:#fff; border:none;">24h</button>
+    <button type="button" id="range-7d" class="sd-btn-sm" onclick="setChartRange('7d')" style="background:#fff; color:#334155; border:1px solid #e2e8f0;">7d</button>
+    <button type="button" id="range-30d" class="sd-btn-sm" onclick="setChartRange('30d')" style="background:#fff; color:#334155; border:1px solid #e2e8f0;">1 month</button>
+</div>
 <div class="sd-charts">
     <div class="sd-card" style="margin-bottom:0;"><h2>CPU &amp; Memory</h2><div class="sd-chart-wrap"><canvas id="cpu-memory-chart"></canvas></div></div>
     <div class="sd-card" style="margin-bottom:0;"><h2>Disk I/O</h2><div class="sd-chart-wrap"><canvas id="disk-io-chart"></canvas></div></div>
@@ -410,6 +417,19 @@
     const serverId = document.getElementById('server-id').value;
     let refreshInterval;
     let cpuMemoryChart, diskIOChart, networkIOChart, memoryTrendChart;
+    let chartRange = '24h';  // shared range for CPU&Memory / Disk I/O / Network I/O charts
+
+    function setChartRange(r) {
+        chartRange = r;
+        [['range-24h', '24h'], ['range-7d', '7d'], ['range-30d', '30d']].forEach(function (p) {
+            var b = document.getElementById(p[0]); if (!b) return;
+            var on = p[1] === r;
+            b.style.background = on ? '#0f62fe' : '#fff';
+            b.style.color = on ? '#fff' : '#334155';
+            b.style.border = on ? 'none' : '1px solid #e2e8f0';
+        });
+        fetchMetrics();
+    }
     
     // Initialize charts
     document.addEventListener('DOMContentLoaded', function() {
@@ -445,9 +465,9 @@
     async function fetchMetrics() {
         try {
             const [metricsRes, diskIORes, networkIORes] = await Promise.all([
-                fetch(`/api/server/${serverId}/metrics/?range=1h`),
-                fetch(`/api/server/${serverId}/disk-io/?range=1h`),
-                fetch(`/api/server/${serverId}/network-io/?range=1h`)
+                fetch(`/api/server/${serverId}/metrics/?range=${chartRange}`),
+                fetch(`/api/server/${serverId}/disk-io/?range=${chartRange}`),
+                fetch(`/api/server/${serverId}/network-io/?range=${chartRange}`)
             ]);
             
             if (!metricsRes.ok) throw new Error(`HTTP error! status: ${metricsRes.status}`);

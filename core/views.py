@@ -5401,6 +5401,9 @@ def disk_io_api(request, server_id):
         elif range_param == '7d':
             since = now - timedelta(days=7)
             max_points = 168
+        elif range_param == '30d':
+            since = now - timedelta(days=30)
+            max_points = 120
         else:
             # Default to 1h
             since = now - timedelta(hours=1)
@@ -5527,6 +5530,9 @@ def network_io_api(request, server_id):
         elif range_param == '7d':
             since = now - timedelta(days=7)
             max_points = 168
+        elif range_param == '30d':
+            since = now - timedelta(days=30)
+            max_points = 120
         else:
             # Default to 1h
             since = now - timedelta(hours=1)
