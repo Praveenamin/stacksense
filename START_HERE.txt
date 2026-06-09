@@ -8,20 +8,21 @@ AFTER YOU LOG BACK IN, FOLLOW THESE STEPS:
    docker --version
    docker compose version
 
-2. Generate SSH keys:
-   cd /home/praveen/container_proj
-   ssh-keygen -t rsa -b 4096 -f ssh_keys/id_rsa -N ""
-
-3. Start the application:
+2. Start the application:
    docker compose up -d --build
 
-4. Initialize database:
+3. Initialize database:
    docker compose exec web python manage.py migrate
    docker compose exec web python manage.py createsuperuser
 
-5. Access the application:
+4. Access the application:
    - Web UI: http://localhost:8000
    - Admin: http://localhost:8000/admin
+
+5. Add a server to monitor (push agent):
+   In the UI: Instances -> Add Server (name + IP), then run the generated
+   one-line "curl ... | sudo bash" agent install command on the target VM.
+   StackSense never connects out; the agent pushes metrics over HTTPS.
 
 ═══════════════════════════════════════════════════════════════
 

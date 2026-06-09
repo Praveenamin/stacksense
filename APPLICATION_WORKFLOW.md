@@ -45,17 +45,17 @@ StackSense is a server monitoring application that tracks server health, collect
 │         │                    │                    │          │
 │         ▼                    ▼                    ▼          │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │   Redis      │    │   SSH        │    │   Email      │  │
-│  │   Cache      │    │   Connection │    │   Alerts     │  │
+│  │   Redis      │    │   Ingest     │    │   Email      │  │
+│  │   Cache      │    │   Endpoint   │    │   Alerts     │  │
 │  └──────────────┘    └──────────────┘    └──────────────┘  │
 │                                                               │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                              │ SSH Connection
-                              ▼
+                              ▲
+                              │ HTTPS push (Bearer token)
+                              │   — initiated BY each monitored VM
                     ┌──────────────────┐
                     │  Monitored       │
-                    │  Servers         │
+                    │  Servers (agent) │
                     └──────────────────┘
 ```
 
@@ -64,7 +64,7 @@ StackSense is a server monitoring application that tracks server health, collect
 - **Framework**: Django (Python)
 - **Database**: PostgreSQL
 - **Cache**: Redis
-- **SSH**: Paramiko (Python library)
+- **Ingestion**: Push agent → HTTPS POST with per-server bearer token (StackSense never connects out)
 - **Web Server**: Gunicorn
 - **Reverse Proxy**: Nginx
 - **Container**: Docker
@@ -91,8 +91,8 @@ docker-entrypoint.sh (Entry Point)
     │
     ├─► Start Metrics Scheduler (Background)
     │   └─► python3 metrics_scheduler.py
-    │       └─► Runs every 30 seconds:
-    │           - collect_metrics
+    │       └─► On a cadence runs analysis/housekeeping (no metric collection — metrics arrive via the push agent):
+    │           - check_heartbeats / check_server_connectivity (read pushed heartbeats)
     │           - detect_anomalies (every 5 minutes)
     │           - track_app_heartbeat
     │
@@ -105,14 +105,16 @@ docker-entrypoint.sh (Entry Point)
 ```python
 # metrics_scheduler.py runs continuously:
 
-Every 30 seconds:
+Every cycle:
     1. Track app heartbeat (record that monitoring app is running)
-    2. Collect metrics from all servers (SSH connection)
-    3. Store metrics in database
-    
+    2. Evaluate freshness of agent-pushed heartbeats (check_heartbeats /
+       check_server_connectivity) to mark servers online/offline
+    # Metrics themselves are written by the ingest endpoint when the agent POSTs
+    # them — the scheduler does NOT collect metrics over the network.
+
 Every 5 minutes:
-    4. Run anomaly detection on collected metrics
-    5. Generate alerts if anomalies detected
+    3. Run anomaly detection on collected metrics
+    4. Generate alerts if anomalies detected
 ```
 
 ---
@@ -122,7 +124,7 @@ Every 5 minutes:
 ### Adding a New Server
 
 ```
-User fills form → POST /api/add-server/
+User fills form (name + IP) → POST /api/add-server/
     │
     ├─► Step 1: Create Server record
     │   └─► Database: INSERT INTO core_server
@@ -130,79 +132,70 @@ User fills form → POST /api/add-server/
     ├─► Step 2: Create MonitoringConfig
     │   └─► Database: INSERT INTO core_monitoringconfig
     │
-    ├─► Step 3: Deploy SSH Key
-    │   ├─► Connect to server via SSH (password auth)
-    │   ├─► Install public key to ~/.ssh/authorized_keys
-    │   └─► Mark ssh_key_deployed = True
+    ├─► Step 3: Issue per-server agent bearer token
+    │   └─► Used by the agent to authenticate its HTTPS pushes
     │
-    ├─► Step 4: Install psutil on target server
-    │   └─► SSH: pip install psutil
+    ├─► Step 4: Present the one-line agent install command
+    │   └─► `curl … | sudo bash` (run by the admin on the target VM)
     │
-    ├─► Step 5: Create initial ServerHeartbeat record
-    │   └─► Database: INSERT INTO core_serverheartbeat
-    │
-    ├─► Step 6: Collect initial metrics
-    │   └─► First metrics collection run
-    │
-    └─► Return success response with server_id
+    └─► Return success response with server_id + install command
 ```
 
-### SSH Key Deployment
+There is **no SSH onboarding step** — no username/password/port/key. StackSense
+never connects out. The server stays "pending" until the agent is installed and
+its first push arrives.
 
-1. Connect to server using password authentication
-2. Read public SSH key from `/app/ssh_keys/id_rsa.pub`
-3. Append to `~/.ssh/authorized_keys` on target server
-4. Verify key deployment
-5. Future connections use key-based authentication
+### Agent Onboarding
+
+1. Admin runs the one-line `curl … | sudo bash` installer on the target VM.
+2. The installer drops the agent, writes its config (StackSense URL +
+   per-server token), and installs a systemd service.
+3. The agent begins POSTing metrics/services/containers/heartbeats over HTTPS.
+4. StackSense's ingest endpoint authenticates the token and stores the data;
+   the server flips to "online" once heartbeats are fresh.
 
 ---
 
 ## Metrics Collection Workflow
 
-### Periodic Collection (Every 30 seconds)
+### Agent Push (initiated by each monitored VM)
 
 ```
-metrics_scheduler.py triggers:
+Agent on monitored VM (runs continuously):
     │
-    └─► collect_metrics command
+    ├─► Collect locally via psutil/procfs:
+    │       - CPU usage
+    │       - Memory usage
+    │       - Disk usage
+    │       - Network I/O
+    │       - Disk I/O
+    │       - System uptime
+    │       - Running processes
+    │       - Load average
+    │       - Services / containers / SSH auth events
+    │
+    └─► HTTPS POST to StackSense ingest endpoint
+        │   (Authorization: Bearer <per-server token>)
         │
-        ├─► For each server:
-        │   │
-        │   ├─► Check if monitoring suspended
-        │   │   └─► Skip if suspended
-        │   │
-        │   ├─► Establish SSH connection
-        │   │   ├─► Use SSH key from /app/ssh_keys/id_rsa
-        │   │   ├─► Connect to server.ip_address:server.port
-        │   │   └─► Authenticate as server.username
-        │   │
-        │   ├─► Execute metrics collection script via SSH:
-        │   │   │
-        │   │   └─► Python script collects:
-        │   │       - CPU usage (psutil.cpu_percent)
-        │   │       - Memory usage (psutil.virtual_memory)
-        │   │       - Disk usage (psutil.disk_usage)
-        │   │       - Network I/O (psutil.net_io_counters)
-        │   │       - Disk I/O (psutil.disk_io_counters)
-        │   │       - System uptime
-        │   │       - Running processes
-        │   │       - Load average
-        │   │
-        │   ├─► Parse JSON response from SSH command
-        │   │
-        │   ├─► Create SystemMetric record
-        │   │   └─► Database: INSERT INTO core_systemmetric
-        │   │       - Stores all collected metrics
-        │   │       - Links to server via ForeignKey
-        │   │       - Timestamped
-        │   │
-        │   └─► Update ServerHeartbeat
-        │       └─► Database: UPDATE core_serverheartbeat
-        │           SET last_heartbeat = NOW()
-        │           WHERE server_id = <id>
-        │
-        └─► Log results (success/failure count)
+        ▼
+StackSense ingest endpoint:
+    │
+    ├─► Authenticate the bearer token → resolve Server
+    │
+    ├─► Create SystemMetric record
+    │   └─► Database: INSERT INTO core_systemmetric
+    │       - Stores all pushed metrics
+    │       - Links to server via ForeignKey
+    │       - Timestamped
+    │
+    └─► Update ServerHeartbeat
+        └─► Database: UPDATE core_serverheartbeat
+            SET last_heartbeat = NOW()
+            WHERE server_id = <id>
 ```
+
+StackSense does **not** poll or SSH into servers; data only arrives when the
+agent pushes it.
 
 ### Metrics Data Structure
 
@@ -235,15 +228,15 @@ The heartbeat system verifies that servers are reachable and responding. There a
 ### Server Heartbeat Flow
 
 ```
-Every 30 seconds (during metrics collection):
+On each agent push (initiated by the monitored VM):
     │
-    ├─► SSH connection successful?
+    ├─► Push received and token authenticated?
     │   │
     │   YES ──► UPDATE ServerHeartbeat
     │   │       SET last_heartbeat = NOW()
     │   │
     │   NO ───► Keep existing heartbeat timestamp
-    │           (server appears offline)
+    │           (no fresh push → server appears offline)
     │
     └─► Status calculated based on heartbeat age
 ```
@@ -270,14 +263,15 @@ Every 30 seconds:
 ### Heartbeat Check Command
 
 ```bash
-python manage.py check_heartbeats_ssh
+python manage.py check_heartbeats
+# (or check_server_connectivity)
 ```
 
 This command:
 1. Tracks app heartbeat
 2. For each server:
-   - Attempts SSH connection (5-second timeout)
-   - Updates heartbeat on success
+   - Reads the freshness of the latest agent-pushed heartbeat (no SSH)
+   - Marks the server online/offline based on heartbeat age
    - Sends alerts on status change (online ↔ offline)
 
 ---
@@ -570,13 +564,13 @@ Request → server_details view
 ## Data Flow Summary
 
 ```
-┌─────────────┐
-│   Servers   │
-└──────┬──────┘
-       │ SSH (every 30s)
+┌──────────────────┐
+│ Servers (agent)  │
+└──────┬───────────┘
+       │ HTTPS push (Bearer token), initiated by the agent
        ▼
 ┌──────────────────┐
-│ Metrics Collector│
+│  Ingest Endpoint │
 └──────┬───────────┘
        │
        ▼
@@ -619,7 +613,6 @@ Request → server_details view
 - `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
 - `CSRF_TRUSTED_ORIGINS`: Comma-separated list of trusted origins
 - `USE_TLS`: Enable TLS/HTTPS mode ("True"/"False")
-- `SSH_PRIVATE_KEY_PATH`: Path to SSH private key (/app/ssh_keys/id_rsa)
 
 ### Timing Configuration
 
@@ -633,12 +626,11 @@ Request → server_details view
 
 ## Error Handling
 
-### SSH Connection Failures
+### Missing Agent Pushes
 
-- Retry logic in metrics collection
-- Heartbeat not updated on failure
-- Server status shows as "offline"
-- Error logged but doesn't crash scheduler
+- No fresh push → heartbeat not updated
+- Server status shows as "offline" once the heartbeat ages past the threshold
+- Scheduler keeps running; a stale server does not crash it
 
 ### Database Connection Failures
 
@@ -673,16 +665,16 @@ Request → server_details view
 
 ### Scalability
 
-- Metrics collection runs asynchronously (background scheduler)
+- Ingestion is push-based; agents POST concurrently and independently
 - Database queries optimized for large datasets
 - Pagination on list views
-- Efficient heartbeat checks (SSH connection pooling)
+- Heartbeat checks read stored push timestamps (no outbound connections)
 
 ---
 
 ## Security Considerations
 
-1. **SSH Key Management**: Private keys stored securely, not in code
+1. **Per-Server Agent Tokens**: Each agent authenticates with a bearer token scoped to one server; tokens can be rotated/revoked. StackSense never holds SSH credentials for monitored servers.
 2. **Database Credentials**: Environment variables, not hardcoded
 3. **CSRF Protection**: Enabled for all POST requests
 4. **Authentication**: Django admin authentication required

@@ -5,8 +5,6 @@ Params (via {% include ... with %}):
   icon         emoji for the heading (optional)
   rows         list[VMAssessment]
   count        number to show in the pill (optional; defaults to rows|length)
-  show_savings show the Savings/Reclaim column (bool)
-  currency     currency symbol (for $ savings)
   empty_text   text when rows is empty
   span2        if truthy, widget spans both grid columns
 {% endcomment %}
@@ -29,7 +27,6 @@ Params (via {% include ... with %}):
                 <th scope="col">Recommendation</th>
                 <th scope="col">Confidence</th>
                 <th scope="col">Data Period</th>
-                {% if show_savings %}<th scope="col" class="num">{% if currency %}Savings{% else %}Reclaim{% endif %}</th>{% endif %}
             </tr>
         </thead>
         <tbody>
@@ -53,15 +50,6 @@ Params (via {% include ... with %}):
                 <td class="rec-text">{{ a.recommendation_text }}</td>
                 <td>{% include "core/components/executive/confidence_badge.html" with confidence=a.confidence %}</td>
                 <td class="muted">{{ a.data_period_label }} days</td>
-                {% if show_savings %}
-                <td class="num">
-                    {% if a.monthly_savings is not None %}
-                        <span class="{% if a.monthly_savings > 0 %}save-pos{% else %}save-neg{% endif %}">{% if a.monthly_savings > 0 %}{{ currency }}{{ a.monthly_savings|floatformat:0 }}/mo{% else %}+{{ currency }}{{ a.monthly_savings|floatformat:0|cut:"-" }}/mo{% endif %}</span>
-                    {% else %}
-                        <span class="muted">{% if a.delta_vcpu > 0 %}−{{ a.delta_vcpu }} vCPU{% endif %}{% if a.delta_gb > 0 %} −{{ a.delta_gb|floatformat:"-1" }} GB{% endif %}</span>
-                    {% endif %}
-                </td>
-                {% endif %}
             </tr>
         {% endfor %}
         </tbody>

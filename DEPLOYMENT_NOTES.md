@@ -20,7 +20,7 @@ The deployment script does **NOT** copy:
 - ❌ Alert configurations
 - ❌ Email alert settings
 - ❌ Log troubleshooting configurations
-- ❌ SSH keys for server connections
+- ❌ Per-server agent tokens / registered servers
 - ❌ Any data from the old database
 
 ---
@@ -69,7 +69,7 @@ sudo /opt/stacksense/deploy.sh stacksense.assistanz.com admin@example.com
 - ✅ All historical metrics
 - ✅ All user accounts
 - ✅ All alert configurations
-- ✅ SSH keys for server connections
+- ✅ Registered servers and per-server agent tokens
 - ✅ SSL certificates
 
 ---
@@ -79,9 +79,8 @@ sudo /opt/stacksense/deploy.sh stacksense.assistanz.com admin@example.com
 ### What It Does
 
 1. **Creates backup on source server**:
-   - Database dump (PostgreSQL)
+   - Database dump (PostgreSQL) — includes registered servers and agent tokens
    - Application configuration files (.env)
-   - SSH keys
    - Media files
    - SSL certificates
 
@@ -163,7 +162,6 @@ docker exec monitoring_db pg_dump -U monitoring_user monitoring_db > backup.sql
 # On old server
 tar -czf app_backup.tar.gz \
     /opt/stacksense/.env \
-    /opt/stacksense/ssh_keys/ \
     /opt/stacksense/media/
 ```
 
@@ -203,7 +201,7 @@ docker restart monitoring_web
 - **Email Config**: Email alert settings
 - **Monitoring Config**: Per-server monitoring settings
 - **Log Config**: Log troubleshooting configurations
-- **SSH Keys**: Keys for connecting to monitored servers
+- **Agent Tokens**: Per-server bearer tokens the agents use to push data
 - **SSL Certificates**: Nginx SSL certificates
 
 ### ❌ Not Migrated (Server-Specific)
@@ -221,7 +219,7 @@ docker restart monitoring_web
 After migration, verify:
 
 - [ ] All servers are listed in the application
-- [ ] SSH connections to monitored servers work
+- [ ] Agents are still pushing (servers show online; tokens carried over)
 - [ ] Metrics are being collected
 - [ ] Alerts are configured correctly
 - [ ] Email alerts are working
@@ -251,10 +249,10 @@ docker exec -i monitoring_db psql -U monitoring_user monitoring_db < backup.sql
 ### Issue: Servers not connecting
 
 **Solution**:
-- Verify SSH keys are in `/opt/stacksense/ssh_keys/`
-- Check file permissions: `chmod 600 /opt/stacksense/ssh_keys/*`
-- Test SSH connection manually
-- Check server IP addresses are correct
+- Confirm the agent is running on each monitored server: `systemctl status stacksense-agent`
+- Check the agent logs for auth errors: `sudo journalctl -u stacksense-agent -n 50`
+- Verify the per-server token carried over in the migrated database (re-issue and re-run the installer if needed)
+- Confirm the agent's StackSense API URL points at the new host
 
 ### Issue: Metrics not collecting
 

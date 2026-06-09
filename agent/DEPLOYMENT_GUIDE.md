@@ -1,208 +1,133 @@
-# Heartbeat System Deployment Guide - SSH-Based (No Client Installation)
+# Heartbeat System Deployment Guide - Push Agent
 
 ## Overview
 
-The heartbeat system uses **SSH connections from the monitoring server** to check if client servers are online. **No installation or agents are needed on client servers.**
+StackSense is **push-agent only**. A lightweight agent installed on each
+monitored server POSTs heartbeats (and metrics, services, containers) to the
+StackSense server over HTTPS using a per-server bearer token. **The StackSense
+server never connects out to monitored servers — there is no SSH from StackSense
+to clients.** Server online/offline status is derived from the freshness of the
+agent's pushed heartbeats.
 
 ## How It Works
 
-- Monitoring server runs a cron job every 30 seconds
-- Cron job SSH connects to each client server
-- On successful connection: Updates heartbeat record
-- Dashboard shows server status based on heartbeat timestamps
+- The agent on each monitored server pushes a heartbeat on an interval.
+- StackSense's ingest endpoint authenticates the token and updates the server's
+  `ServerHeartbeat.last_heartbeat`.
+- The in-container scheduler runs `check_heartbeats` /
+  `check_server_connectivity` to evaluate heartbeat freshness and flip servers
+  online/offline (no SSH, no outbound connection).
+- The dashboard shows status based on heartbeat timestamps.
 
 ## Requirements
 
-- **Monitoring Server**: Must have SSH access to all client servers
-- **Client Servers**: No installation needed - just need to be accessible via SSH
-- **SSH Credentials**: Already configured in Server model (used for metric collection)
+- **StackSense Server**: Reachable from monitored servers over HTTPS.
+- **Monitored Servers**: The agent installed and running (`stacksense-agent`),
+  plus outbound HTTPS to StackSense.
+- **Per-Server Token**: Issued when the server is added; the agent uses it as a
+  bearer token. StackSense holds **no** SSH credentials for monitored servers.
 
-## Setup (One-Time on Monitoring Server)
+## Setup
 
-### Step 1: Verify SSH Heartbeat Checker Command
+### Step 1: Add the Server in StackSense
 
-Test the command manually:
+In the UI, go to **Instances → Add Server**, enter a name + IP, and save.
+StackSense issues a per-server token and shows a one-line agent install command.
 
-```bash
-cd /home/ubuntu/stacksense-repo
-POSTGRES_HOST=localhost POSTGRES_PORT=5433 python3 manage.py check_heartbeats_ssh --verbose
-```
+### Step 2: Install the Agent on the Monitored Server
 
-You should see connection attempts to all servers and heartbeat updates.
-
-### Step 2: Setup Cron Job
-
-Run the setup script:
+Run the generated installer on the target server (as root/sudo):
 
 ```bash
-cd /home/ubuntu/stacksense-repo
-./setup_heartbeat_cron.sh
+curl -sSL https://your-stacksense-host/agent/install/<token> | sudo bash
 ```
 
-This will:
-- Add two cron entries (runs every 30 seconds)
-- Configure proper environment variables
-- Set up logging
+This drops the agent, writes its config (StackSense URL + per-server token), and
+installs a `stacksense-agent` systemd service that starts on boot and restarts
+on failure.
 
-### Step 3: Verify Cron Job
+### Step 3: Verify the Agent Is Pushing
 
-Check that cron job is configured:
+On the monitored server:
 
 ```bash
-crontab -l | grep check_heartbeats_ssh
+systemctl status stacksense-agent
+sudo journalctl -u stacksense-agent -n 50
 ```
 
-You should see two entries.
-
-### Step 4: Monitor Status
-
-Check heartbeat status:
+In StackSense, evaluate heartbeat freshness (this reads pushed heartbeats — it
+does **not** connect out):
 
 ```bash
 cd /home/ubuntu/stacksense-repo
 POSTGRES_HOST=localhost POSTGRES_PORT=5433 python3 manage.py check_heartbeats --verbose
 ```
 
-Servers should show as "ONLINE" if SSH connections are successful.
+Servers should show as "ONLINE" once their first heartbeats arrive and are
+fresh.
 
-## Manual Cron Setup (Alternative)
+## Scheduling
 
-If you prefer to set up cron manually:
+Heartbeat evaluation runs inside the container via `metrics_scheduler.py`. If you
+want to run it on cron instead, use the agent-driven command (no SSH):
 
 ```bash
-# Edit crontab
-crontab -e
-
-# Add these two lines (runs every 30 seconds):
-* * * * * cd /home/ubuntu/stacksense-repo && POSTGRES_HOST=localhost POSTGRES_PORT=5433 /usr/bin/python3 /home/ubuntu/stacksense-repo/manage.py check_heartbeats_ssh > /dev/null 2>&1
-* * * * * sleep 30 && cd /home/ubuntu/stacksense-repo && POSTGRES_HOST=localhost POSTGRES_PORT=5433 /usr/bin/python3 /home/ubuntu/stacksense-repo/manage.py check_heartbeats_ssh > /dev/null 2>&1
+* * * * * cd /home/ubuntu/stacksense-repo && POSTGRES_HOST=localhost POSTGRES_PORT=5433 /usr/bin/python3 /home/ubuntu/stacksense-repo/manage.py check_heartbeats > /dev/null 2>&1
 ```
-
-## How It Works
-
-1. **Cron triggers** the `check_heartbeats_ssh` command every 30 seconds
-2. **Command iterates** through all servers in database
-3. **SSH connects** to each server using existing credentials
-4. **On success**: Updates `ServerHeartbeat.last_heartbeat` timestamp
-5. **On failure**: Leaves heartbeat unchanged (shows offline if > 60s old)
-6. **Dashboard** reads heartbeat timestamps to show status
 
 ## Status Logic
 
-- **OFFLINE**: No heartbeat OR heartbeat older than 60 seconds
-- **ONLINE**: Heartbeat within 60 seconds AND no active alerts/anomalies  
-- **WARNING**: Heartbeat within 60 seconds BUT has active alerts/anomalies
+- **OFFLINE**: No heartbeat OR most recent pushed heartbeat older than the threshold (default 60 seconds).
+- **ONLINE**: Heartbeat within the threshold AND no active alerts/anomalies.
+- **WARNING**: Heartbeat within the threshold BUT has active alerts/anomalies.
 
 ## Troubleshooting
 
 ### Servers Show Offline
 
-1. **Check SSH connectivity**:
+1. **Check the agent is running** on the monitored server:
    ```bash
-   ssh -p <port> <username>@<server-ip>
+   systemctl status stacksense-agent
    ```
 
-2. **Test command manually**:
+2. **Check agent logs** for auth/connection errors:
    ```bash
-   python3 manage.py check_heartbeats_ssh --verbose
+   sudo journalctl -u stacksense-agent -n 50
+   ```
+   A `401`/`403` means the per-server token is wrong or revoked; a timeout means
+   a network/URL problem.
+
+3. **Test connectivity** from the monitored server to StackSense:
+   ```bash
+   curl -sS -o /dev/null -w "%{http_code}\n" https://your-stacksense-host/health/
    ```
 
-3. **Check SSH key**:
-   - Verify SSH key exists at configured path
-   - Default: `/app/ssh_keys/id_rsa`
-   - Check `SSH_PRIVATE_KEY_PATH` in settings
-
-4. **Check cron logs**:
+4. **Re-run the installer** to rewrite the agent config (URL + token) if needed:
    ```bash
-   grep CRON /var/log/syslog | tail -20
+   curl -sSL https://your-stacksense-host/agent/install/<token> | sudo bash
    ```
 
-### Cron Job Not Running
+### Heartbeat Evaluation
 
-1. **Verify cron service**:
-   ```bash
-   sudo systemctl status cron
-   ```
-
-2. **Check crontab**:
-   ```bash
-   crontab -l
-   ```
-
-3. **Test command manually**:
-   ```bash
-   python3 manage.py check_heartbeats_ssh --verbose
-   ```
-
-### SSH Connection Failures
-
-1. **Verify credentials** in Server model:
-   - IP address
-   - Username
-   - Port
-   - SSH key deployed
-
-2. **Test SSH manually**:
-   ```bash
-   ssh -i /app/ssh_keys/id_rsa -p <port> <username>@<server-ip>
-   ```
-
-3. **Check firewall** on client servers (inbound SSH must be allowed)
-
-## Advantages
-
-- ✅ **No client installation** - Everything runs on monitoring server
-- ✅ **No client dependencies** - No Python, no libraries needed on clients
-- ✅ **Uses existing SSH** - Reuses credentials already configured
-- ✅ **Centralized** - Easy to monitor and debug
-- ✅ **Lightweight** - Just connection test, no data transfer
-
-## Considerations
-
-- Requires SSH access to all client servers (already needed for metrics)
-- SSH connection overhead (~1-2 seconds per server)
-- If monitoring server is down, no heartbeats (expected behavior)
-- Client servers must allow inbound SSH connections
-
-## Removing Cron Job
-
-To remove the heartbeat cron job:
-
-```bash
-crontab -e
-# Remove lines containing "check_heartbeats_ssh"
-```
-
-Or use:
-
-```bash
-crontab -l | grep -v "check_heartbeats_ssh" | crontab -
-```
-
-## Manual Testing
-
-Test the heartbeat checker manually:
-
-```bash
-cd /home/ubuntu/stacksense-repo
-POSTGRES_HOST=localhost POSTGRES_PORT=5433 python3 manage.py check_heartbeats_ssh --verbose
-```
-
-This will show:
-- Connection attempts to each server
-- Success/failure status
-- Heartbeat update confirmations
-
-## Monitoring
-
-Check heartbeat status anytime:
+To inspect status on the StackSense side (reads stored heartbeats; no SSH):
 
 ```bash
 python3 manage.py check_heartbeats --verbose
 ```
 
-This shows:
-- Which servers have recent heartbeats
-- Last heartbeat timestamp
-- Current status (online/offline/warning)
+This shows which servers have recent heartbeats, the last heartbeat timestamp,
+and the current status (online/offline/warning).
 
+## Advantages
+
+- ✅ **No outbound access required** - StackSense never connects to clients.
+- ✅ **Token-authenticated** - Each agent uses a per-server bearer token.
+- ✅ **Firewall-friendly** - Clients only need outbound HTTPS; no inbound ports.
+- ✅ **Lightweight** - The agent pushes small payloads on an interval.
+
+## Considerations
+
+- The agent must be installed and running on each monitored server.
+- Clients need outbound HTTPS reachability to the StackSense host.
+- If a monitored server or its agent is down, no heartbeats arrive and the
+  server is shown offline (expected behavior).

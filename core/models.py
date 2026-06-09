@@ -14,9 +14,6 @@ class Server(models.Model):
     name = models.CharField(max_length=100)
     ip_address = models.GenericIPAddressField()
     username = models.CharField(max_length=100)
-    port = models.IntegerField(default=22)
-    ssh_key_deployed = models.BooleanField(default=False, help_text="Whether SSH key has been deployed")
-    ssh_key_deployed_at = models.DateTimeField(null=True, blank=True)
     suppress_alerts = models.BooleanField(default=False, help_text="Whether to suppress email alerts for this server")
     suspend_monitoring = models.BooleanField(default=False, help_text="Whether to suspend monitoring for this server")
 
@@ -163,7 +160,12 @@ class SystemMetric(models.Model):
     # Disk metrics (JSON field for multiple disks)
     # Enhanced structure: {"/": {"total": ..., "used": ..., "percent": ..., "disk_type": "SSD", "raid": "none", "physical_disk": "sda"}}
     disk_usage = models.JSONField(default=dict)
-    
+
+    # Physical disk inventory pushed by the agent (read-only lsblk/sys inventory):
+    # {"physical_disk_count": N, "disks": [{name, type(SSD/HDD/NVMe), model, size, transport, rotational}],
+    #  "raid_arrays": [{name, level, size}], "raid": "raid1"|"none"}
+    disk_hardware = models.JSONField(default=dict, blank=True)
+
     # Network metrics (JSON field for multiple interfaces)
     network_io = models.JSONField(default=dict)
     network_connections = models.IntegerField(null=True, blank=True)
@@ -1468,39 +1470,6 @@ class SSHAuthEvent(models.Model):
     def __str__(self):
         state = "OK" if self.success else "FAIL"
         return f"SSH {state} {self.username}@{self.server.name} from {self.source_ip}"
-
-
-class PricingConfig(models.Model):
-    """Singleton: per-unit pricing for VM right-sizing cost estimates.
-
-    Until both prices are set, the Executive dashboard shows capacity reclaimed
-    (vCPU/GB) instead of currency.
-    """
-    price_per_vcpu_month = models.FloatField(
-        null=True, blank=True, help_text="Cost of 1 vCPU per month")
-    price_per_gb_month = models.FloatField(
-        null=True, blank=True, help_text="Cost of 1 GB RAM per month")
-    currency = models.CharField(max_length=8, default="$")
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Pricing Configuration"
-        verbose_name_plural = "Pricing Configuration"
-
-    def __str__(self):
-        return f"Pricing ({self.currency}{self.price_per_vcpu_month}/vCPU, {self.currency}{self.price_per_gb_month}/GB)"
-
-    @property
-    def configured(self):
-        return self.price_per_vcpu_month is not None and self.price_per_gb_month is not None
-
-    @classmethod
-    def get_solo(cls):
-        """Return the single config row, creating an empty one if needed."""
-        obj = cls.objects.first()
-        if obj is None:
-            obj = cls.objects.create()
-        return obj
 
 
 class AuditLog(models.Model):

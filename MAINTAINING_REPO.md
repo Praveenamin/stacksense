@@ -153,7 +153,7 @@ git push origin main --force
 ## 🔐 Security Reminders
 
 - ✅ Never commit `.env` files
-- ✅ Never commit SSH private keys
+- ✅ Never commit secrets or agent tokens
 - ✅ Never commit database files
 - ✅ Always review `git status` before committing
 - ✅ Use descriptive commit messages

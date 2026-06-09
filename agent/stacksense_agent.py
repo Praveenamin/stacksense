@@ -46,7 +46,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.3.1"
+AGENT_VERSION = "push-1.4.0"
 CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
 DEFAULT_INTERVAL = 30
 HTTP_TIMEOUT = 15
@@ -541,6 +541,107 @@ def collect_ipc_stats():
     return stats or None
 
 
+def _disk_kind(name, tran, rota):
+    """Classify a physical disk as NVMe / SSD / HDD from its name, transport and
+    rotational flag. NVMe wins by name/transport; rotational==1 => HDD; else SSD."""
+    n = (name or "").lower()
+    t = (tran or "").lower()
+    if t == "nvme" or n.startswith("nvme"):
+        return "NVMe"
+    try:
+        if int(rota) == 1:
+            return "HDD"
+    except (TypeError, ValueError):
+        if str(rota).strip().lower() in ("1", "true"):
+            return "HDD"
+    return "SSD"
+
+
+def collect_disk_hardware():
+    """Read-only inventory of physical disks (SSD/HDD/NVMe), RAID arrays, and a
+    mount -> disk map. Prefers `lsblk` (read-only); falls back to /sys/block.
+
+    Returns (summary, mount_map):
+      summary   = {physical_disk_count, disks[...], raid_arrays[...], raid}
+      mount_map = {mountpoint: {disk_type, physical_disk, raid}}
+    NEVER writes to the host -- inspection only.
+    """
+    disks, raid_arrays, mount_map = [], [], {}
+
+    out = _run(["lsblk", "-J", "-b", "-o",
+                "NAME,TYPE,ROTA,TRAN,MODEL,SIZE,MOUNTPOINT"]) if _have("lsblk") else None
+    if out:
+        try:
+            tree = json.loads(out).get("blockdevices", []) or []
+        except Exception:
+            tree = []
+
+        def visit(node, disk_anc, raid_lvl):
+            ntype = (node.get("type") or "").lower()
+            da, rl = disk_anc, raid_lvl
+            if ntype == "disk":
+                da = node
+                disks.append({
+                    "name": node.get("name"),
+                    "type": _disk_kind(node.get("name"), node.get("tran"), node.get("rota")),
+                    "model": (node.get("model") or "").strip() or None,
+                    "size": node.get("size"),
+                    "transport": node.get("tran") or None,
+                    "rotational": node.get("rota"),
+                })
+            if ntype.startswith("raid"):
+                rl = ntype
+                raid_arrays.append({"name": node.get("name"), "level": ntype,
+                                    "size": node.get("size")})
+            mp = node.get("mountpoint")
+            if mp and da:
+                mount_map[mp] = {
+                    "disk_type": _disk_kind(da.get("name"), da.get("tran"), da.get("rota")),
+                    "physical_disk": da.get("name"),
+                    "raid": rl or "none",
+                }
+            for ch in (node.get("children") or []):
+                visit(ch, da, rl)
+
+        for n in tree:
+            visit(n, None, None)
+    else:
+        # Fallback: enumerate /sys/block (no reliable mount mapping without lsblk).
+        try:
+            for dev in sorted(os.listdir("/sys/block")):
+                if dev.startswith(("loop", "ram", "dm-", "md", "sr", "fd", "zram")):
+                    continue
+                base = "/sys/block/" + dev
+                rota = _safe(lambda: open(base + "/queue/rotational").read().strip())
+                sectors = _safe(lambda: int(open(base + "/size").read().strip()))
+                model = _safe(lambda: open(base + "/device/model").read().strip())
+                is_nvme = dev.startswith("nvme")
+                disks.append({
+                    "name": dev,
+                    "type": _disk_kind(dev, "nvme" if is_nvme else None, rota),
+                    "model": (model or "").strip() or None,
+                    "size": (sectors * 512) if sectors else None,
+                    "transport": "nvme" if is_nvme else None,
+                    "rotational": rota,
+                })
+        except Exception:
+            pass
+        mdstat = _safe(lambda: open("/proc/mdstat").read())
+        if mdstat:
+            for line in mdstat.splitlines():
+                m = re.match(r"(md\d+)\s*:\s*\w+\s+(raid\d+)", line)
+                if m:
+                    raid_arrays.append({"name": m.group(1), "level": m.group(2), "size": None})
+
+    summary = {
+        "physical_disk_count": len(disks),
+        "disks": disks,
+        "raid_arrays": raid_arrays,
+        "raid": raid_arrays[0]["level"] if raid_arrays else "none",
+    }
+    return summary, mount_map
+
+
 def collect_metrics(prev):
     """Collect one metrics sample. `prev` carries counters from the last sample
     so we can compute per-second I/O rates. Returns (metrics_dict, new_prev)."""
@@ -589,7 +690,14 @@ def collect_metrics(prev):
             "free": usage.free,
             "percent": usage.percent,
         }
+    # Physical disk inventory (SSD/HDD/NVMe, RAID, disk count) + per-mount tags.
+    disk_hw, mount_map = _safe(collect_disk_hardware, ({}, {})) or ({}, {})
+    for mp, info in disk_usage.items():
+        ann = mount_map.get(mp)
+        if ann:
+            info.update(ann)
     metrics["disk_usage"] = disk_usage
+    metrics["disk_hardware"] = disk_hw
 
     # Network counters per interface
     net_per_nic = _safe(lambda: psutil.net_io_counters(pernic=True), {}) or {}

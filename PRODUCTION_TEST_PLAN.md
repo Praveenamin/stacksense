@@ -24,51 +24,51 @@ These tests:
 
 ### 1.2 Manual audit
 
-- Keep `REMOTE_ACTIONS_AUDIT.md` in sync when adding new `exec_command`, `open_sftp`, or any remote command execution.
-- After adding such code: re-run the audit table and the automated tests.
+- StackSense no longer executes any remote commands on monitored servers (push-agent only). If that ever changes, update `REMOTE_ACTIONS_AUDIT.md`.
+- After adding any outbound/remote behavior: re-run the audit table and the automated tests.
 
 ---
 
 ## 2. Core Flows (Manual / Staging)
 
-Use a **single test server** with SSH key and (optional) agent. Prefer a throwaway or staging host.
+Use a **single test server** with the push agent installed. Prefer a throwaway or staging host.
 
-### 2.1 Metrics collection
+### 2.1 Metrics ingestion (push agent)
 
 | Step | Action | Expected |
 |------|--------|----------|
-| 2.1.1 | Add server (SSH key or password→key deploy) | Server added; key works if deployed. |
-| 2.1.2 | Run `python manage.py collect_metrics <server_id>` | Exit 0; SystemMetric rows for that server. |
-| 2.1.3 | On server: `ls -la /tmp/collect_metrics.py` (optional) | File may exist; it is read-only in behavior. |
-| 2.1.4 | If psutil was missing: after first run, `python3 -c "import psutil"` on server | Succeeds. |
+| 2.1.1 | Add server (name + IP) in the UI | Server added; per-server token + install command shown. |
+| 2.1.2 | Run the one-line `curl … | sudo bash` installer on the target server | Agent installed; `stacksense-agent` service running. |
+| 2.1.3 | Wait for the first push | SystemMetric rows appear for that server; status flips to online. |
+| 2.1.4 | Send a bad/empty token push (manual curl) | Rejected with 401/403; no metric written. |
 
 ### 2.2 Log scanning
 
 | Step | Action | Expected |
 |------|--------|----------|
 | 2.2.1 | Add MonitoredLog for an Apache/nginx (or test) log path. | MonitoredLog created. |
-| 2.2.2 | Run `python manage.py scan_logs` | Exit 0; LogEvents if the path has matching lines. |
-| 2.2.3 | On server: only `tail` and `wc -c` used on the path | No writes to the log file. |
+| 2.2.2 | Run `python manage.py scan_logs` | Exit 0; old LogEvents purged (housekeeping only — no longer collects logs over SSH; live log push is paused). |
+| 2.2.3 | Open Log Troubleshooting pages | Existing LogEvents render; feature is kept. |
 
 ### 2.3 Heartbeats
 
 | Step | Action | Expected |
 |------|--------|----------|
-| 2.3.1 | With agent or SSH heartbeat: run `check_heartbeats` / `check_heartbeats_ssh` (per your setup). | No errors; last_heartbeat or equivalent updated. |
-| 2.3.2 | If using agent: ensure `deploy_agent.sh` is **not** called by Django. | Confirmed: only manual or external automation. |
+| 2.3.1 | Run `check_heartbeats` / `check_server_connectivity` (reads pushed heartbeats; no SSH). | No errors; status reflects last push freshness. |
+| 2.3.2 | Stop the agent on the test server, wait past the threshold. | Server flips to offline; alert raised on status change. |
 
-### 2.4 Service discovery and status
+### 2.4 Services and containers (agent-pushed)
 
 | Step | Action | Expected |
 |------|--------|----------|
-| 2.4.1 | Run `python manage.py discover_services <server_id>` or `--all` | Services discovered; only `systemctl list-units` used (read). |
-| 2.4.2 | Trigger service check (e.g. check_services cron or UI that calls it) | Only `systemctl is-active`, `is-failed` (read). |
+| 2.4.1 | Confirm the agent pushes its service list. | Services appear for the server; no StackSense→server call made. |
+| 2.4.2 | Confirm the agent pushes container inventory (Docker/Podman/containerd). | Containers listed; data is push-sourced. |
 
 ### 2.5 Service latency
 
 | Step | Action | Expected |
 |------|--------|----------|
-| 2.5.1 | For a service with a port: run `collect_service_latency` or trigger from UI. | Latency stored; for localhost-bound: only `python3 -c 'socket.connect...'` (read). |
+| 2.5.1 | For a service with a port: run `collect_service_latency` or trigger from UI. | Latency stored via TCP/HTTP probe; localhost-only services are skipped. |
 
 ### 2.6 Log troubleshooting and AI
 
@@ -84,18 +84,19 @@ Use a **single test server** with SSH key and (optional) agent. Prefer a throwaw
 | Area | Check | Expected |
 |------|-------|----------|
 | Ollama | OLLAMA_TIMEOUT=120; gunicorn --timeout 180; nginx proxy_read 180s | “Ask AI” completes or returns a clear timeout/connection error. |
-| SSH | collect_metrics, scan_logs, discover_services, service checks | 10–30s timeouts; no indefinite hang. |
-| collect_metrics | Script run: 90s timeout | Script finishes or fails with error; no silent hang. |
+| Ingest endpoint | Agent push handler | Handles malformed/oversized payloads without hanging; rejects bad tokens fast. |
+| Service latency | `collect_service_latency` TCP/HTTP probe | 10–30s timeout per probe; no indefinite hang. |
 
 ---
 
 ## 4. Production Readiness Checklist
 
 - [ ] **Migrations** applied; no pending.
-- [ ] **Cron (or scheduler):** `collect_metrics`, `scan_logs`, `check_heartbeats` / `check_heartbeats_ssh`, `check_services`, `detect_anomalies` as needed.
+- [ ] **Scheduler:** `metrics_scheduler.py` running; `check_heartbeats` / `check_server_connectivity`, `detect_anomalies`, `detect_memory_leaks`, `detect_security_events`, `run_synthetic_checks`, `collect_service_latency`, `scan_logs` (housekeeping), `aggregate_metrics`, `cleanup_metrics` as needed.
+- [ ] **Agents:** Each monitored server has the agent installed and pushing; per-server tokens valid.
 - [ ] **Log retention:** App config `log_retention_days` (7/15/30) and scan_logs purge in place.
 - [ ] **Ollama:** If used: OLLAMA_API_URL and OLLAMA_TIMEOUT; healthcheck/logging for failures.
-- [ ] **SSH:** Key path, permissions; no password in code.
+- [ ] **Tokens:** Per-server bearer tokens stored securely; rotation/revocation works; no SSH credentials held.
 - [ ] **BLOCK_IP:** Documented as “recommendation only”; no automatic blocking.
 
 ---

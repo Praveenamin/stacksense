@@ -45,8 +45,7 @@ stacksense-repo/
 ### Security
 
 ✅ **Protected Files** (never committed):
-- `.env` - Environment variables
-- `ssh_keys/id_rsa` - SSH private keys
+- `.env` - Environment variables (includes secrets / agent tokens)
 - `*.log` - Log files
 - `__pycache__/` - Python cache
 - Database files

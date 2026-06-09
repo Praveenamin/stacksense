@@ -74,7 +74,6 @@ tmp/
 temp/
 
 # SSH Keys (NEVER commit these!)
-ssh_keys/
 *.pem
 *.key
 id_rsa

@@ -19,14 +19,13 @@ MANAGE_MONITORING = "manage_monitoring"   # servers/services/containers, thresho
 MANAGE_ALERTS = "manage_alerts"           # alert + slack config, resolve, synthetic checks
 MANAGE_SECURITY = "manage_security"       # security/SIEM
 MANAGE_BUSINESS = "manage_business"       # business KPIs
-MANAGE_PRICING = "manage_pricing"         # right-sizing pricing
 MANAGE_USERS = "manage_users"
 MANAGE_ROLES = "manage_roles"
 IMPERSONATE = "impersonate"
 
 ALL_CAPABILITIES = frozenset({
     VIEW_OPERATIONS, VIEW_EXECUTIVE, MANAGE_MONITORING, MANAGE_ALERTS,
-    MANAGE_SECURITY, MANAGE_BUSINESS, MANAGE_PRICING, MANAGE_USERS,
+    MANAGE_SECURITY, MANAGE_BUSINESS, MANAGE_USERS,
     MANAGE_ROLES, IMPERSONATE,
 })
 
@@ -38,7 +37,6 @@ CAPABILITY_LABELS = {
     MANAGE_ALERTS: "Manage Alerts & Synthetic Checks",
     MANAGE_SECURITY: "Manage Security / SIEM",
     MANAGE_BUSINESS: "Manage Business KPIs",
-    MANAGE_PRICING: "Manage Pricing",
     MANAGE_USERS: "Manage Users",
     MANAGE_ROLES: "Manage Roles",
     IMPERSONATE: "Switch Between User Accounts",
@@ -150,7 +148,6 @@ CAPABILITY_BY_URL_NAME = {
     "business_kpi_delete": MANAGE_BUSINESS,
 
     # Pricing
-    "pricing_settings": MANAGE_PRICING,
 
     # Application settings (timezone/language/retention)
     "app_config": MANAGE_MONITORING,

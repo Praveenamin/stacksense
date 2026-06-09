@@ -1,10 +1,7 @@
 import re
-import paramiko
-import os
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.conf import settings
-from core.models import MonitoredLog, LogEvent, Server, AppConfig
+from core.models import LogEvent, AppConfig
 from datetime import timedelta
 import logging
 
@@ -12,17 +9,17 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Scan log files from monitored servers and detect errors (read-only, no auto-healing)"
+    help = "Log Troubleshooting housekeeping (remote SSH collection retired; awaiting agent-side log push)"
 
     def handle(self, *args, **options):
-        """Scan all enabled log files for errors"""
-        monitored_logs = MonitoredLog.objects.filter(enabled=True).select_related('server')
-        
-        if not monitored_logs.exists():
-            self.stdout.write(self.style.WARNING("No enabled log monitoring configurations found."))
-            return
+        """Remote log collection over SSH has been retired (push-agent model).
 
-        # Purge LogEvents older than configured retention
+        Agent-side log shipping is not built yet, so this command no longer
+        collects new log events. It still purges LogEvents past retention so the
+        Log Troubleshooting tables stay bounded. The MonitoredLog config and the
+        log-parsing helpers below are kept for the future agent-based pipeline.
+        """
+        # Purge LogEvents older than configured retention (non-SSH housekeeping).
         try:
             config = AppConfig.get_config()
             days = getattr(config, 'log_retention_days', 30) or 30
@@ -33,137 +30,11 @@ class Command(BaseCommand):
         except Exception as e:
             logger.warning("Log retention purge failed: %s", e)
 
-        self.stdout.write(f"Scanning {monitored_logs.count()} log file(s)...")
-        
-        for monitored_log in monitored_logs:
-            try:
-                if not monitored_log.server.monitoring_config.enabled:
-                    continue
-                
-                self.stdout.write(f"Scanning {monitored_log.application_name} on {monitored_log.server.name}...")
-                self._scan_log_file(monitored_log)
-            except Exception as e:
-                self.stderr.write(self.style.ERROR(f"✗ Failed to scan {monitored_log.application_name} on {monitored_log.server.name}: {e}"))
-                logger.error(f"Log scan error for {monitored_log}: {e}")
-    
-    def _scan_log_file(self, monitored_log):
-        """Scan a single log file for errors"""
-        server = monitored_log.server
-        log_path = monitored_log.log_path
-        
-        # Connect via SSH
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
-        # Load SSH key
-        private_key_path = getattr(settings, "SSH_PRIVATE_KEY_PATH", "/app/ssh_keys/id_rsa")
-        pkey = None
-        if os.path.exists(private_key_path):
-            try:
-                pkey = paramiko.RSAKey.from_private_key_file(private_key_path)
-            except Exception as e:
-                logger.warning(f"Failed to load SSH key: {e}")
-        
-        try:
-            if pkey:
-                client.connect(
-                    hostname=server.ip_address,
-                    port=server.port,
-                    username=server.username,
-                    pkey=pkey,
-                    timeout=30,
-                )
-            else:
-                client.connect(
-                    hostname=server.ip_address,
-                    port=server.port,
-                    username=server.username,
-                    timeout=30,
-                    look_for_keys=True,
-                    allow_agent=True,
-                )
-            
-            # Determine start position
-            start_offset = monitored_log.last_read_offset
-            
-            # If first scan or no offset, start from 1 day ago
-            if start_offset == 0 or not monitored_log.last_scan_time:
-                # Calculate file size 1 day ago (approximate)
-                # We'll read from tail of file and work backwards
-                cmd_tail = f"tail -n 1000 {log_path} 2>/dev/null || echo ''"
-            else:
-                # Read from last known offset
-                cmd_tail = f"tail -c +{start_offset + 1} {log_path} 2>/dev/null || echo ''"
-            
-            stdin, stdout, stderr = client.exec_command(cmd_tail)
-            new_lines = stdout.read().decode('utf-8', errors='ignore').split('\n')
-            error_output = stderr.read().decode('utf-8', errors='ignore')
-            
-            if error_output and 'No such file' in error_output:
-                self.stdout.write(self.style.WARNING(f"  Log file not found: {log_path}"))
-                client.close()
-                return
-            
-            # Get current file size for updating offset
-            stdin2, stdout2, stderr2 = client.exec_command(f"wc -c < {log_path} 2>/dev/null || echo 0")
-            file_size = int(stdout2.read().decode('utf-8').strip() or 0)
-            
-            client.close()
-            
-            # Parse error lines
-            errors_found = self._parse_error_lines(new_lines, monitored_log)
-            
-            # Update LogEvent records (with deduplication)
-            for error_data in errors_found:
-                log_message = error_data['message']
-                log_level = error_data['level']
-                ip_address = error_data.get('ip_address')
-                
-                # Normalize message for deduplication (remove timestamps, IPs that vary)
-                normalized_message = self._normalize_message(log_message, monitored_log.service_type)
-                
-                ip_key = str(ip_address) if ip_address else 'unknown'
-                # Find or create LogEvent (groups similar logs via normalized_message)
-                log_event, created = LogEvent.objects.get_or_create(
-                    monitored_log=monitored_log,
-                    message=normalized_message,
-                    defaults={
-                        'log_level': log_level,
-                        'ip_address': ip_address,
-                        'first_seen': timezone.now(),
-                        'last_seen': timezone.now(),
-                        'event_count': 1,
-                        'ip_counts': {ip_key: 1},
-                    }
-                )
-                
-                if not created:
-                    # Update existing event and per-IP counts
-                    log_event.last_seen = timezone.now()
-                    log_event.event_count += 1
-                    data = dict(log_event.ip_counts) if log_event.ip_counts else {}
-                    data[ip_key] = data.get(ip_key, 0) + 1
-                    log_event.ip_counts = data
-                    log_event.save()
-            
-            # Update monitored_log with new offset and scan time
-            monitored_log.last_read_offset = file_size
-            monitored_log.last_scan_time = timezone.now()
-            monitored_log.save()
-            
-            if errors_found:
-                self.stdout.write(self.style.SUCCESS(f"  ✓ Found {len(errors_found)} error(s)"))
-            else:
-                self.stdout.write(f"  ✓ No errors found")
-        
-        except paramiko.AuthenticationException:
-            self.stderr.write(self.style.ERROR(f"  ✗ SSH authentication failed for {server.name}"))
-        except paramiko.SSHException as e:
-            self.stderr.write(self.style.ERROR(f"  ✗ SSH error for {server.name}: {e}"))
-        except Exception as e:
-            self.stderr.write(self.style.ERROR(f"  ✗ Error scanning {server.name}: {e}"))
-            logger.error(f"Log scan error: {e}", exc_info=True)
-    
+        self.stdout.write(
+            "Remote log collection over SSH has been retired; awaiting agent-side "
+            "log push. No new log events were collected."
+        )
+
     def _parse_error_lines(self, lines, monitored_log):
         """Parse log lines and extract error information"""
         errors = []

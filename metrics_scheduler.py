@@ -47,10 +47,7 @@ while running:
             # Log but don't stop metrics collection if heartbeat tracking fails
             print(f"Warning: Heartbeat tracking failed (non-critical): {heartbeat_error}")
         
-        print(f"\n[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running metrics collection...")
-        call_command("collect_metrics", verbosity=1)
-        print(f"Metrics collection completed. Next run in {interval} seconds.")
-        
+        # Metrics arrive via the push agent (no server-side SSH pull).
         # Run anomaly detection every 5 minutes
         time_since_last_anomaly_check = (timezone.now() - last_anomaly_check).total_seconds()
         if time_since_last_anomaly_check >= anomaly_detection_interval:

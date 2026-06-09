@@ -68,7 +68,7 @@ class CapabilityResolutionTests(TestCase):
         self.assertNotIn(perms.IMPERSONATE, caps)
         # but keeps executive + operational/business management
         for c in (perms.VIEW_EXECUTIVE, perms.MANAGE_MONITORING,
-                  perms.MANAGE_BUSINESS, perms.MANAGE_PRICING):
+                  perms.MANAGE_BUSINESS):
             self.assertIn(c, caps)
 
     def test_no_role_denied_everything(self):
@@ -132,8 +132,8 @@ class ViewAccessTests(RBACTestBase):
         self.assertEqual(self._get(self.ceo, "role_management").status_code, 403)
         self.assertEqual(self._get(self.operator, "role_management").status_code, 403)
 
-    def test_security_business_pricing_denied_for_operator(self):
-        for name in ("security_dashboard", "business_dashboard", "pricing_settings"):
+    def test_security_business_denied_for_operator(self):
+        for name in ("security_dashboard", "business_dashboard"):
             self.assertEqual(self._get(self.operator, name).status_code, 403, name)
             self.assertNotEqual(self._get(self.admin, name).status_code, 403, name)
 

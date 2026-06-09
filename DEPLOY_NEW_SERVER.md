@@ -133,30 +133,30 @@ cat /opt/stacksense/deployment_credentials.txt
 
 Store them somewhere safe and **change the default admin password** after first login.
 
-### 2. SSH keys for monitored servers
+### 2. Add servers (push agent)
 
-Generate keys if you will add servers to monitor:
+StackSense is push-agent only — there are no SSH keys to generate. To monitor a
+server:
+
+1. In the UI, go to **Instances → Add Server** and enter a name + IP.
+2. Copy the generated one-line `curl … | sudo bash` agent install command.
+3. Run it on the target server (as root/sudo). The agent installs, writes its
+   config (StackSense URL + per-server token), and starts pushing metrics over
+   HTTPS. StackSense never connects out to the server.
+
+### 3. Scheduling (analysis & housekeeping)
+
+The in-container scheduler (`metrics_scheduler.py`) runs the analysis and
+housekeeping commands automatically — there is no metric-collection command
+(metrics arrive via the agent push). If you prefer to run anything on cron
+instead, these are the relevant commands (run as the user that owns the app):
 
 ```bash
-sudo mkdir -p /opt/stacksense/ssh_keys
-sudo ssh-keygen -t rsa -b 4096 -f /opt/stacksense/ssh_keys/id_rsa -N ""
-```
-
-Ensure the `web` container can read them (e.g. mount `ssh_keys` or match ownership with the app user).
-
-### 3. Cron (metric collection, etc.)
-
-For production, run the management commands on a schedule. Example crontab (run as the same user that owns the app):
-
-```bash
-# Every 5 minutes: collect metrics
-*/5 * * * * docker exec monitoring_web python manage.py collect_metrics
-
-# Every 15 minutes: anomaly detection
+# Anomaly detection
 */15 * * * * docker exec monitoring_web python manage.py detect_anomalies
 
-# Hourly: heartbeats
-0 * * * * docker exec monitoring_web python manage.py check_heartbeats_ssh
+# Heartbeat / connectivity evaluation (reads pushed heartbeats; no SSH)
+*/1 * * * * docker exec monitoring_web python manage.py check_heartbeats
 ```
 
 Adjust `monitoring_web` if your container name differs.

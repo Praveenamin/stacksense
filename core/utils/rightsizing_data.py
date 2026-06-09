@@ -14,9 +14,9 @@ from django.db.models import Aggregate, Avg, Count, FloatField, Max, Min
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
-from core.models import PricingConfig, Server, SystemMetric
+from core.models import Server, SystemMetric
 
-from .rightsizing_engine import DimStats, Pricing, VMWindowStats
+from .rightsizing_engine import DimStats, VMWindowStats
 
 ANALYSIS_CAP_DAYS = 90
 BYTES_PER_GB = 1024 ** 3
@@ -33,16 +33,6 @@ class PercentileCont(Aggregate):
     def __init__(self, expression, percentile, **extra):
         super().__init__(expression, output_field=FloatField(),
                          percentile=percentile, **extra)
-
-
-def get_pricing() -> Pricing:
-    """Load saved pricing into the engine's Pricing value object."""
-    cfg = PricingConfig.get_solo()
-    return Pricing(
-        price_per_vcpu_month=cfg.price_per_vcpu_month,
-        price_per_gb_month=cfg.price_per_gb_month,
-        currency=cfg.currency or "$",
-    )
 
 
 def _disk_context(metric) -> Optional[DimStats]:

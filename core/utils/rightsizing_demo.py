@@ -7,11 +7,8 @@ NOT used in production paths — only the temporary preview view imports this.
 """
 from __future__ import annotations
 
-from .rightsizing_engine import DimStats, VMWindowStats, Pricing, assess_vm
+from .rightsizing_engine import DimStats, VMWindowStats, assess_vm
 from .rightsizing_report import build_report
-
-# Demo per-unit pricing so $ savings render. Real prices come from PricingConfig.
-DEMO_PRICING = Pricing(price_per_vcpu_month=12, price_per_gb_month=6, currency="$")
 
 
 def _dim(avg, p95, peak=None):
@@ -47,7 +44,7 @@ def _build_assessments(allow_early=False):
             disk=_dim(disk_avg, min(disk_avg + 8, 100)),
             current_vcpu=vcpu, current_gb=float(gb),
         )
-        out.append(assess_vm(stats, pricing=DEMO_PRICING, allow_early=allow_early))
+        out.append(assess_vm(stats, allow_early=allow_early))
     return out
 
 
@@ -94,11 +91,10 @@ def build_demo_context(empty: bool = False, allow_early: bool = False) -> dict:
     else:
         assessments = _build_assessments(allow_early=allow_early)
 
-    report = build_report(assessments, pricing_configured=DEMO_PRICING.configured)
+    report = build_report(assessments, pricing_configured=False)
     ctx = dict(report)
     ctx.update({
         "is_demo": True,
-        "currency": DEMO_PRICING.currency,
         "trend_data": _trend_series(),
         "forecast_data": _forecast_series(),
         "show_gate": report["eligible_count"] == 0,

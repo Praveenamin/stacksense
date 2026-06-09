@@ -71,9 +71,9 @@ git push origin main
 
 ⚠️ **Important:**
 - Never commit your `.env` file (already in .gitignore)
-- Never commit SSH private keys (already in .gitignore)
+- Never commit secrets or agent tokens (already in .gitignore)
 - Keep your PAT secure and don't share it
-- Consider using SSH keys for authentication in the future
+- Consider using a GitHub SSH deploy key for git authentication in the future
 
 ## Repository Structure
 
@@ -85,7 +85,7 @@ Your repository includes:
 - ✅ README.md
 - ✅ .gitignore (protecting sensitive files)
 - ❌ No .env files (excluded)
-- ❌ No SSH keys (excluded)
+- ❌ No secrets or agent tokens (excluded)
 - ❌ No database files (excluded)
 
 

@@ -70,7 +70,6 @@ All Python dependencies are listed in `requirements.txt`:
 Django>=5.2.8
 psycopg2-binary>=2.9.9
 gunicorn>=21.2.0
-paramiko>=3.4.0
 psutil>=5.9.0
 pandas>=2.0.0
 numpy>=1.24.0
@@ -160,7 +159,11 @@ sudo certbot --nginx -d stacksense.assistanz.com \
 
 ## Access Requirements
 
-### SSH Access
+### SSH Access (to the StackSense host, for deployment)
+
+This is the admin's own SSH access to the box running StackSense — used to deploy
+and operate it. StackSense does **not** SSH into monitored servers (those are
+onboarded via the push agent).
 
 - **User**: Root or user with sudo privileges
 - **Authentication**: SSH key (recommended) or password
@@ -339,7 +342,7 @@ tar -czf stacksense_backup_$(date +%Y%m%d).tar.gz /opt/stacksense
 4. **Keep system updated**: `sudo apt update && sudo apt upgrade`
 5. **Regular backups** of database and application files
 6. **Monitor logs** for suspicious activity
-7. **Use SSH keys** instead of passwords for SSH access
+7. **Use SSH keys** instead of passwords for admin SSH access to the StackSense host
 
 ---
 

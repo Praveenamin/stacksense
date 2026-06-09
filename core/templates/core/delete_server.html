@@ -90,10 +90,6 @@
                     <div style="font-size: var(--cds-font-size-base); font-family: var(--cds-font-family-mono); color: var(--cds-color-gray-100);">{{ server.ip_address }}</div>
                 </div>
                 <div>
-                    <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">SSH Port</div>
-                    <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100);">{{ server.port }}</div>
-                </div>
-                <div>
                     <div style="font-size: var(--font-size-caption); color: var(--cds-color-gray-70); text-transform: uppercase; letter-spacing: 0.16px; margin-bottom: var(--spacing-xs);">Status</div>
                     <div style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-100);">
                         {% if server.monitoring_config and server.monitoring_config.monitoring_enabled %}

@@ -514,9 +514,8 @@ echo -e "  Creating required directories..."
 mkdir -p "$APP_DIR/logs"
 mkdir -p "$APP_DIR/media"
 mkdir -p "$APP_DIR/staticfiles"
-mkdir -p "$APP_DIR/ssh_keys"
-chmod 755 "$APP_DIR/logs" "$APP_DIR/media" "$APP_DIR/staticfiles" "$APP_DIR/ssh_keys"
-chown -R 1000:1000 "$APP_DIR/logs" "$APP_DIR/media" "$APP_DIR/staticfiles" "$APP_DIR/ssh_keys" 2>/dev/null || true
+chmod 755 "$APP_DIR/logs" "$APP_DIR/media" "$APP_DIR/staticfiles"
+chown -R 1000:1000 "$APP_DIR/logs" "$APP_DIR/media" "$APP_DIR/staticfiles" 2>/dev/null || true
 
 # Build Docker image if Dockerfile exists
 if [ -f "$APP_DIR/Dockerfile" ]; then
@@ -1536,14 +1535,12 @@ echo -e "${BLUE}Setting up cron jobs...${NC}"
 CRON_FILE="/etc/cron.d/stacksense"
 cat > "$CRON_FILE" << 'CRON_EOF'
 # StackSense Monitoring Cron Jobs
-# Collect metrics every minute
-* * * * * root docker exec monitoring_web python manage.py collect_metrics >> /var/log/stacksense_metrics.log 2>&1
+# NOTE: metrics, heartbeats, latency, security and connectivity are handled by
+# the in-container scheduler (metrics_scheduler.py). Metrics arrive via the push
+# agent, so there is no server-side SSH collection.
 
-# Scan logs every 5 minutes
+# Log Troubleshooting housekeeping every 5 minutes
 */5 * * * * root docker exec monitoring_web python manage.py scan_logs >> /var/log/stacksense_logs.log 2>&1
-
-# Check server heartbeats every minute
-* * * * * root docker exec monitoring_web python manage.py check_heartbeats_ssh >> /var/log/stacksense_heartbeat.log 2>&1
 
 # Detect anomalies every 15 minutes
 */15 * * * * root docker exec monitoring_web python manage.py detect_anomalies >> /var/log/stacksense_anomalies.log 2>&1
@@ -1563,11 +1560,10 @@ chmod 644 /var/log/stacksense_metrics.log /var/log/stacksense_logs.log /var/log/
 systemctl restart cron 2>/dev/null || service cron restart 2>/dev/null || true
 
 echo -e "${GREEN}✓${NC} Cron jobs configured:"
-echo -e "  - Metric collection: every minute"
-echo -e "  - Log scanning: every 5 minutes"
-echo -e "  - Heartbeat check: every minute"
+echo -e "  - Log Troubleshooting housekeeping: every 5 minutes"
 echo -e "  - Anomaly detection: every 15 minutes"
 echo -e "  - Data cleanup: daily at 2 AM"
+echo -e "  (metrics/heartbeats/latency run in the in-container scheduler; metrics are pushed by the agent)"
 echo ""
 
 ###############################################################################

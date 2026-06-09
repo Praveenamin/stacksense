@@ -12,7 +12,6 @@ from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
 from core.utils import convert_to_display_timezone
-import paramiko
 import os
 from django.conf import settings
 from django.core.cache import cache
@@ -651,7 +650,17 @@ def server_details(request, server_id):
         root_partition = disk_data.get("/", None)
         if root_partition and isinstance(root_partition, dict):
             disk_percent = root_partition.get("percent", 0) or 0
-    
+
+    # Physical disk inventory (SSD/HDD/NVMe, RAID, disk count) pushed by the agent
+    disk_hardware = {}
+    if latest_metric and getattr(latest_metric, "disk_hardware", None):
+        import json
+        disk_hardware = (
+            json.loads(latest_metric.disk_hardware)
+            if isinstance(latest_metric.disk_hardware, str)
+            else latest_metric.disk_hardware
+        ) or {}
+
     # Calculate disk summary
     disk_summary = {
         "total_disks": 0,
@@ -695,7 +704,16 @@ def server_details(request, server_id):
             })
     
     disk_summary["physical_disks"] = physical_disks
-    
+
+    # Prefer the agent's authoritative hardware inventory for the counts/badges.
+    hw_disks = disk_hardware.get("disks") if isinstance(disk_hardware, dict) else None
+    if hw_disks:
+        disk_summary["total_disks"] = disk_hardware.get("physical_disk_count", len(hw_disks))
+        disk_summary["ssd_count"] = sum(1 for d in hw_disks if d.get("type") == "SSD")
+        disk_summary["hdd_count"] = sum(1 for d in hw_disks if d.get("type") == "HDD")
+        disk_summary["nvme_count"] = sum(1 for d in hw_disks if d.get("type") == "NVMe")
+        disk_summary["raid_count"] = len(disk_hardware.get("raid_arrays") or [])
+
     # Prepare chart data
     chart_data = {
         "timestamps": [],
@@ -789,6 +807,7 @@ def server_details(request, server_id):
         "active_anomalies": active_anomalies,
         "active_anomaly_count": active_anomaly_count,
         "disk_summary": disk_summary,
+        "disk_hardware": disk_hardware,
         "disk_data": disk_data,
         "disk_percent": disk_percent,
         "monitored_disks": monitored_disks,
@@ -1409,19 +1428,18 @@ def build_executive_context(allow_early=False):
     "Early" (directional only) instead of being gated out."""
     from .utils import rightsizing_constants as C
     from .utils.rightsizing_data import (
-        gather_vm_window_stats, fleet_trend, fleet_forecast, get_pricing,
+        gather_vm_window_stats, fleet_trend, fleet_forecast,
     )
     from .utils.rightsizing_engine import assess_vm
     from .utils.rightsizing_report import build_report
 
-    pricing = get_pricing()
+    # Cost / $ savings has been removed; right-sizing is capacity-only now.
     stats = gather_vm_window_stats()
-    assessments = [assess_vm(s, pricing=pricing, allow_early=allow_early) for s in stats]
-    report = build_report(assessments, pricing_configured=pricing.configured)
+    assessments = [assess_vm(s, allow_early=allow_early) for s in stats]
+    report = build_report(assessments, pricing_configured=False)
     ctx = dict(report)
     ctx.update({
         "is_demo": False,
-        "currency": pricing.currency,
         "trend_data": fleet_trend(),
         "forecast_data": fleet_forecast(),
         "show_gate": report["eligible_count"] == 0,
@@ -1431,34 +1449,6 @@ def build_executive_context(allow_early=False):
         "can_preview_early": any(0 < a.data_days < C.MIN_DAYS for a in assessments),
     })
     return ctx
-
-
-@staff_member_required
-def pricing_settings(request):
-    """Set per-unit pricing used by the Executive right-sizing cost estimates."""
-    from django.contrib import messages
-    from .models import PricingConfig
-
-    cfg = PricingConfig.get_solo()
-    if request.method == "POST":
-        def _num(name):
-            raw = (request.POST.get(name) or "").strip()
-            if raw == "":
-                return None
-            try:
-                v = float(raw)
-            except ValueError:
-                return None
-            return v if v >= 0 else None
-
-        cfg.price_per_vcpu_month = _num("price_per_vcpu_month")
-        cfg.price_per_gb_month = _num("price_per_gb_month")
-        cfg.currency = ((request.POST.get("currency") or "$").strip()[:8]) or "$"
-        cfg.save()
-        messages.success(request, "Pricing updated.")
-        return redirect("pricing_settings")
-
-    return render(request, "core/pricing_settings.html", {"cfg": cfg})
 
 
 def _fleet_status_counts():
@@ -1496,120 +1486,11 @@ def dashboard_fleet_status_api(request):
 
 @staff_member_required
 def add_server(request):
-    """Legacy SSH-based add flow (retired).
+    """Legacy add entry point — redirects to the push-agent add flow.
 
-    The push-agent model replaced SSH onboarding, so this entry point now
-    redirects to the agent flow. The SSH deployment code below is retained for
-    reference / potential reuse but is no longer reachable from the UI.
+    SSH onboarding was removed; the agent flow is the only way to add a server.
     """
     return redirect('add_server_agent')
-
-
-def add_server_legacy_ssh(request):
-    """Original SSH key-deployment add flow (no longer routed)."""
-    from .utils import has_privilege
-
-    if not has_privilege(request.user, 'manage_monitoring'):
-        messages.error(request, "You don't have permission to add servers.")
-        return redirect('monitoring_dashboard')
-
-    if request.method == "GET":
-        # Render the add server page
-        context = {
-            "show_sidebar": True,
-        }
-        context.update(admin.site.each_context(request))
-        return render(request, "core/add_server.html", context)
-
-    # Handle POST request
-    _log_user_action(request, "ADD_SERVER", f"Attempting to add server")
-    try:
-        name = request.POST.get('name', '').strip()
-        ip_address = request.POST.get('ip_address', '').strip()
-        port = int(request.POST.get('port', 22))
-        username = request.POST.get('username', 'root').strip()
-        password = request.POST.get('password', '').strip()
-        
-        # Validate required fields
-        if not all([name, ip_address, username, password]):
-            messages.error(request, 'All fields are required.')
-            return render(request, "core/add_server.html", {"show_sidebar": True})
-
-        # Validate port range
-        if port < 1 or port > 65535:
-            messages.error(request, 'Port must be between 1 and 65535.')
-            return render(request, "core/add_server.html", {"show_sidebar": True})
-        
-        # Create server object
-        server = Server(
-            name=name,
-            ip_address=ip_address,
-            port=port,
-            username=username
-        )
-        server.save()
-        
-        # Create monitoring configuration
-        MonitoringConfig.objects.get_or_create(
-            server=server,
-            defaults={
-                "enabled": True,
-                "collection_interval_seconds": 60,
-                "adaptive_collection_enabled": False,
-                "use_adtk": True,
-                "use_isolation_forest": False,
-                "use_llm_explanation": True,
-                "retention_period_days": 30,
-                "aggregation_enabled": True,
-            }
-        )
-        
-        # Deploy SSH key (password is used here but NOT stored)
-        try:
-            _deploy_ssh_key(server, password)
-            server.ssh_key_deployed = True
-            server.ssh_key_deployed_at = timezone.now()
-            server.save(update_fields=["ssh_key_deployed", "ssh_key_deployed_at"])
-            
-            # Install psutil on the server
-            psutil_success, psutil_message, psutil_details = _install_psutil_on_server(server)
-            
-            # Trigger immediate metrics collection (only if psutil is installed)
-            if psutil_success:
-                # Collect metrics immediately (not in background) to ensure it happens
-                try:
-                    collection_success = _collect_metrics_for_server(server)
-                    if collection_success:
-                        messages.success(request, f'Server "{name}" added successfully! SSH key deployed. {psutil_message}. Initial metrics collected.')
-                    else:
-                        messages.success(request, f'Server "{name}" added successfully! SSH key deployed. {psutil_message}. Metrics collection will start automatically.')
-                except Exception as e:
-                    # Log error but don't fail the request - scheduler will pick it up
-                    error_logger.error(f"Failed to collect initial metrics for {server.name}: {e}")
-                    messages.success(request, f'Server "{name}" added successfully! SSH key deployed. {psutil_message}. Metrics collection will start automatically.')
-                
-                return redirect('server_list')
-            else:
-                messages.success(request, f'Server "{name}" added successfully! SSH key deployed. However, {psutil_message}. Please install psutil manually to enable metrics collection.')
-                return redirect('server_list')
-        except Exception as e:
-            # Server was created but SSH key deployment failed
-            server.delete()  # Clean up if SSH key deployment fails
-            _log_user_action(request, "ADD_SERVER", f"Failed: SSH key deployment error - {str(e)}")
-            error_logger.error(f"ADD_SERVER failed: {str(e)}")
-            messages.error(request, f'SSH key deployment failed: {str(e)}')
-            return render(request, "core/add_server.html", {"show_sidebar": True})
-            
-    except ValueError as e:
-        _log_user_action(request, "ADD_SERVER", f"Failed: Invalid input - {str(e)}")
-        error_logger.error(f"ADD_SERVER validation error: {str(e)}")
-        messages.error(request, f'Invalid input: {str(e)}')
-        return render(request, "core/add_server.html", {"show_sidebar": True})
-    except Exception as e:
-        _log_user_action(request, "ADD_SERVER", f"Failed: {str(e)}")
-        error_logger.error(f"ADD_SERVER error: {str(e)}")
-        messages.error(request, f'Failed to add server: {str(e)}')
-        return render(request, "core/add_server.html", {"show_sidebar": True})
 
 
 def _render_agent_install_command(request, server, raw_token, created=False, rotated=False):
@@ -1680,8 +1561,6 @@ def add_server_agent(request):
         name=name,
         ip_address=ip_address,
         username='agent',  # push model does not use SSH login; placeholder
-        port=22,
-        ssh_key_deployed=False,
     )
     MonitoringConfig.objects.get_or_create(
         server=server,
@@ -1717,381 +1596,6 @@ def regenerate_agent_token(request, server_id):
     _, raw_token = AgentCredential.generate_for_server(server)
     _log_user_action(request, "ROTATE_AGENT_TOKEN", f"Rotated token for {server.name} (id={server.id})")
     return _render_agent_install_command(request, server, raw_token, rotated=True)
-
-
-@staff_member_required
-@require_http_methods(["POST"])
-def add_server_api(request):
-    """API endpoint for adding server with progress updates"""
-    from .utils import has_privilege
-    from django.http import JsonResponse
-    import json as json_module
-    
-    if not has_privilege(request.user, 'manage_monitoring'):
-        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
-    
-    try:
-        data = json_module.loads(request.body)
-        name = data.get('name', '').strip()
-        ip_address = data.get('ip_address', '').strip()
-        port = int(data.get('port', 22))
-        username = data.get('username', 'root').strip()
-        password = data.get('password', '').strip()
-        
-        progress = []
-        
-        # Validate required fields
-        if not all([name, ip_address, username, password]):
-            return JsonResponse({"success": False, "error": "All fields are required"})
-        
-        # Validate port range
-        if port < 1 or port > 65535:
-            return JsonResponse({"success": False, "error": "Port must be between 1 and 65535"})
-        
-        # Step 1: Create server object
-        server = Server(
-            name=name,
-            ip_address=ip_address,
-            port=port,
-            username=username
-        )
-        server.save()
-        progress.append({"step": "Creating server record", "status": "completed", "message": "Server record created"})
-        
-        # Step 2: Create monitoring configuration
-        MonitoringConfig.objects.get_or_create(
-            server=server,
-            defaults={
-                "enabled": True,
-                "collection_interval_seconds": 60,
-                "adaptive_collection_enabled": False,
-                "use_adtk": True,
-                "use_isolation_forest": False,
-                "use_llm_explanation": True,
-                "retention_period_days": 30,
-                "aggregation_enabled": True,
-            }
-        )
-        progress.append({"step": "Creating monitoring configuration", "status": "completed", "message": "Monitoring config created"})
-        
-        # Step 3: Deploy SSH key
-        try:
-            progress.append({"step": "Connecting via SSH", "status": "in_progress", "message": "Establishing SSH connection..."})
-            _deploy_ssh_key(server, password)
-            server.ssh_key_deployed = True
-            server.ssh_key_deployed_at = timezone.now()
-            server.save(update_fields=["ssh_key_deployed", "ssh_key_deployed_at"])
-            progress.append({"step": "Connecting via SSH", "status": "completed", "message": "SSH connection successful"})
-            progress.append({"step": "Deploying SSH key", "status": "completed", "message": "SSH key deployed successfully"})
-            
-            # Step 4: Check requirements / Install psutil
-            progress.append({"step": "Checking requirements", "status": "in_progress", "message": "Checking Python and dependencies..."})
-            psutil_success, psutil_message, psutil_details = _install_psutil_on_server(server)
-            if psutil_success:
-                progress.append({"step": "Checking requirements", "status": "completed", "message": psutil_message})
-            else:
-                progress.append({"step": "Checking requirements", "status": "warning", "message": psutil_message})
-            
-            # Step 5: Collect initial metrics
-            if psutil_success:
-                progress.append({"step": "Collecting initial metrics", "status": "in_progress", "message": "Collecting system metrics..."})
-                try:
-                    collection_success = _collect_metrics_for_server(server)
-                    if collection_success:
-                        progress.append({"step": "Collecting initial metrics", "status": "completed", "message": "Initial metrics collected successfully"})
-                    else:
-                        progress.append({"step": "Collecting initial metrics", "status": "warning", "message": "Metrics collection will start automatically"})
-                except Exception as e:
-                    error_logger.error(f"Failed to collect initial metrics for {server.name}: {e}")
-                    progress.append({"step": "Collecting initial metrics", "status": "warning", "message": "Metrics collection will start automatically"})
-            
-            progress.append({"step": "Setup complete", "status": "completed", "message": f'Server "{name}" added successfully!'})
-            
-            return JsonResponse({
-                "success": True,
-                "server_id": server.id,
-                "server_name": server.name,
-                "progress": progress,
-                "message": f'Server "{name}" added successfully!'
-            })
-        except Exception as e:
-            # Clean up if SSH deployment fails
-            server.delete()
-            progress.append({"step": "Connecting via SSH", "status": "failed", "message": str(e)})
-            _log_user_action(request, "ADD_SERVER", f"Failed: SSH key deployment error - {str(e)}")
-            error_logger.error(f"ADD_SERVER failed: {str(e)}")
-            return JsonResponse({
-                "success": False,
-                "error": f'SSH key deployment failed: {str(e)}',
-                "progress": progress
-            }, status=500)
-            
-    except ValueError as e:
-        _log_user_action(request, "ADD_SERVER", f"Failed: Invalid input - {str(e)}")
-        error_logger.error(f"ADD_SERVER validation error: {str(e)}")
-        return JsonResponse({"success": False, "error": f'Invalid input: {str(e)}'}, status=400)
-    except Exception as e:
-        _log_user_action(request, "ADD_SERVER", f"Failed: {str(e)}")
-        error_logger.error(f"ADD_SERVER error: {str(e)}")
-        return JsonResponse({"success": False, "error": f'Failed to add server: {str(e)}'}, status=500)
-
-
-def _deploy_ssh_key(server, password):
-    """Deploy SSH public key to server using password authentication"""
-    private_key_path = getattr(settings, "SSH_PRIVATE_KEY_PATH", "/app/ssh_keys/id_rsa")
-    public_key_path = getattr(settings, "SSH_PUBLIC_KEY_PATH", "/app/ssh_keys/id_rsa.pub")
-    
-    if not os.path.exists(public_key_path):
-        raise FileNotFoundError(f"SSH public key not found at {public_key_path}")
-    
-    with open(public_key_path, "r") as f:
-        public_key = f.read().strip()
-    
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    
-    try:
-        client.connect(
-            hostname=server.ip_address,
-            port=server.port,
-            username=server.username,
-            password=password,
-            timeout=30
-        )
-        
-        check_cmd = f"mkdir -p ~/.ssh && chmod 700 ~/.ssh && grep -F \"{public_key}\" ~/.ssh/authorized_keys || echo NOT_FOUND"
-        stdin, stdout, stderr = client.exec_command(check_cmd)
-        key_exists = stdout.read().decode().strip()
-        
-        if key_exists == "NOT_FOUND":
-            add_cmd = f'echo \"{public_key}\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'
-            stdin, stdout, stderr = client.exec_command(add_cmd)
-            exit_status = stdout.channel.recv_exit_status()
-            
-            if exit_status != 0:
-                error = stderr.read().decode()
-                raise RuntimeError(f"Failed to add SSH key: {error}")
-        
-        client.close()
-        
-        # Test connection with key
-        if os.path.exists(private_key_path):
-            pkey = paramiko.RSAKey.from_private_key_file(private_key_path)
-            test_client = paramiko.SSHClient()
-            test_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            test_client.connect(
-                hostname=server.ip_address,
-                port=server.port,
-                username=server.username,
-                pkey=pkey,
-                timeout=10
-            )
-            test_client.close()
-            
-    except paramiko.AuthenticationException:
-        raise Exception("Authentication failed. Check username and password.")
-    except paramiko.SSHException as e:
-        raise Exception(f"SSH error: {str(e)}")
-    except Exception as e:
-        raise Exception(f"Connection error: {str(e)}")
-    finally:
-        try:
-            client.close()
-        except:
-            pass
-
-
-def _install_psutil_on_server(server):
-    """
-    Install psutil on remote server via SSH using --user flag (safe for root and sudo users).
-    Returns: (success: bool, message: str, details: str)
-    """
-    private_key_path = getattr(settings, "SSH_PRIVATE_KEY_PATH", "/app/ssh_keys/id_rsa")
-    pkey = None
-    if os.path.exists(private_key_path):
-        try:
-            pkey = paramiko.RSAKey.from_private_key_file(private_key_path)
-        except:
-            pass
-    
-    if not pkey:
-        return False, "SSH key not found", "Cannot connect without SSH key"
-    
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    
-    try:
-        client.connect(
-            hostname=server.ip_address,
-            port=server.port,
-            username=server.username,
-            pkey=pkey,
-            timeout=30
-        )
-        
-        # Check if psutil is already installed
-        check_cmd = 'python3 -c "import psutil; print(psutil.__version__)" 2>&1'
-        stdin, stdout, stderr = client.exec_command(check_cmd)
-        check_output = stdout.read().decode() + stderr.read().decode()
-        
-        if 'ModuleNotFoundError' not in check_output and 'ImportError' not in check_output:
-            version = check_output.strip()
-            client.close()
-            return True, f"psutil already installed (version: {version})", check_output
-        
-        # Try installation methods in order of preference (using --user flag for safety)
-        install_methods = [
-            {
-                'name': 'pip3 (user install - safest)',
-                'cmd': 'pip3 install --user --upgrade-strategy only-if-needed psutil 2>&1',
-                'timeout': 120,
-                'success_indicators': ['Successfully installed', 'Requirement already satisfied', 'already satisfied']
-            },
-            {
-                'name': 'python3 -m pip (user install)',
-                'cmd': 'python3 -m pip install --user --upgrade-strategy only-if-needed psutil 2>&1',
-                'timeout': 120,
-                'success_indicators': ['Successfully installed', 'Requirement already satisfied', 'already satisfied']
-            },
-            {
-                'name': 'system package manager (apt, no upgrade)',
-                'cmd': 'sudo apt-get update -qq && sudo apt-get install -y --no-upgrade python3-psutil 2>&1',
-                'timeout': 180,
-                'success_indicators': ['Setting up', 'is already the newest', '0 upgraded', 'newly installed']
-            },
-            {
-                'name': 'system package manager (yum/dnf)',
-                'cmd': 'sudo yum install -y --setopt=upgrade_requirements_only=1 python3-psutil 2>&1 || sudo dnf install -y --setopt=upgrade_requirements_only=1 python3-psutil 2>&1',
-                'timeout': 180,
-                'success_indicators': ['Installed:', 'already installed', 'Nothing to do', 'Complete!']
-            },
-            {
-                'name': 'pip3 (fallback, user install)',
-                'cmd': 'pip install --user psutil 2>&1',
-                'timeout': 120,
-                'success_indicators': ['Successfully installed', 'Requirement already satisfied']
-            }
-        ]
-        
-        for method in install_methods:
-            try:
-                stdin, stdout, stderr = client.exec_command(method['cmd'], timeout=method['timeout'])
-                
-                # Read output with timeout handling
-                import time
-                start_time = time.time()
-                output_parts = []
-                error_parts = []
-                
-                # Read output in chunks to avoid blocking
-                while True:
-                    if time.time() - start_time > method['timeout']:
-                        break
-                    
-                    if stdout.channel.recv_ready():
-                        output_parts.append(stdout.channel.recv(4096).decode('utf-8', errors='ignore'))
-                    
-                    if stderr.channel.recv_stderr_ready():
-                        error_parts.append(stderr.channel.recv_stderr(4096).decode('utf-8', errors='ignore'))
-                    
-                    if stdout.channel.exit_status_ready():
-                        break
-                    
-                    time.sleep(0.1)
-                
-                # Get remaining output
-                remaining_output = stdout.read().decode('utf-8', errors='ignore')
-                remaining_error = stderr.read().decode('utf-8', errors='ignore')
-                
-                install_output = ''.join(output_parts) + remaining_output + ''.join(error_parts) + remaining_error
-                
-                # Check if installation was successful
-                if any(indicator.lower() in install_output.lower() for indicator in method['success_indicators']):
-                    # Verify installation
-                    verify_cmd = 'python3 -c "import psutil; print(psutil.__version__)" 2>&1'
-                    stdin, stdout, stderr = client.exec_command(verify_cmd, timeout=10)
-                    verify_output = stdout.read().decode() + stderr.read().decode()
-                    
-                    if 'ModuleNotFoundError' not in verify_output and 'ImportError' not in verify_output:
-                        version = verify_output.strip()
-                        client.close()
-                        return True, f"psutil installed successfully via {method['name']} (version: {version})", install_output[:1000]
-                
-            except Exception as e:
-                # Continue to next method
-                continue
-        
-        client.close()
-        return False, "Failed to install psutil", "All installation methods failed. The system may require manual intervention. Try: pip3 install --user psutil (or sudo apt-get install python3-psutil)"
-        
-    except paramiko.AuthenticationException:
-        return False, "Authentication failed", "Cannot authenticate with SSH key"
-    except paramiko.SSHException as e:
-        return False, f"SSH error: {str(e)}", str(e)
-    except Exception as e:
-        return False, f"Connection error: {str(e)}", str(e)
-    finally:
-        try:
-            client.close()
-        except:
-            pass
-
-
-def _collect_metrics_for_server(server):
-    """Collect metrics for a specific server - called immediately after adding server"""
-    from django.core.management import call_command
-    import sys
-    from io import StringIO
-    
-    # CRITICAL: Check if monitoring is suspended or disabled before collecting
-    try:
-        monitoring_config = server.monitoring_config
-        if not monitoring_config.enabled:
-            error_logger.warning(f"[METRICS] Skipping metric collection for {server.name} - monitoring disabled")
-            return False
-        if monitoring_config.monitoring_suspended:
-            error_logger.warning(f"[METRICS] Skipping metric collection for {server.name} - monitoring suspended")
-            return False
-    except Exception as e:
-        # If no config exists, allow collection (for new servers)
-        error_logger.warning(f"[METRICS] No monitoring config for {server.name}, attempting collection anyway: {e}")
-    
-    # Use the management command to collect metrics
-    # This ensures we use the same logic as the scheduled collection
-    try:
-        # Directly call the collection logic
-        from core.management.commands.collect_metrics import Command
-        cmd = Command()
-        metrics = cmd._collect_metrics(server)
-        
-        if metrics:
-            # Filter out fields that don't exist in SystemMetric model
-            # Remove internal/temporary fields (starting with _) and other non-model fields
-            from core.models import SystemMetric
-            valid_fields = {f.name for f in SystemMetric._meta.get_fields() if hasattr(f, 'name')}
-            # Filter: must be in valid_fields AND not start with underscore
-            metric_fields = {}
-            for k, v in metrics.items():
-                if k in valid_fields and not k.startswith('_'):
-                    metric_fields[k] = v
-            
-            # Create the metric record
-            SystemMetric.objects.create(server=server, **metric_fields)
-            
-            # Also cache in Redis
-            redis_key = f"metrics:{server.id}:latest"
-            cache.set(redis_key, json.dumps(metrics), timeout=300)  # 5 min TTL
-            
-            app_logger.info(f"[METRICS] Successfully collected initial metrics for {server.name}")
-            return True
-        else:
-            error_logger.warning(f"[METRICS] Collection returned no metrics for {server.name}")
-            return False
-    except Exception as e:
-        error_logger.error(f"[METRICS] Failed to collect metrics for {server.name}: {e}")
-        import traceback
-        error_logger.error(traceback.format_exc())
-        return False
 
 
 @staff_member_required
@@ -3509,144 +3013,6 @@ The server connection has been restored and is responding normally.
             
     except Exception as e:
         error_logger.error(f"CONNECTION_ALERT error for {server.name}: {str(e)}")
-
-
-def _check_service_status(server, service):
-    """
-    Check if a monitored service is running and track consecutive failures.
-    
-    IMPORTANT: This function checks the service on the specific server only.
-    Services are server-specific - each server has its own Service records.
-    
-    Service types:
-    - Port-based services (service.port is not None): Check via TCP/HTTP connection
-    - Systemd services (service.port is None): Check via systemctl
-    """
-    try:
-        is_active = False
-        is_failed = False
-        
-        # Determine how to check this service
-        if service.port is not None:
-            # PORT-BASED SERVICE: Check via network connection (latency measurement)
-            # This includes HTTP, HTTPS, MySQL, etc. detected via listening ports
-            try:
-                result = measure_service_latency(server, service)
-                # Service is active if latency measurement succeeded
-                is_active = result is not None and result.get('success', False)
-                if is_active:
-                    print(f"[SERVICE_CHECK] Port-based service {service.name}:{service.port} on {server.name} is UP (latency: {result.get('latency_ms', 'N/A')}ms)")
-                else:
-                    print(f"[SERVICE_CHECK] Port-based service {service.name}:{service.port} on {server.name} is DOWN")
-            except Exception as latency_error:
-                error_logger.warning(f"Port check failed for {service.name}:{service.port} on {server.name}: {str(latency_error)}")
-                is_active = False
-        else:
-            # SYSTEMD SERVICE: Check via systemctl
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            
-            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
-            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-            
-            ssh.connect(
-                hostname=server.ip_address,
-                port=server.port,
-                username=server.username,
-                pkey=private_key,
-                timeout=10
-            )
-            
-            # Check service status using systemctl
-            command = f"systemctl is-active {service.name} 2>/dev/null"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            output = stdout.read().decode('utf-8').strip()
-            
-            ssh.close()
-            
-            # Service is active if output is "active"
-            is_active = output == "active"
-            
-            if not is_active:
-                # Check if service is in failed state
-                try:
-                    ssh_failed = paramiko.SSHClient()
-                    ssh_failed.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                    ssh_failed.connect(
-                        hostname=server.ip_address,
-                        port=server.port,
-                        username=server.username,
-                        pkey=private_key,
-                        timeout=10
-                    )
-                    command_failed = f"systemctl is-failed {service.name} 2>/dev/null"
-                    stdin_failed, stdout_failed, stderr_failed = ssh_failed.exec_command(command_failed)
-                    output_failed = stdout_failed.read().decode('utf-8').strip()
-                    ssh_failed.close()
-                    is_failed = output_failed == "failed"
-                except:
-                    is_failed = False
-        
-        # Cache key for tracking consecutive failures
-        failure_count_key = f"service_failures:{server.id}:{service.id}"
-        last_status_key = f"service_last_status:{server.id}:{service.id}"
-        alert_sent_key = f"service_alert_sent:{server.id}:{service.id}"
-        
-        if is_active:
-            # Service is running - reset failure count
-            cache.delete(failure_count_key)
-            last_status = cache.get(last_status_key)
-            cache.set(last_status_key, "active", 300)  # 5 min TTL
-            
-            # Check if we need to send a resolved alert
-            if last_status == "inactive" or last_status == "failed":
-                # Service came back online - send resolved alert
-                _send_service_alert(server, service, "resolved")
-                cache.delete(alert_sent_key)
-        else:
-            # Service is down
-            # Increment failure count
-            failure_count = cache.get(failure_count_key, 0)
-            failure_count += 1
-            cache.set(failure_count_key, failure_count, 300)  # 5 min TTL
-            cache.set(last_status_key, "failed" if is_failed else "inactive", 300)
-            
-            # Send alert after 2 consecutive failures (60 seconds: 2 checks * 30 seconds)
-            should_alert = False
-            if is_failed:
-                # Service is in failed state - send alert immediately
-                should_alert = True
-                print(f"[SERVICE_ALERT] Service {service.name} on {server.name} is in FAILED state")
-            elif failure_count >= 2:
-                # Service has been down for 2 consecutive checks (60 seconds)
-                should_alert = True
-                print(f"[SERVICE_ALERT] Service {service.name} on {server.name} is down (2 consecutive failures = 60 seconds)")
-            
-            if should_alert:
-                # Check if we already sent an alert for this failure
-                alert_sent = cache.get(alert_sent_key, False)
-                if not alert_sent:
-                    # Send alert
-                    _send_service_alert(server, service, "triggered")
-                    cache.set(alert_sent_key, True, 3600)  # Prevent duplicate alerts for 1 hour
-        
-        # Update service status in database
-        if is_active:
-            service.status = "running"
-        else:
-            if is_failed:
-                service.status = "failed"
-            else:
-                service.status = "stopped"
-        
-        service.last_checked = timezone.now()
-        service.save()
-        
-        return is_active
-        
-    except Exception as e:
-        error_logger.error(f"SERVICE_CHECK error for {service.name} on {server.name}: {str(e)}")
-        return None
 
 
 def _send_service_alert(server, service, status):
@@ -5659,395 +5025,6 @@ def get_top_ram_processes(request, server_id):
 
 
 @staff_member_required
-@require_http_methods(["GET"])
-def get_active_services(request, server_id):
-    """API endpoint to get all active services from systemctl"""
-    try:
-        server = get_object_or_404(Server, id=server_id)
-        
-        # SSH connection to get active services
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
-        try:
-            # Connect using SSH key
-            ssh_key_path = os.path.join(settings.BASE_DIR, 'ssh_keys', 'id_rsa')
-            private_key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
-            
-            ssh.connect(
-                hostname=server.ip_address,
-                port=server.port,
-                username=server.username,
-                pkey=private_key,
-                timeout=10
-            )
-            
-            # Get ALL services (running, stopped, failed, etc.) using systemctl
-            # Format: UNIT LOAD ACTIVE SUB DESCRIPTION
-            command = "systemctl list-units --type=service --all --no-pager --no-legend 2>/dev/null"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            
-            services = []
-            output = stdout.read().decode('utf-8').strip()
-            errors = stderr.read().decode('utf-8').strip()
-            
-            if errors and "No such file" not in errors and "command not found" not in errors.lower():
-                return JsonResponse({
-                    "success": False,
-                    "error": f"Error executing command: {errors}"
-                }, status=500)
-            
-            # Parse output: Format is typically:
-            # service-name.service loaded active running Description
-            for line in output.split('\n'):
-                if line.strip() and '.service' in line:
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        try:
-                            service_name = parts[0].replace('.service', '').strip()
-                            loaded = parts[1].strip() if len(parts) > 1 else 'unknown'
-                            active = parts[2].strip() if len(parts) > 2 else 'unknown'
-                            sub = parts[3].strip() if len(parts) > 3 else 'unknown'
-                            
-                            # Include all services regardless of status
-                            # Determine status based on active and sub states
-                            if active == 'active' and sub == 'running':
-                                service_status = 'running'
-                            elif active == 'active' and sub in ['exited', 'dead']:
-                                service_status = 'stopped'
-                            elif active == 'inactive':
-                                service_status = 'stopped'
-                            elif active == 'failed':
-                                service_status = 'failed'
-                            else:
-                                service_status = 'unknown'
-                                
-                            # Get service uptime if running
-                            uptime_hours = None
-                            if service_status == 'running':
-                                try:
-                                    # Use systemctl show to get active timestamp
-                                    uptime_cmd = f"systemctl show {service_name} --property=ActiveEnterTimestamp --value 2>/dev/null"
-                                    stdin_uptime, stdout_uptime, stderr_uptime = ssh.exec_command(uptime_cmd)
-                                    uptime_output = stdout_uptime.read().decode('utf-8').strip()
-                                    if uptime_output:
-                                        # Parse timestamp and calculate uptime
-                                        from datetime import datetime
-                                        try:
-                                            # systemctl returns format: Mon 2024-01-01 12:00:00 UTC or similar
-                                            # Try to parse the timestamp
-                                            uptime_str = uptime_output.split('.')[0] if '.' in uptime_output else uptime_output
-                                            # Remove day name if present (e.g., "Mon ")
-                                            if len(uptime_str.split()) > 3:
-                                                uptime_str = ' '.join(uptime_str.split()[1:])
-                                            
-                                            # Try different formats
-                                            try:
-                                                uptime_dt = datetime.strptime(uptime_str, '%Y-%m-%d %H:%M:%S')
-                                            except:
-                                                try:
-                                                    uptime_dt = datetime.strptime(uptime_str, '%Y-%m-%d %H:%M:%S %Z')
-                                                except:
-                                                    uptime_dt = None
-                                            
-                                            if uptime_dt:
-                                                # Make timezone-aware (assume UTC)
-                                                from django.utils import timezone as tz_utils
-                                                if uptime_dt.tzinfo is None:
-                                                    import pytz
-                                                    uptime_dt = pytz.UTC.localize(uptime_dt)
-                                                
-                                                uptime_delta = timezone.now() - uptime_dt
-                                                uptime_hours = round(uptime_delta.total_seconds() / 3600, 1)
-                                        except Exception as e:
-                                            # If parsing fails, skip uptime
-                                            pass
-                                except:
-                                    pass
-                            
-                            # Categorize service as critical or other
-                            is_critical = False
-                            service_name_lower = service_name.lower()
-                            
-                            # Critical service patterns
-                            critical_patterns = [
-                                'apache', 'httpd', 'nginx', 'web', 'www',
-                                'mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb', 'redis', 'db',
-                                'mail', 'postfix', 'sendmail', 'dovecot', 'exim', 'smtp', 'imap', 'pop',
-                                'php', 'python', 'node', 'java', 'tomcat', 'jetty', 'gunicorn',
-                                'cpanel', 'whm', 'lsws', 'openlitespeed',
-                                'docker', 'containerd', 'kube',
-                                'elasticsearch', 'kibana', 'logstash',
-                                'rabbitmq', 'activemq', 'kafka'
-                            ]
-                            
-                            for pattern in critical_patterns:
-                                if pattern in service_name_lower:
-                                    is_critical = True
-                                    break
-                            
-                            services.append({
-                                'name': service_name,
-                                'status': service_status,
-                                'loaded': loaded,
-                                'active': active,
-                                'sub': sub,
-                                'uptime_hours': uptime_hours,
-                                'is_critical': is_critical
-                            })
-                        except (ValueError, IndexError):
-                            continue
-            
-            ssh.close()
-            
-            # Sort services by name
-            services.sort(key=lambda x: x['name'].lower())
-            
-            # Update or create Service records in database
-            from .models import Service
-            current_time = timezone.now()
-            existing_services = {s.name: s for s in Service.objects.filter(server=server)}
-            service_names_in_response = {s['name'] for s in services}
-            
-            # Update existing services or create new ones (monitoring disabled by default)
-            for service_data in services:
-                service_name = service_data['name']
-                if service_name in existing_services:
-                    # Update existing service
-                    service = existing_services[service_name]
-                    service.status = service_data['status']  # Use the status from systemctl
-                    service.last_checked = current_time
-                    # Ensure monitoring_enabled defaults to False if not set
-                    if service.monitoring_enabled is None:
-                        service.monitoring_enabled = False
-                    service.save()
-                    # Add monitoring_enabled to response (default to False if None)
-                    service_data['monitoring_enabled'] = service.monitoring_enabled if service.monitoring_enabled is not None else False
-                    service_data['id'] = service.id
-                else:
-                    # Create new service with monitoring disabled by default
-                    new_service = Service.objects.create(
-                        server=server,
-                        name=service_name,
-                        status=service_data['status'],  # Use the status from systemctl
-                        service_type='systemd',
-                        last_checked=current_time,
-                        monitoring_enabled=False  # Disabled by default
-                    )
-                    service_data['monitoring_enabled'] = False
-                    service_data['id'] = new_service.id
-            
-            # Mark services that are no longer running as stopped
-            for service_name, service in existing_services.items():
-                if service_name not in service_names_in_response:
-                    service.status = 'stopped'
-                    service.last_checked = current_time
-                    service.save()
-            
-            # Add monitoring_enabled and id to all services in response (ensure False by default)
-            for service_data in services:
-                if 'monitoring_enabled' not in service_data:
-                    # Get from database if not already set
-                    service = existing_services.get(service_data['name'])
-                    if service:
-                        # Default to False if None
-                        service_data['monitoring_enabled'] = service.monitoring_enabled if service.monitoring_enabled is not None else False
-                        service_data['id'] = service.id
-                    else:
-                        service_data['monitoring_enabled'] = False
-                # Ensure it's explicitly False, not None
-                if service_data.get('monitoring_enabled') is None:
-                    service_data['monitoring_enabled'] = False
-            
-            return JsonResponse({
-                "success": True,
-                "services": services,
-                "count": len(services),
-                "server_id": server_id,
-                "timestamp": current_time.isoformat()
-            })
-
-        finally:
-            try:
-                ssh.close()
-            except:
-                pass
-
-    except Exception as e:
-        logger.error(f"Failed to get active services: {str(e)}")
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
-
-
-@staff_member_required
-def get_server_services(request, server_id):
-    """API endpoint to get categorized systemd services for a server"""
-    try:
-        server = get_object_or_404(Server, id=server_id)
-        monitoring_config, created = MonitoringConfig.objects.get_or_create(server=server)
-
-        # SSH connection to get all services
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        try:
-            ssh.connect(
-                server.ip_address,
-                port=server.port,
-                username=server.username,
-                key_filename=getattr(settings, "SSH_PRIVATE_KEY_PATH", "/app/ssh_keys/id_rsa"),
-                timeout=10
-            )
-
-            # Get all systemd services
-            cmd = "systemctl list-units --type=service --all --no-pager --no-legend"
-            stdin, stdout, stderr = ssh.exec_command(cmd)
-            output = stdout.read().decode('utf-8').strip()
-            error_output = stderr.read().decode('utf-8').strip()
-
-            if error_output:
-                return JsonResponse({
-                    "success": False,
-                    "error": f"SSH command failed: {error_output}"
-                }, status=500)
-
-            # Parse systemctl output
-            all_services = []
-            for line in output.split('\n'):
-                if line.strip():
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        unit_name = parts[0]
-                        load_state = parts[1]
-                        active_state = parts[2]
-                        sub_state = parts[3]
-
-                        # Clean unit name (remove .service suffix)
-                        if unit_name.endswith('.service'):
-                            service_name = unit_name[:-8]
-                        else:
-                            service_name = unit_name
-
-                        # Determine status
-                        if active_state == 'active' and sub_state == 'running':
-                            status = 'running'
-                        elif active_state == 'failed':
-                            status = 'failed'
-                        elif active_state == 'inactive':
-                            status = 'stopped'
-                        else:
-                            status = 'unknown'
-
-                        # Get description if available
-                        description = ' '.join(parts[4:]) if len(parts) > 4 else ''
-
-                        all_services.append({
-                            'name': service_name,
-                            'status': status,
-                            'description': description,
-                            'unit_name': unit_name
-                        })
-
-            # Get existing Service records from database to include IDs and monitoring status
-            from .models import Service
-            existing_services = {s.name: s for s in Service.objects.filter(server=server)}
-            current_time = timezone.now()
-            
-            # Update or create Service records and add IDs/monitoring status to response
-            for service in all_services:
-                service_name = service['name']
-                if service_name in existing_services:
-                    # Update existing service status
-                    db_service = existing_services[service_name]
-                    db_service.status = service['status']
-                    db_service.last_checked = current_time
-                    db_service.save()
-                    # Add ID and monitoring status
-                    service['id'] = db_service.id
-                    service['monitoring_enabled'] = db_service.monitoring_enabled if db_service.monitoring_enabled is not None else False
-                else:
-                    # Create new service record
-                    new_service = Service.objects.create(
-                        server=server,
-                        name=service_name,
-                        status=service['status'],
-                        service_type='systemd',
-                        last_checked=current_time,
-                        monitoring_enabled=False
-                    )
-                    service['id'] = new_service.id
-                    service['monitoring_enabled'] = False
-            
-            # Categorize services
-            monitored_services = set(monitoring_config.monitored_services or [])
-            critical = []
-            running = []
-            stopped = []
-            failed = []
-            
-            # Critical service patterns (same as in get_active_services)
-            critical_patterns = [
-                'apache', 'httpd', 'nginx', 'web', 'www',
-                'mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb', 'redis', 'db',
-                'mail', 'postfix', 'sendmail', 'dovecot', 'exim', 'smtp', 'imap', 'pop',
-                'php', 'python', 'node', 'java', 'tomcat', 'jetty', 'gunicorn',
-                'cpanel', 'whm', 'lsws', 'openlitespeed',
-                'docker', 'containerd', 'kube',
-                'elasticsearch', 'kibana', 'logstash',
-                'rabbitmq', 'activemq', 'kafka'
-            ]
-
-            for service in all_services:
-                service_name_lower = service['name'].lower()
-                is_critical_service = False
-                
-                # Check if it's in monitored services
-                if service['name'] in monitored_services:
-                    is_critical_service = True
-                else:
-                    # Check if it matches critical patterns
-                    for pattern in critical_patterns:
-                        if pattern in service_name_lower:
-                            is_critical_service = True
-                            break
-                
-                # Add is_critical flag to service
-                service['is_critical'] = is_critical_service
-                
-                if is_critical_service:
-                    critical.append(service)
-                
-                # Also categorize by status
-                if service['status'] == 'running':
-                    running.append(service)
-                elif service['status'] == 'stopped':
-                    stopped.append(service)
-                elif service['status'] == 'failed':
-                    failed.append(service)
-
-            # Separate monitored services (enabled) from all critical services
-            monitored = [s for s in all_services if s.get('monitoring_enabled', False)]
-            
-            return JsonResponse({
-                "success": True,
-                "critical": critical,
-                "monitored": monitored,  # Services with monitoring enabled
-                "running": running,
-                "stopped": stopped,
-                "failed": failed,
-                "all": all_services,
-                "monitored_count": len(monitored),
-                "total_count": len(all_services)
-            })
-
-        finally:
-            ssh.close()
-
-    except Exception as e:
-        logger.error(f"Failed to get server services: {str(e)}")
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
-
-
-@staff_member_required
 @require_http_methods(["POST"])
 def update_monitored_services(request, server_id):
     """Update the list of monitored services for a server"""
@@ -7238,7 +6215,7 @@ def dashboard_disk_mount_points_api(request, server_id):
         import json
         server = get_object_or_404(Server, id=server_id)
         
-        # Virtual filesystem types to exclude (same as in collect_metrics.py)
+        # Virtual filesystem types to exclude from disk reporting
         IGNORED_FSTYPES = {
             'squashfs', 'tmpfs', 'devtmpfs', 'proc', 'sysfs',
             'cgroup', 'cgroup2', 'ramfs', 'overlay', 'udev', 'virtfs'
@@ -9141,9 +8118,8 @@ def executive_report(request):
     except Exception as e:
         app_logger.warning(f"executive_report optimization context failed: {e}")
         opt = {"counts": {"underutilized": 0, "overloaded": 0, "optimized": 0},
-               "cost_opportunities": [], "total_monthly_savings": None,
-               "total_reclaim_vcpu": 0, "total_reclaim_gb": 0, "currency": "$",
-               "pricing_configured": False, "eligible_count": 0}
+               "cost_opportunities": [], "total_reclaim_vcpu": 0,
+               "total_reclaim_gb": 0, "eligible_count": 0}
 
     incident_rows, resolution_log = _exec_incidents(days)
     risk_rows = _exec_risk(days)
@@ -9168,13 +8144,12 @@ def executive_report(request):
         else:  # optimization
             resp["Content-Disposition"] = 'attachment; filename="fleet-optimization.csv"'
             w = _csv.writer(resp)
-            w.writerow(["Server", "Category", "CPU avg %", "Mem avg %", "Current", "Suggested", "Monthly savings"])
+            w.writerow(["Server", "Category", "CPU avg %", "Mem avg %", "Current", "Suggested"])
             for a in opt.get("cost_opportunities", []):
                 w.writerow([getattr(a, "name", ""), getattr(a, "category", ""),
                             getattr(getattr(a, "cpu", None), "avg", ""), getattr(getattr(a, "memory", None), "avg", ""),
                             f"{getattr(a,'current_vcpu','')}vCPU/{getattr(a,'current_gb','')}GB",
-                            f"{getattr(a,'suggested_vcpu','')}vCPU/{getattr(a,'suggested_gb','')}GB",
-                            getattr(a, "monthly_savings", "")])
+                            f"{getattr(a,'suggested_vcpu','')}vCPU/{getattr(a,'suggested_gb','')}GB"])
         return resp
 
     context = {

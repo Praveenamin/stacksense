@@ -86,6 +86,7 @@ INT_FIELDS = (
 # JSON/dict fields accepted from the agent.
 JSON_FIELDS = (
     "disk_usage",
+    "disk_hardware",
     "network_io",
     "top_processes",
     "ipc_stats",

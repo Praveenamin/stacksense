@@ -196,10 +196,6 @@ LLM_MAX_CALLS_PER_SCAN = int(os.environ.get("LLM_MAX_CALLS_PER_SCAN", "2"))
 LLM_DELAY_BETWEEN_CALLS = int(os.environ.get("LLM_DELAY_BETWEEN_CALLS", "10"))
 LLM_ENABLED = os.environ.get("LLM_ENABLED", "True") == "True"
 
-# SSH Configuration
-SSH_PRIVATE_KEY_PATH = os.environ.get("SSH_PRIVATE_KEY_PATH", "/app/ssh_keys/id_rsa")
-SSH_PUBLIC_KEY_PATH = os.environ.get("SSH_PUBLIC_KEY_PATH", "/app/ssh_keys/id_rsa.pub")
-
 # Redis Configuration
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 CACHES = {

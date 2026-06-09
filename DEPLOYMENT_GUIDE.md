@@ -234,23 +234,31 @@ https://stacksense.assistanz.com:8005/admin/
 
 ## Step 7: Configure Your First Server
 
+StackSense is push-agent only: you register the server, then install a
+lightweight agent on it. The agent POSTs metrics to StackSense over HTTPS using
+a per-server bearer token. StackSense never connects out to the server, so there
+is no SSH username/password/port/key to enter.
+
 ### 7.1 Add a Server to Monitor
 
 1. Go to **Instances** → **Add Server**
 2. Fill in server details:
    - **Server Name**: e.g., "Web Server 1"
    - **IP Address**: Server's IP
-   - **Port**: 22 (SSH)
-   - **Username**: SSH username
-   - **SSH Key**: Upload or paste SSH private key
+3. Click **Save**. StackSense issues a per-server token and shows a one-line
+   agent install command.
 
-3. Click **Save**
+### 7.2 Install the Agent
 
-### 7.2 Verify Server Connection
+1. Copy the generated `curl … | sudo bash` command from the server's page.
+2. Run it on the target server (as root/sudo). It installs the agent, writes its
+   config (StackSense URL + token), and starts the `stacksense-agent` service.
+
+### 7.3 Verify Server Connection
 
 - Server should appear in the Instances list
-- Status should show "Online" after a few seconds
-- Metrics should start collecting automatically
+- Status should show "Online" after the first agent push arrives
+- Metrics start flowing in as the agent pushes them
 
 ---
 
@@ -418,7 +426,7 @@ sudo systemctl restart docker
 docker exec monitoring_db pg_dump -U monitoring_user monitoring_db > backup_$(date +%Y%m%d).sql
 
 # Backup application files
-tar -czf app_backup_$(date +%Y%m%d).tar.gz /opt/stacksense/.env /opt/stacksense/ssh_keys/
+tar -czf app_backup_$(date +%Y%m%d).tar.gz /opt/stacksense/.env
 ```
 
 ### Update Application

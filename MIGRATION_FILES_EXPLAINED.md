@@ -37,8 +37,11 @@ The migration script has been updated to **exclude** these unnecessary files:
 Only essential files are migrated:
 
 1. **`.env`** - Application configuration
-2. **`ssh_keys/`** - SSH keys for connecting to monitored servers
-3. **`media/`** - User-uploaded media files (if any)
+2. **`media/`** - User-uploaded media files (if any)
+
+> Registered servers and their per-server agent tokens live in the **database**,
+> not on disk, so they move with the database dump. StackSense is push-agent
+> only — there are no `ssh_keys/` to migrate.
 
 ---
 
@@ -64,7 +67,6 @@ Only essential files are migrated:
 |------|------|-----------|
 | `.git/` directory | ~3.8MB | ❌ No |
 | `.env` file | ~1KB | ✅ Yes |
-| `ssh_keys/` | ~10-50KB | ✅ Yes |
 | `media/` | Varies | ✅ Yes (if exists) |
 | Application code | ~50-100MB | ✅ Yes (from Git repo) |
 
@@ -77,9 +79,6 @@ Only essential files are migrated:
 ```
 application_files.tar.gz contains:
 ├── .env                    (Configuration)
-├── ssh_keys/               (SSH keys for servers)
-│   ├── id_rsa
-│   └── id_rsa.pub
 └── media/                  (User uploads, if any)
 ```
 
@@ -105,9 +104,6 @@ After migration, you can verify what was copied:
 cd /opt/stacksense
 ls -la
 
-# Check SSH keys
-ls -la ssh_keys/
-
 # Check .env file
 cat .env
 ```
@@ -119,8 +115,7 @@ cat .env
 - **Git objects (hash files)**: ❌ NOT required, now excluded
 - **Application code**: ✅ Required (deployed via Git or file copy)
 - **Configuration (.env)**: ✅ Required, migrated
-- **SSH keys**: ✅ Required, migrated
-- **Database**: ✅ Required, migrated separately
+- **Database**: ✅ Required, migrated separately (includes servers + agent tokens)
 
 The updated script is now more efficient and only migrates what's actually needed!
 

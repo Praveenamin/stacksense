@@ -4,7 +4,7 @@ Comprehensive Linux server monitoring with anomaly detection, built with Django 
 
 ## Features
 
-- **SSH Key Management**: Automatic SSH public key deployment to monitored servers
+- **Push-Agent Monitoring**: A lightweight agent installed on each monitored VM POSTs metrics, services, and containers to StackSense over HTTPS using a per-server bearer token. StackSense never connects out to monitored servers.
 - **Enhanced Resource Monitoring**: 
   - CPU: Physical cores, logical cores, usage percentage
   - RAM: Total, used, available, buffers, cached, shared memory
@@ -31,25 +31,23 @@ See **[DEPLOY_NEW_SERVER.md](DEPLOY_NEW_SERVER.md)** for step-by-step instructio
    # Edit .env with your settings
    ```
 
-2. Generate SSH keys (if not exists):
-   ```bash
-   mkdir -p ssh_keys
-   ssh-keygen -t rsa -b 4096 -f ssh_keys/id_rsa -N ""
-   ```
-
-3. Build and run with Docker Compose:
+2. Build and run with Docker Compose:
    ```bash
    docker-compose up -d
    ```
 
-4. Create superuser:
+3. Create superuser:
    ```bash
    docker-compose exec web python manage.py createsuperuser
    ```
 
-5. Access the application:
+4. Access the application:
    - Web UI: http://localhost:8000
    - Admin: http://localhost:8000/admin
+
+To monitor a server, add it from the web UI and run the generated one-line
+`curl … | sudo bash` agent install command on the target VM. The agent then
+pushes metrics to StackSense; no SSH access from StackSense is required.
 
 ## Development
 
@@ -65,10 +63,20 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ## Management Commands
 
-- `collect_metrics`: Collect metrics from all enabled servers
-- `detect_anomalies`: Run anomaly detection on collected metrics
-- `aggregate_metrics`: Aggregate old metrics into hourly/daily summaries
-- `cleanup_metrics`: Delete old raw metrics based on retention period
+Metrics arrive via the push agent, so there is no metric-collection command. The
+in-container scheduler (`metrics_scheduler.py`) runs the analysis/housekeeping
+commands on a cadence; they can also be run manually:
+
+- `check_heartbeats` / `check_server_connectivity`: Evaluate pushed heartbeats to mark servers up/down (no SSH).
+- `collect_service_latency`: Probe reachable services over TCP/HTTP (localhost-only services are skipped).
+- `run_synthetic_checks`: Run synthetic uptime/latency checks.
+- `detect_anomalies`: Run anomaly detection on collected metrics.
+- `detect_memory_leaks`: Detect sustained memory-growth patterns.
+- `detect_security_events`: Detect security events (e.g. SSH brute-force) from agent-pushed auth data.
+- `scan_logs`: Housekeeping — purge old LogEvent rows (no longer collects logs over SSH).
+- `aggregate_metrics`: Aggregate old metrics into hourly/daily summaries.
+- `cleanup_metrics`: Delete old raw metrics based on retention period.
+- `create_agent_token`: Issue or rotate a per-server agent bearer token.
 
 ## Roles & Access Control (RBAC)
 

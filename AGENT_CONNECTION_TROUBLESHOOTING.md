@@ -2,137 +2,114 @@
 
 ## Overview
 
-This guide explains how to manually fix agent connection issues on client servers. There are two types of monitoring connections:
-
-1. **SSH Connection** - The monitoring server SSH connects to client servers to check connectivity
-2. **Heartbeat Agent** - A lightweight agent script runs on client servers and sends heartbeat signals to the monitoring server
+This guide explains how to fix agent connection issues on monitored servers.
+StackSense is **push-agent only**: a lightweight agent installed on each
+monitored VM POSTs metrics, services, containers, and heartbeats to the
+StackSense server over HTTPS using a per-server bearer token. **The StackSense
+server never connects out to monitored servers** — there is no SSH from
+StackSense to clients. If a server shows as offline, the cause is almost always
+the agent on the client, the per-server token, or network/firewall on the path
+from the client to StackSense.
 
 ## Common Issues and Fixes
 
-### Issue 1: SSH Connection Failure
+### Issue 1: Server Shows "OFFLINE" (no heartbeats arriving)
 
 **Symptoms:**
 - Server shows as "OFFLINE" in monitoring dashboard
 - Alert: "Server is OFFLINE"
-- Server is actually running and pingable
+- Server is actually running and reachable
 
 **Causes:**
-- SSH service not running on client server
-- SSH key authentication issues
-- Firewall blocking SSH port
-- SSH service configuration issues
+- Agent not installed or not running on the client server
+- Wrong or revoked per-server bearer token
+- Wrong StackSense API URL configured in the agent
+- Firewall blocking the agent's outbound HTTPS to StackSense
 
 **Fix Steps:**
 
-1. **Check SSH Service Status:**
+1. **Confirm the agent is running on the client server:**
    ```bash
-   sudo systemctl status ssh
+   systemctl status stacksense-agent
    # or
-   sudo systemctl status sshd
+   ps aux | grep stacksense
    ```
 
-2. **Start SSH Service if Stopped:**
+2. **Check the agent logs for auth/connection errors:**
    ```bash
-   sudo systemctl start ssh
-   # or
-   sudo systemctl start sshd
+   sudo journalctl -u stacksense-agent -n 50
    ```
+   A `401`/`403` means the token is wrong or revoked; a timeout/connection
+   refused means a network or URL problem.
 
-3. **Enable SSH Service on Boot:**
+3. **Verify the agent config** (API URL and token):
+   - Check the agent config file on the client server for the StackSense URL and
+     the per-server bearer token.
+   - The token must match the one issued for this server. Re-issue it from the
+     StackSense UI or with `create_agent_token` if needed, then update the agent.
+
+4. **Test outbound connectivity from the client to StackSense:**
    ```bash
-   sudo systemctl enable ssh
-   # or
-   sudo systemctl enable sshd
+   curl -sS -o /dev/null -w "%{http_code}\n" https://your-stacksense-host/health/
    ```
 
-4. **Check SSH Service is Listening:**
-   ```bash
-   sudo ss -tlnp | grep :22
-   # Should show: LISTEN 0 128 0.0.0.0:22
-   ```
-
-5. **Verify SSH Key Access:**
-   - The monitoring server should have SSH key access to the client server
-   - Check if you can SSH from monitoring server to client:
-     ```bash
-     ssh -i /path/to/ssh/key username@client_server_ip
-     ```
-
-6. **Check Firewall Rules:**
+5. **Check the client's outbound firewall** (the agent must reach StackSense on
+   443/HTTPS):
    ```bash
    # Ubuntu/Debian (UFW)
    sudo ufw status
-   sudo ufw allow 22/tcp
-   
+
    # CentOS/RHEL (firewalld)
    sudo firewall-cmd --list-all
-   sudo firewall-cmd --permanent --add-service=ssh
-   sudo firewall-cmd --reload
-   
-   # iptables
-   sudo iptables -L -n | grep 22
-   sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
    ```
 
-### Issue 2: Heartbeat Agent Not Running
+### Issue 2: Agent Not Running
 
 **Symptoms:**
 - Server shows intermittent connection status
-- Heartbeat signals not being received
-- Server appears offline even though SSH works
+- Heartbeats/metrics not being received
 
 **Causes:**
-- Heartbeat agent script not installed/running
+- Agent service not installed/running
 - Agent process crashed or stopped
-- Network connectivity issues from client to monitoring server
+- Network connectivity issues from client to StackSense
 - Agent configuration incorrect
 
 **Fix Steps:**
 
 1. **Check if Agent is Running:**
    ```bash
-   ps aux | grep heartbeat_agent
+   systemctl status stacksense-agent
    # or
-   systemctl status stacksense-heartbeat
+   ps aux | grep stacksense
    ```
 
 2. **Check Agent Logs:**
    ```bash
-   # If running as systemd service
-   sudo journalctl -u stacksense-heartbeat -n 50
-   
-   # If running manually, check log file location
-   tail -f /var/log/stacksense-heartbeat.log
+   # If running as a systemd service
+   sudo journalctl -u stacksense-agent -n 50
    ```
 
-3. **Restart Agent Service:**
+3. **Restart the Agent Service:**
    ```bash
-   sudo systemctl restart stacksense-heartbeat
-   # or if running manually
-   nohup python3 /path/to/heartbeat_agent.py > /var/log/stacksense-heartbeat.log 2>&1 &
+   sudo systemctl restart stacksense-agent
    ```
 
 4. **Verify Agent Configuration:**
-   - Check configuration file: `~/.stacksense_heartbeat.conf`
-   - Or check environment variables:
-     ```bash
-     echo $STACKSENSE_SERVER_ID
-     echo $STACKSENSE_API_URL
-     ```
+   - Check the agent's config file for the StackSense API URL and the
+     per-server bearer token.
 
 5. **Test Agent Connectivity:**
    ```bash
-   # Test if agent can reach monitoring server
-   curl -X POST https://your-monitoring-server.com/api/heartbeat/YOUR_SERVER_ID/ \
-     -H "Content-Type: application/json" \
-     -d '{"agent_version": "test"}'
+   # Test if the agent host can reach StackSense
+   curl -sS -o /dev/null -w "%{http_code}\n" https://your-stacksense-host/health/
    ```
 
-6. **Reinstall Agent (if needed):**
-   - Download agent script to client server
-   - Place in `/opt/stacksense/` or `/usr/local/bin/`
-   - Create systemd service file (see below)
-   - Start and enable service
+6. **Reinstall the Agent (if needed):**
+   - From the StackSense UI, open the server and copy its one-line
+     `curl … | sudo bash` agent install command.
+   - Run it on the client server. It installs/updates the agent and writes the
+     correct API URL and token.
 
 ### Issue 3: Network Connectivity Issues
 
@@ -143,153 +120,114 @@ This guide explains how to manually fix agent connection issues on client server
 
 **Fix Steps:**
 
-1. **Test Network Connectivity:**
+1. **Test Network Connectivity (from the client toward StackSense):**
    ```bash
-   # Ping monitoring server
-   ping monitoring_server_ip
-   
-   # Test port connectivity
-   telnet monitoring_server_ip 8000
-   # or
-   nc -zv monitoring_server_ip 8000
+   # Test port connectivity to StackSense
+   nc -zv your-stacksense-host 443
    ```
 
 2. **Check DNS Resolution:**
    ```bash
-   nslookup monitoring_server_domain
+   nslookup your-stacksense-host
    # or
-   dig monitoring_server_domain
+   dig your-stacksense-host
    ```
 
 3. **Check Routing:**
    ```bash
-   traceroute monitoring_server_ip
+   traceroute your-stacksense-host
    # or
-   mtr monitoring_server_ip
+   mtr your-stacksense-host
    ```
 
 ### Issue 4: Agent Service Setup
 
-**Create Systemd Service (Recommended):**
+The recommended way to (re)install the agent is the one-line installer copied
+from the server's page in the StackSense UI:
 
-Create `/etc/systemd/system/stacksense-heartbeat.service`:
-
-```ini
-[Unit]
-Description=StackSense Heartbeat Agent
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/stacksense
-ExecStart=/usr/bin/python3 /opt/stacksense/heartbeat_agent.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-# Environment variables (optional, can use config file instead)
-Environment="STACKSENSE_SERVER_ID=YOUR_SERVER_ID"
-Environment="STACKSENSE_API_URL=https://your-monitoring-server.com"
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**Enable and Start Service:**
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable stacksense-heartbeat
-sudo systemctl start stacksense-heartbeat
-sudo systemctl status stacksense-heartbeat
+curl -sSL https://your-stacksense-host/agent/install/<token> | sudo bash
 ```
 
-### Issue 5: SSH Key Authentication Issues
+This drops the agent on the host, writes its config (StackSense URL +
+per-server token), and installs a `stacksense-agent` systemd service that starts
+on boot and restarts on failure.
+
+**Manage the service:**
+```bash
+sudo systemctl status stacksense-agent
+sudo systemctl restart stacksense-agent
+sudo systemctl enable stacksense-agent
+```
+
+### Issue 5: Token Authentication Issues
+
+If the agent logs show `401 Unauthorized` or `403 Forbidden`, the per-server
+bearer token is wrong, revoked, or doesn't match the server record.
 
 **Fix Steps:**
 
-1. **On Monitoring Server - Generate SSH Key (if not exists):**
+1. **Re-issue the token** for the server (from the StackSense UI, or with the
+   `create_agent_token` management command).
+
+2. **Update the agent** with the new token — easiest is to re-run the one-line
+   installer for that server, which rewrites the agent config:
    ```bash
-   ssh-keygen -t rsa -b 4096 -f /path/to/ssh_keys/id_rsa -N ""
+   curl -sSL https://your-stacksense-host/agent/install/<token> | sudo bash
    ```
 
-2. **Copy Public Key to Client Server:**
+3. **Restart and verify:**
    ```bash
-   # From monitoring server
-   ssh-copy-id -i /path/to/ssh_keys/id_rsa.pub username@client_server_ip
-   
-   # Or manually add to client server's ~/.ssh/authorized_keys
-   cat /path/to/ssh_keys/id_rsa.pub | ssh username@client_server_ip "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
-   ```
-
-3. **Set Correct Permissions on Client Server:**
-   ```bash
-   chmod 700 ~/.ssh
-   chmod 600 ~/.ssh/authorized_keys
-   ```
-
-4. **Test SSH Connection:**
-   ```bash
-   ssh -i /path/to/ssh_keys/id_rsa username@client_server_ip
+   sudo systemctl restart stacksense-agent
+   sudo journalctl -u stacksense-agent -n 20
    ```
 
 ## Quick Diagnostic Commands
 
-Run these commands on the **client server** to diagnose issues:
+Run these commands on the **client (monitored) server** to diagnose issues:
 
 ```bash
-# 1. Check SSH service
-sudo systemctl status ssh
+# 1. Check the agent service
+systemctl status stacksense-agent
 
-# 2. Check if agent is running
-ps aux | grep heartbeat_agent
+# 2. Check agent logs (auth/connection errors)
+sudo journalctl -u stacksense-agent -n 50
 
-# 3. Check network connectivity
-ping -c 4 monitoring_server_ip
+# 3. Check connectivity to StackSense
+curl -sS -o /dev/null -w "%{http_code}\n" https://your-stacksense-host/health/
 
-# 4. Check SSH key authentication
-ssh -v username@monitoring_server_ip
-
-# 5. Check firewall rules
-sudo ufw status  # Ubuntu/Debian
+# 4. Check outbound firewall
+sudo ufw status               # Ubuntu/Debian
 sudo firewall-cmd --list-all  # CentOS/RHEL
 
-# 6. Check system resources
+# 5. Check system resources
 top
 df -h
 free -h
 
-# 7. Check system logs
+# 6. Check system logs
 sudo journalctl -xe | tail -50
 ```
 
-## Monitoring Server Retry Logic
+## StackSense Offline Detection
 
-The monitoring server now uses a retry mechanism before triggering offline alerts:
-
-- **Retry Attempts:** 3 attempts (configurable)
-- **Retry Interval:** 20 seconds between attempts (configurable)
-- **Alert Trigger:** Only triggers alert after all retry attempts fail
-
-This prevents false alarms from temporary network glitches or brief SSH service interruptions.
+StackSense marks a server offline based on the freshness of the **pushed**
+heartbeats it has received (evaluated by `check_heartbeats` /
+`check_server_connectivity`). A short grace window avoids false alarms from a
+single missed push. There is no outbound SSH probe.
 
 ## Getting Help
 
 If issues persist after following these steps:
 
-1. Check monitoring server logs: `docker logs monitoring_web`
+1. Check StackSense server logs: `docker logs monitoring_web`
 2. Check client server system logs: `sudo journalctl -xe`
-3. Verify all configuration settings
+3. Verify the agent's API URL and per-server token
 4. Test connectivity manually using the diagnostic commands above
-5. Contact system administrator with diagnostic information
+5. Contact your system administrator with diagnostic information
 
 ## Related Files
 
-- Monitoring Server: `/home/ubuntu/stacksense-repo/core/management/commands/check_heartbeats_ssh.py`
-- Client Agent: `/home/ubuntu/stacksense-repo/agent/heartbeat_agent.py`
-- SSH Configuration: `/home/ubuntu/stacksense-repo/ssh_keys/`
-
-
-
+- StackSense heartbeat evaluation: `core/management/commands/check_heartbeats.py`
+  and `core/management/commands/check_server_connectivity.py`
+- Agent: `agent/` (install via the one-line `curl … | sudo bash` command from the UI)

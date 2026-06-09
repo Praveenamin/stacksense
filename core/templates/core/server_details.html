@@ -167,6 +167,27 @@
     </div>
 </div>
 
+<!-- Storage hardware (physical disks: SSD / HDD / NVMe) -->
+{% if disk_hardware.disks %}
+<div class="sd-card">
+    <h2 class="row"><span>Storage hardware
+        <span style="color:#94a3b8;font-weight:400;">· {{ disk_hardware.physical_disk_count }} physical disk{{ disk_hardware.physical_disk_count|pluralize }}</span></span>
+    </h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+        {% for d in disk_hardware.disks %}
+        <div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:600;color:#0f172a;">{{ d.name }}</span>
+                <span style="font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;{% if d.type == 'NVMe' %}background:#eef4ff;color:#0f62fe;{% elif d.type == 'SSD' %}background:#ecfdf5;color:#047857;{% elif d.type == 'HDD' %}background:#fffbeb;color:#b45309;{% else %}background:#f1f5f9;color:#475569;{% endif %}">{{ d.type }}</span>
+            </div>
+            <div style="font-size:12px;color:#475569;">{{ d.model|default:"Disk" }}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:4px;">{% if d.size %}{{ d.size|filesizeformat }}{% endif %}{% if d.transport %} · {{ d.transport|upper }}{% endif %}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Disk usage (compact) -->
 <div class="sd-card">
     <h2 class="row"><span>Disk usage <span style="color:#94a3b8;font-weight:400;">· {{ disk_summary.total_disks|default:0 }} disk{{ disk_summary.total_disks|pluralize }}</span></span>
@@ -179,7 +200,7 @@
         {% if disk_mount == mount_point %}
         <div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
-                <span style="font-size:13px;font-weight:600;color:#0f172a;">{{ mount_point }}{% if mount_point == "/" %} (Root){% endif %}</span>
+                <span style="font-size:13px;font-weight:600;color:#0f172a;">{{ mount_point }}{% if mount_point == "/" %} (Root){% endif %}{% if info.disk_type %}<span style="font-size:10px;font-weight:600;color:#64748b;background:#eef2f7;padding:1px 7px;border-radius:999px;margin-left:6px;">{{ info.disk_type }}</span>{% endif %}</span>
                 <span style="font-size:12px;color:#64748b;">{{ info.percent|default:0|floatformat:1 }}%</span>
             </div>
             <div style="height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
