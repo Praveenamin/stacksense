@@ -4042,14 +4042,13 @@ def alert_history(request):
         })
     
     # Add anomalies with type='anomaly' and calculate duration
+    # Duration = start -> back to normal (recovered_at), independent of admin ack.
     for anomaly in anomalies_list:
-        # Calculate duration
-        if not anomaly.resolved:
-            duration_seconds = (now - anomaly.timestamp).total_seconds()
-        elif anomaly.resolved_at:
-            duration_seconds = (anomaly.resolved_at - anomaly.timestamp).total_seconds()
+        end = _anomaly_window_end(anomaly)
+        if end:
+            duration_seconds = max(0, (end - anomaly.timestamp).total_seconds())
         else:
-            duration_seconds = 0
+            duration_seconds = (now - anomaly.timestamp).total_seconds()
         
         unified_items.append({
             'type': 'anomaly',
@@ -5195,9 +5194,10 @@ def anomaly_detail_api(request, anomaly_id):
         # Plain-language "what to do" + when it started / how long.
         response_data["recommendation"] = _anomaly_recommendation(anomaly)
         if anomaly.timestamp:
-            if anomaly.resolved and anomaly.resolved_at:
+            end = _anomaly_window_end(anomaly)
+            if end:
                 response_data["duration_text"] = "lasted " + _humanize_duration(
-                    (anomaly.resolved_at - anomaly.timestamp).total_seconds())
+                    (end - anomaly.timestamp).total_seconds())
             else:
                 response_data["duration_text"] = "ongoing for " + _humanize_duration(
                     (timezone.now() - anomaly.timestamp).total_seconds())
@@ -5272,6 +5272,17 @@ def _plainify_explanation(text):
         label, val, med, hi = m.groups()
         return f"{label} rose to {val}%, well above its usual ~{med}% (normally under ~{hi}%)."
     return text
+
+
+def _anomaly_window_end(anomaly):
+    """End of an anomaly's true window: when its metric returned to normal
+    (recovered_at, auto-detected), else the admin resolution time, else None
+    (still ongoing). Duration is measured start -> this end."""
+    if getattr(anomaly, "recovered_at", None):
+        return anomaly.recovered_at
+    if anomaly.resolved and anomaly.resolved_at:
+        return anomaly.resolved_at
+    return None
 
 
 def _humanize_duration(seconds):
@@ -7967,13 +7978,15 @@ def operations_report(request):
     sev_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
     resolved_n = 0
     for a in qs[:5000]:
-        if a.resolved and a.resolved_at:
-            dur_sec = (a.resolved_at - a.timestamp).total_seconds()
+        end = _anomaly_window_end(a)  # back-to-normal time (preferred), else admin resolution
+        if end:
+            dur_sec = max(0, (end - a.timestamp).total_seconds())
             duration = _humanize_duration(dur_sec)
             durations.append(dur_sec)
-            resolved_n += 1
         else:
             duration = "ongoing (" + _humanize_duration((now - a.timestamp).total_seconds()) + ")"
+        if a.resolved and a.resolved_at:
+            resolved_n += 1
         sev_counts[a.severity] = sev_counts.get(a.severity, 0) + 1
         rows.append({
             "server": a.server.name,

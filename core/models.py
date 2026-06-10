@@ -238,6 +238,9 @@ class Anomaly(models.Model):
     acknowledged = models.BooleanField(default=False)
     resolved = models.BooleanField(default=False)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    # When the metric actually returned to normal (auto-detected by the detector),
+    # independent of when an admin acknowledged it. Used for the true incident duration.
+    recovered_at = models.DateTimeField(null=True, blank=True, db_index=True)
     admin_note = models.TextField(blank=True, default="", help_text="Admin's note / reason recorded when resolving")
     resolved_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="resolved_anomalies")
 

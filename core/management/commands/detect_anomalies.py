@@ -10,9 +10,30 @@ from core.llm_analyzer import OllamaAnalyzer
 class Command(BaseCommand):
     help = "Detects anomalies in collected metrics using ADTK/IsolationForest and generates LLM explanations"
 
+    def _mark_recoveries(self):
+        """Set recovered_at on anomalies whose metric has returned to normal."""
+        from core.anomaly_recovery import back_to_normal_at
+        cutoff = timezone.now() - timedelta(days=30)
+        open_anoms = (Anomaly.objects
+                      .filter(recovered_at__isnull=True, timestamp__gte=cutoff)
+                      .select_related("server"))
+        marked = 0
+        for a in open_anoms:
+            rec = back_to_normal_at(a)
+            if rec:
+                a.recovered_at = rec
+                a.save(update_fields=["recovered_at"])
+                marked += 1
+        if marked:
+            self.stdout.write(f"Marked {marked} anomaly(ies) back-to-normal.")
+
     def handle(self, *args, **options):
+        # Record when already-open anomalies returned to normal (true incident
+        # window), independent of admin acknowledgement. Runs every invocation.
+        self._mark_recoveries()
+
         since = timezone.now() - timedelta(hours=1)
-        
+
         latest_metrics = SystemMetric.objects.filter(
             timestamp__gte=since
         ).select_related("server", "server__monitoring_config").order_by("-timestamp")
