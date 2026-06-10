@@ -24,6 +24,12 @@
                  border-radius:8px; box-sizing:border-box; font-family:inherit; }
     .st-select:focus { outline:none; border-color:#0f62fe; box-shadow:0 0 0 3px rgba(15,98,254,.12); }
     .st-hint { font-size:12px; color:#64748b; margin-top:6px; line-height:1.45; }
+    .st-num { width:140px; padding:9px 12px; font-size:14px; color:#0f172a; background:#fff; border:1px solid #e2e8f0;
+              border-radius:8px; box-sizing:border-box; font-family:inherit; }
+    .st-num:focus { outline:none; border-color:#0f62fe; box-shadow:0 0 0 3px rgba(15,98,254,.12); }
+    .dr-chip { padding:8px 12px; font-size:13px; font-weight:600; color:#334155; background:#fff; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; }
+    .dr-chip:hover { border-color:#0f62fe; color:#0f62fe; }
+    .dr-chip.active { background:#0f62fe; color:#fff; border-color:#0f62fe; }
 
     .st-info { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; margin-top:4px;
                display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px 18px; }
@@ -89,6 +95,21 @@
             <div class="st-hint">Log-analysis events older than this are deleted when logs are scanned.</div>
         </div>
 
+        <div class="st-group">
+            <label for="data_retention_days" class="st-label">Data retention <span class="st-req">*</span></label>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <input type="number" name="data_retention_days" id="data_retention_days" class="st-num"
+                       min="7" max="365" step="1" required value="{{ current_data_retention_days }}">
+                <span style="font-size:13px; color:#64748b;">days</span>
+                <div id="dr-presets" style="display:flex; gap:6px; flex-wrap:wrap;">
+                    {% for p in data_retention_presets %}
+                    <button type="button" class="dr-chip" data-days="{{ p }}">{{ p }}d</button>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="st-hint">We keep this many days of collected data (metrics, incidents, alerts, logs); older data is pruned automatically each day. Daily summaries are kept longer for long-range trends. Min 7, max 365.</div>
+        </div>
+
         <div class="st-info">
             <div><div class="st-info-label">Current timezone</div><div class="st-info-value">{{ current_timezone }}</div></div>
             <div><div class="st-info-label">UTC offset</div><div class="st-info-value mono">{{ timezone_offset }}</div></div>
@@ -108,5 +129,18 @@
     <p><strong>Display conversion:</strong> timestamps are converted from UTC to your selected timezone in the UI, API responses and charts.</p>
     <p><strong>Changing timezone:</strong> takes effect immediately for existing and new timestamps — no data migration needed.</p>
     <p><strong>Language:</strong> only English is supported today; more will follow.</p>
+    <p><strong>Data retention:</strong> a sliding window — only the last N days of collected data are kept; older data is pruned automatically each day and cannot be recovered.</p>
 </div>
+
+<script>
+(function(){
+    var input = document.getElementById('data_retention_days');
+    var chips = document.querySelectorAll('#dr-presets .dr-chip');
+    if (!input) return;
+    function sync(){ chips.forEach(function(c){ c.classList.toggle('active', String(c.dataset.days) === String(input.value)); }); }
+    chips.forEach(function(c){ c.addEventListener('click', function(){ input.value = c.dataset.days; sync(); }); });
+    input.addEventListener('input', sync);
+    sync();
+})();
+</script>
 {% endblock %}

@@ -491,6 +491,11 @@ class AppConfig(models.Model):
         default=LogRetentionChoices.DAYS_30,
         help_text="Keep Logs Analysis events for this many days; older events are deleted.",
     )
+    data_retention_days = models.PositiveSmallIntegerField(
+        default=60,
+        help_text="Keep collected data (metrics, incidents, logs) for this many days; "
+                  "older data is pruned automatically. Min 7, max 365.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -506,7 +511,13 @@ class AppConfig(models.Model):
             pytz.timezone(self.display_timezone)
         except pytz.UnknownTimeZoneError:
             raise ValidationError(f"Invalid timezone: {self.display_timezone}")
-    
+        try:
+            drd = int(self.data_retention_days)
+        except (TypeError, ValueError):
+            raise ValidationError("Data retention must be a whole number of days.")
+        if not (7 <= drd <= 365):
+            raise ValidationError("Data retention must be between 7 and 365 days.")
+
     def save(self, *args, **kwargs):
         """Override save to ensure single instance and validate timezone"""
         self.full_clean()  # Run validation
@@ -530,6 +541,7 @@ class AppConfig(models.Model):
                 'display_timezone': 'UTC',
                 'language': cls.LanguageChoices.ENGLISH,
                 'log_retention_days': cls.LogRetentionChoices.DAYS_30,
+                'data_retention_days': 60,
             }
         )
         return config

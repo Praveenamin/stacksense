@@ -14,7 +14,7 @@ from django.db.models import Aggregate, Avg, Count, FloatField, Max, Min
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
-from core.models import Server, SystemMetric
+from core.models import Server, SystemMetric, AggregatedMetric
 
 from .rightsizing_engine import DimStats, VMWindowStats
 
@@ -120,14 +120,32 @@ def gather_vm_window_stats(now=None, cap_days=ANALYSIS_CAP_DAYS):
 # Fleet trend + forecast (for the chart widgets)
 # ---------------------------------------------------------------------------
 def _daily_fleet_averages(since, now):
-    rows = (
-        SystemMetric.objects.filter(timestamp__gte=since, timestamp__lte=now)
-        .annotate(day=TruncDate("timestamp"))
-        .values("day")
-        .annotate(cpu=Avg("cpu_percent"), mem=Avg("memory_percent"))
-        .order_by("day")
-    )
-    return [(r["day"], round(r["cpu"] or 0, 1), round(r["mem"] or 0, 1)) for r in rows]
+    """Per-day fleet-average CPU/Memory between `since` and `now`.
+
+    Recent days come from raw ``SystemMetric``; days where the raw has been pruned
+    by the retention window fall back to the daily ``AggregatedMetric`` roll-ups,
+    so long-range trends/forecasts survive the prune.
+    """
+    raw = {
+        r["day"]: (round(r["cpu"] or 0, 1), round(r["mem"] or 0, 1))
+        for r in (SystemMetric.objects
+                  .filter(timestamp__gte=since, timestamp__lte=now)
+                  .annotate(day=TruncDate("timestamp")).values("day")
+                  .annotate(cpu=Avg("cpu_percent"), mem=Avg("memory_percent")))
+    }
+    agg = {
+        r["day"]: (round(r["cpu"] or 0, 1), round(r["mem"] or 0, 1))
+        for r in (AggregatedMetric.objects
+                  .filter(aggregation_type="daily", timestamp__gte=since, timestamp__lte=now)
+                  .annotate(day=TruncDate("timestamp")).values("day")
+                  .annotate(cpu=Avg("cpu_avg"), mem=Avg("memory_avg")))
+    }
+    # Prefer raw where present (more precise), else the daily roll-up.
+    out = []
+    for day in sorted(set(raw) | set(agg)):
+        cpu, mem = raw.get(day) or agg.get(day)
+        out.append((day, cpu, mem))
+    return out
 
 
 def fleet_trend(now=None):

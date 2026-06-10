@@ -29,6 +29,8 @@ synthetic_check_interval = 30  # Run due synthetic (uptime) checks every 30s
 security_detection_interval = 60  # Run security detection every minute
 connectivity_check_interval = 60  # Check for down/recovered servers every minute
 leak_detection_interval = 3600  # Run memory-leak detection hourly (leaks evolve slowly)
+aggregate_interval = 86400  # Roll raw metrics into hourly/daily summaries once a day
+prune_interval = 86400  # Enforce the data-retention window once a day (runs after aggregation)
 
 last_anomaly_check = timezone.now()
 last_log_scan = timezone.now()
@@ -37,6 +39,8 @@ last_synthetic_check = timezone.now()
 last_security_detection = timezone.now()
 last_connectivity_check = timezone.now()
 last_leak_check = timezone.now()
+last_aggregate = timezone.now()
+last_prune = timezone.now()
 
 while running:
     try:
@@ -124,6 +128,29 @@ while running:
                 print("Memory-leak detection completed.")
             except Exception as e:
                 print(f"Error in memory-leak detection: {str(e)}")
+
+        # Roll raw metrics into hourly/daily summaries once a day (BEFORE the prune,
+        # so daily roll-ups exist before the raw they summarize is deleted).
+        time_since_last_aggregate = (timezone.now() - last_aggregate).total_seconds()
+        if time_since_last_aggregate >= aggregate_interval:
+            try:
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running metric aggregation...")
+                call_command("aggregate_metrics", verbosity=1)
+                last_aggregate = timezone.now()
+                print("Metric aggregation completed.")
+            except Exception as e:
+                print(f"Error in metric aggregation: {str(e)}")
+
+        # Enforce the data-retention window once a day (sliding-window prune)
+        time_since_last_prune = (timezone.now() - last_prune).total_seconds()
+        if time_since_last_prune >= prune_interval:
+            try:
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running data-retention prune...")
+                call_command("prune_old_data", verbosity=1)
+                last_prune = timezone.now()
+                print("Data-retention prune completed.")
+            except Exception as e:
+                print(f"Error in data-retention prune: {str(e)}")
     except Exception as e:
         print(f"Error: {str(e)}")
     

@@ -1675,6 +1675,8 @@ def app_config(request):
             'current_language': config.language,
             'current_log_retention_days': getattr(config, 'log_retention_days', 30),
             'log_retention_choices': [(7, '7 days'), (15, '15 days'), (30, '30 days')],
+            'current_data_retention_days': getattr(config, 'data_retention_days', 60),
+            'data_retention_presets': [30, 45, 60, 90],
             'timezone_offset': offset_formatted,
             'timezone_abbrev': abbrev,
             'common_timezones': common_timezones,
@@ -1713,6 +1715,15 @@ def app_config(request):
                 except ValueError:
                     pass
 
+            # Validate data_retention_days (custom value, clamped to 7..365)
+            raw_data_retention = request.POST.get('data_retention_days', '').strip()
+            new_data_retention = None
+            if raw_data_retention:
+                try:
+                    new_data_retention = max(7, min(365, int(float(raw_data_retention))))
+                except ValueError:
+                    pass
+
             # Update config
             config = AppConfig.get_config()
             if new_timezone:
@@ -1721,6 +1732,8 @@ def app_config(request):
                 config.language = new_language
             if new_log_retention is not None:
                 config.log_retention_days = new_log_retention
+            if new_data_retention is not None:
+                config.data_retention_days = new_data_retention
             config.save()
             
             # Invalidate cache
@@ -1737,6 +1750,8 @@ def app_config(request):
                 parts.append(f"Language={new_language}")
             if new_log_retention is not None:
                 parts.append(f"Log retention={new_log_retention} days")
+            if new_data_retention is not None:
+                parts.append(f"Data retention={new_data_retention} days")
             if parts:
                 messages.success(request, "Settings updated: " + ", ".join(parts))
             else:
