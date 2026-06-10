@@ -166,7 +166,9 @@ class CPUTrendChart extends BaseDashboardComponent {
         }
         const labels = data.points.map(point => {
             const date = new Date(point.timestamp);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleString('en-US', (this.currentPeriod === '7d' || this.currentPeriod === '30d')
+                ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+                : { hour: '2-digit', minute: '2-digit' });
         });
         const label = this.currentServerId === 'all' ? 'CPU % (Average)' : 'CPU %';
         

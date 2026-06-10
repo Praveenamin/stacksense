@@ -653,7 +653,7 @@
             const d = await res.json();
             const GB = 1024 * 1024 * 1024;
             const pts = d.points || [];
-            const labels = pts.map(p => new Date(p.t).toLocaleString());
+            const labels = pts.map(p => fmtTs(p.t));
             const used = pts.map(p => p.used / GB);
             const n = used.length;
             const trend = [];
@@ -748,13 +748,23 @@
         });
         loadMemoryTrend('24h');
     }
-    
+
+    // Chart hover label: the x-axis is hidden, so this string is what shows on
+    // hover. Include the DATE (not just the time) — essential on 7d / 30d ranges.
+    function fmtTs(v) {
+        const d = (v instanceof Date) ? v : new Date(v);
+        return d.toLocaleString([], {
+            month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', second: '2-digit'
+        });
+    }
+
     function updateCharts(data) {
         // Update CPU & Memory chart
         if (data.cpu && data.memory && data.cpu.length > 0) {
             const timestamps = data.cpu.map(d => {
                 const date = new Date(d.timestamp);
-                return date.toLocaleTimeString();
+                return fmtTs(date);
             });
             cpuMemoryChart.data.labels = timestamps;
             cpuMemoryChart.data.datasets[0].data = data.cpu.map(d => d.value);
@@ -766,7 +776,7 @@
         if (data.disk_io && data.disk_io.length > 0) {
             const timestamps = data.disk_io.map(d => {
                 const date = new Date(d.timestamp);
-                return date.toLocaleTimeString();
+                return fmtTs(date);
             });
             diskIOChart.data.labels = timestamps;
             diskIOChart.data.datasets[0].data = data.disk_io.map(d => (d.read || 0) / (1024 * 1024));
@@ -778,7 +788,7 @@
         if (data.network && data.network.length > 0) {
             const timestamps = data.network.map(d => {
                 const date = new Date(d.timestamp);
-                return date.toLocaleTimeString();
+                return fmtTs(date);
             });
             networkIOChart.data.labels = timestamps;
             networkIOChart.data.datasets[0].data = data.network.map(d => (d.rx || 0) / (1024 * 1024));
