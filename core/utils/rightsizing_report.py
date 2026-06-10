@@ -25,9 +25,17 @@ def build_report(assessments: List, pricing_configured: bool = False) -> dict:
     pending = [a for a in assessments if a.category == C.CAT_INSUFFICIENT]
     eligible = [a for a in assessments if a.category != C.CAT_INSUFFICIENT]
 
-    under = [a for a in eligible if a.category == C.CAT_UNDER]
-    over = [a for a in eligible if a.category == C.CAT_OVER]
-    optimized = [a for a in eligible if a.category == C.CAT_OPTIMIZED]
+    # "Early" (0-7 days): just-added VMs with some history but below the 7-day
+    # minimum -- shown as their own category with directional recommendations,
+    # kept OUT of the mature counts/totals so those stay confident.
+    early = [a for a in eligible if a.confidence == "EARLY"]
+    mature = [a for a in eligible if a.confidence != "EARLY"]
+    # Newest first (closest to graduating to a confident assessment).
+    top_early = sorted(early, key=lambda a: a.data_days, reverse=True)[:10]
+
+    under = [a for a in mature if a.category == C.CAT_UNDER]
+    over = [a for a in mature if a.category == C.CAT_OVER]
+    optimized = [a for a in mature if a.category == C.CAT_OPTIMIZED]
 
     # Top 10 underutilized: lowest combined load first.
     top_underutilized = sorted(under, key=_avg_load)[:10]
@@ -50,20 +58,20 @@ def build_report(assessments: List, pricing_configured: bool = False) -> dict:
     # $). When unpriced, fall back to the reduction set (capacity reclaimed).
     if pricing_configured:
         cost_opportunities = sorted(
-            [a for a in eligible if (a.monthly_savings or 0) > 0],
+            [a for a in mature if (a.monthly_savings or 0) > 0],
             key=lambda a: a.monthly_savings, reverse=True,
         )
     else:
         cost_opportunities = reduction_eligible
 
     total_monthly_savings = (
-        round(sum(a.monthly_savings for a in eligible
+        round(sum(a.monthly_savings for a in mature
                   if a.monthly_savings and a.monthly_savings > 0), 2)
         if pricing_configured else None
     )
-    total_reclaim_vcpu = sum(a.delta_vcpu for a in eligible if a.delta_vcpu > 0)
+    total_reclaim_vcpu = sum(a.delta_vcpu for a in mature if a.delta_vcpu > 0)
     total_reclaim_gb = round(
-        sum(a.delta_gb for a in eligible if a.delta_gb > 0), 1)
+        sum(a.delta_gb for a in mature if a.delta_gb > 0), 1)
 
     return {
         "pending": pending,
@@ -73,7 +81,10 @@ def build_report(assessments: List, pricing_configured: bool = False) -> dict:
             "underutilized": len(under),
             "overloaded": len(over),
             "optimized": len(optimized),
+            "early": len(early),
         },
+        "early_count": len(early),
+        "top_early": top_early,
         "top_underutilized": top_underutilized,
         "top_overloaded": top_overloaded,
         "top_optimized": top_optimized,

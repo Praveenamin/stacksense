@@ -47,7 +47,7 @@ Params (via {% include ... with %}):
                     </div>
                 </td>
                 <td class="muted num">{% if a.disk %}{{ a.disk.avg|floatformat:0 }}%{% else %}—{% endif %}</td>
-                <td class="rec-text">{{ a.recommendation_text }}</td>
+                <td class="rec-text"{% if a.message %} title="{{ a.message }}" style="cursor:help;"{% endif %}>{{ a.recommendation_text }}</td>
                 <td>{% include "core/components/executive/confidence_badge.html" with confidence=a.confidence %}</td>
                 <td class="muted">{{ a.data_period_label }} days</td>
             </tr>

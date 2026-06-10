@@ -7,13 +7,6 @@ Expects the build_executive_context()/build_demo_context() keys in context.
     {% include "core/components/executive/insufficient_data.html" %}
 {% else %}
 
-    {% if early_mode %}
-    <div class="exec-early-banner" role="status">
-        <span aria-hidden="true">🔵</span>
-        <div><strong>Early preview.</strong> {{ early_message }} <a href="?">Hide preview</a></div>
-    </div>
-    {% endif %}
-
     {% if pending_count %}
     <div class="exec-pending-note"><span aria-hidden="true">⏳</span> {{ pending_count }} VM{{ pending_count|pluralize }} not yet eligible — still building the 7-day minimum history.</div>
     {% endif %}
@@ -40,6 +33,11 @@ Expects the build_executive_context()/build_demo_context() keys in context.
             <div class="stat-value">{{ counts.optimized }}</div>
             <div class="stat-sub">reference configs</div>
         </div>
+        <div class="exec-stat">
+            <div class="stat-label">Early (0–7 days)</div>
+            <div class="stat-value">{{ counts.early }}</div>
+            <div class="stat-sub">just added · directional</div>
+        </div>
     </div>
 
     <!-- Top lists -->
@@ -56,6 +54,13 @@ Expects the build_executive_context()/build_demo_context() keys in context.
     <div class="exec-grid">
         {% include "core/components/executive/rec_table.html" with title="Eligible for Resource Reduction" icon="⬇️" rows=reduction_eligible count=reduction_eligible|length span2=True empty_text="No reduction opportunities." %}
     </div>
+
+    <!-- Recently added (Early, 0-7 days): directional recommendations for just-added VMs -->
+    {% if early_count %}
+    <div class="exec-grid">
+        {% include "core/components/executive/rec_table.html" with title="Recently Added (Early · 0–7 days)" icon="🔵" rows=top_early count=counts.early span2=True empty_text="No recently-added VMs." %}
+    </div>
+    {% endif %}
 
     <!-- Resource utilization trend + capacity (placed just above Business KPIs) -->
     <div class="exec-grid">

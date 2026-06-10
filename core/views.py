@@ -1289,8 +1289,10 @@ def monitoring_dashboard(request):
     if dashboard_view == UserACL.DashboardView.EXECUTIVE:
         context["kpis"] = list(BusinessKPI.objects.filter(enabled=True).order_by("name"))
         try:
+            # Early (0-7 day) VMs are shown by default as a directional category;
+            # pass ?early=0 to hide them.
             context.update(build_executive_context(
-                allow_early=request.GET.get("early") == "1"))
+                allow_early=request.GET.get("early") != "0"))
         except Exception as e:
             error_logger.error(f"EXECUTIVE_DASHBOARD error: {e}")
             context["exec_error"] = True
@@ -1416,11 +1418,11 @@ def executive_dashboard_preview(request):
     the gate state. The live page is the Executive persona on the dashboard."""
     from .utils.rightsizing_demo import build_demo_context
     ctx = build_demo_context(empty=request.GET.get("empty") == "1",
-                             allow_early=request.GET.get("early") == "1")
+                             allow_early=request.GET.get("early") != "0")
     return render(request, "core/executive_dashboard.html", ctx)
 
 
-def build_executive_context(allow_early=False):
+def build_executive_context(allow_early=True):
     """Real Executive right-sizing context from live metrics. Safe to call from
     the dashboard view; returns a context dict for executive_dashboard.html.
 
