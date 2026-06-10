@@ -161,6 +161,52 @@
     })();
     </script>
     
+    <!-- Top Consumers: CPU / Memory / Disk usage combined into one box -->
+    <style>
+        /* Consistent, clickable VM name across all three columns */
+        .vm-link { font-size:14px; font-weight:600; color:#0f172a; text-decoration:none; }
+        .vm-link:hover { color:#0f62fe; text-decoration:underline; }
+        .top-consumers-combined .top-consumer-name { font-size:14px; font-weight:600; display:inline-block; }
+        .top-consumers-combined { display:grid; grid-template-columns:repeat(3,1fr); gap:0; }
+        .top-consumers-combined > .dashboard-component { border:none; box-shadow:none; margin:0; border-radius:0; padding:0 18px; }
+        .top-consumers-combined > .dashboard-component:first-child { padding-left:0; }
+        .top-consumers-combined > .dashboard-component:last-child { padding-right:0; }
+        .top-consumers-combined > .dashboard-component:not(:last-child) { border-right:1px solid #e2e8f0; }
+        @media (max-width: 980px) {
+            .top-consumers-combined { grid-template-columns:1fr; }
+            .top-consumers-combined > .dashboard-component { padding:0; border-right:none; }
+            .top-consumers-combined > .dashboard-component:not(:last-child) { border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:14px; }
+        }
+    </style>
+    <div class="dashboard-component" style="margin-bottom: 32px;">
+        <div class="top-consumers-combined">
+            {% include "core/components/dashboard/top_cpu_consumers.html" %}
+            {% include "core/components/dashboard/top_memory_consumers.html" %}
+            <div class="dashboard-component" style="margin:0;">
+                <div class="dashboard-component-header"><span class="dashboard-component-icon">💽</span><h3 class="dashboard-component-title">Top Disk Usage</h3></div>
+                <p class="dashboard-component-subtitle">Highest-usage partitions across all servers</p>
+                {% if top_disk_partitions %}
+                <div style="display:flex;flex-direction:column;gap:16px;margin-top:6px;">
+                    {% for d in top_disk_partitions %}
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:5px;">
+                            <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a class="vm-link" href="/server/{{ d.server_id }}/">{{ d.server }}</a> <span style="color:#94a3b8;font-weight:400;font-size:12px;">· {{ d.mount }}</span></span>
+                            <span style="color:#0f172a;font-weight:700;">{{ d.percent }}%</span>
+                        </div>
+                        <div style="width:100%;height:7px;background:#eef2f6;border-radius:999px;overflow:hidden;">
+                            <div style="width:{{ d.percent }}%;height:100%;border-radius:999px;background:{% if d.percent >= 90 %}#da1e28{% elif d.percent >= 70 %}#f59e0b{% else %}#6366f1{% endif %};"></div>
+                        </div>
+                        {% if d.total_gb %}<div style="font-size:11px;color:#94a3b8;margin-top:4px;">{{ d.used_gb }} / {{ d.total_gb }} GB</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div style="padding:24px;text-align:center;color:#94a3b8;font-size:14px;">No disk data yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <!-- CPU Trend + Memory Trend: one compact row, click a tile to expand -->
     <style>
         .tri-row { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:32px; }
@@ -235,52 +281,6 @@
         document.addEventListener('keydown', function(e){ if(e.key==='Escape' && document.getElementById('chart-modal').style.display!=='none') closeChartModal(); });
     })();
     </script>
-
-    <!-- Top Consumers: CPU / Memory / Disk usage combined into one box -->
-    <style>
-        /* Consistent, clickable VM name across all three columns */
-        .vm-link { font-size:14px; font-weight:600; color:#0f172a; text-decoration:none; }
-        .vm-link:hover { color:#0f62fe; text-decoration:underline; }
-        .top-consumers-combined .top-consumer-name { font-size:14px; font-weight:600; display:inline-block; }
-        .top-consumers-combined { display:grid; grid-template-columns:repeat(3,1fr); gap:0; }
-        .top-consumers-combined > .dashboard-component { border:none; box-shadow:none; margin:0; border-radius:0; padding:0 18px; }
-        .top-consumers-combined > .dashboard-component:first-child { padding-left:0; }
-        .top-consumers-combined > .dashboard-component:last-child { padding-right:0; }
-        .top-consumers-combined > .dashboard-component:not(:last-child) { border-right:1px solid #e2e8f0; }
-        @media (max-width: 980px) {
-            .top-consumers-combined { grid-template-columns:1fr; }
-            .top-consumers-combined > .dashboard-component { padding:0; border-right:none; }
-            .top-consumers-combined > .dashboard-component:not(:last-child) { border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:14px; }
-        }
-    </style>
-    <div class="dashboard-component" style="margin-bottom: 32px;">
-        <div class="top-consumers-combined">
-            {% include "core/components/dashboard/top_cpu_consumers.html" %}
-            {% include "core/components/dashboard/top_memory_consumers.html" %}
-            <div class="dashboard-component" style="margin:0;">
-                <div class="dashboard-component-header"><span class="dashboard-component-icon">💽</span><h3 class="dashboard-component-title">Top Disk Usage</h3></div>
-                <p class="dashboard-component-subtitle">Highest-usage partitions across all servers</p>
-                {% if top_disk_partitions %}
-                <div style="display:flex;flex-direction:column;gap:16px;margin-top:6px;">
-                    {% for d in top_disk_partitions %}
-                    <div>
-                        <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:5px;">
-                            <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a class="vm-link" href="/server/{{ d.server_id }}/">{{ d.server }}</a> <span style="color:#94a3b8;font-weight:400;font-size:12px;">· {{ d.mount }}</span></span>
-                            <span style="color:#0f172a;font-weight:700;">{{ d.percent }}%</span>
-                        </div>
-                        <div style="width:100%;height:7px;background:#eef2f6;border-radius:999px;overflow:hidden;">
-                            <div style="width:{{ d.percent }}%;height:100%;border-radius:999px;background:{% if d.percent >= 90 %}#da1e28{% elif d.percent >= 70 %}#f59e0b{% else %}#6366f1{% endif %};"></div>
-                        </div>
-                        {% if d.total_gb %}<div style="font-size:11px;color:#94a3b8;margin-top:4px;">{{ d.used_gb }} / {{ d.total_gb }} GB</div>{% endif %}
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div style="padding:24px;text-align:center;color:#94a3b8;font-size:14px;">No disk data yet.</div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
 
     <!-- PERFORMANCE -->
     <div class="dash-section">Performance</div>

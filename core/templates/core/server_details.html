@@ -34,7 +34,6 @@
 
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--cds-spacing-4); flex-wrap: wrap;">
         <div>
-            <h1 style="font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2;">{{ server.name }}</h1>
             <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
                 <span style="font-family: var(--cds-font-family-mono);">{{ server.ip_address }}</span>
                 <span>•</span>
@@ -845,12 +844,26 @@
     
     async function saveThresholds() {
         const form = document.getElementById('thresholds-form');
+        const btn = form.querySelector('.th-save');
         const formData = new FormData(form);
         const data = {};
         for (let [key, value] of formData.entries()) {
             data[key] = (key === 'anomaly_sensitivity') ? value : parseFloat(value);
         }
-        
+
+        // Subtle inline feedback on the Save button (no popup modal).
+        const flash = (text, ok) => {
+            if (!btn) return;
+            if (!btn.dataset.orig) btn.dataset.orig = btn.textContent;
+            btn.textContent = text;
+            btn.style.background = ok ? '#198038' : '#da1e28';
+            clearTimeout(btn._flashT);
+            btn._flashT = setTimeout(() => {
+                btn.textContent = btn.dataset.orig;
+                btn.style.background = '';
+            }, 1600);
+        };
+
         try {
             const res = await fetch(`/api/server/${serverId}/thresholds/`, {
                 method: 'POST',
@@ -860,20 +873,12 @@
                 },
                 body: JSON.stringify(data)
             });
-            
-            if (res.ok) {
-                const result = await res.json();
-                if (result.success) {
-                    alert('Thresholds saved successfully');
-                } else {
-                    alert('Failed to save thresholds: ' + (result.error || 'Unknown error'));
-                }
-            } else {
-                alert('Failed to save thresholds');
-            }
+            let ok = false;
+            if (res.ok) { ok = !!(await res.json()).success; }
+            flash(ok ? '✓ Saved' : 'Save failed', ok);
         } catch (e) {
             console.error('Error saving thresholds:', e);
-            alert('Error saving thresholds');
+            flash('Save failed', false);
         }
     }
     
