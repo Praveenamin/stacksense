@@ -1539,9 +1539,6 @@ cat > "$CRON_FILE" << 'CRON_EOF'
 # the in-container scheduler (metrics_scheduler.py). Metrics arrive via the push
 # agent, so there is no server-side SSH collection.
 
-# Log Troubleshooting housekeeping every 5 minutes
-*/5 * * * * root docker exec monitoring_web python manage.py scan_logs >> /var/log/stacksense_logs.log 2>&1
-
 # Detect anomalies every 15 minutes
 */15 * * * * root docker exec monitoring_web python manage.py detect_anomalies >> /var/log/stacksense_anomalies.log 2>&1
 

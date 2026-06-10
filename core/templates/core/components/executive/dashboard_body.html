@@ -42,12 +42,6 @@ Expects the build_executive_context()/build_demo_context() keys in context.
         </div>
     </div>
 
-    <!-- Trend + Forecast -->
-    <div class="exec-grid">
-        {% include "core/components/executive/trend_chart.html" %}
-        {% include "core/components/executive/forecast_chart.html" %}
-    </div>
-
     <!-- Top lists -->
     <div class="exec-grid">
         {% include "core/components/executive/rec_table.html" with title="Top Underutilized VMs" icon="🟢" rows=top_underutilized count=counts.underutilized empty_text="No underutilized VMs." %}
@@ -61,6 +55,12 @@ Expects the build_executive_context()/build_demo_context() keys in context.
 
     <div class="exec-grid">
         {% include "core/components/executive/rec_table.html" with title="Eligible for Resource Reduction" icon="⬇️" rows=reduction_eligible count=reduction_eligible|length span2=True empty_text="No reduction opportunities." %}
+    </div>
+
+    <!-- Resource utilization trend + capacity (placed just above Business KPIs) -->
+    <div class="exec-grid">
+        {% include "core/components/executive/trend_chart.html" %}
+        {% include "core/components/executive/forecast_chart.html" %}
     </div>
 
 {% endif %}

@@ -7,7 +7,7 @@ older. Run daily by the in-container scheduler. Irreversible.
 
 Pruned (everything older than the window):
   Anomaly, SystemMetric, ServiceLatencyMeasurement, SSHAuthEvent, AlertHistory,
-  SecurityEvent, LoginActivity, LogEvent, and HOURLY AggregatedMetric.
+  SecurityEvent, LoginActivity, and HOURLY AggregatedMetric.
 Kept longer (handled separately, Component 2): DAILY AggregatedMetric roll-ups.
 Not pruned: Server / Service / Container / heartbeat (current state, not history).
 """
@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from core.models import (
     AppConfig, SystemMetric, Anomaly, ServiceLatencyMeasurement, SSHAuthEvent,
-    AlertHistory, SecurityEvent, LoginActivity, LogEvent, AggregatedMetric,
+    AlertHistory, SecurityEvent, LoginActivity, AggregatedMetric,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,6 @@ class Command(BaseCommand):
             ("AlertHistory",              AlertHistory,              "sent_at",   None),
             ("SecurityEvent",            SecurityEvent,             "last_seen", None),
             ("LoginActivity",            LoginActivity,             "timestamp", None),
-            ("LogEvent",                 LogEvent,                  "last_seen", None),
             ("AggregatedMetric(hourly)", AggregatedMetric,          "timestamp", {"aggregation_type": "hourly"}),
         ]
 

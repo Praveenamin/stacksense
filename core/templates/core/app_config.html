@@ -86,16 +86,6 @@
         </div>
 
         <div class="st-group">
-            <label for="log_retention_days" class="st-label">Log retention <span class="st-req">*</span></label>
-            <select name="log_retention_days" id="log_retention_days" class="st-select" required>
-                {% for value, label in log_retention_choices %}
-                <option value="{{ value }}" {% if current_log_retention_days == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-            <div class="st-hint">Log-analysis events older than this are deleted when logs are scanned.</div>
-        </div>
-
-        <div class="st-group">
             <label for="data_retention_days" class="st-label">Data retention <span class="st-req">*</span></label>
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                 <input type="number" name="data_retention_days" id="data_retention_days" class="st-num"

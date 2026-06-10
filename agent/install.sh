@@ -66,17 +66,33 @@ URL="${URL%/}"
 CURL_OPTS="-fsSL"
 [ "$VERIFY_TLS" = "false" ] && CURL_OPTS="$CURL_OPTS -k"
 
-echo "[1/6] Installing prerequisites (python3, venv, curl)..."
-if command -v apt-get >/dev/null 2>&1; then
-  apt-get update -qq >/dev/null 2>&1 || true
-  apt-get install -y -qq python3 python3-venv curl ca-certificates >/dev/null 2>&1 || true
-elif command -v dnf >/dev/null 2>&1; then
-  dnf install -y python3 curl ca-certificates >/dev/null 2>&1 || true
-elif command -v yum >/dev/null 2>&1; then
-  yum install -y python3 curl ca-certificates >/dev/null 2>&1 || true
+echo "[1/6] Checking prerequisites (python3, venv, curl)..."
+# Only invoke the package manager if something is actually MISSING. This avoids
+# hanging on an apt/dpkg lock (commonly held by unattended-upgrades right after
+# boot) or a needrestart prompt on servers that already have these tools -- which
+# is the usual case. When we must install, run fully non-interactively and cap
+# the lock wait so the command can never hang indefinitely.
+_have_prereqs() {
+  command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 \
+    && python3 -c 'import venv, ensurepip' >/dev/null 2>&1
+}
+if _have_prereqs; then
+  echo "      All present -- skipping package install."
+else
+  echo "      Installing missing packages (this may take a moment)..."
+  if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
+    apt-get -o DPkg::Lock::Timeout=120 update -qq >/dev/null 2>&1 || true
+    apt-get -o DPkg::Lock::Timeout=120 install -y -qq python3 python3-venv curl ca-certificates >/dev/null 2>&1 || true
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y python3 curl ca-certificates >/dev/null 2>&1 || true
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y python3 curl ca-certificates >/dev/null 2>&1 || true
+  fi
 fi
 command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is required but not available." >&2; exit 1; }
 command -v curl    >/dev/null 2>&1 || { echo "ERROR: curl is required but not available." >&2; exit 1; }
+python3 -c 'import venv, ensurepip' >/dev/null 2>&1 || { echo "ERROR: python3 venv module missing. Install it (e.g. 'sudo apt-get install -y python3-venv') and re-run." >&2; exit 1; }
 
 echo "[2/6] Creating service user and directories..."
 id -u "$SERVICE_USER" >/dev/null 2>&1 || \

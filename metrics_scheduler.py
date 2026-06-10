@@ -23,7 +23,6 @@ signal.signal(signal.SIGINT, signal_handler)
 print("Starting metrics collection scheduler (every 30 seconds)...")
 interval = 30  # 30 seconds
 anomaly_detection_interval = 300  # Run anomaly detection every 5 minutes
-log_scan_interval = 300  # Run log scanning every 5 minutes
 latency_collection_interval = 60  # Run latency collection every minute
 synthetic_check_interval = 30  # Run due synthetic (uptime) checks every 30s
 security_detection_interval = 60  # Run security detection every minute
@@ -33,7 +32,6 @@ aggregate_interval = 86400  # Roll raw metrics into hourly/daily summaries once 
 prune_interval = 86400  # Enforce the data-retention window once a day (runs after aggregation)
 
 last_anomaly_check = timezone.now()
-last_log_scan = timezone.now()
 last_latency_collection = timezone.now()
 last_synthetic_check = timezone.now()
 last_security_detection = timezone.now()
@@ -62,18 +60,7 @@ while running:
                 print("Anomaly detection completed.")
             except Exception as e:
                 print(f"Error in anomaly detection: {str(e)}")
-        
-        # Run log scanning every 5 minutes
-        time_since_last_log_scan = (timezone.now() - last_log_scan).total_seconds()
-        if time_since_last_log_scan >= log_scan_interval:
-            try:
-                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running log scanning...")
-                call_command("scan_logs", verbosity=1)
-                last_log_scan = timezone.now()
-                print("Log scanning completed.")
-            except Exception as e:
-                print(f"Error in log scanning: {str(e)}")
-        
+
         # Run service latency collection every minute
         time_since_last_latency = (timezone.now() - last_latency_collection).total_seconds()
         if time_since_last_latency >= latency_collection_interval:

@@ -118,10 +118,6 @@ CAPABILITY_BY_URL_NAME = {
     "toggle_monitoring": MANAGE_MONITORING,
     "server_slo_config_api": MANAGE_MONITORING,
     "server_slo_config_delete_api": MANAGE_MONITORING,
-    "log_troubleshooting_add": MANAGE_MONITORING,
-    "log_troubleshooting_delete": MANAGE_MONITORING,
-    "log_troubleshooting_ai_solution": MANAGE_MONITORING,
-    "log_troubleshooting_create_solution": MANAGE_MONITORING,
 
     # Alerts / synthetic
     "alert_config": MANAGE_ALERTS, "save_alert_config": MANAGE_ALERTS,

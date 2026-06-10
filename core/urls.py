@@ -116,12 +116,6 @@ urlpatterns = [
     path("api/server/<int:server_id>/sli-compliance/", views.server_sli_compliance_api, name="server_sli_compliance_api"),
     path("api/server/<int:server_id>/slo-config/", views.server_slo_config_api, name="server_slo_config_api"),
     path("api/server/<int:server_id>/slo-config/<str:metric_type>/", views.server_slo_config_delete_api, name="server_slo_config_delete_api"),
-    path("log-troubleshooting/", views.log_troubleshooting_config, name="log_troubleshooting_config"),
-    path("api/log-troubleshooting/add/", views.log_troubleshooting_add, name="log_troubleshooting_add"),
-    path("api/log-troubleshooting/delete/", views.log_troubleshooting_delete, name="log_troubleshooting_delete"),
-    path("api/log-troubleshooting/ai-solution/", views.log_troubleshooting_ai_solution, name="log_troubleshooting_ai_solution"),
-    path("api/log-troubleshooting/create-solution/", views.log_troubleshooting_create_solution, name="log_troubleshooting_create_solution"),
-    path("log-troubleshooting/results/", views.log_troubleshooting_results, name="log_troubleshooting_results"),
     path("domains/<slug:slug>/", views.monitoring_domain, name="monitoring_domain"),
     # Business KPIs
     path("business/", views.business_dashboard, name="business_dashboard"),

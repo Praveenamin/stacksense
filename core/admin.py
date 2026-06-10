@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.utils.safestring import mark_safe
 from .models import (
-    Server, MonitoredLog, LogEvent, AnalysisRule,
+    Server,
     SystemMetric, Anomaly, MonitoringConfig, Service, AggregatedMetric,
     AgentCredential, SyntheticCheck, SyntheticCheckResult,
     SecurityEvent, SecurityMonitorConfig,
@@ -95,9 +95,6 @@ class ServiceAdmin(admin.ModelAdmin):
     list_filter = ("status", "service_type", "server")
 
 
-admin.site.register(MonitoredLog)
-admin.site.register(LogEvent)
-admin.site.register(AnalysisRule)
 admin.site.register(AggregatedMetric)
 
 
