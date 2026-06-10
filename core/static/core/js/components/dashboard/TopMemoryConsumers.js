@@ -15,10 +15,8 @@ class TopMemoryConsumers extends BaseDashboardComponent {
         }
         let html = '';
         data.forEach((item, index) => {
-            const rank = index + 1;
             const statusClass = item.status_tag || 'normal';
             html += `<li class="top-consumer-item">
-                <div class="top-consumer-rank">#${rank}</div>
                 <div class="top-consumer-info">
                     <a class="top-consumer-name vm-link" href="/server/${item.server_id}/">${this.escapeHtml(item.server_name)}</a>
                     <span class="status-tag ${statusClass}">${statusClass}</span>
