@@ -285,8 +285,6 @@ class MonitoringConfig(models.Model):
     
     # Collection settings
     collection_interval_seconds = models.IntegerField(default=60, help_text="Seconds between metric collections")
-    adaptive_collection_enabled = models.BooleanField(default=False, help_text="Enable adaptive collection frequency")
-    anomaly_detection_interval = models.IntegerField(default=15, help_text="Collection interval when anomaly detected (seconds)")
     enabled = models.BooleanField(default=True)
     
     # Anomaly detection settings

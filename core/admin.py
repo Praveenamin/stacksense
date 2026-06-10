@@ -59,7 +59,6 @@ class ServerAdmin(admin.ModelAdmin):
                 defaults={
                     "enabled": True,
                     "collection_interval_seconds": 60,
-                    "adaptive_collection_enabled": False,
                     "use_adtk": True,
                     "use_isolation_forest": False,
                     "use_llm_explanation": True,
@@ -73,7 +72,7 @@ class ServerAdmin(admin.ModelAdmin):
 @admin.register(MonitoringConfig)
 class MonitoringConfigAdmin(admin.ModelAdmin):
     list_display = ("server", "enabled", "collection_interval_seconds", "use_adtk", "use_llm_explanation")
-    list_filter = ("enabled", "use_adtk", "adaptive_collection_enabled", "aggregation_enabled")
+    list_filter = ("enabled", "use_adtk", "aggregation_enabled")
 
 
 @admin.register(SystemMetric)

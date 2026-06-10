@@ -1567,7 +1567,6 @@ def add_server_agent(request):
         defaults={
             "enabled": True,
             "collection_interval_seconds": 60,
-            "adaptive_collection_enabled": False,
             "use_adtk": True,
             "use_isolation_forest": False,
             "use_llm_explanation": True,

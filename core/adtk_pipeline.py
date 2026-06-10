@@ -354,11 +354,7 @@ class ADTKPipeline:
         # Load configurable parameters from MonitoringConfig
         self.threshold_factor = getattr(config, 'adtk_threshold_factor', 2.0)
         self.adtk_window_size = getattr(config, 'adtk_window_size', 30)
-        self.detection_interval = getattr(config, 'anomaly_detection_interval', 15)
         self.contamination = getattr(config, 'contamination', 0.1)
-        self.adaptive_collection_enabled = getattr(
-            config, 'adaptive_collection_enabled', False
-        )
         self.use_adtk = getattr(config, 'use_adtk', True)
         
         # Preprocessing configuration
