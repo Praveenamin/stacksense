@@ -69,8 +69,10 @@ class RBACUITests(TestCase):
         self.client.force_login(self.admin)
         html = self.client.get(reverse("monitoring_dashboard")).content.decode()
         self.assertIn('href="/security/"', html)
-        self.assertIn('href="/business/"', html)
         self.assertIn('href="/alert-config/"', html)
+        # Business is a roadmap ("coming soon") item now -- admins see it as a label,
+        # not a live /business/ link (which was retired). Operators don't see it at all.
+        self.assertIn('Business', html)
 
     def test_operator_no_persona_toggle(self):
         self.client.force_login(self.operator)
