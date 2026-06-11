@@ -29,7 +29,12 @@ class AnomalyDetector:
     SENSITIVITY_K = {"LOW": 5.0, "BALANCED": 3.5, "HIGH": 2.5}
     MIN_BASELINE_POINTS = 20      # need at least this much history before statistical flags
     BASELINE_WINDOW = 240         # trailing metrics used to build the baseline
-    MIN_ABS_DELTA = 15.0          # percentage points; ignore trivial wiggles on flat baselines
+    # Incident-grade gates for the baseline branch — keep a deviation from firing unless it is
+    # large, genuinely high, AND sustained (idle servers spike to 20-30% all the time; that is
+    # normal background activity, not an incident).
+    MIN_ABS_DELTA = 25.0          # pp above the VM's normal before a deviation counts
+    ABS_VALUE_FLOOR = {"cpu": 50.0, "memory": 60.0, "disk": 50.0}  # value must also be this high
+    SUSTAIN_SAMPLES = 3           # the elevation must persist this many samples (no single blips)
 
     def __init__(self, server, config):
         self.server = server
@@ -142,6 +147,16 @@ class AnomalyDetector:
         # Absolute-deviation floor: ignore statistically-large but practically-trivial
         # wiggles on very flat baselines (e.g. CPU 4% on an idle box is NOT an incident).
         if (value - median) < self.MIN_ABS_DELTA:
+            return None
+        # Absolute-value floor: only an incident if the value is also genuinely high
+        # (a 25% CPU blip on an idle box is normal background activity, not an anomaly).
+        floor = self.ABS_VALUE_FLOOR.get(metric_type, 50.0)
+        if value < floor:
+            return None
+        # Sustained gate: the elevation must persist across recent samples, so a single
+        # transient spike doesn't fire (`vals` is the trailing history, most-recent first).
+        recent = [value] + vals[: self.SUSTAIN_SAMPLES - 1]
+        if len(recent) < self.SUSTAIN_SAMPLES or any(v < floor for v in recent):
             return None
 
         # Severity from the actual level relative to the ceiling (impact-based, not σ).
