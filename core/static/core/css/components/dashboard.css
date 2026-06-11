@@ -4,7 +4,7 @@
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
-    padding: 20px;
+    padding: 18px 20px;
     margin-bottom: 16px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     position: relative;
@@ -18,7 +18,7 @@
     display: flex;
     align-items: center;
     gap: var(--cds-spacing-2, 8px);
-    margin-bottom: var(--cds-spacing-4, 16px);
+    margin-bottom: var(--cds-spacing-3, 12px);
 }
 
 .dashboard-component-icon {
@@ -28,16 +28,16 @@
 }
 
 .dashboard-component-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: #0f172a;
     margin: 0;
 }
 
 .dashboard-component-subtitle {
-    font-size: var(--cds-font-size-sm, 14px);
+    font-size: 13px;
     color: var(--cds-color-gray-70, #64748b);
-    margin: 0 0 var(--cds-spacing-4, 16px) 0;
+    margin: 0 0 var(--cds-spacing-3, 12px) 0;
 }
 
 .dashboard-component-content {
@@ -226,8 +226,8 @@
 }
 
 .top-consumer-value {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     color: var(--cds-color-gray-100, #0f172a);
     min-width: 60px;
     text-align: right;
