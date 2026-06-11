@@ -2632,30 +2632,36 @@ def _check_and_send_alerts(server, metric):
         alerts = []
         resolved_alerts = []
         
-        # Check CPU threshold (requires 2 consecutive readings above threshold)
+        # Check CPU threshold (2 consecutive readings to arm, then alert ONCE per episode).
+        # current_state['CPU'] tracks whether an alert is OPEN (alerting), not the raw breach,
+        # so a sustained breach fires on the rising edge only and resolves on the falling edge.
         cpu_above_threshold = metric.cpu_percent is not None and metric.cpu_percent >= config.cpu_threshold
-        current_state['CPU'] = cpu_above_threshold
-        
+        cpu_was_alerting = previous_state.get('CPU', False)
+
         if cpu_above_threshold:
-            # Check if this is the first reading above threshold or sustained
-            if pending_state.get('CPU', False):
-                # Second consecutive reading above threshold - trigger alert!
+            if cpu_was_alerting:
+                # Already alerting -> stay open, do NOT re-fire every cycle.
+                current_state['CPU'] = True
+            elif pending_state.get('CPU', False):
+                # Second consecutive reading and not yet alerting -> fire once (rising edge).
+                current_state['CPU'] = True
                 alerts.append({
                     'type': 'CPU',
                     'value': metric.cpu_percent,
                     'threshold': config.cpu_threshold,
                     'message': f"CPU usage is {metric.cpu_percent:.1f}% (threshold: {config.cpu_threshold}%)"
                 })
-                print(f"[ALERT] CPU threshold sustained: {metric.cpu_percent:.1f}% >= {config.cpu_threshold}% (2nd consecutive reading)")
+                print(f"[ALERT] CPU threshold sustained: {metric.cpu_percent:.1f}% >= {config.cpu_threshold}% (alert raised)")
             else:
-                # First reading above threshold - mark as pending, don't alert yet
+                # First reading above threshold - arm pending, not alerting yet.
                 pending_state['CPU'] = True
+                current_state['CPU'] = False
                 print(f"[ALERT] CPU threshold exceeded (pending): {metric.cpu_percent:.1f}% >= {config.cpu_threshold}% (waiting for sustained)")
         else:
-            # CPU is below threshold - clear pending state
+            # Below threshold - clear pending; resolve only if we were actually alerting.
             pending_state['CPU'] = False
-            if previous_state.get('CPU', False):
-                # CPU was above threshold before, but now it's below - resolved!
+            current_state['CPU'] = False
+            if cpu_was_alerting:
                 resolved_alerts.append({
                     'type': 'CPU',
                     'value': metric.cpu_percent,
@@ -2664,30 +2670,34 @@ def _check_and_send_alerts(server, metric):
                 })
                 print(f"[ALERT] CPU threshold resolved: {metric.cpu_percent:.1f}% < {config.cpu_threshold}%")
         
-        # Check Memory threshold (requires 2 consecutive readings above threshold)
+        # Check Memory threshold (2 consecutive readings to arm, then alert ONCE per episode).
         memory_above_threshold = metric.memory_percent is not None and metric.memory_percent >= config.memory_threshold
-        current_state['Memory'] = memory_above_threshold
-        
+        mem_was_alerting = previous_state.get('Memory', False)
+
         if memory_above_threshold:
-            # Check if this is the first reading above threshold or sustained
-            if pending_state.get('Memory', False):
-                # Second consecutive reading above threshold - trigger alert!
+            if mem_was_alerting:
+                # Already alerting -> stay open, do NOT re-fire every cycle.
+                current_state['Memory'] = True
+            elif pending_state.get('Memory', False):
+                # Second consecutive reading and not yet alerting -> fire once (rising edge).
+                current_state['Memory'] = True
                 alerts.append({
                     'type': 'Memory',
                     'value': metric.memory_percent,
                     'threshold': config.memory_threshold,
                     'message': f"Memory usage is {metric.memory_percent:.1f}% (threshold: {config.memory_threshold}%)"
                 })
-                print(f"[ALERT] Memory threshold sustained: {metric.memory_percent:.1f}% >= {config.memory_threshold}% (2nd consecutive reading)")
+                print(f"[ALERT] Memory threshold sustained: {metric.memory_percent:.1f}% >= {config.memory_threshold}% (alert raised)")
             else:
-                # First reading above threshold - mark as pending, don't alert yet
+                # First reading above threshold - arm pending, not alerting yet.
                 pending_state['Memory'] = True
+                current_state['Memory'] = False
                 print(f"[ALERT] Memory threshold exceeded (pending): {metric.memory_percent:.1f}% >= {config.memory_threshold}% (waiting for sustained)")
         else:
-            # Memory is below threshold - clear pending state
+            # Below threshold - clear pending; resolve only if we were actually alerting.
             pending_state['Memory'] = False
-            if previous_state.get('Memory', False):
-                # Memory was above threshold before, but now it's below - resolved!
+            current_state['Memory'] = False
+            if mem_was_alerting:
                 resolved_alerts.append({
                     'type': 'Memory',
                     'value': metric.memory_percent,
@@ -2706,9 +2716,12 @@ def _check_and_send_alerts(server, metric):
                     if isinstance(usage, dict):
                         disk_percent = usage.get('percent', 0)
                         disk_above_threshold = disk_percent >= config.disk_threshold
+                        was_alerting = previous_disk_state.get(mountpoint, False)
+                        # 'alerting' for a partition == above threshold (no sustain window for disk).
                         current_state['Disk'][mountpoint] = disk_above_threshold
-                        
-                        if disk_above_threshold:
+
+                        if disk_above_threshold and not was_alerting:
+                            # Rising edge -> alert once per episode for this partition.
                             alerts.append({
                                 'type': 'Disk',
                                 'value': disk_percent,
@@ -2716,8 +2729,8 @@ def _check_and_send_alerts(server, metric):
                                 'message': f"Disk usage on {mountpoint} is {disk_percent:.1f}% (threshold: {config.disk_threshold}%)"
                             })
                             print(f"[ALERT] Disk threshold exceeded on {mountpoint}: {disk_percent:.1f}% >= {config.disk_threshold}%")
-                        elif previous_disk_state.get(mountpoint, False):
-                            # Disk was above threshold before, but now it's below - resolved!
+                        elif (not disk_above_threshold) and was_alerting:
+                            # Falling edge -> resolved.
                             resolved_alerts.append({
                                 'type': 'Disk',
                                 'value': disk_percent,
@@ -2741,9 +2754,10 @@ def _check_and_send_alerts(server, metric):
             disk_io_read_above = disk_io_read_mb >= threshold_mb
             disk_io_write_above = disk_io_write_mb >= threshold_mb
             disk_io_above = disk_io_read_above or disk_io_write_above
-            current_state['DiskIO'] = disk_io_above
-            
-            if disk_io_above:
+            io_was_alerting = previous_state.get('DiskIO', False)
+            current_state['DiskIO'] = disk_io_above  # alerting == above (no sustain window for I/O)
+
+            if disk_io_above and not io_was_alerting:
                 io_details = []
                 if disk_io_read_above:
                     io_details.append(f"read: {disk_io_read_mb:.2f} MB/s")
@@ -2757,7 +2771,7 @@ def _check_and_send_alerts(server, metric):
                     'message': f"Disk I/O exceeded threshold: {', '.join(io_details)} (threshold: {threshold_mb} MB/s)"
                 })
                 print(f"[ALERT] Disk I/O threshold exceeded: {', '.join(io_details)} >= {threshold_mb} MB/s")
-            elif previous_state.get('DiskIO', False):
+            elif (not disk_io_above) and io_was_alerting:
                 resolved_alerts.append({
                     'type': 'DiskIO',
                     'value': max(disk_io_read_mb, disk_io_write_mb),
@@ -2779,9 +2793,10 @@ def _check_and_send_alerts(server, metric):
             net_io_sent_above = net_io_sent_mb >= threshold_mb
             net_io_recv_above = net_io_recv_mb >= threshold_mb
             net_io_above = net_io_sent_above or net_io_recv_above
-            current_state['NetworkIO'] = net_io_above
-            
-            if net_io_above:
+            net_was_alerting = previous_state.get('NetworkIO', False)
+            current_state['NetworkIO'] = net_io_above  # alerting == above (no sustain window for I/O)
+
+            if net_io_above and not net_was_alerting:
                 io_details = []
                 if net_io_sent_above:
                     io_details.append(f"sent: {net_io_sent_mb:.2f} MB/s")
@@ -2795,7 +2810,7 @@ def _check_and_send_alerts(server, metric):
                     'message': f"Network I/O exceeded threshold: {', '.join(io_details)} (threshold: {threshold_mb} MB/s)"
                 })
                 print(f"[ALERT] Network I/O threshold exceeded: {', '.join(io_details)} >= {threshold_mb} MB/s")
-            elif previous_state.get('NetworkIO', False):
+            elif (not net_io_above) and net_was_alerting:
                 resolved_alerts.append({
                     'type': 'NetworkIO',
                     'value': max(net_io_sent_mb, net_io_recv_mb),
