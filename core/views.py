@@ -1784,6 +1784,15 @@ def _build_routing_context():
     return roles, rows, AlertRoutingRule.MIN_SEVERITY_CHOICES
 
 
+def _is_admin(user):
+    """Admin (or superuser) -- the only role allowed to change cross-role alert routing."""
+    from .permissions import ROLE_ADMIN
+    if getattr(user, "is_superuser", False):
+        return True
+    acl = getattr(user, "acl", None)
+    return bool(acl and acl.role and acl.role.name == ROLE_ADMIN)
+
+
 @staff_member_required
 def alert_config(request):
     """Email alert configuration page"""
@@ -1797,6 +1806,9 @@ def alert_config(request):
             'routing_roles': roles,
             'routing_rows': routing_rows,
             'min_severity_choices': min_severity_choices,
+            # Routing is cross-role alerting policy -> only Admins may edit it. Others see
+            # it read-only.
+            'can_edit_routing': _is_admin(request.user),
             'show_sidebar': True,  # Match add_server page layout with sidebar
         }
         return render(request, "core/alert_config.html", context)
@@ -1810,8 +1822,17 @@ def alert_config(request):
 def save_alert_routing(request):
     """Persist the Role x Category routing matrix from the alert-config page.
 
-    Each editable cell posts as `route_<role_id>_<category>` = min-severity (or OFF)."""
+    Each editable cell posts as `route_<role_id>_<category>` = min-severity (or OFF).
+    Routing decides who gets paged across ALL roles, so it is Admin-only (even though
+    the alert-config page itself is reachable by anyone with MANAGE_ALERTS)."""
     from .models import Role, AlertRoutingRule
+
+    if not _is_admin(request.user):
+        try:
+            messages.error(request, "Only administrators can change alert routing.")
+        except Exception:
+            pass
+        return redirect('alert_config')
 
     valid_categories = {c for c, _ in alert_categories.AlertCategory.choices}
     valid_severities = {s for s, _ in AlertRoutingRule.MIN_SEVERITY_CHOICES}

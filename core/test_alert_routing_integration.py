@@ -189,8 +189,32 @@ class RoutingMatrixEditorTests(TestCase):
         c = Client()
         c.force_login(op_user)
         c.post(reverse("save_alert_routing"), {f"route_{self.ceo.id}_business": "OFF"})
-        # RBAC blocks the mutation -> the cell is untouched.
+        # RBAC (MANAGE_ALERTS) blocks the mutation -> the cell is untouched.
         self.assertEqual(self._ceo_business(), "LOW")
+
+    def test_ceo_cannot_edit_routing(self):
+        # CEO holds MANAGE_ALERTS so it reaches the view, but routing is cross-role
+        # alerting policy -> Admin-only. The in-view guard must block it.
+        ceo_user = User.objects.create(username="r2_ceo_staff", email="ceo2@x.test",
+                                       is_active=True, is_staff=True)
+        UserACL.objects.update_or_create(user=ceo_user,
+                                         defaults={"role": self.roles[ROLE_CEO]})
+        c = Client()
+        c.force_login(ceo_user)
+        c.post(reverse("save_alert_routing"), {f"route_{self.ceo.id}_business": "OFF"})
+        self.assertEqual(self._ceo_business(), "LOW")        # unchanged
+
+    def test_non_admin_sees_routing_editor_disabled(self):
+        # CEO can open the page (MANAGE_ALERTS) but the editor is read-only for non-admins.
+        ceo_user = User.objects.create(username="r2_ceo_view", email="ceo3@x.test",
+                                       is_active=True, is_staff=True)
+        UserACL.objects.update_or_create(user=ceo_user,
+                                         defaults={"role": self.roles[ROLE_CEO]})
+        c = Client()
+        c.force_login(ceo_user)
+        html = c.get(reverse("alert_config")).content.decode()
+        self.assertIn("managed by administrators", html)     # no Save button
+        self.assertIn("disabled", html)                      # selects disabled
 
 
 class TestEmailRecipientTests(TestCase):

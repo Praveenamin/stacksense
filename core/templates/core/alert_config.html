@@ -566,7 +566,7 @@
                                 <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500; color: #0f172a; white-space: nowrap;">{{ row.label }}</td>
                                 {% for cell in row.cells %}
                                 <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;">
-                                    <select name="route_{{ cell.role.id }}_{{ row.category }}" class="form-input" style="padding: 6px 8px; min-width: 150px;">
+                                    <select name="route_{{ cell.role.id }}_{{ row.category }}" class="form-input" style="padding: 6px 8px; min-width: 150px;"{% if not can_edit_routing %} disabled{% endif %}>
                                         {% for sev_code, sev_label in min_severity_choices %}
                                         <option value="{{ sev_code }}" {% if cell.value == sev_code %}selected{% endif %}>{{ sev_label }}</option>
                                         {% endfor %}
@@ -579,8 +579,12 @@
                     </table>
                 </div>
 
-                <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 16px;">
+                    {% if can_edit_routing %}
                     <button type="submit" class="btn-submit">Save Routing</button>
+                    {% else %}
+                    <span style="font-size: 13px; color: #64748b;">Alert routing is managed by administrators.</span>
+                    {% endif %}
                 </div>
             </form>
         </div>
