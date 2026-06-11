@@ -78,11 +78,13 @@ def _compose(kpi, status, value):
     return subject, body
 
 
-def _send_email(subject, body):
+def _send_email(subject, body, severity):
+    from . import alert_routing
     cfg = EmailAlertConfig.objects.filter(enabled=True).first()
-    if not cfg or not cfg.to_email:
+    if not cfg:
         return
-    recipients = [e.strip() for e in cfg.to_email.split(",") if e.strip()]
+    # Business KPI alerts route by (business, severity-from-status).
+    recipients = alert_routing.recipients_for("business", severity)
     if not recipients:
         return
     from django.core.mail import send_mail
@@ -108,8 +110,14 @@ def _send_slack(status, body):
 
 def notify(kpi, status, value):
     subject, body = _compose(kpi, status, value)
+    # Map KPI status to a routing severity (Critical -> CRITICAL, Warning -> MEDIUM,
+    # back-to-OK -> LOW).
+    severity = {
+        BusinessKPI.Status.CRITICAL: "CRITICAL",
+        BusinessKPI.Status.WARNING: "MEDIUM",
+    }.get(status, "LOW")
     try:
-        _send_email(subject, body)
+        _send_email(subject, body, severity)
     except Exception:
         logger.exception("Business KPI email alert failed for %s", kpi.key)
     try:

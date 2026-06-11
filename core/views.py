@@ -8,6 +8,8 @@ from django.db.models import Q
 from datetime import timedelta
 from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, EmailAlertConfig, SlackAlertConfig, AlertHistory, UserACL, ServerHeartbeat, AgentVersion, LoginActivity, AgentCredential, SyntheticCheck, SyntheticCheckResult, SecurityEvent, SecurityMonitorConfig, BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Container
 from .service_latency import measure_service_latency
+from . import alert_categories
+from . import alert_routing
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -1751,21 +1753,95 @@ def app_config(request):
         return redirect('app_config')
 
 
+def _build_routing_context():
+    """Build the Role x Category routing matrix for the alert-config page.
+
+    Returns (roles, rows, min_severity_choices) where `rows` is one entry per alert
+    category, each carrying a `cells` list aligned to `roles` with the current
+    min-severity for that (role, category)."""
+    from .models import Role, AlertRoutingRule
+    from .permissions import ROLE_ADMIN, ROLE_OPERATOR, ROLE_CEO
+
+    alert_routing.ensure_default_rules()  # make sure built-in roles have a full matrix
+
+    # Order columns: the three built-in roles first (Admin, Operator, CEO), then any
+    # custom roles alphabetically.
+    preferred = [ROLE_ADMIN, ROLE_OPERATOR, ROLE_CEO]
+    all_roles = list(Role.objects.all())
+    roles = ([r for name in preferred for r in all_roles if r.name == name]
+             + sorted([r for r in all_roles if r.name not in preferred], key=lambda r: r.name))
+
+    existing = {(rule.role_id, rule.category): rule.min_severity
+                for rule in AlertRoutingRule.objects.all()}
+
+    rows = []
+    for cat_value, cat_label in alert_categories.AlertCategory.choices:
+        cells = [{'role': role,
+                  'value': existing.get((role.id, cat_value), AlertRoutingRule.OFF)}
+                 for role in roles]
+        rows.append({'category': cat_value, 'label': cat_label, 'cells': cells})
+
+    return roles, rows, AlertRoutingRule.MIN_SEVERITY_CHOICES
+
+
 @staff_member_required
 def alert_config(request):
     """Email alert configuration page"""
     if request.method == "GET":
         config = EmailAlertConfig.objects.first()
         slack_config = SlackAlertConfig.objects.first()
+        roles, routing_rows, min_severity_choices = _build_routing_context()
         context = {
             'config': config,
             'slack_config': slack_config,
+            'routing_roles': roles,
+            'routing_rows': routing_rows,
+            'min_severity_choices': min_severity_choices,
             'show_sidebar': True,  # Match add_server page layout with sidebar
         }
         return render(request, "core/alert_config.html", context)
     else:
         messages.error(request, "Method not allowed")
         return redirect('alert_config')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def save_alert_routing(request):
+    """Persist the Role x Category routing matrix from the alert-config page.
+
+    Each editable cell posts as `route_<role_id>_<category>` = min-severity (or OFF)."""
+    from .models import Role, AlertRoutingRule
+
+    valid_categories = {c for c, _ in alert_categories.AlertCategory.choices}
+    valid_severities = {s for s, _ in AlertRoutingRule.MIN_SEVERITY_CHOICES}
+    try:
+        for key, value in request.POST.items():
+            if not key.startswith('route_'):
+                continue
+            try:
+                _, role_id, category = key.split('_', 2)
+                role_id = int(role_id)
+            except (ValueError, TypeError):
+                continue
+            if category not in valid_categories or value not in valid_severities:
+                continue
+            if not Role.objects.filter(id=role_id).exists():
+                continue
+            AlertRoutingRule.objects.update_or_create(
+                role_id=role_id, category=category,
+                defaults={'min_severity': value})
+        try:
+            messages.success(request, 'Alert routing saved.')
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Failed to save alert routing: {e}")
+        try:
+            messages.error(request, f'Failed to save alert routing: {e}')
+        except Exception:
+            pass
+    return redirect('alert_config')
 
 
 import logging
@@ -2000,17 +2076,20 @@ def save_alert_config(request):
         username = request.POST.get('username', '').strip()
         # Strip and remove spaces from password (Gmail App Passwords have no spaces)
         password = request.POST.get('password', '').strip().replace(' ', '') if request.POST.get('password') else ''
-        from_email = request.POST.get('from_email', '').strip()
-        to_email = request.POST.get('to_email', '').strip()
+        # The sender is always the authenticated SMTP account -- we never send "as"
+        # an arbitrary address (anti-spoofing). No separate From field.
+        # Recipients are no longer a single field -- they are resolved per alert from
+        # the role-based routing matrix (see alert_routing / AlertRoutingRule).
+        from_email = username
 
         # Check if this is an update (config exists) or new config
         existing_config = EmailAlertConfig.objects.first()
 
         # Validate required fields based on provider
         if provider == 'custom':
-            if not smtp_host or not smtp_port or not username or not from_email:
+            if not smtp_host or not smtp_port or not username:
                 try:
-                    messages.error(request, 'SMTP host, port, username, and from email are required for custom SMTP configuration')
+                    messages.error(request, 'SMTP host, port, and username are required for custom SMTP configuration')
                 except:
                     pass  # Messages middleware not available in test environment
                 return redirect('alert_config')
@@ -2022,9 +2101,9 @@ def save_alert_config(request):
                     pass  # Messages middleware not available in test environment
                 return redirect('alert_config')
         else:
-            if not username or not from_email:
+            if not username:
                 try:
-                    messages.error(request, 'Username and from email are required')
+                    messages.error(request, 'Username is required')
                 except:
                     pass  # Messages middleware not available in test environment
                 return redirect('alert_config')
@@ -2048,7 +2127,6 @@ def save_alert_config(request):
                 'username': username,
                 'password': password,  # In production, encrypt this
                 'from_email': from_email,
-                'to_email': to_email,
                 'enabled': True
             }
         )
@@ -2064,7 +2142,6 @@ def save_alert_config(request):
             if password:  # Only update password if provided
                 config.password = password
             config.from_email = from_email
-            config.to_email = to_email
             config.enabled = True
             config.save()
 
@@ -2135,20 +2212,23 @@ def test_alert_config(request):
         username = saved_config.username or ''
         # Strip and remove all spaces from password (Gmail App Passwords are 16 chars, no spaces)
         password = (saved_config.password or '').strip().replace(' ', '')
-        from_email = saved_config.from_email or ''
-        test_recipient = saved_config.to_email or ''
+        # Always send as the authenticated account (no separate From / anti-spoofing).
+        from_email = username
+        # There is no single "To" address anymore -- the test goes to whoever is signed
+        # in and clicked the button (they're verifying their own SMTP setup).
+        test_recipient = (getattr(request.user, 'email', '') or '').strip()
 
         # Validate required fields
-        if not all([smtp_host, smtp_port, username, from_email]):
-            messages.error(request, 'SMTP host, port, username, and from email are required in saved configuration.')
+        if not all([smtp_host, smtp_port, username]):
+            messages.error(request, 'SMTP host, port, and username are required in saved configuration.')
             return redirect('alert_config')
-        
+
         if not password:
             messages.error(request, 'Password is required for testing. Please save your configuration with a password first.')
             return redirect('alert_config')
-        
+
         if not test_recipient:
-            messages.error(request, 'To email address is required for testing. Please save configuration with a valid "To Email" address first.')
+            messages.error(request, 'Your account has no email address set, so there is nowhere to send the test. Add an email to your user profile and try again.')
             return redirect('alert_config')
 
         # Create test email
@@ -2438,21 +2518,28 @@ def test_email_connection(request):
         data = json.loads(request.body)
         
         # Validate required fields
-        required_fields = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'from_email', 'to_email']
+        required_fields = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password']
         for field in required_fields:
             if not data.get(field):
                 return JsonResponse({
                     'success': False,
                     'error': f'Field {field} is required'
                 }, status=400)
-        
+
         smtp_host = data['smtp_host']
         smtp_port = int(data['smtp_port'])
         use_tls = data.get('use_tls', False)
         smtp_username = data['smtp_username']
         smtp_password = data['smtp_password']
-        from_email = data['from_email']
-        recipients = [r.strip() for r in data.get('to_email', '').split(',')] if data.get('to_email') else []
+        from_email = smtp_username  # always send as the authenticated account (anti-spoofing)
+        # No single "To" address anymore -- send the test to the signed-in user.
+        user_email = (getattr(request.user, 'email', '') or '').strip()
+        if not user_email:
+            return JsonResponse({
+                'success': False,
+                'error': 'Your account has no email address set, so there is nowhere to send the test email.'
+            }, status=400)
+        recipients = [user_email]
         
         # Create test email
         msg = MIMEMultipart()
@@ -2756,10 +2843,11 @@ def _check_and_send_alerts(server, metric):
                     server=server,
                     alert_type=mapped_type,
                     status=AlertHistory.AlertStatus.TRIGGERED,
+                    severity=alert_categories.default_severity_for_alert_type(mapped_type, "triggered"),
                     value=alert['value'],
                     threshold=alert['threshold'],
                     message=alert['message'],
-                    recipients=email_config.to_email or '',
+                    recipients=", ".join(alert_routing.recipients_for("resource", "HIGH")),
                     process_context=process_context
                 )
                 app_logger.info(f"Alert sent: {server.name} - {mapped_type} - {alert['message']}")
@@ -2788,10 +2876,11 @@ def _check_and_send_alerts(server, metric):
                     server=server,
                     alert_type=mapped_type,
                     status=AlertHistory.AlertStatus.RESOLVED,
+                    severity=alert_categories.default_severity_for_alert_type(mapped_type, "resolved"),
                     value=alert['value'],
                     threshold=alert['threshold'],
                     message=alert['message'],
-                    recipients=email_config.to_email or '',
+                    recipients=", ".join(alert_routing.recipients_for("resource", "LOW")),
                     resolved_at=timezone.now(),
                     process_context=None  # No process context needed for resolved alerts
                 )
@@ -2815,8 +2904,12 @@ def _check_and_send_alerts(server, metric):
 def _send_resolved_alert_email(email_config, server, resolved_alerts):
     """Send resolved alert email when metrics return to normal"""
     try:
-        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
-        
+        # Resource/performance thresholds, resolved -> route by (resource, LOW).
+        recipients = alert_routing.recipients_for("resource", "LOW")
+        if not recipients:
+            print(f"[ALERT] No routed recipients for resolved resource alert on {server.name}; skipping email")
+            return
+
         # Create email content
         subject = f"✅ Resolved: {server.name} - Threshold Returned to Normal"
         alert_list = "\n".join([f"• {alert['message']}" for alert in resolved_alerts])
@@ -2910,8 +3003,10 @@ def _send_connection_alert(server, state):
             print(f"[CONNECTION_ALERT] No email or Slack config found for {server.name}")
             return
         
-        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config and email_config.to_email else []
-        
+        # Availability: server down -> CRITICAL, restored -> LOW. Routes by category.
+        recipients = alert_routing.recipients_for(
+            "availability", "CRITICAL" if state == "offline" else "LOW")
+
         if state == "offline":
             subject = f"🔴 Server Offline: {server.name}"
             body = f"""
@@ -2999,10 +3094,12 @@ The server connection has been restored and is responding normally.
         
         # Log to alert history
         if email_config or slack_config:
+            _conn_status = "triggered" if state == "offline" else "resolved"
             AlertHistory.objects.create(
                 server=server,
                 alert_type="CONNECTION",
-                status="triggered" if state == "offline" else "resolved",
+                status=_conn_status,
+                severity=alert_categories.default_severity_for_alert_type("CONNECTION", _conn_status),
                 value=0.0,
                 threshold=30.0,
                 message=f"Server is {state.upper()}" if state == "offline" else f"Server connection restored",
@@ -3033,13 +3130,10 @@ def _send_service_alert(server, service, status):
             print(f"[SERVICE_ALERT] No email or Slack config found, skipping alert for {service.name} on {server.name}")
             return
         
-        # Use to_email as recipient (for email)
-        recipients = []
-        if email_config and email_config.to_email:
-            recipients = [email.strip() for email in email_config.to_email.split(',')]
-        elif not email_config:
-            # If no email config, we can still send Slack
-            recipients = []
+        # Availability (service down/up) -> route by category + severity.
+        recipients = alert_routing.recipients_for(
+            "availability",
+            alert_categories.default_severity_for_alert_type("service", status))
         
         if status == "triggered":
             subject = f"🚨 Service Alert: {service.name} is DOWN on {server.name}"
@@ -3068,12 +3162,12 @@ Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}
 The service has been restored and is now running.
 """
         
-        # Send email if configured
-        if email_config:
+        # Send email if configured and someone is routed this alert
+        if email_config and recipients:
             # Create email
             msg = MIMEMultipart()
             msg['From'] = email_config.from_email
-            msg['To'] = ', '.join(recipients) if recipients else ''
+            msg['To'] = ', '.join(recipients)
             msg['Subject'] = subject
             msg.attach(MIMEText(body, 'plain'))
             
@@ -3121,10 +3215,11 @@ The service has been restored and is now running.
                 server=server,
                 alert_type="SERVICE",
                 status=status,
+                severity=alert_categories.default_severity_for_alert_type("service", status),
                 value=0.0,
                 threshold=2.0,
                 message=f"Service {service.name} is {'DOWN' if status == 'triggered' else 'UP'}",
-                recipients=email_config.to_email if email_config else 'Slack',
+                recipients=", ".join(recipients) if recipients else 'Slack',
                 process_context=None
             )
             
@@ -3136,8 +3231,12 @@ The service has been restored and is now running.
 def _send_alert_email(email_config, server, alerts):
     """Send alert email using configured SMTP settings"""
     try:
-        recipients = [email.strip() for email in email_config.to_email.split(',')] if email_config.to_email else []
-        
+        # Resource/performance thresholds, triggered -> route by (resource, HIGH).
+        recipients = alert_routing.recipients_for("resource", "HIGH")
+        if not recipients:
+            print(f"[ALERT] No routed recipients for resource alert on {server.name}; skipping email")
+            return
+
         # Create email content
         subject = f"🚨 Alert: {server.name} - Threshold Exceeded"
         alert_list = "\n".join([f"• {alert['message']}" for alert in alerts])
@@ -3931,6 +4030,7 @@ def alert_history(request):
     alert_type = request.GET.get('alert_type', '').strip()
     status = request.GET.get('status', '').strip()  # Default to empty (all alerts)
     time_range = request.GET.get('time_range', '24h').strip()
+    category = request.GET.get('category', '').strip().lower()
     acknowledged = request.GET.get('acknowledged', '').strip()
     instance = request.GET.get('instance', '').strip()
     group_by_incident = request.GET.get('group', 'false').lower() == 'true' or request.GET.get('group_by_incident', 'false').lower() == 'true'
@@ -3938,8 +4038,10 @@ def alert_history(request):
     # Build AlertHistory query
     alert_history_query = AlertHistory.objects.all().select_related('server')
     
-    # Build Anomaly query
-    anomaly_query = Anomaly.objects.all().select_related('server', 'metric')
+    # Build Anomaly query. LOW-severity anomalies are demoted off this "critical alerts"
+    # page (they remain in each server's anomaly log); only MEDIUM/HIGH/CRITICAL show here.
+    anomaly_query = (Anomaly.objects.all().select_related('server', 'metric')
+                     .exclude(severity=Anomaly.Severity.LOW))
     
     # Time range filtering
     now = django_timezone.now()
@@ -4007,6 +4109,23 @@ def alert_history(request):
             alert_history_query = alert_history_query.filter(status='triggered')
             anomaly_query = anomaly_query.filter(resolved=False)
     
+    # Category filter (derived from type): narrow AlertHistory by the alert_types that map to
+    # the chosen category, and Anomaly by leak-vs-resource. Categories with no rows on this
+    # page (security / business) yield an empty result, which is honest.
+    if category:
+        valid_categories = {c for c, _ in alert_categories.AlertCategory.choices}
+        if category in valid_categories:
+            ah_types = [t for t, _ in AlertHistory.AlertType.choices
+                        if alert_categories.for_alert_type(t) == category]
+            alert_history_query = (alert_history_query.filter(alert_type__in=ah_types)
+                                   if ah_types else alert_history_query.none())
+            if category == alert_categories.AlertCategory.RESOURCE:
+                anomaly_query = anomaly_query.exclude(metric_type__icontains='leak')
+            elif category == alert_categories.AlertCategory.CAPACITY:
+                anomaly_query = anomaly_query.filter(metric_type__icontains='leak')
+            else:
+                anomaly_query = anomaly_query.none()
+
     # Get alerts ordered by most recent first
     alerts_list = list(alert_history_query.order_by('-sent_at')[:500])
     
@@ -4033,11 +4152,15 @@ def alert_history(request):
         else:
             duration_seconds = 0
         
+        _cat = alert_categories.for_alert_type(alert.alert_type)
         unified_items.append({
             'type': 'alert',
             'object': alert,
             'timestamp': alert.sent_at,
             'duration_seconds': duration_seconds,
+            'category': _cat,
+            'category_label': alert_categories.label(_cat),
+            'severity': getattr(alert, 'severity', '') or '',
         })
     
     # Add anomalies with type='anomaly' and calculate duration
@@ -4049,11 +4172,15 @@ def alert_history(request):
         else:
             duration_seconds = (now - anomaly.timestamp).total_seconds()
         
+        _cat = alert_categories.for_anomaly(anomaly.metric_type)
         unified_items.append({
             'type': 'anomaly',
             'object': anomaly,
             'timestamp': anomaly.timestamp,
             'duration_seconds': duration_seconds,
+            'category': _cat,
+            'category_label': alert_categories.label(_cat),
+            'severity': anomaly.severity or '',
         })
     
     # Sort unified list: triggered/unresolved first, then by timestamp (most recent first)
@@ -4127,6 +4254,8 @@ def alert_history(request):
         'selected_alert_type': alert_type,
         'selected_status': status,
         'selected_time_range': time_range,
+        'selected_category': category,
+        'alert_category_choices': alert_categories.AlertCategory.choices,
         'selected_acknowledged': acknowledged,
         'selected_instance': instance,
         'triggered_count': total_critical,  # Total Critical Alerts (unacknowledged)

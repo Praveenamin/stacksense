@@ -80,6 +80,15 @@
             </select>
         </div>
         <div>
+            <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Category</label>
+            <select name="category" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; background-color: white;">
+                <option value="">All</option>
+                {% for cat_code, cat_label in alert_category_choices %}
+                <option value="{{ cat_code }}" {% if selected_category == cat_code %}selected{% endif %}>{{ cat_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
             <label style="display: block; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); margin-bottom: var(--cds-spacing-2);">Alert Type</label>
             <select name="alert_type" style="width: 100%; padding: var(--cds-spacing-3) var(--cds-spacing-4); border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; background-color: white;">
                 <option value="">All</option>
@@ -153,6 +162,7 @@
                         <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="cursor: pointer; width: 18px; height: 18px;">
                     </th>
                     <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Alert Name</th>
+                    <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Category</th>
                     <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Affected VM</th>
                     <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Triggered Time</th>
                     <th style="padding: 10px 16px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;">Duration</th>
@@ -198,6 +208,9 @@
                             {% endif %}
                         </div>
                         {% endif %}
+                    </td>
+                    <td style="padding: 10px 16px; vertical-align: middle;">
+                        <span style="display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; {% if item.category == 'resource' %}background:#eef4ff; color:#0f62fe;{% elif item.category == 'availability' %}background:#ecfdf5; color:#047857;{% elif item.category == 'security' %}background:#fef2f2; color:#b91c1c;{% elif item.category == 'capacity' %}background:#fffbeb; color:#b45309;{% elif item.category == 'business' %}background:#f5f3ff; color:#6d28d9;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{% if item.category == 'resource' %}Resource{% elif item.category == 'availability' %}Availability{% elif item.category == 'security' %}Security{% elif item.category == 'capacity' %}Capacity{% elif item.category == 'business' %}Business{% else %}{{ item.category_label }}{% endif %}</span>
                     </td>
                     <td style="padding: 10px 16px; vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
@@ -250,6 +263,9 @@
                             <span style="flex-shrink:0; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; {% if anomaly.severity == 'CRITICAL' %}background:#fef2f2; color:#b91c1c;{% elif anomaly.severity == 'HIGH' %}background:#fff7ed; color:#c2410c;{% elif anomaly.severity == 'MEDIUM' %}background:#fffbeb; color:#92400e;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{{ anomaly.severity|title }}</span>
                         </div>
                         <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">{{ anomaly.explanation|default:anomaly.metric_name|truncatewords:18 }}</div>
+                    </td>
+                    <td style="padding: 10px 16px; vertical-align: middle;">
+                        <span style="display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; {% if item.category == 'resource' %}background:#eef4ff; color:#0f62fe;{% elif item.category == 'availability' %}background:#ecfdf5; color:#047857;{% elif item.category == 'security' %}background:#fef2f2; color:#b91c1c;{% elif item.category == 'capacity' %}background:#fffbeb; color:#b45309;{% elif item.category == 'business' %}background:#f5f3ff; color:#6d28d9;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{% if item.category == 'resource' %}Resource{% elif item.category == 'availability' %}Availability{% elif item.category == 'security' %}Security{% elif item.category == 'capacity' %}Capacity{% elif item.category == 'business' %}Business{% else %}{{ item.category_label }}{% endif %}</span>
                     </td>
                     <td style="padding: 10px 16px; vertical-align: middle;">
                         <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ anomaly.server.name }}</div>

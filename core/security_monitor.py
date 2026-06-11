@@ -230,11 +230,13 @@ def _compose(event):
     return subject, body
 
 
-def _send_email(subject, body):
+def _send_email(subject, body, severity):
+    from . import alert_routing
     cfg = EmailAlertConfig.objects.filter(enabled=True).first()
-    if not cfg or not cfg.to_email:
+    if not cfg:
         return
-    recipients = [e.strip() for e in cfg.to_email.split(",") if e.strip()]
+    # Security events route by (security, event severity).
+    recipients = alert_routing.recipients_for("security", severity)
     if not recipients:
         return
     from django.core.mail import send_mail
@@ -258,7 +260,7 @@ def _send_slack(body):
 def notify(event):
     subject, body = _compose(event)
     try:
-        _send_email(subject, body)
+        _send_email(subject, body, event.severity)
     except Exception:
         logger.exception("Security email alert failed for event %s", event.id)
     try:

@@ -5,6 +5,8 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
 
+from .alert_categories import AlertCategory
+
 
 class Server(models.Model):
     class Meta:
@@ -283,10 +285,18 @@ class EmailAlertConfig(models.Model):
     username = models.EmailField(blank=True)
     password = models.CharField(max_length=255, blank=True)  # Will be encrypted
     from_email = models.EmailField(blank=True)
-    to_email = models.EmailField(blank=True, help_text="Recipient email address for alerts (comma-separated for multiple)")
+    # Recipients are no longer a single field -- they are resolved per alert from the
+    # role-based routing matrix (see AlertRoutingRule / core.alert_routing).
     enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        # The sender is ALWAYS the authenticated SMTP account -- we never send "as" an
+        # arbitrary address (anti-spoofing). Keep from_email pinned to the username so
+        # every alert/test/notification goes out from the known, owned sender.
+        self.from_email = self.username
+        super().save(*args, **kwargs)
 
     def get_smtp_config(self):
         """Get SMTP configuration with provider defaults"""
@@ -443,6 +453,8 @@ class AlertHistory(models.Model):
     server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="alert_history")
     alert_type = models.CharField(max_length=20, choices=AlertType.choices)
     status = models.CharField(max_length=20, choices=AlertStatus.choices, default=AlertStatus.TRIGGERED)
+    severity = models.CharField(max_length=20, choices=Anomaly.Severity.choices, default=Anomaly.Severity.HIGH,
+                                help_text="Severity for routing/grouping (connection down=CRITICAL, threshold/service/container=HIGH, resolved=LOW)")
     value = models.FloatField(help_text="Current metric value")
     threshold = models.FloatField(help_text="Threshold value")
     message = models.TextField()
@@ -597,6 +609,36 @@ class UserACL(models.Model):
             except Role.DoesNotExist:
                 pass
         return acl
+
+
+class AlertRoutingRule(models.Model):
+    """Role-based alert routing: one row per (Role x Alert Category) saying the minimum
+    severity at which users in that role get emailed. OFF means that role never receives
+    that category. This replaces the single EmailAlertConfig.to_email -- recipients are
+    resolved at send time from the alert's (category, severity)."""
+    OFF = "OFF"
+    MIN_SEVERITY_CHOICES = [
+        (OFF, "Off"),
+        ("LOW", "Low and above"),
+        ("MEDIUM", "Medium and above"),
+        ("HIGH", "High and above"),
+        ("CRITICAL", "Critical only"),
+    ]
+
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="alert_routes")
+    category = models.CharField(max_length=20, choices=AlertCategory.choices)
+    min_severity = models.CharField(max_length=20, choices=MIN_SEVERITY_CHOICES, default=OFF,
+                                    help_text="Lowest severity that triggers email for this role+category (OFF = never)")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [["role", "category"]]
+        verbose_name = "Alert Routing Rule"
+        verbose_name_plural = "Alert Routing Rules"
+        ordering = ["role__name", "category"]
+
+    def __str__(self):
+        return f"{self.role.name} / {self.category} >= {self.min_severity}"
 
 
 class ServerHeartbeat(models.Model):

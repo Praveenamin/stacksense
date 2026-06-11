@@ -187,11 +187,13 @@ def _compose(check, event, probe):
     return subject, body
 
 
-def _send_email(subject, body):
+def _send_email(subject, body, severity):
+    from . import alert_routing
     cfg = EmailAlertConfig.objects.filter(enabled=True).first()
-    if not cfg or not cfg.to_email:
+    if not cfg:
         return
-    recipients = [e.strip() for e in cfg.to_email.split(",") if e.strip()]
+    # Synthetic uptime checks are an Availability alert; route by (category, severity).
+    recipients = alert_routing.recipients_for("availability", severity)
     if not recipients:
         return
     # Routes through DatabaseEmailBackend, which reads SMTP settings from EmailAlertConfig.
@@ -218,7 +220,7 @@ def notify(check, event, probe):
     """Send down/recovery notifications via configured channels."""
     subject, body = _compose(check, event, probe)
     try:
-        _send_email(subject, body)
+        _send_email(subject, body, "CRITICAL" if event == "DOWN" else "LOW")
     except Exception:
         logger.exception("Synthetic email alert failed for %s", check.name)
     try:

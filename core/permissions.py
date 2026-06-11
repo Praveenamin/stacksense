@@ -121,6 +121,7 @@ CAPABILITY_BY_URL_NAME = {
 
     # Alerts / synthetic
     "alert_config": MANAGE_ALERTS, "save_alert_config": MANAGE_ALERTS,
+    "save_alert_routing": MANAGE_ALERTS,
     "clear_alert_config": MANAGE_ALERTS, "test_alert_config": MANAGE_ALERTS,
     "slack_config": MANAGE_ALERTS, "save_slack_config": MANAGE_ALERTS,
     "clear_slack_config": MANAGE_ALERTS, "test_slack_config": MANAGE_ALERTS,

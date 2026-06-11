@@ -32,6 +32,8 @@ from .models import (
     BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service, Container,
     AlertHistory, EmailAlertConfig, SlackAlertConfig, SSHAuthEvent,
 )
+from . import alert_categories
+from . import alert_routing
 
 logger = logging.getLogger("core")
 
@@ -242,10 +244,13 @@ def _notify_unit(server, kind, name, down):
         emoji = ":large_green_circle:"
     try:
         ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
-        if ecfg and ecfg.to_email:
-            from django.core.mail import send_mail
-            recipients = [e.strip() for e in ecfg.to_email.split(",") if e.strip()]
+        if ecfg:
+            # Service/container up-or-down is an Availability alert; route by severity.
+            sev = alert_categories.default_severity_for_alert_type(
+                kind, "triggered" if down else "resolved")
+            recipients = alert_routing.recipients_for("availability", sev)
             if recipients:
+                from django.core.mail import send_mail
                 send_mail(subject, body, ecfg.from_email or None, recipients, fail_silently=True)
     except Exception:
         logger.exception("%s email alert failed for %s/%s", kind, server.name, name)
@@ -288,9 +293,14 @@ def evaluate_service_alerts(server):
             ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
             AlertHistory.objects.create(
                 server=server, alert_type=AlertHistory.AlertType.SERVICE,
-                status=AlertHistory.AlertStatus.TRIGGERED, value=0, threshold=1,
+                status=AlertHistory.AlertStatus.TRIGGERED,
+                severity=alert_categories.default_severity_for_alert_type("service", "triggered"),
+                value=0, threshold=1,
                 message=f"{marker} Service '{svc.name}' is not running on {server.name}.",
-                recipients=(ecfg.to_email if ecfg else "") or "", sent_at=now,
+                recipients=", ".join(alert_routing.recipients_for(
+                    "availability",
+                    alert_categories.default_severity_for_alert_type("service", "triggered"))),
+                sent_at=now,
             )
             _notify_unit(server, "service", svc.name, down=True)
         elif (not is_down) and open_alert:
@@ -321,9 +331,14 @@ def evaluate_container_alerts(server):
             ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
             AlertHistory.objects.create(
                 server=server, alert_type=AlertHistory.AlertType.CONTAINER,
-                status=AlertHistory.AlertStatus.TRIGGERED, value=0, threshold=1,
+                status=AlertHistory.AlertStatus.TRIGGERED,
+                severity=alert_categories.default_severity_for_alert_type("container", "triggered"),
+                value=0, threshold=1,
                 message=f"{marker} Container '{ctr.name}' is {ctr.state} on {server.name}.",
-                recipients=(ecfg.to_email if ecfg else "") or "", sent_at=now,
+                recipients=", ".join(alert_routing.recipients_for(
+                    "availability",
+                    alert_categories.default_severity_for_alert_type("container", "triggered"))),
+                sent_at=now,
             )
             _notify_unit(server, "container", ctr.name, down=True)
         elif (not is_down) and open_alert:

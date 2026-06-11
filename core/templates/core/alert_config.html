@@ -312,12 +312,6 @@
             <button class="tab-button" data-tab="slack-config" onclick="switchTab('slack-config')" style="padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
                 Slack Configuration
             </button>
-            <button class="tab-button" data-tab="disk-alerts" onclick="switchTab('disk-alerts')" style="padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
-                Configure Disk Alerts
-            </button>
-            <button class="tab-button" data-tab="service-alerts" onclick="switchTab('service-alerts')" style="padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--cds-color-gray-70); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">
-                Configure Service Alerts
-            </button>
         </div>
     </div>
 
@@ -479,7 +473,7 @@
                             <label class="form-label" for="username">Email Address <span class="required">*</span></label>
                             <input type="email" id="username" name="username" class="form-input"
                                    value="{{ config.username|default:'' }}" placeholder="your-email@example.com" required>
-                            <div class="form-hint">Your email account username</div>
+                            <div class="form-hint">Your email account — alerts are sent <strong>from</strong> this address (the authenticated sender).</div>
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="password">Password <span class="required">*</span></label>
@@ -489,19 +483,9 @@
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label" for="from_email">From Email <span class="required">*</span></label>
-                            <input type="email" id="from_email" name="from_email" class="form-input"
-                                   value="{{ config.from_email|default:'' }}" placeholder="alerts@example.com" required>
-                            <div class="form-hint">The sender address that will appear in alerts</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="to_email">To Email <span class="required">*</span></label>
-                            <input type="email" id="to_email" name="to_email" class="form-input"
-                                   value="{{ config.to_email|default:'' }}" placeholder="recipient@example.com" required>
-                            <div class="form-hint">Recipient email address for alerts</div>
-                        </div>
+                    <div class="form-hint" style="margin-top: 4px;">
+                        Recipients are no longer a single address &mdash; alerts are sent to user
+                        accounts by role using the <strong>Alert Routing</strong> table below.
                     </div>
                 </div>
 
@@ -558,34 +542,50 @@
                 <button type="submit" class="btn-submit">Save Configuration</button>
             </div>
         </form>
+
+        <!-- Alert Routing (role-based recipients) -->
+        <div class="form-card" style="margin-top: 24px;">
+            <form id="alert-routing-form" method="post" action="/alert-config/routing/save/">
+                {% csrf_token %}
+                <h2 class="form-title">Alert Routing</h2>
+                <p class="form-subtitle">Pick which roles get emailed for each alert category, and the minimum severity. Recipients are the email addresses of the users who hold that role. <strong>Off</strong> means that role is never emailed for that category.</p>
+
+                <div style="overflow-x: auto; margin-top: 12px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 600; white-space: nowrap;">Category</th>
+                                {% for role in routing_roles %}
+                                <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 600; white-space: nowrap;">{{ role.name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in routing_rows %}
+                            <tr>
+                                <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500; color: #0f172a; white-space: nowrap;">{{ row.label }}</td>
+                                {% for cell in row.cells %}
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;">
+                                    <select name="route_{{ cell.role.id }}_{{ row.category }}" class="form-input" style="padding: 6px 8px; min-width: 150px;">
+                                        {% for sev_code, sev_label in min_severity_choices %}
+                                        <option value="{{ sev_code }}" {% if cell.value == sev_code %}selected{% endif %}>{{ sev_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+                    <button type="submit" class="btn-submit">Save Routing</button>
+                </div>
+            </form>
+        </div>
     </div>
     <!-- End Email Config Tab -->
-
-    <!-- Disk Alerts Tab -->
-    <div id="disk-alerts" class="tab-content" style="display: none;">
-        <div class="form-card">
-            <h2 class="form-title">Configure Disk Alerts</h2>
-            <p class="form-subtitle">Set disk usage thresholds and select partitions to monitor</p>
-            
-            <div id="disk-alerts-content">
-                <p style="color: var(--cds-color-gray-70);">Loading disk alert configurations...</p>
-            </div>
-        </div>
-    </div>
-    <!-- End Disk Alerts Tab -->
-
-    <!-- Service Alerts Tab -->
-    <div id="service-alerts" class="tab-content" style="display: none;">
-        <div class="form-card">
-            <h2 class="form-title">Configure Service Alerts</h2>
-            <p class="form-subtitle">Configure monitoring and alert settings for system services</p>
-            
-            <div id="service-alerts-content">
-                <p style="color: var(--cds-color-gray-70);">Loading service alert configurations...</p>
-            </div>
-        </div>
-    </div>
-    <!-- End Service Alerts Tab -->
 
     <!-- Slack Configuration Tab -->
     <div id="slack-config" class="tab-content" style="display: none;">
@@ -736,8 +736,6 @@
         <input type="hidden" name="use_ssl" id="test_use_ssl">
         <input type="hidden" name="username" id="test_username">
         <input type="hidden" name="password" id="test_password">
-        <input type="hidden" name="from_email" id="test_from_email">
-        <input type="hidden" name="to_email" id="test_to_email">
     </form>
 
 <script>
@@ -795,9 +793,7 @@ function testSavedConfiguration() {
     document.getElementById('test_use_ssl').value = document.getElementById('use_ssl').checked ? 'on' : '';
     document.getElementById('test_username').value = document.getElementById('username').value;
     document.getElementById('test_password').value = document.getElementById('password').value;
-    document.getElementById('test_from_email').value = document.getElementById('from_email').value;
-    // Use the saved to_email as the test recipient
-    document.getElementById('test_to_email').value = document.getElementById('to_email').value;
+    // The test email goes to the signed-in user's own address (resolved server-side).
     document.getElementById('test-email-form').submit();
 }
 
@@ -861,13 +857,6 @@ function switchTab(tabName) {
         selectedButton.classList.add('active');
         selectedButton.style.color = 'var(--cds-color-gray-100)';
         selectedButton.style.borderBottomColor = 'var(--color-primary-interactive)';
-    }
-    
-    // Load content for disk and service alerts tabs
-    if (tabName === 'disk-alerts') {
-        loadDiskAlertsConfig();
-    } else if (tabName === 'service-alerts') {
-        loadServiceAlertsConfig();
     }
 }
 
