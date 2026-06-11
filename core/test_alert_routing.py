@@ -81,6 +81,20 @@ class RoutingResolverTests(TestCase):
     def test_unknown_category_returns_empty(self):
         self.assertEqual(alert_routing.recipients_for("nonsense", "HIGH"), [])
 
+    def test_user_with_no_role_is_not_routed(self):
+        u = User.objects.create(username="rr_norole", email="norole@x.test", is_active=True)
+        UserACL.objects.update_or_create(user=u, defaults={"role": None})
+        self.assertNotIn("norole@x.test", self._emails("resource", "HIGH"))
+
+    def test_superuser_without_acl_receives_nothing(self):
+        # Routing is purely role-based: a superuser with NO UserACL/role is invisible to
+        # it and gets no alerts. Documents a real footgun (assign such accounts a role).
+        User.objects.create_superuser("rr_super", "super@x.test", "pw")  # no UserACL
+        reached = set()
+        for cat in ("resource", "availability", "security", "capacity", "business"):
+            reached |= set(alert_routing.recipients_for(cat, "CRITICAL"))
+        self.assertNotIn("super@x.test", reached)
+
 
 class DefaultSeedingTests(TestCase):
     def test_ensure_default_rules_is_idempotent_and_non_destructive(self):
