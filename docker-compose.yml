@@ -62,12 +62,15 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: monitoring_web
+    # migrate + collectstatic must COMPLETE before gunicorn serves (otherwise the first
+    # requests load before the static files exist -> broken CSS). Only the scheduler is
+    # backgrounded; gunicorn is exec'd last so it starts on a fully-prepared app.
     command: >
       sh -c "
         python manage.py migrate --noinput &&
         python manage.py collectstatic --noinput &&
-        nohup python3 metrics_scheduler.py > /tmp/metrics_scheduler.log 2>&1 &
-        gunicorn log_analyzer.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 180
+        (python3 metrics_scheduler.py > /tmp/metrics_scheduler.log 2>&1 &) &&
+        exec gunicorn log_analyzer.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 180
       "
     volumes:
       - .:/app
