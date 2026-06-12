@@ -41,6 +41,15 @@ out="$(run --host mon.example.com --ssl upload --cert fullchain.pem --key privke
 grep -q "uploaded/fullchain.pem"                    <<<"$out" || fail "uploaded cert path missing"
 ok "upload cert path"
 
+echo "== forwarded / non-443 port (--ext-port) =="
+out="$(run --host mon.example.com --ssl upload --cert fullchain.pem --key privkey.pem --ext-port 8443)"
+grep -q "CSRF_TRUSTED_ORIGINS=https://mon.example.com:8443" <<<"$out" || fail "CSRF origin must include the ext port"
+grep -q "listen 443 ssl"                            <<<"$out" || fail "443 server block missing"
+if grep -q "listen 80;" <<<"$out"; then fail "HTTPS-only must have no :80 server"; fi
+if grep -q "return 301"  <<<"$out"; then fail "HTTPS-only must have no http->https redirect"; fi
+grep -q "https://mon.example.com:8443/setup"        <<<"$out" || fail "setup URL must carry the ext port"
+ok "ext-port: HTTPS-only nginx + port-aware CSRF/URL"
+
 echo "== rejects a bad SSL mode =="
 if ./setup.sh --host x --ssl bogus --dry-run -y >/dev/null 2>&1; then fail "bad --ssl was accepted"; fi
 ok "bad --ssl rejected"
