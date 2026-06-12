@@ -238,3 +238,48 @@ class KpiIngestTests(TestCase):
     def test_oversized_body_rejected_413(self):
         big = {"key": "signups", "value": 1, "note": "x" * (260 * 1024)}
         self.assertEqual(self._post(big, token=self.token).status_code, 413)
+
+
+class EveryEndpointBoundaryTests(TestCase):
+    """Closes the matrix: prove EVERY push endpoint enforces auth, the 256 KB cap, and
+    JSON validity -- directly, per endpoint, not by 'same shared code' equivalence."""
+
+    # (url_name, token-kind) for the body-handling POST endpoints.
+    BODY_ENDPOINTS = [
+        ("agent_ingest_metrics", "agent"),
+        ("agent_ingest_services", "agent"),
+        ("agent_ingest_containers", "agent"),
+        ("agent_ingest_ssh_auth", "agent"),
+        ("kpi_ingest", "biz"),
+    ]
+
+    def setUp(self):
+        self.server = Server.objects.create(name="vm-a", ip_address="10.4.4.9", username="agent")
+        _, self.agent_token = AgentCredential.generate_for_server(self.server)
+        self.biz_token = BusinessMonitorConfig.get_config().generate_token()
+        self.client = Client()
+
+    def _token(self, kind):
+        return self.agent_token if kind == "agent" else self.biz_token
+
+    def test_every_post_endpoint_requires_auth(self):
+        for name, _ in self.BODY_ENDPOINTS + [("agent_heartbeat", "agent")]:
+            r = self.client.post(reverse(name), data="{}", content_type="application/json")
+            self.assertEqual(r.status_code, 401, msg=f"{name} accepted a no-token request")
+
+    def test_ping_requires_auth(self):
+        self.assertEqual(self.client.get(reverse("agent_ping")).status_code, 401)
+
+    def test_every_body_endpoint_rejects_oversized_413(self):
+        big = "x" * (260 * 1024)                              # > 256 KB, with a valid token
+        for name, kind in self.BODY_ENDPOINTS:
+            r = self.client.post(reverse(name), data=big, content_type="application/json",
+                                 HTTP_AUTHORIZATION=f"Bearer {self._token(kind)}")
+            self.assertEqual(r.status_code, 413, msg=f"{name} accepted a >256KB body")
+
+    def test_every_body_endpoint_rejects_malformed_json_400(self):
+        for name, kind in self.BODY_ENDPOINTS:
+            r = self.client.post(reverse(name), data="{not valid json",
+                                 content_type="application/json",
+                                 HTTP_AUTHORIZATION=f"Bearer {self._token(kind)}")
+            self.assertEqual(r.status_code, 400, msg=f"{name} accepted malformed JSON")
