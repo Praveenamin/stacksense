@@ -246,9 +246,12 @@ if [ "$SSL" = self-signed ]; then
 
 elif [ "$SSL" = upload ]; then
   step "Installing uploaded certificate"
-  docker run --rm -v stacksense_certs:/etc/letsencrypt -v "$PWD:/in:ro" --entrypoint sh alpine/openssl -c \
-    "mkdir -p /etc/letsencrypt/uploaded && cp '/in/$(basename "$CERT")' /etc/letsencrypt/uploaded/fullchain.pem && cp '/in/$(basename "$KEY")' /etc/letsencrypt/uploaded/privkey.pem" \
-    || die "failed to install uploaded cert (cert/key must be in this directory)"
+  cert_abs="$(realpath "$CERT")"; key_abs="$(realpath "$KEY")"   # accept a path anywhere
+  docker run --rm -v stacksense_certs:/etc/letsencrypt \
+    -v "$cert_abs:/in/fullchain.pem:ro" -v "$key_abs:/in/privkey.pem:ro" \
+    --entrypoint sh alpine/openssl -c \
+    "mkdir -p /etc/letsencrypt/uploaded && cp /in/fullchain.pem /etc/letsencrypt/uploaded/fullchain.pem && cp /in/privkey.pem /etc/letsencrypt/uploaded/privkey.pem" \
+    || die "failed to install uploaded cert"
   render_nginx tls > "$NGINX_CONF"
 
 else  # letsencrypt
