@@ -38,7 +38,10 @@ fi
 deps_changed() { ! git diff --quiet "$PREV" "$NEW" -- requirements.txt Dockerfile; }
 
 restart_web() {
-  if deps_changed; then $COMPOSE up -d --build web; else $COMPOSE restart web; fi
+  # up --force-recreate (not `restart`) so docker-compose.yml changes (command/user/
+  # ports) are actually applied, and the bind-mounted new code is reloaded. --build
+  # only when deps/Dockerfile changed.
+  if deps_changed; then $COMPOSE up -d --build web; else $COMPOSE up -d --force-recreate web; fi
 }
 
 rollback() {
