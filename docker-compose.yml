@@ -62,6 +62,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: monitoring_web
+    # The code is bind-mounted from the (root-owned) host checkout and static/media/logs
+    # live on root-owned volumes/paths, so the image's non-root appuser can't write to
+    # them (collectstatic/logging fail). Run as root to match the bind-mount model.
+    user: "root"
     # migrate + collectstatic must COMPLETE before gunicorn serves (otherwise the first
     # requests load before the static files exist -> broken CSS). Only the scheduler is
     # backgrounded; gunicorn is exec'd last so it starts on a fully-prepared app.
