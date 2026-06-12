@@ -157,3 +157,38 @@ class ImpersonationMiddleware:
     def _resolve_target(target_id):
         from django.contrib.auth.models import User
         return User.objects.filter(id=target_id, is_staff=True, is_active=True).first()
+
+
+class SetupGateMiddleware:
+    """First-run gate. Until the setup wizard completes, funnel every request to
+    /setup/; afterwards, lock /setup/ (redirect away). Static/media/health pass
+    through so the wizard renders and deploy health-checks work before setup.
+
+    Safe for existing installs: setup_required() is False the moment an active
+    superuser exists, so a running server is never redirected.
+    """
+    # Never gated: machine/API endpoints (own token auth), Django admin (own auth),
+    # static/media, and health probes (must work pre-setup for deploy checks).
+    ALLOW_PREFIXES = ("/api/", "/admin/", "/static/", "/media/", "/health/", "/ready/")
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self._setup_url = None
+
+    def _url(self):
+        if self._setup_url is None:
+            from django.urls import reverse
+            self._setup_url = reverse("setup")
+        return self._setup_url
+
+    def __call__(self, request):
+        path = request.path
+        if not path.startswith(self.ALLOW_PREFIXES):
+            from .setup_views import setup_required
+            setup_url = self._url()
+            if setup_required():
+                if path != setup_url:
+                    return redirect(setup_url)
+            elif path == setup_url:
+                return redirect(settings.LOGIN_URL)
+        return self.get_response(request)

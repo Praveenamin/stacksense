@@ -76,7 +76,7 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 # Routes that bypass RBAC entirely (no auth or machine-auth).
 PUBLIC_URL_NAMES = frozenset({
-    "health", "ready", "logout",
+    "health", "ready", "logout", "setup",
     "password_reset", "password_reset_done",
     "password_reset_confirm", "password_reset_complete",
     # token-authenticated agent / KPI ingest + public installer

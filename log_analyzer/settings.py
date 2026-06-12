@@ -25,6 +25,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.SetupGateMiddleware",
     "core.middleware.ImpersonationMiddleware",
     "core.middleware.RBACMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",

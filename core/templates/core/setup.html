@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StackSense — First-run setup</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+           background: #0f172a; color: #0f172a; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+    .card { background: #fff; width: 100%; max-width: 460px; margin: 24px; padding: 32px;
+            border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .brand { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #0f62fe; }
+    h1 { font-size: 22px; margin: 6px 0 4px; }
+    .sub { margin: 0 0 22px; color: #475569; font-size: 14px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin: 14px 0 5px; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 14px; }
+    input:focus { outline: none; border-color: #0f62fe; box-shadow: 0 0 0 3px rgba(15,98,254,.15); }
+    .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .err { background: #fef2f2; color: #b91c1c; font-size: 13px; border: 1px solid #fecaca;
+           border-radius: 6px; padding: 8px 10px; margin-top: 6px; }
+    button { width: 100%; margin-top: 22px; padding: 12px; background: #0f62fe; color: #fff; border: none;
+             border-radius: 7px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #0b50d0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">StackSense</div>
+    <h1>Welcome — let's finish setup</h1>
+    <p class="sub">Create your administrator account. You'll use it to sign in and manage everything.</p>
+
+    {% if form.non_field_errors %}<div class="err">{{ form.non_field_errors }}</div>{% endif %}
+
+    <form method="post" action="{% url 'setup' %}" novalidate>
+      {% csrf_token %}
+      {% for field in form %}
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<div class="hint">{{ field.help_text }}</div>{% endif %}
+        {% for error in field.errors %}<div class="err">{{ error }}</div>{% endfor %}
+      {% endfor %}
+      <button type="submit">Complete setup</button>
+    </form>
+  </div>
+</body>
+</html>

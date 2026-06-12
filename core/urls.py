@@ -3,8 +3,10 @@ from django.contrib.auth import views as auth_views
 from core.password_reset_views import CustomPasswordResetView
 from . import views
 from . import agent_api
+from . import setup_views
 
 urlpatterns = [
+    path("setup/", setup_views.setup_view, name="setup"),
     path("", views.monitoring_dashboard, name="dashboard"),
     path("monitoring/", views.monitoring_dashboard, name="monitoring_dashboard"),
     path("dashboard/", views.monitoring_dashboard, name="dashboard_alt"),

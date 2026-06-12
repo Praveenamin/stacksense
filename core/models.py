@@ -383,6 +383,15 @@ class AppConfig(models.Model):
         help_text="Keep collected data (metrics, incidents, logs) for this many days; "
                   "older data is pruned automatically. Min 7, max 365.",
     )
+    # First-run setup wizard state.
+    setup_completed = models.BooleanField(
+        default=False,
+        help_text="True once the first-run setup wizard has created the initial admin.",
+    )
+    base_url = models.URLField(
+        blank=True, default="",
+        help_text="Public base URL of this instance (used for absolute links in emails/UI).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
