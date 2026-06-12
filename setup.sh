@@ -99,8 +99,7 @@ OLLAMA_MODEL=llama3.2
 OLLAMA_TIMEOUT=120
 LLM_ENABLED=True
 
-# Admin is created via the first-run web form (/setup), not here.
-CREATE_SUPERUSER=false
+# The initial admin is created via the first-run web form (/setup).
 EOF
 }
 

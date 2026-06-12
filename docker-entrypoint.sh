@@ -56,26 +56,8 @@ python manage.py migrate --noinput
 echo "Collecting static files..."
 python manage.py collectstatic --noinput --clear
 
-# Create superuser if environment variable is set
-if [ "$CREATE_SUPERUSER" = "true" ]; then
-    echo "Creating superuser..."
-    python << END
-import os
-import django
-django.setup()
-from django.contrib.auth import get_user_model
-User = get_user_model()
-if not User.objects.filter(username=os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')).exists():
-    User.objects.create_superuser(
-        username=os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin'),
-        email=os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com'),
-        password=os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin')
-    )
-    print("Superuser created successfully")
-else:
-    print("Superuser already exists")
-END
-fi
+# The initial administrator is created through the first-run web form (/setup).
+# (No env-var superuser path -- that avoided a weak default-credential admin.)
 
 # Start metrics collection scheduler in background
 echo "Starting metrics collection scheduler..."

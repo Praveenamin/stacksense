@@ -20,7 +20,7 @@ echo "== self-signed =="
 out="$(run --host 10.0.0.5 --ssl self-signed)"
 grep -q "USE_TLS=True"                              <<<"$out" || fail "USE_TLS should be True"
 grep -q "OLLAMA_API_URL=http://ollama:11434"        <<<"$out" || fail "Ollama URL must be the service name"
-grep -q "CREATE_SUPERUSER=false"                    <<<"$out" || fail "weak default admin must be disabled"
+if grep -q "DJANGO_SUPERUSER" <<<"$out"; then fail "no weak admin creds should appear (form-only)"; fi
 grep -q "ALLOWED_HOSTS=10.0.0.5,"                   <<<"$out" || fail "ALLOWED_HOSTS missing the host"
 grep -q "CSRF_TRUSTED_ORIGINS=https://10.0.0.5"     <<<"$out" || fail "CSRF origins missing https host"
 grep -q "selfsigned/fullchain.pem"                  <<<"$out" || fail "self-signed cert path missing"
