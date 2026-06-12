@@ -6,9 +6,6 @@ enforces a sliding window: keep the last N days (AppConfig.data_retention_days, 
 7..365), delete everything strictly older. The cardinal sin to guard against is deleting
 data INSIDE the window; the secondary risks are off-by-one boundaries, the wrong models,
 config not being honored, and daily roll-ups (kept 365d) being pruned with the raw window.
-
-cleanup_metrics is a legacy per-server prune that is NOT wired into the scheduler; its
-behavior is characterized at the bottom in case it is ever revived.
 """
 from datetime import timedelta
 
@@ -17,7 +14,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from core.models import (
-    AppConfig, Server, Service, Container, ServerHeartbeat, MonitoringConfig,
+    AppConfig, Server, Service, Container, ServerHeartbeat,
     SystemMetric, Anomaly, ServiceLatencyMeasurement, SSHAuthEvent, AlertHistory,
     SecurityEvent, LoginActivity, AggregatedMetric,
 )
@@ -214,35 +211,3 @@ class OperationalSafetyTests(_Base):
         _set_retention(30)
         call_command("prune_old_data")
         self.assertEqual(SystemMetric.objects.count(), 0)
-
-
-class CleanupMetricsLegacyTests(TestCase):
-    """cleanup_metrics: a per-server raw-metric prune keyed on
-    MonitoringConfig.retention_period_days, only for aggregation-enabled servers. It is
-    NOT wired into the scheduler (prune_old_data is the live retention); these lock its
-    behavior in case it is revived."""
-
-    def setUp(self):
-        self.server = Server.objects.create(name="c-vm", ip_address="10.3.3.2", username="agent")
-        self.cfg = MonitoringConfig.objects.create(
-            server=self.server, enabled=True, aggregation_enabled=True, retention_period_days=30)
-
-    def _metric(self, ts):
-        return SystemMetric.objects.create(
-            server=self.server, timestamp=ts, cpu_percent=1, memory_total=8_000_000_000,
-            memory_available=4_000_000_000, memory_used=4_000_000_000, memory_percent=50)
-
-    def test_deletes_per_server_metrics_older_than_retention(self):
-        now = timezone.now()
-        keep = self._metric(now - timedelta(days=10))
-        drop = self._metric(now - timedelta(days=40))
-        call_command("cleanup_metrics")
-        self.assertTrue(SystemMetric.objects.filter(pk=keep.pk).exists())
-        self.assertFalse(SystemMetric.objects.filter(pk=drop.pk).exists())
-
-    def test_skips_servers_without_aggregation_enabled(self):
-        self.cfg.aggregation_enabled = False
-        self.cfg.save(update_fields=["aggregation_enabled"])
-        old = self._metric(timezone.now() - timedelta(days=40))
-        call_command("cleanup_metrics")
-        self.assertTrue(SystemMetric.objects.filter(pk=old.pk).exists())   # server skipped
