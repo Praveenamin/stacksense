@@ -1,0 +1,50 @@
+# Production overlay for the lean deploy (setup.sh).
+#
+# Adds an nginx reverse proxy (the public entry on 80/443, terminates TLS) and an
+# optional certbot sidecar for Let's Encrypt auto-renew. Used together with the base
+# file:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# The base file is left untouched, so an existing/live deployment is unaffected unless
+# it explicitly opts into this overlay.
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: monitoring_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/app.conf:/etc/nginx/conf.d/default.conf:ro
+      - stacksense_certs:/etc/letsencrypt
+      - stacksense_acme:/var/www/certbot
+    depends_on:
+      - web
+    networks:
+      - stacksense_network
+    # Reload every 6h so renewed certs are picked up without a restart.
+    command: >
+      sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload 2>/dev/null || true; done &
+             exec nginx -g 'daemon off;'"
+
+  # Only started for the Let's Encrypt SSL mode (compose profile 'letsencrypt').
+  certbot:
+    image: certbot/certbot:latest
+    container_name: monitoring_certbot
+    restart: unless-stopped
+    profiles: ["letsencrypt"]
+    volumes:
+      - stacksense_certs:/etc/letsencrypt
+      - stacksense_acme:/var/www/certbot
+    # Renew loop; a no-op until/unless a cert exists.
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet;
+             sleep 12h & wait $${!}; done"
+
+volumes:
+  # Pinned names so setup.sh's standalone `docker run` mounts the SAME volumes (Compose
+  # otherwise prefixes them with the project name).
+  stacksense_certs:
+    name: stacksense_certs
+  stacksense_acme:
+    name: stacksense_acme
