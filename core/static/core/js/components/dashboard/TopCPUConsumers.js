@@ -19,7 +19,6 @@ class TopCPUConsumers extends BaseDashboardComponent {
             html += `<li class="top-consumer-item">
                 <div class="top-consumer-info">
                     <a class="top-consumer-name vm-link" href="/server/${item.server_id}/">${this.escapeHtml(item.server_name)}</a>
-                    <span class="status-tag ${statusClass}">${statusClass}</span>
                 </div>
                 <div class="top-consumer-value">${item.cpu_percent}%</div>
                 <div class="progress-bar-container" style="width: 100px;">
