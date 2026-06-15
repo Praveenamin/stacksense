@@ -46,7 +46,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.4.0"
+AGENT_VERSION = "push-1.5.0"
 CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
 DEFAULT_INTERVAL = 30
 HTTP_TIMEOUT = 15
@@ -58,6 +58,22 @@ IGNORED_FSTYPES = {
     "squashfs", "tmpfs", "devtmpfs", "proc", "sysfs",
     "cgroup", "cgroup2", "ramfs", "overlay", "udev", "virtfs",
 }
+
+# Mount paths we never report as disks: ephemeral runtime dirs and bind mounts of /
+# re-exposed under another name (/tmp, /var/tmp on many images). They are not
+# actionable capacity incidents and only re-count the root filesystem. The root
+# filesystem ("/") is always reported. Mirrored server-side in core/mount_filters.py.
+EPHEMERAL_MOUNT_PREFIXES = (
+    "/tmp", "/var/tmp", "/dev/shm", "/dev", "/run", "/var/run",
+    "/var/lock", "/snap", "/boot/efi", "/proc", "/sys",
+)
+
+
+def _is_ephemeral_mount(mountpoint):
+    m = "/" + str(mountpoint or "").strip().strip("/")
+    if m == "/":
+        return False
+    return any(m == p or m.startswith(p + "/") for p in EPHEMERAL_MOUNT_PREFIXES)
 
 
 def load_config():
@@ -679,6 +695,8 @@ def collect_metrics(prev):
     for part in psutil.disk_partitions(all=False):
         if part.fstype.lower() in IGNORED_FSTYPES:
             continue
+        if _is_ephemeral_mount(part.mountpoint):
+            continue  # /tmp, /var/tmp, /run, ... -- ephemeral / bind-dup of /
         if "/virtfs/" in part.mountpoint or "virtfs" in part.device.lower():
             continue
         usage = _safe(lambda: psutil.disk_usage(part.mountpoint))

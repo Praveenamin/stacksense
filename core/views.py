@@ -10,6 +10,7 @@ from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, Em
 from .service_latency import measure_service_latency
 from . import alert_categories
 from . import alert_routing
+from .mount_filters import is_ephemeral_mount
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -2749,6 +2750,8 @@ def _check_and_send_alerts(server, metric):
                 previous_disk_state = previous_state.get('Disk', {})
                 
                 for mountpoint, usage in disk_data.items():
+                    if is_ephemeral_mount(mountpoint):
+                        continue  # /tmp, /var/tmp, /run, ... are not capacity incidents
                     if isinstance(usage, dict):
                         disk_percent = usage.get('percent', 0)
                         disk_above_threshold = disk_percent >= config.disk_threshold

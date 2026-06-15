@@ -6,6 +6,7 @@ from sklearn.ensemble import IsolationForest
 from django.utils import timezone
 from datetime import timedelta
 from .models import SystemMetric, Anomaly, MonitoringConfig
+from .mount_filters import is_ephemeral_mount
 
 try:
     from adtk.detector import ThresholdAD, PersistAD, LevelShiftAD, VolatilityShiftAD
@@ -194,6 +195,8 @@ class AnomalyDetector:
             if isinstance(data, str):
                 data = json.loads(data)
             for mount, usage in data.items():
+                if is_ephemeral_mount(mount):
+                    continue  # /tmp, /var/tmp, /run, ... are not capacity incidents
                 if isinstance(usage, dict):
                     out[mount] = float(usage.get("percent", 0) or 0)
                 elif isinstance(usage, (int, float)):
