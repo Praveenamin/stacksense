@@ -25,7 +25,7 @@ grep -q "ALLOWED_HOSTS=10.0.0.5,"                   <<<"$out" || fail "ALLOWED_H
 grep -q "CSRF_TRUSTED_ORIGINS=https://10.0.0.5"     <<<"$out" || fail "CSRF origins missing https host"
 grep -q "selfsigned/fullchain.pem"                  <<<"$out" || fail "self-signed cert path missing"
 grep -q 'X-Forwarded-Proto \$scheme'                <<<"$out" || fail "X-Forwarded-Proto header missing"
-grep -q 'proxy_set_header Host \$host'              <<<"$out" || fail "Host header missing"
+grep -q 'proxy_set_header Host \$http_host'          <<<"$out" || fail "Host header (with port) missing"
 grep -q "return 301 https"                          <<<"$out" || fail "http->https redirect missing"
 ok "self-signed env + nginx"
 

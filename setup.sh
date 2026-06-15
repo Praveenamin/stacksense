@@ -139,7 +139,7 @@ render_nginx() {  # $1 = "http-only" (LE bootstrap) | "tls"
   # Forwarded headers (literal nginx vars) that make Django's SECURE_PROXY_SSL_HEADER
   # and Host checks work behind the proxy. Single-quoted so bash keeps $host etc. literal.
   local proxy='        proxy_pass http://web:8000;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
