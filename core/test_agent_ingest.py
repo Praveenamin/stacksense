@@ -198,6 +198,53 @@ class SyncEndpointsTests(_Base):
             self.assertEqual(r.status_code, 401, msg=name)
 
 
+class PortServiceIngestTests(_Base):
+    """Port-detected services carry an optional friendly label (display_name) +
+    provenance (detected_via). Identity stays in `name` so a banner flap never
+    duplicates rows or detaches the monitoring toggle."""
+
+    def _svc(self, **over):
+        base = {"name": "port-80", "status": "running", "service_type": "port",
+                "port": 80, "bind_address": "0.0.0.0"}
+        base.update(over)
+        return self._post(reverse("agent_ingest_services"),
+                          {"services": [base], "agent_version": "push-1.6.0"},
+                          token=self.token)
+
+    def test_persists_display_name_and_detected_via(self):
+        r = self._svc(display_name="nginx (:80)", detected_via="port-banner")
+        self.assertEqual(r.status_code, 200)
+        s = Service.objects.get(server=self.server, name="port-80")
+        self.assertEqual(s.display_name, "nginx (:80)")
+        self.assertEqual(s.detected_via, "port-banner")
+        self.assertEqual(s.label, "nginx (:80)")
+
+    def test_old_agent_payload_without_new_fields_ok(self):
+        # push-1.5.0 shape: no display_name/detected_via -> 200, fields stay NULL,
+        # and the label falls back to the server-side role map.
+        r = self._post(reverse("agent_ingest_services"),
+                       {"services": [{"name": "port-3306", "status": "running",
+                                      "service_type": "port", "port": 3306}]},
+                       token=self.token)
+        self.assertEqual(r.status_code, 200)
+        s = Service.objects.get(server=self.server, name="port-3306")
+        self.assertIsNone(s.display_name)
+        self.assertIsNone(s.detected_via)
+        self.assertEqual(s.label, "MySQL (:3306)")
+
+    def test_stable_name_survives_banner_flap(self):
+        # First push identifies nginx; operator turns monitoring on.
+        self._svc(display_name="nginx (:80)", detected_via="port-banner")
+        Service.objects.filter(server=self.server, name="port-80").update(monitoring_enabled=True)
+        # Next cycle the banner read fails -> falls back to the role label.
+        self._svc(display_name="HTTP (:80)", detected_via="port-map")
+        rows = Service.objects.filter(server=self.server, name="port-80")
+        self.assertEqual(rows.count(), 1)                      # NOT duplicated
+        s = rows.get()
+        self.assertTrue(s.monitoring_enabled)                  # toggle preserved
+        self.assertEqual(s.display_name, "HTTP (:80)")         # label updated in place
+
+
 class KpiIngestTests(TestCase):
     """The business KPI ingest endpoint uses a SEPARATE hashed token
     (BusinessMonitorConfig), but the same boundary discipline applies."""

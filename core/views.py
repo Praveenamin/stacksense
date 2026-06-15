@@ -11,6 +11,7 @@ from .service_latency import measure_service_latency
 from . import alert_categories
 from . import alert_routing
 from .mount_filters import is_ephemeral_mount
+from .port_roles import role_for_port
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -784,7 +785,7 @@ def server_details(request, server_id):
     # page (services_overview), but scoped to this one server. Reads the agent-
     # pushed Service rows straight from the DB — no SSH — so the two pages can
     # never disagree, and the monitoring toggle hits the same shared endpoint.
-    panel_services = [s for s in all_services if s.service_type != "port"]
+    panel_services = list(all_services)
     notable_services = [s for s in panel_services if not _is_background_service(s)]
     background_services = [s for s in panel_services if _is_background_service(s)]
     services_monitored_count = sum(1 for s in panel_services if s.monitoring_enabled)
@@ -7536,7 +7537,12 @@ _BACKGROUND_SERVICE_PREFIXES = (
 def _is_background_service(svc):
     """Heuristic: is this a low-value OS/background service (hidden by default)?"""
     if svc.service_type == "port":
-        return False  # a listening network service is always notable
+        # A confirmed product (read from the service's banner) or a recognized
+        # well-known port is a key service; unrecognized / ephemeral ports
+        # (e.g. 52227, 44222) are background noise, collapsed by default.
+        if svc.detected_via == "port-banner":
+            return False
+        return role_for_port(svc.port) is None
     name = (svc.name or "").lower()
     if name in _BACKGROUND_SERVICE_NAMES:
         return True
@@ -7549,8 +7555,9 @@ def services_overview(request):
     out by default and a per-service monitoring toggle."""
     groups = {}
     total = running = monitored = 0
-    # Show only systemd services for now (exclude auto-detected listening ports).
-    for svc in Service.objects.exclude(service_type="port").select_related("server").order_by("server__name", "name"):
+    # Include port-detected services: well-known / banner-identified ones are shown
+    # as key services; unrecognized ephemeral ports fall into the background group.
+    for svc in Service.objects.select_related("server").order_by("server__name", "name"):
         total += 1
         if svc.status == "running":
             running += 1

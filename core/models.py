@@ -158,16 +158,35 @@ class Service(models.Model):
     last_checked = models.DateTimeField(default=timezone.now)
     monitoring_enabled = models.BooleanField(default=False, help_text="Whether monitoring is enabled for this service")
     auto_detected = models.BooleanField(default=False, help_text="Whether this service was auto-detected from port scan")
-    
+    # Friendly UI label, e.g. "nginx (:80)". The stable identity stays in `name`
+    # (e.g. "port-80") so the (server, name) upsert key and alert markers never churn
+    # when a banner read flaps; `display_name` is purely cosmetic and may be NULL.
+    display_name = models.CharField(max_length=150, null=True, blank=True, help_text="Friendly UI label; identity stays in name")
+    # How this service was identified: systemd | port-banner | port-map | port-unknown
+    detected_via = models.CharField(max_length=30, null=True, blank=True, help_text="Detection provenance")
+
     class Meta:
         unique_together = [["server", "name"]]
         indexes = [
             models.Index(fields=["server", "status"]),
             models.Index(fields=["last_checked"]),
         ]
-    
+
     def __str__(self):
         return f"{self.name} on {self.server.name} ({self.status})"
+
+    @property
+    def label(self):
+        """Human label for the UI. Precedence: agent-supplied display_name, then a
+        role-from-port name ("HTTP (:80)"), then the raw identity name."""
+        if self.display_name:
+            return self.display_name
+        if self.service_type == "port" and self.port:
+            from .port_roles import role_for_port
+            role = role_for_port(self.port)
+            if role:
+                return f"{role} (:{self.port})"
+        return self.name
 
 
 class MonitoringConfig(models.Model):

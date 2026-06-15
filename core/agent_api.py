@@ -402,6 +402,10 @@ def agent_ingest_services(request):
                 "process_id": (str(item.get("process_id")) or "")[:50] or None,
                 "last_checked": now,
                 "auto_detected": True,
+                # Optional friendly label + provenance (push-1.6.0+); old agents omit
+                # these -> stays NULL and the display layer falls back to the role map.
+                "display_name": (item.get("display_name") or "")[:150] or None,
+                "detected_via": (item.get("detected_via") or "")[:30] or None,
             },
         )
 

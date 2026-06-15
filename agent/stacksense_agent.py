@@ -29,6 +29,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import ssl
 import subprocess
 import sys
@@ -46,7 +47,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.5.0"
+AGENT_VERSION = "push-1.6.0"
 CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
 DEFAULT_INTERVAL = 30
 HTTP_TIMEOUT = 15
@@ -148,23 +149,204 @@ def collect_top_processes(limit=5):
     return {"cpu": by_cpu, "memory": by_mem}
 
 
+# ---------------------------------------------------------------------------
+# Service identification via privilege-free loopback banner grab
+# ---------------------------------------------------------------------------
+# A listening port tells you the protocol/role, not the product. To tell nginx
+# from Apache from LiteSpeed we connect to 127.0.0.1:<port> and read the service's
+# own banner (HTTP Server header, SSH/SMTP/IMAP greeting, MySQL handshake). This
+# needs no root/sudo/shell change -- loopback TCP is allowed under the agent's
+# hardened systemd unit. Best-effort: any failure -> None (fall back to the role).
+PROBE_TIMEOUT = 1.0  # seconds; keep tight so a slow port never stalls the cycle
+
+# Mirror of core/port_roles.PORT_ROLES (the agent can't import Django). Keep in sync.
+_PORT_ROLES = {
+    80: "HTTP", 443: "HTTPS", 81: "HTTP-Alt", 8080: "HTTP-Alt", 8443: "HTTPS-Alt",
+    2082: "cPanel", 2083: "cPanel (SSL)", 2086: "WHM", 2087: "WHM (SSL)",
+    2095: "Webmail", 2096: "Webmail (SSL)",
+    2077: "cpdavd", 2078: "cpdavd (SSL)", 2079: "cpdavd", 2080: "cpdavd (SSL)",
+    25: "SMTP", 465: "SMTP (SSL)", 587: "SMTP (submission)",
+    110: "POP3", 995: "POP3 (SSL)", 143: "IMAP", 993: "IMAP (SSL)", 4190: "Sieve",
+    53: "DNS", 953: "DNS (rndc)", 21: "FTP", 22: "SSH",
+    3306: "MySQL", 5432: "PostgreSQL", 6379: "Redis", 27017: "MongoDB",
+}
+
+# Which probe to run per port.
+_HTTP_PORTS = {80, 81, 8080, 2082, 2086, 2095, 2077, 2079}
+_HTTPS_PORTS = {443, 8443, 2083, 2087, 2096, 2078, 2080}
+_SMTP_PLAIN = {25, 587}
+_SMTP_TLS = {465}
+_IMAP_POP_PLAIN = {143, 110}
+_IMAP_POP_TLS = {993, 995}
+
+
+def _read_socket(port, tls=False, send=None, read_bytes=4096):
+    """Open a short loopback connection (optionally TLS), optionally send bytes, and
+    return up to read_bytes of the response as text. Best-effort -> None on any error."""
+    sock = None
+    try:
+        sock = socket.create_connection(("127.0.0.1", port), timeout=PROBE_TIMEOUT)
+        sock.settimeout(PROBE_TIMEOUT)
+        if tls:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            sock = ctx.wrap_socket(sock, server_hostname="localhost")
+        if send:
+            sock.sendall(send)
+        return sock.recv(read_bytes).decode("latin-1", "replace")
+    except Exception:
+        return None
+    finally:
+        try:
+            if sock is not None:
+                sock.close()
+        except Exception:
+            pass
+
+
+def _probe_http(port, tls=False):
+    """Return the HTTP `Server:` header value, or None."""
+    resp = _read_socket(port, tls, send=b"HEAD / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+    if not resp:
+        return None
+    for line in resp.split("\r\n"):
+        if line.lower().startswith("server:"):
+            return line.split(":", 1)[1].strip() or None
+    return None
+
+
+def _probe_line(port, tls=False):
+    """Return the first response line of a banner-first protocol (SSH/SMTP/IMAP/POP/FTP)."""
+    resp = _read_socket(port, tls, send=None)
+    if not resp:
+        return None
+    return resp.replace("\r", "").split("\n", 1)[0].strip() or None
+
+
+def _probe_mysql(port):
+    """Return the MySQL/MariaDB version string from the initial handshake, or None."""
+    resp = _read_socket(port, tls=False, send=None, read_bytes=128)
+    if not resp or len(resp) < 6:
+        return None
+    body = resp[5:]              # [3B length][1B seq][1B protocol=10][version NUL-terminated]
+    end = body.find("\x00")
+    return body[:end].strip() if end > 0 else None
+
+
+def _identify_server_header(value):
+    """Map an HTTP Server header to a canonical web-server product, or None."""
+    if not value:
+        return None
+    v = value.lower()
+    if "nginx" in v:
+        return "nginx"
+    if "litespeed" in v or "openlitespeed" in v or "lsws" in v:
+        return "LiteSpeed"
+    if "apache" in v:
+        return "Apache"
+    if "cpsrvd" in v:
+        return "cpsrvd"
+    if "openresty" in v:
+        return "OpenResty"
+    if "caddy" in v:
+        return "Caddy"
+    if "microsoft-iis" in v or v.startswith("iis"):
+        return "IIS"
+    return value.split("/")[0].strip() or None   # else report what it actually said
+
+
+def _identify_banner(value):
+    """Map a protocol greeting line to a canonical product, or None."""
+    if not value:
+        return None
+    v = value.lower()
+    if "openssh" in v:
+        return "OpenSSH"
+    if v.startswith("ssh-"):
+        return "SSH"
+    if "exim" in v:
+        return "Exim"
+    if "postfix" in v:
+        return "Postfix"
+    if "dovecot" in v:
+        return "Dovecot"
+    if "proftpd" in v:
+        return "ProFTPD"
+    if "pure-ftpd" in v:
+        return "Pure-FTPd"
+    if "vsftpd" in v:
+        return "vsftpd"
+    if "courier" in v:
+        return "Courier"
+    return None
+
+
+def _identify_port(port):
+    """Best-effort privilege-free product ID for a loopback listening port, or None."""
+    if port in _HTTP_PORTS:
+        return _identify_server_header(_probe_http(port, tls=False))
+    if port in _HTTPS_PORTS:
+        return _identify_server_header(_probe_http(port, tls=True))
+    if port == 22:
+        return _identify_banner(_probe_line(port))
+    if port in _SMTP_PLAIN:
+        return _identify_banner(_probe_line(port))
+    if port in _SMTP_TLS:
+        return _identify_banner(_probe_line(port, tls=True))
+    if port in _IMAP_POP_PLAIN:
+        return _identify_banner(_probe_line(port))
+    if port in _IMAP_POP_TLS:
+        return _identify_banner(_probe_line(port, tls=True))
+    if port == 21:
+        return _identify_banner(_probe_line(port))
+    if port == 3306:
+        ver = _probe_mysql(port)
+        if ver:
+            return "MariaDB" if "mariadb" in ver.lower() else "MySQL"
+    return None
+
+
+def _name_for_port(port, product, pname=""):
+    """Return (display_name, detected_via) for a listening port.
+
+    Precedence: verified banner product > the real process name (when psutil could
+    see it) > well-known-port role > raw port. `name` (the upsert identity) is set
+    separately and stays stable; this is only the cosmetic label.
+    """
+    if product:
+        return f"{product} (:{port})", "port-banner"
+    if pname:
+        return f"{pname} (:{port})", "port-process"
+    role = _PORT_ROLES.get(port)
+    if role:
+        return f"{role} (:{port})", "port-map"
+    return f"port-{port}", "port-unknown"
+
+
 def collect_services():
     """Detect running services on this host.
 
     Primary source: systemd running units (works as a non-root user).
-    Best-effort secondary: listening TCP/UDP ports (only what psutil can see).
-    Returns a list of {name, status, service_type, port, bind_address, process_id}.
+    Best-effort secondary: listening TCP/UDP ports, with a privilege-free banner
+    grab to identify the real product (nginx vs Apache vs LiteSpeed, Exim, ...).
+    Returns a list of dicts {name, status, service_type, port, bind_address,
+    process_id, display_name, detected_via}.
     """
     services = []
     seen = set()
 
     # systemd running services
+    sysd_count = 0
     try:
         out = subprocess.run(
             ["systemctl", "list-units", "--type=service", "--state=running",
              "--no-pager", "--no-legend", "--plain"],
             capture_output=True, text=True, timeout=10,
         )
+        if out.returncode != 0:
+            print(f"[services] systemctl exited {out.returncode}: "
+                  f"{(out.stderr or '').strip()[:200]}", file=sys.stderr)
         for line in out.stdout.splitlines():
             parts = line.split(None, 4)
             if not parts:
@@ -175,10 +357,23 @@ def collect_services():
                 if name and name not in seen:
                     seen.add(name)
                     services.append({"name": name, "status": "running", "service_type": "systemd"})
-    except Exception:
-        pass
+                    sysd_count += 1
+    except FileNotFoundError:
+        print("[services] systemctl not found -- not a systemd host; "
+              "using listening-port detection only", file=sys.stderr)
+    except Exception as e:
+        print(f"[services] systemd detection failed ({e!r}); "
+              f"using listening-port detection only", file=sys.stderr)
+    if sysd_count == 0:
+        print("[services] no systemd units detected; relying on listening-port "
+              "detection (services will be named by port/banner)", file=sys.stderr)
 
-    # Listening ports (best-effort; full visibility needs root)
+    # Listening ports (best-effort; full visibility needs root). For each port we
+    # attempt a 1s loopback banner grab to name the real product; on failure we
+    # fall back to the well-known-port role, then the raw port. `name` (the upsert
+    # identity) stays stable (process name when visible, else "port-<n>"); the
+    # friendly label rides in display_name so it can change without churning rows.
+    probed = {}  # port -> product (a port can appear on both IPv4 and IPv6)
     try:
         for conn in psutil.net_connections(kind="inet"):
             if conn.status != "LISTEN" or not conn.laddr:
@@ -193,10 +388,14 @@ def collect_services():
             if key in seen:
                 continue
             seen.add(key)
+            if port not in probed:
+                probed[port] = _safe(lambda: _identify_port(port))
+            display_name, detected_via = _name_for_port(port, probed[port], pname)
             services.append({
                 "name": name, "status": "running", "service_type": "port",
                 "port": port, "bind_address": addr,
                 "process_id": str(conn.pid) if conn.pid else "",
+                "display_name": display_name, "detected_via": detected_via,
             })
     except Exception:
         pass
