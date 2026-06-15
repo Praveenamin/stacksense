@@ -5303,7 +5303,13 @@ def server_anomalies_log(request, server_id):
             anomalies_query = anomalies_query.filter(severity=severity_filter)
     
     anomalies = list(anomalies_query[:500])  # Limit to 500 most recent
-    
+
+    # Only offer the selection UI (select-all checkbox, per-row checkboxes, bulk-resolve
+    # button) when there is actually something to resolve in the current view -- i.e. at
+    # least one unresolved anomaly is shown. Otherwise the controls are dead and look
+    # broken (clicking select-all does nothing because resolved rows have no checkbox).
+    show_anomaly_checkboxes = status_filter != 'resolved' and any(not a.resolved for a in anomalies)
+
     # Counts for summary
     total_anomalies = Anomaly.objects.filter(server=server).count()
     unresolved_count = Anomaly.objects.filter(server=server, resolved=False).count()
@@ -5324,9 +5330,10 @@ def server_anomalies_log(request, server_id):
         'selected_status': status_filter,
         'selected_severity': severity_filter,
         'severity_choices': Anomaly.Severity.choices,
+        'show_anomaly_checkboxes': show_anomaly_checkboxes,
         'show_sidebar': True,
     }
-    
+
     return render(request, 'core/server_anomalies_log.html', context)
 
 

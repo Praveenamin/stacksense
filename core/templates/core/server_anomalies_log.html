@@ -82,7 +82,7 @@
 <div class="al-card" style="overflow:hidden;">
     <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #f1f5f9;">
         <h2 style="font-size:14px; font-weight:600; color:#0f172a; margin:0;">Anomalies <span style="font-size:12px; font-weight:400; color:#94a3b8;">({{ anomalies|length }} shown)</span></h2>
-        {% if selected_status == 'unresolved' or selected_status == '' %}
+        {% if show_anomaly_checkboxes %}
         <button id="bulk-resolve-anomalies-btn" class="al-btn-resolve" style="display:none; margin-left:0;">Resolve selected</button>
         {% endif %}
     </div>
@@ -91,7 +91,7 @@
     <table style="width:100%; border-collapse:collapse; font-size:13px;">
         <thead>
             <tr style="background:#f8fafc;">
-                {% if selected_status != 'resolved' %}
+                {% if show_anomaly_checkboxes %}
                 <th class="al-th" style="width:40px;"><input type="checkbox" id="select-all-anomalies" style="cursor:pointer;"></th>
                 {% endif %}
                 <th class="al-th">Type</th>
@@ -105,7 +105,7 @@
         <tbody>
             {% for anomaly in anomalies %}
             <tr data-anomaly-id="{{ anomaly.id }}" style="border-top:1px solid #f1f5f9; {% if not anomaly.resolved %}background:#fffdf7;{% endif %}">
-                {% if selected_status != 'resolved' %}
+                {% if show_anomaly_checkboxes %}
                 <td style="padding:12px 16px; vertical-align:middle;">
                     {% if not anomaly.resolved %}<input type="checkbox" class="anomaly-checkbox" value="{{ anomaly.id }}" style="cursor:pointer;">{% endif %}
                 </td>
@@ -283,7 +283,7 @@ document.getElementById('anomaly-modal').addEventListener('click', function(e) {
 });
 
 // Bulk resolve functionality for anomalies
-{% if selected_status != 'resolved' %}
+{% if show_anomaly_checkboxes %}
 document.addEventListener('DOMContentLoaded', function() {
     const selectAllCheckbox = document.getElementById('select-all-anomalies');
     const anomalyCheckboxes = document.querySelectorAll('.anomaly-checkbox');
