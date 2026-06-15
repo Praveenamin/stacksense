@@ -4262,10 +4262,12 @@ def alert_history(request):
         ('resolved', 'Acknowledged'),
     ]
     
-    # Counts for summary cards (all alerts and anomalies, not filtered)
-    # Apply time range to counts if specified
+    # Counts for summary cards (window-scoped, but NOT narrowed by the category/instance/
+    # status filters). Mirror the list's population so the cards can't disagree with it:
+    # LOW-severity anomalies are demoted off this "critical alerts" page, so they must be
+    # excluded from the counts too (otherwise the cards count rows the table then hides).
     base_query_alerts = AlertHistory.objects.all()
-    base_query_anomalies = Anomaly.objects.all()
+    base_query_anomalies = Anomaly.objects.all().exclude(severity=Anomaly.Severity.LOW)
     
     if time_range == '24h':
         time_threshold = now - timedelta(hours=24)
@@ -4291,7 +4293,12 @@ def alert_history(request):
     unacknowledged_items = triggered_alerts + unresolved_anomalies  # Unacknowledged Alerts
     acknowledged_items = resolved_alerts + resolved_anomalies  # Acknowledged Alerts (resolved)
     total_critical = unacknowledged_items  # Total Critical Alerts (unacknowledged)
-    critical_severity_count = total_critical  # Critical Severity (same as total critical for now)
+    # Critical Severity = items whose severity actually is CRITICAL (not "everything
+    # unacknowledged"). AlertHistory.severity reuses the Anomaly.Severity values.
+    critical_severity_count = (
+        base_query_alerts.filter(severity=Anomaly.Severity.CRITICAL).count()
+        + base_query_anomalies.filter(severity=Anomaly.Severity.CRITICAL).count()
+    )
     
     # Filtered count
     filtered_count = len(unified_items)
