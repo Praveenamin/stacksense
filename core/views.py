@@ -1497,13 +1497,28 @@ def add_server(request):
     return redirect('add_server_agent')
 
 
+def _public_base_url(request):
+    """Public base URL for agent commands / links. Prefer the operator-configured base
+    URL (set in /setup -- it carries the true external scheme+host+PORT, even behind a
+    forward / non-standard port where the request Host can't be trusted to). Fall back
+    to the request host only if it isn't configured."""
+    try:
+        from .models import AppConfig
+        configured = (AppConfig.get_config().base_url or "").strip().rstrip("/")
+        if configured:
+            return configured
+    except Exception:
+        pass
+    return request.build_absolute_uri('/').rstrip('/')
+
+
 def _render_agent_install_command(request, server, raw_token, created=False, rotated=False):
     """Render the one-time page showing a server's agent install command.
 
     The raw token is only available here (it is stored hashed), so this page is
     the single place the operator can copy it from.
     """
-    base_url = request.build_absolute_uri('/').rstrip('/')
+    base_url = _public_base_url(request)
     install_cmd = (
         f"curl -fsSL {base_url}/agent/install.sh | sudo bash -s -- "
         f"--url {base_url} --token {raw_token}"
@@ -7871,7 +7886,7 @@ def executive_report(request):
 def _business_context(request, new_raw_token=None):
     kpis = BusinessKPI.objects.all()
     cfg = BusinessMonitorConfig.get_config()
-    base_url = request.build_absolute_uri("/").rstrip("/")
+    base_url = _public_base_url(request)
     summary = {"total": kpis.count(), "ok": 0, "warning": 0, "critical": 0}
     for k in kpis:
         if k.last_status in summary:

@@ -8,7 +8,7 @@ with an admin is never gated), and CSRF.
 """
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client
+from django.test import TestCase, Client, RequestFactory
 from django.urls import reverse
 
 from core.models import AppConfig
@@ -143,3 +143,37 @@ class CsrfTests(TestCase):
         r = c.post(SETUP_URL, VALID)
         self.assertEqual(r.status_code, 403)
         self.assertFalse(User.objects.filter(username="owner").exists())
+
+
+class PublicBaseUrlTests(TestCase):
+    """The agent-install command and links must use the operator-configured base URL
+    (which carries the true external scheme+host+PORT, e.g. :1443 behind a CloudStack
+    forward), not the request Host -- which can't be trusted to carry the port."""
+
+    def _req(self, host):
+        return RequestFactory().get("/", HTTP_HOST=host)
+
+    def test_prefers_configured_base_url_over_request_host(self):
+        from core.views import _public_base_url
+        AppConfig.objects.update_or_create(
+            id=1, defaults={"base_url": "https://monitor.example.com:1443"}
+        )
+        # Request arrives with a portless Host (what the forward actually passes).
+        url = _public_base_url(self._req("monitor.example.com"))
+        self.assertEqual(url, "https://monitor.example.com:1443")
+
+    def test_strips_trailing_slash_from_configured_url(self):
+        from core.views import _public_base_url
+        AppConfig.objects.update_or_create(
+            id=1, defaults={"base_url": "https://monitor.example.com:1443/"}
+        )
+        self.assertEqual(
+            _public_base_url(self._req("monitor.example.com")),
+            "https://monitor.example.com:1443",
+        )
+
+    def test_falls_back_to_request_when_base_url_unset(self):
+        from core.views import _public_base_url
+        AppConfig.objects.update_or_create(id=1, defaults={"base_url": ""})
+        url = _public_base_url(self._req("monitor.example.com:1443"))
+        self.assertEqual(url, "http://monitor.example.com:1443")
