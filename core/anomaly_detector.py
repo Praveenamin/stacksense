@@ -73,6 +73,7 @@ class AnomalyDetector:
             self.config.cpu_threshold, [m.cpu_percent for m in history],
         )
         if a:
+            a["explanation"] += self._top_process_suffix(metric, "cpu")
             anomalies.append(a)
 
         # Memory
@@ -81,6 +82,7 @@ class AnomalyDetector:
             self.config.memory_threshold, [m.memory_percent for m in history],
         )
         if a:
+            a["explanation"] += self._top_process_suffix(metric, "memory")
             anomalies.append(a)
 
         # Disk (per monitored mount)
@@ -107,6 +109,30 @@ class AnomalyDetector:
             anomalies.append(net)
 
         return anomalies
+
+    def _top_process_suffix(self, metric, kind):
+        """A ' Top process at that time: <name> (pid N) at X% CPU/memory.' clause built
+        from the metric's own captured top_processes -- so a CPU/memory anomaly names the
+        culprit that was heaviest at that exact sample (mirrors the leak-detector style).
+        Returns '' if no process data was captured."""
+        try:
+            tp = metric.top_processes
+            if isinstance(tp, str):
+                tp = json.loads(tp)
+            rows = (tp or {}).get(kind) or []
+            if not rows:
+                return ""
+            p = rows[0]                       # agent sorts each list heaviest-first
+            name = p.get("name") or "unknown"
+            pid = p.get("pid")
+            field = "cpu_percent" if kind == "cpu" else "memory_percent"
+            unit = "CPU" if kind == "cpu" else "memory"
+            val = p.get(field)
+            pid_str = f" (pid {pid})" if pid else ""
+            val_str = f" at {val:.0f}% {unit}" if isinstance(val, (int, float)) else ""
+            return f" Top process at that time: {name}{pid_str}{val_str}."
+        except Exception:
+            return ""
 
     def _baseline_anomaly(self, metric_type, metric_name, label, value, threshold, history):
         """Return an anomaly dict for `value` (hard ceiling OR robust-z baseline), else None."""
