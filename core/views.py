@@ -61,8 +61,13 @@ def _calculate_server_status(server):
     except (MonitoringConfig.DoesNotExist, AttributeError):
         pass  # Continue with normal status calculation
     
-    # Determine adaptive threshold based on app downtime
-    base_threshold = 60  # Normal threshold: 60 seconds
+    # Determine adaptive threshold based on app downtime.
+    # The agent pushes ~every 30s, but a single FAILED push cycle (3 retries x 15s timeout
+    # + delays) takes ~55s with no heartbeat -- so a tight 60s threshold flapped a healthy
+    # server "offline" on one transient blip (server load spike / cross-region network
+    # hiccup). Default to 180s so a few consecutive missed pushes are tolerated while a
+    # real outage still surfaces within ~3 min. Operator-tunable via settings.
+    base_threshold = int(getattr(settings, "OFFLINE_THRESHOLD_SECONDS", 180))
     app_heartbeat_key = "monitoring_app_heartbeat"
     app_heartbeat_file = "/tmp/monitoring_app_heartbeat.txt"
     
