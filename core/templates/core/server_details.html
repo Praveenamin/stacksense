@@ -52,13 +52,12 @@
 </style>
 <!-- Page Header -->
 <div style="margin-bottom: var(--cds-spacing-8);">
-    <nav style="margin-bottom: var(--cds-spacing-4); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
-        <a href="{% url 'monitoring_dashboard' %}" style="color: var(--cds-color-blue-60); text-decoration: none;">Dashboard</a>
-        <span style="margin: 0 var(--cds-spacing-2);">/</span>
-        <span style="color: var(--cds-color-gray-100); font-weight: var(--cds-font-weight-medium);">{{ server.name }}</span>
-    </nav>
-
-    <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: var(--cds-spacing-4); flex-wrap: wrap;">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--cds-spacing-4); flex-wrap: wrap;">
+        <nav style="font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+            <a href="{% url 'monitoring_dashboard' %}" style="color: var(--cds-color-blue-60); text-decoration: none;">Dashboard</a>
+            <span style="margin: 0 var(--cds-spacing-2);">/</span>
+            <span style="color: var(--cds-color-gray-100); font-weight: var(--cds-font-weight-medium);">{{ server.name }}</span>
+        </nav>
         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
             <span style="font-family: var(--cds-font-family-mono);">{{ server.ip_address }}</span>
             <span>•</span>
