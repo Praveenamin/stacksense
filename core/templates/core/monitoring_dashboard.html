@@ -282,16 +282,9 @@
 
     <!-- PERFORMANCE -->
     <div class="dash-section">Performance</div>
-    {% if has_response_time_data %}
-    <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 20px;">
-        {% include "core/components/dashboard/network_traffic_chart.html" %}
-        {% include "core/components/dashboard/response_time_chart.html" %}
-    </div>
-    {% else %}
     <div style="margin-bottom: 20px;">
         {% include "core/components/dashboard/network_traffic_chart.html" %}
     </div>
-    {% endif %}
     <!-- Disk I/O paired with Alert Timeline (half-width, matches the grid) -->
     <div class="dashboard-grid dashboard-grid-2col" style="margin-bottom: 32px;">
         {% include "core/components/dashboard/disk_io_summary.html" %}

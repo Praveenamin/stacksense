@@ -1252,13 +1252,6 @@ def monitoring_dashboard(request):
     containers_total = containers_qs.count()
     containers_running = containers_qs.filter(state="running").count()
 
-    # Response Time (service latency) is APM-adjacent: only show it once there is
-    # actual latency data from a monitored service.
-    from core.models import ServiceLatencyMeasurement
-    has_response_time_data = ServiceLatencyMeasurement.objects.filter(
-        service__monitoring_enabled=True
-    ).exists()
-
     # Overview health roll-up (servers + monitored services + monitored containers)
     _healthy = online_count + services_running + containers_running
     _targets = len(servers_data) + services_total + containers_total
@@ -1287,7 +1280,6 @@ def monitoring_dashboard(request):
         "containers_total": containers_total,
         "containers_running": containers_running,
         "containers_stopped": containers_total - containers_running,
-        "has_response_time_data": has_response_time_data,
         "top_disk_partitions": top_disk_partitions,
     }
 

@@ -23,7 +23,6 @@ signal.signal(signal.SIGINT, signal_handler)
 print("Starting metrics collection scheduler (every 30 seconds)...")
 interval = 30  # 30 seconds
 anomaly_detection_interval = 300  # Run anomaly detection every 5 minutes
-latency_collection_interval = 60  # Run latency collection every minute
 synthetic_check_interval = 30  # Run due synthetic (uptime) checks every 30s
 security_detection_interval = 60  # Run security detection every minute
 connectivity_check_interval = 60  # Check for down/recovered servers every minute
@@ -32,7 +31,6 @@ aggregate_interval = 86400  # Roll raw metrics into hourly/daily summaries once 
 prune_interval = 86400  # Enforce the data-retention window once a day (runs after aggregation)
 
 last_anomaly_check = timezone.now()
-last_latency_collection = timezone.now()
 last_synthetic_check = timezone.now()
 last_security_detection = timezone.now()
 last_connectivity_check = timezone.now()
@@ -61,16 +59,8 @@ while running:
             except Exception as e:
                 print(f"Error in anomaly detection: {str(e)}")
 
-        # Run service latency collection every minute
-        time_since_last_latency = (timezone.now() - last_latency_collection).total_seconds()
-        if time_since_last_latency >= latency_collection_interval:
-            try:
-                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running service latency collection...")
-                call_command("collect_service_latency", verbosity=0)
-                last_latency_collection = timezone.now()
-                print("Service latency collection completed.")
-            except Exception as e:
-                print(f"Error in service latency collection: {str(e)}")
+        # Service latency ("Response Time") collection is disabled -- the dashboard card
+        # was removed. Re-enable here (and re-add the dashboard card) to bring it back.
 
         # Run due synthetic (uptime) checks every 30 seconds
         time_since_last_synthetic = (timezone.now() - last_synthetic_check).total_seconds()
