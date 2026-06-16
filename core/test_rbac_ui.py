@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core import permissions as perms
-from core.models import Role, UserACL
+from core.models import Role, UserACL, Server, Service, Container
 
 
 class RBACUITests(TestCase):
@@ -106,3 +106,66 @@ class RBACUITests(TestCase):
         self.client.force_login(self.operator)
         self.assertNotIn("Switch to another user",
                          self.client.get(reverse("monitoring_dashboard")).content.decode())
+
+
+class _ControlsBase(TestCase):
+    """Operator (no manage_monitoring) must SEE servers/services/containers but with the
+    mutating controls shown DISABLED (faded), not hidden. Admin gets active controls."""
+    @classmethod
+    def setUpTestData(cls):
+        perms.sync_roles()
+        cls.admin = User.objects.create_superuser("ctl_admin", "a@x.com", "pw")
+        cls.operator = User.objects.create_user("ctl_op", "o@x.com", "pw", is_staff=True)
+        acl = UserACL.get_or_create_for_user(cls.operator)
+        acl.role = Role.objects.get(name=perms.ROLE_OPERATOR)
+        acl.save()
+        cls.server = Server.objects.create(name="s1", ip_address="10.0.0.1", username="agent")
+        Service.objects.create(server=cls.server, name="nginx", service_type="systemd", status="running")
+        Container.objects.create(server=cls.server, name="web", image="nginx:latest", state="running")
+
+    def html(self, user, url):
+        self.client.force_login(user)
+        return self.client.get(url).content.decode()
+
+
+class OperatorSeesDisabledControlsTests(_ControlsBase):
+    def test_server_list_actions_disabled(self):
+        h = self.html(self.operator, reverse("server_list"))
+        self.assertIn('rbac-disabled"', h)   # the class applied to a control (not the CSS rule)
+        self.assertNotIn(f'href="/server/edit/{self.server.id}/"', h)  # no active edit link
+        self.assertIn(f'href="/server/{self.server.id}/"', h)          # View details still works
+
+    def test_server_details_edit_and_token_disabled(self):
+        h = self.html(self.operator, reverse("server_details", args=[self.server.id]))
+        self.assertIn('rbac-disabled"', h)   # the class applied to a control (not the CSS rule)
+        self.assertNotIn(f'href="/server/edit/{self.server.id}/"', h)
+        self.assertNotIn("regenerate", h.lower())                      # no token POST form
+
+    def test_services_toggle_disabled(self):
+        h = self.html(self.operator, reverse("services_overview"))
+        self.assertIn('rbac-disabled"', h)   # the class applied to a control (not the CSS rule)
+        self.assertIn('<input type="checkbox" disabled', h)
+
+    def test_containers_toggle_disabled_but_report_available(self):
+        h = self.html(self.operator, reverse("containers_overview"))
+        self.assertIn('rbac-disabled"', h)   # the class applied to a control (not the CSS rule)
+        self.assertIn('<input type="checkbox" disabled', h)
+        self.assertIn(">Report<", h)                                   # listing + report stay
+
+
+class AdminSeesActiveControlsTests(_ControlsBase):
+    def test_server_list_actions_active(self):
+        h = self.html(self.admin, reverse("server_list"))
+        self.assertNotIn('rbac-disabled"', h)   # no control carries the disabled class
+        self.assertIn(f'href="/server/edit/{self.server.id}/"', h)
+
+    def test_server_details_edit_and_token_active(self):
+        h = self.html(self.admin, reverse("server_details", args=[self.server.id]))
+        self.assertNotIn('rbac-disabled"', h)   # no control carries the disabled class
+        self.assertIn(f'href="/server/edit/{self.server.id}/"', h)
+        self.assertIn("regenerate", h.lower())
+
+    def test_services_toggle_active(self):
+        h = self.html(self.admin, reverse("services_overview"))
+        self.assertNotIn('rbac-disabled"', h)   # no control carries the disabled class
+        self.assertNotIn('<input type="checkbox" disabled', h)

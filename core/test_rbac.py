@@ -199,6 +199,23 @@ class WriteEnforcementTests(RBACTestBase):
         self.client.force_login(self.norole)
         self.assertEqual(self.client.post(reverse("add_server"), {}).status_code, 403)
 
+    def test_operator_denied_each_monitoring_mutation(self):
+        # The exact actions the support operator must not perform: edit/delete/regen-token,
+        # toggle service/container monitoring, suspend alerts. Middleware denies (403)
+        # before the view runs, so non-existent ids are fine.
+        self.client.force_login(self.operator)
+        routes = [
+            ("edit_server", {"server_id": 1}),
+            ("delete_server", {"server_id": 1}),
+            ("regenerate_agent_token", {"server_id": 1}),
+            ("toggle_service_monitoring", {"server_id": 1, "service_id": 1}),
+            ("toggle_container_monitoring", {"server_id": 1, "container_id": 1}),
+            ("toggle_alert_suppression", {"server_id": 1, "action": "suspend"}),
+        ]
+        for name, kw in routes:
+            r = self.client.post(reverse(name, kwargs=kw))
+            self.assertEqual(r.status_code, 403, f"{name} must be denied for operator")
+
 
 class ExecutivePersonaGuardTests(RBACTestBase):
     def test_operator_forced_to_operations_even_if_persona_executive(self):

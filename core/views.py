@@ -828,13 +828,9 @@ def server_details(request, server_id):
 
 @staff_member_required
 def server_list(request):
-    """Server list view with CRUD actions"""
-    from .utils import has_privilege
-
-    if not has_privilege(request.user, 'manage_monitoring'):
-        messages.error(request, "You don't have permission to view servers.")
-        return redirect('monitoring_dashboard')
-
+    """Server list view. Viewing is read-only (VIEW_OPERATIONS, allowed for the support
+    Operator); the per-row edit/suspend/delete actions require manage_monitoring and are
+    shown disabled for users without it (and enforced server-side by the RBAC middleware)."""
     servers = Server.objects.all().select_related("monitoring_config").order_by("name")
     import json
     from django.core.cache import cache

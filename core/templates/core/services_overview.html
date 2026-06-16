@@ -58,7 +58,7 @@
                 <td style="padding:9px 18px;color:#64748b;">{{ s.service_type }}</td>
                 <td style="padding:9px 18px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
                 <td style="padding:9px 18px;text-align:right;">
-                    <label class="switch"><input type="checkbox" {% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
+                    <label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
                 </td>
             </tr>
         {% endfor %}
@@ -80,7 +80,7 @@
                     <td style="padding:8px 18px;color:#475569;">{{ s.label }}{% if s.service_type == 'port' %} <span title="Detected by listening port" style="font-size:10px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:999px;vertical-align:middle;">via port</span>{% endif %}</td>
                     <td style="padding:8px 18px;color:#94a3b8;">{{ s.service_type }}</td>
                     <td style="padding:8px 18px;">{% if s.status == 'running' %}<span style="color:#166534;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
-                    <td style="padding:8px 18px;text-align:right;"><label class="switch"><input type="checkbox" {% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
+                    <td style="padding:8px 18px;text-align:right;"><label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
                 </tr>
             {% endfor %}
             </tbody>

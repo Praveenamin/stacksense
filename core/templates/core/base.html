@@ -181,6 +181,8 @@
             .insight-icon:hover { background:#f1f5f9; }
             .insight-icon.active { border-color:#0f62fe; box-shadow:0 0 0 2px rgba(15,98,254,.15); }
             .insight-badge { position:absolute; top:-6px; right:-6px; background:#0f62fe; color:#fff; font-size:10px; font-weight:700; min-width:16px; height:16px; padding:0 4px; border-radius:999px; display:flex; align-items:center; justify-content:center; }
+            /* A control shown but not permitted (lacking the capability): faded + inert. */
+            .rbac-disabled { opacity:.4 !important; cursor:not-allowed !important; pointer-events:none; }
         </style>
         <script>
             function toggleSettingsMenu(e) {
