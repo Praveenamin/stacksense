@@ -640,18 +640,18 @@
             const d = await res.json();
             const GB = 1024 * 1024 * 1024;
             const pts = d.points || [];
-            const labels = pts.map(p => fmtTs(p.t));
-            const used = pts.map(p => p.used / GB);
-            const n = used.length;
-            const trend = [];
+            const n = pts.length;
+            const usedPts = pts.map(p => ({ x: new Date(p.t).getTime(), y: p.used / GB }));
+            let trendPts = [];
             if (d.trend_line && d.trend_line.length === 2 && n > 1) {
                 const y0 = d.trend_line[0].value / GB, y1 = d.trend_line[1].value / GB;
-                for (let i = 0; i < n; i++) trend.push(y0 + (y1 - y0) * (i / (n - 1)));
+                trendPts = pts.map((p, i) => ({ x: new Date(p.t).getTime(), y: y0 + (y1 - y0) * (i / (n - 1)) }));
             }
             if (memoryTrendChart) {
-                memoryTrendChart.data.labels = labels;
-                memoryTrendChart.data.datasets[0].data = used;
-                memoryTrendChart.data.datasets[1].data = trend;
+                setXWindow(memoryTrendChart, range);    // span the selected window (24h/7d)
+                memoryTrendChart.data.labels = [];
+                memoryTrendChart.data.datasets[0].data = usedPts;
+                memoryTrendChart.data.datasets[1].data = trendPts;
                 memoryTrendChart.update('none');
             }
             if (summary) {
@@ -685,10 +685,14 @@
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { position: 'top', labels: { boxWidth: 12, usePointStyle: true, font: { size: 11 } } },
-                tooltip: { mode: 'index', intersect: false },
+                tooltip: { mode: 'index', intersect: false,
+                    callbacks: { title: function (items) { return items.length ? fmtTs(new Date(items[0].parsed.x)) : ''; } } },
             },
             scales: {
-                x: { display: false },   // time shows on hover (like the dashboard)
+                // Time x-axis spanning the SELECTED window (min/max set per refresh), so the
+                // axis always shows e.g. the last 24h / 7d / 30d -- with empty space where
+                // there's no data, instead of compressing to just the points that exist.
+                x: timeXScale(),
                 y: Object.assign({ grid: { color: 'rgba(15,23,42,0.05)' }, ticks: { font: { size: 10 } } }, yOpts),
             },
         });
@@ -736,8 +740,7 @@
         loadMemoryTrend('24h');
     }
 
-    // Chart hover label: the x-axis is hidden, so this string is what shows on
-    // hover. Include the DATE (not just the time) — essential on 7d / 30d ranges.
+    // Tooltip label (shown on hover): full date + time.
     function fmtTs(v) {
         const d = (v instanceof Date) ? v : new Date(v);
         return d.toLocaleString([], {
@@ -746,42 +749,66 @@
         });
     }
 
+    // The selected window in milliseconds.
+    function rangeToMs(range) {
+        if (range === '7d') return 7 * 24 * 3600 * 1000;
+        if (range === '30d') return 30 * 24 * 3600 * 1000;
+        if (range === '90d') return 90 * 24 * 3600 * 1000;
+        return 24 * 3600 * 1000;                       // 24h default
+    }
+
+    // Pin a chart's x-axis to [now - window, now] so it always spans the full range.
+    function setXWindow(chart, range) {
+        if (!chart) return;
+        const now = Date.now();
+        chart.options.scales.x.min = now - rangeToMs(range);
+        chart.options.scales.x.max = now;
+    }
+
+    // A linear (time-proportional) x-axis. Tick labels: time for <=~36h windows, date
+    // for longer ones. min/max are set per refresh by setXWindow().
+    function timeXScale() {
+        return {
+            type: 'linear', display: true, bounds: 'ticks',
+            grid: { display: false },
+            ticks: {
+                maxTicksLimit: 7, autoSkip: true, maxRotation: 0,
+                font: { size: 10 }, color: '#94a3b8',
+                callback: function (value) {
+                    const span = (this.max - this.min) || 0;
+                    const dt = new Date(value);
+                    if (span <= 36 * 3600 * 1000)
+                        return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return dt.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                }
+            }
+        };
+    }
+
     function updateCharts(data) {
-        // Update CPU & Memory chart
-        if (data.cpu && data.memory && data.cpu.length > 0) {
-            const timestamps = data.cpu.map(d => {
-                const date = new Date(d.timestamp);
-                return fmtTs(date);
-            });
-            cpuMemoryChart.data.labels = timestamps;
-            cpuMemoryChart.data.datasets[0].data = data.cpu.map(d => d.value);
-            cpuMemoryChart.data.datasets[1].data = data.memory.map(d => d.value);
-            cpuMemoryChart.update('none');
-        }
-        
-        // Update Disk I/O chart
-        if (data.disk_io && data.disk_io.length > 0) {
-            const timestamps = data.disk_io.map(d => {
-                const date = new Date(d.timestamp);
-                return fmtTs(date);
-            });
-            diskIOChart.data.labels = timestamps;
-            diskIOChart.data.datasets[0].data = data.disk_io.map(d => (d.read || 0) / (1024 * 1024));
-            diskIOChart.data.datasets[1].data = data.disk_io.map(d => (d.write || 0) / (1024 * 1024));
-            diskIOChart.update('none');
-        }
-        
-        // Update Network I/O chart
-        if (data.network && data.network.length > 0) {
-            const timestamps = data.network.map(d => {
-                const date = new Date(d.timestamp);
-                return fmtTs(date);
-            });
-            networkIOChart.data.labels = timestamps;
-            networkIOChart.data.datasets[0].data = data.network.map(d => (d.rx || 0) / (1024 * 1024));
-            networkIOChart.data.datasets[1].data = data.network.map(d => (d.tx || 0) / (1024 * 1024));
-            networkIOChart.update('none');
-        }
+        // {x: epoch-ms, y: value} points so each sample sits at its real time position on
+        // the windowed axis; missing periods are simply blank. The window is set every
+        // refresh (even with no data) so the axis always shows the selected range.
+        const MB = 1024 * 1024;
+        const toXY = (arr, valFn) => (arr || []).map(d => ({ x: new Date(d.timestamp).getTime(), y: valFn(d) }));
+
+        setXWindow(cpuMemoryChart, chartRange);
+        cpuMemoryChart.data.labels = [];
+        cpuMemoryChart.data.datasets[0].data = toXY(data.cpu, d => d.value);
+        cpuMemoryChart.data.datasets[1].data = toXY(data.memory, d => d.value);
+        cpuMemoryChart.update('none');
+
+        setXWindow(diskIOChart, chartRange);
+        diskIOChart.data.labels = [];
+        diskIOChart.data.datasets[0].data = toXY(data.disk_io, d => (d.read || 0) / MB);
+        diskIOChart.data.datasets[1].data = toXY(data.disk_io, d => (d.write || 0) / MB);
+        diskIOChart.update('none');
+
+        setXWindow(networkIOChart, chartRange);
+        networkIOChart.data.labels = [];
+        networkIOChart.data.datasets[0].data = toXY(data.network, d => (d.rx || 0) / MB);
+        networkIOChart.data.datasets[1].data = toXY(data.network, d => (d.tx || 0) / MB);
+        networkIOChart.update('none');
     }
     
     function openDiskModal() {
