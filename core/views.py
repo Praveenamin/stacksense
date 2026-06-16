@@ -5635,9 +5635,10 @@ def dashboard_summary_stats_api(request):
         from datetime import datetime, timedelta
         
         total_servers = Server.objects.count()
+        # Anomalies are notifications (shown only on the dashboard anomalies bell), NOT
+        # alerts -- so they're excluded from the alerts banner/summary count.
         active_alerts = AlertHistory.objects.filter(status='triggered').count()
-        active_anomalies = Anomaly.objects.filter(resolved=False).count()
-        
+
         # Count critical servers (warning or offline status)
         critical_count = 0
         online_count = 0
@@ -5664,7 +5665,7 @@ def dashboard_summary_stats_api(request):
             'data': {
                 'total_vms': total_servers,
                 'server_trend': server_trend,
-                'active_alerts': active_alerts + active_anomalies,
+                'active_alerts': active_alerts,
                 'alert_trend': alert_trend,
                 'critical_vms': critical_count,
                 'sla_compliance': round(sla_compliance, 1),
@@ -6147,8 +6148,8 @@ def dashboard_recent_alerts_api(request):
     """API endpoint for recent alert timeline (last 20 alerts)"""
     try:
         limit = int(request.GET.get('limit', 20))
-        
-        # Get recent alerts and anomalies
+
+        # Recent alerts only (anomalies are notifications, surfaced on the bell, not here)
         alerts = AlertHistory.objects.select_related('server').order_by('-sent_at')[:limit]
         
         alert_list = []

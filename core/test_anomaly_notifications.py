@@ -100,6 +100,19 @@ class StatusDecouplingTests(_Base):
         self.assertEqual(_calculate_server_status(self.server), "warning")
 
 
+class DashboardSummaryExcludesAnomaliesTests(_Base):
+    def test_active_alerts_count_excludes_anomalies(self):
+        self._fresh_heartbeat()
+        self._anomaly(); self._anomaly()                  # 2 unresolved anomalies
+        AlertHistory.objects.create(                       # 1 real triggered alert
+            server=self.server, alert_type=AlertHistory.AlertType.CPU,
+            status="triggered", message="cpu high", value=95.0, threshold=90.0)
+        r = self.client.get(reverse("dashboard_summary_stats_api"))
+        self.assertEqual(r.status_code, 200)
+        data = r.json()["data"]
+        self.assertEqual(data["active_alerts"], 1)         # alert only, anomalies excluded
+
+
 class AlertsPageExcludesAnomaliesTests(_Base):
     def test_alerts_page_has_no_anomaly_rows(self):
         self._anomaly(severity=Anomaly.Severity.CRITICAL)
