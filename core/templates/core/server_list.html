@@ -63,11 +63,10 @@
             <span style="flex-shrink:0;display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:500;{% if server.status == 'online' %}background:#d1f7c4;color:#0e6027;{% elif server.status == 'warning' %}background:#fff1e0;color:#8e3b00;{% else %}background:#f4f4f4;color:#525252;{% endif %}">{{ server.status|capfirst }}</span>
         </div>
 
-        <!-- Alert/anomaly tags (only when present) -->
-        {% if server.active_alerts or server.active_anomalies or server.alert_suppressed %}
+        <!-- Alert tags (only when present) -->
+        {% if server.active_alerts or server.alert_suppressed %}
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:7px;">
             {% if server.active_alerts %}<a href="/server/{{ server.id }}/" class="mini-badge" style="background:#fff1f1;color:#b91c1c;text-decoration:none;">⚠ {{ server.active_alerts }}</a>{% endif %}
-            {% if server.active_anomalies %}<a href="{% url 'server_anomalies_log' server.id %}" class="mini-badge" style="background:#fff7ed;color:#b45309;text-decoration:none;">{{ server.active_anomalies }} anomal{{ server.active_anomalies|pluralize:"y,ies" }}</a>{% endif %}
             {% if server.alert_suppressed %}<span class="mini-badge" style="background:#fff1e0;color:#8e3b00;">Alerts off</span>{% endif %}
         </div>
         {% endif %}

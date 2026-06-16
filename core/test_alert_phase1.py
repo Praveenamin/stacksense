@@ -150,8 +150,8 @@ class AlertsPageCategoryTests(TestCase):
         cat = {self._key(i): i["category"] for i in items}
         self.assertEqual(cat[("alert", "CONNECTION")], AlertCategory.AVAILABILITY)
         self.assertEqual(cat[("alert", "CPU")], AlertCategory.RESOURCE)
-        self.assertEqual(cat[("anomaly", "cpu")], AlertCategory.RESOURCE)
-        self.assertEqual(cat[("anomaly", "process_rss_leak")], AlertCategory.CAPACITY)
+        # anomalies are no longer shown on the alerts page (they're dashboard notifications)
+        self.assertFalse(any(i["type"] == "anomaly" for i in items))
 
     def test_severity_flows_through_to_each_item(self):
         items = self._get().context["unified_items"]
@@ -159,16 +159,15 @@ class AlertsPageCategoryTests(TestCase):
         self.assertEqual(sev[("alert", "CONNECTION")], "CRITICAL")
         self.assertEqual(sev[("alert", "CPU")], "HIGH")
 
-    def test_low_severity_anomaly_excluded_from_alerts_page(self):
-        anomalies = [i for i in self._get().context["unified_items"] if i["type"] == "anomaly"]
-        self.assertNotIn("LOW", [i["severity"] for i in anomalies])
-        self.assertEqual(len(anomalies), 2)  # the two HIGH ones only
+    def test_anomalies_excluded_from_alerts_page(self):
+        # Anomalies (even HIGH ones) never appear on the alerts page anymore.
+        items = self._get().context["unified_items"]
+        self.assertEqual([i for i in items if i["type"] == "anomaly"], [])
 
     def test_category_badges_render(self):
         html = self._get().content.decode()
-        self.assertIn(">Availability</span>", html)
-        self.assertIn(">Resource</span>", html)
-        self.assertIn(">Capacity</span>", html)
+        self.assertIn(">Availability</span>", html)   # CONNECTION alert
+        self.assertIn(">Resource</span>", html)        # CPU alert
 
     def test_category_filter_narrows_the_list(self):
         avail = self._get("&category=availability").content.decode()
@@ -178,10 +177,6 @@ class AlertsPageCategoryTests(TestCase):
         resource = self._get("&category=resource").content.decode()
         self.assertIn(">Resource</span>", resource)
         self.assertNotIn(">Availability</span>", resource)
-
-        capacity = self._get("&category=capacity").content.decode()
-        self.assertIn(">Capacity</span>", capacity)
-        self.assertNotIn(">Resource</span>", capacity)
 
     def test_security_filter_is_empty_but_page_still_renders(self):
         r = self._get("&category=security")

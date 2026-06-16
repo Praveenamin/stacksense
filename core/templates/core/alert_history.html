@@ -253,50 +253,6 @@
                     </td>
                 </tr>
                 {% endwith %}
-                {% elif item.type == 'anomaly' %}
-                {% with anomaly=item.object %}
-                <tr style="border-bottom: 1px solid #f3f4f6; transition: background-color 150ms ease;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor=''">
-                    <td style="padding: 10px 16px; vertical-align: middle;"></td>
-                    <td style="padding: 10px 16px; vertical-align: middle;">
-                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                            <a href="{% url 'server_anomalies_log' anomaly.server.id %}" style="color: #0f62fe; text-decoration: none; font-weight: var(--cds-font-weight-medium); font-size: 13px;">{{ anomaly.metric_type|upper }} anomaly</a>
-                            <span style="flex-shrink:0; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; {% if anomaly.severity == 'CRITICAL' %}background:#fef2f2; color:#b91c1c;{% elif anomaly.severity == 'HIGH' %}background:#fff7ed; color:#c2410c;{% elif anomaly.severity == 'MEDIUM' %}background:#fffbeb; color:#92400e;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{{ anomaly.severity|title }}</span>
-                        </div>
-                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70); margin-top: var(--cds-spacing-1);">{{ anomaly.explanation|default:anomaly.metric_name|truncatewords:18 }}</div>
-                    </td>
-                    <td style="padding: 10px 16px; vertical-align: middle;">
-                        <span style="display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; {% if item.category == 'resource' %}background:#eef4ff; color:#0f62fe;{% elif item.category == 'availability' %}background:#ecfdf5; color:#047857;{% elif item.category == 'security' %}background:#fef2f2; color:#b91c1c;{% elif item.category == 'capacity' %}background:#fffbeb; color:#b45309;{% elif item.category == 'business' %}background:#f5f3ff; color:#6d28d9;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{% if item.category == 'resource' %}Resource{% elif item.category == 'availability' %}Availability{% elif item.category == 'security' %}Security{% elif item.category == 'capacity' %}Capacity{% elif item.category == 'business' %}Business{% else %}{{ item.category_label }}{% endif %}</span>
-                    </td>
-                    <td style="padding: 10px 16px; vertical-align: middle;">
-                        <div style="font-size: 13px; font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100);">{{ anomaly.server.name }}</div>
-                        <div style="font-size: var(--cds-font-size-xs); color: var(--cds-color-gray-70);">{{ anomaly.server.ip_address }}</div>
-                    </td>
-                    <td style="padding: 10px 16px; vertical-align: middle; color: var(--cds-color-gray-70); font-size: 13px;">
-                        {{ anomaly.timestamp|timezone_date:"n/j/Y, g:i:s A" }}
-                    </td>
-                    <td style="padding: 10px 16px; vertical-align: middle;">
-                        <span style="background-color: #dbeafe; color: #1e40af; padding: var(--cds-spacing-1) var(--cds-spacing-3); border-radius: 9999px; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium);">{{ item.duration_seconds|format_duration }}</span>
-                    </td>
-                    <td style="padding: 10px 16px; vertical-align: middle;">
-                        <div style="display: flex; align-items: center; gap: var(--cds-spacing-3);">
-                            {% if not anomaly.resolved %}
-                            <a href="{% url 'server_anomalies_log' anomaly.server.id %}" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; background-color: #eff6ff; color: #0f62fe;" title="View in anomalies log">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                </svg>
-                            </a>
-                            <button onclick="resolveAnomalyRow({{ anomaly.id }})" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; background-color: #dcfce7; color: #22c55e; border: none; cursor: pointer;" title="Resolve">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            </button>
-                            {% else %}
-                            <span style="color: var(--cds-color-gray-70); font-size: var(--cds-font-size-sm);">Acknowledged</span>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-                {% endwith %}
                 {% endif %}
                 {% endfor %}
             </tbody>
@@ -433,24 +389,6 @@ function resolveAlert(alertId) {
             })
             .then(response => { if (response.ok) { location.reload(); } else { appAlert('Failed to acknowledge alert', 'Error'); } })
             .catch(error => { console.error('Error:', error); appAlert('Failed to acknowledge alert', 'Error'); });
-        }
-    });
-}
-
-// Resolve single anomaly (anomalies use a different endpoint than alerts)
-function resolveAnomalyRow(anomalyId) {
-    appConfirm({
-        title: 'Resolve anomaly',
-        body: 'Are you sure you want to resolve this anomaly?',
-        confirmText: 'Resolve',
-        onConfirm: function () {
-            fetch(`/api/anomalies/${anomalyId}/resolve/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
-                credentials: 'same-origin'
-            })
-            .then(response => { if (response.ok) { location.reload(); } else { appAlert('Failed to resolve anomaly', 'Error'); } })
-            .catch(error => { console.error('Error:', error); appAlert('Failed to resolve anomaly', 'Error'); });
         }
     });
 }

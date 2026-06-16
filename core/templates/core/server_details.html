@@ -49,12 +49,6 @@
                 </svg>
                 Edit Server
             </a>
-            <a href="{% url 'server_anomalies_log' server.id %}" style="display: inline-flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2) var(--cds-spacing-4); font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); color: var(--cds-color-gray-100); background-color: var(--cds-color-white); border: 1px solid var(--cds-color-gray-20); border-radius: var(--cds-border-radius); text-decoration: none;">
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                Anomalies Log
-            </a>
             <form method="post" action="{% url 'regenerate_agent_token' server.id %}" style="display:inline;"
                   onsubmit="return confirm('Generate a new agent token? The current token will stop working immediately and the agent on the VM must be reinstalled with the new command.');">
                 {% csrf_token %}
@@ -76,17 +70,12 @@
 
 <input type="hidden" id="server-id" value="{{ server.id }}">
 
-<!-- Active issues banner (this server): triggered alerts + unresolved anomalies -->
-{% if recent_alerts or active_anomaly_count %}
+<!-- Active issues banner (this server): triggered alerts only -->
+{% if recent_alerts %}
 <div style="background:#fef2f2; border:1px solid #fecaca; border-left:4px solid #dc2626; border-radius:10px; padding:14px 18px; margin-bottom:14px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-        <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-            <span style="font-size:18px; line-height:1;">⚠️</span>
-            <span style="font-size:14px; font-weight:600; color:#b91c1c;">
-                {% if recent_alerts %}{{ recent_alerts|length }} active alert{{ recent_alerts|length|pluralize }}{% endif %}{% if recent_alerts and active_anomaly_count %} · {% endif %}{% if active_anomaly_count %}{{ active_anomaly_count }} open anomal{{ active_anomaly_count|pluralize:"y,ies" }}{% endif %} on this server
-            </span>
-        </div>
-        <a href="{% url 'server_anomalies_log' server.id %}" style="font-size:13px; font-weight:500; color:#0f62fe; text-decoration:none; white-space:nowrap;">View anomalies log →</a>
+    <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+        <span style="font-size:18px; line-height:1;">⚠️</span>
+        <span style="font-size:14px; font-weight:600; color:#b91c1c;">{{ recent_alerts|length }} active alert{{ recent_alerts|length|pluralize }} on this server</span>
     </div>
     <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
         {% for alert in recent_alerts|slice:":4" %}
@@ -94,14 +83,6 @@
             <span style="flex-shrink:0; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; background:#fef2f2; color:#b91c1c;">Alert · {{ alert.alert_type }}</span>
             <span style="flex:1; min-width:0; font-size:13px; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ alert.message|default:"Threshold exceeded" }}</span>
             <span style="flex-shrink:0; font-size:12px; color:#94a3b8;">{{ alert.sent_at|timesince }} ago</span>
-        </div>
-        {% endfor %}
-        {% for a in active_anomalies|slice:":4" %}
-        <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#fff; border:1px solid #fee2e2; border-radius:8px;">
-            <span style="flex-shrink:0; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600;
-                {% if a.severity == 'CRITICAL' %}background:#fef2f2; color:#b91c1c;{% elif a.severity == 'HIGH' %}background:#fff7ed; color:#c2410c;{% elif a.severity == 'MEDIUM' %}background:#fffbeb; color:#92400e;{% else %}background:#f1f5f9; color:#475569;{% endif %}">{{ a.severity|title }} · {{ a.metric_type|upper }}</span>
-            <span style="flex:1; min-width:0; font-size:13px; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.explanation|default:"Anomalous reading detected" }}</span>
-            <span style="flex-shrink:0; font-size:12px; color:#94a3b8;">{{ a.timestamp|timesince }} ago</span>
         </div>
         {% endfor %}
     </div>

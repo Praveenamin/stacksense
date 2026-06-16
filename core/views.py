@@ -38,8 +38,9 @@ def _calculate_server_status(server):
     
     Status logic:
     - OFFLINE: Monitoring suspended OR no heartbeat OR heartbeat older than threshold
-    - ONLINE: Heartbeat within threshold AND no active alerts/anomalies AND monitoring not suspended
-    - WARNING: Heartbeat within threshold BUT has active alerts/anomalies AND monitoring not suspended
+    - ONLINE: Heartbeat within threshold AND no active alerts AND monitoring not suspended
+    - WARNING: Heartbeat within threshold BUT has active alerts AND monitoring not suspended
+    (Anomalies are notifications, not health -- they do NOT affect this status.)
     
     IMPORTANT: Uses adaptive threshold to handle app downtime gracefully.
     If the monitoring app itself was down, we use a longer grace period to avoid
@@ -114,15 +115,15 @@ def _calculate_server_status(server):
             return "offline"
         
         # Server is online (heartbeat OK) - check for alerts.
-        # Server status reflects the server's own health only; SERVICE alerts
-        # (a monitored service being down) are shown under Services, not here.
-        active_anomalies = Anomaly.objects.filter(server=server, resolved=False).exists()
+        # Status reflects the server's own health only. Anomalies are NOT health/alerts
+        # -- they're notifications surfaced on the dashboard anomalies icon -- so they no
+        # longer make a server "warning". SERVICE/CONTAINER alerts show under Services.
         active_alerts = (AlertHistory.objects
                          .filter(server=server, status="triggered")
                          .exclude(alert_type__in=[AlertHistory.AlertType.SERVICE, AlertHistory.AlertType.CONTAINER])
                          .exists())
 
-        if active_anomalies or active_alerts:
+        if active_alerts:
             return "warning"
         else:
             return "online"
@@ -4090,28 +4091,18 @@ def alert_history(request):
     instance = request.GET.get('instance', '').strip()
     group_by_incident = request.GET.get('group', 'false').lower() == 'true' or request.GET.get('group_by_incident', 'false').lower() == 'true'
     
-    # Build AlertHistory query
+    # Build AlertHistory query. Anomalies are NOT shown here -- they're notifications
+    # surfaced on the dashboard anomalies icon, not alerts.
     alert_history_query = AlertHistory.objects.all().select_related('server')
-    
-    # Build Anomaly query. LOW-severity anomalies are demoted off this "critical alerts"
-    # page (they remain in each server's anomaly log); only MEDIUM/HIGH/CRITICAL show here.
-    anomaly_query = (Anomaly.objects.all().select_related('server', 'metric')
-                     .exclude(severity=Anomaly.Severity.LOW))
-    
+
     # Time range filtering
     now = django_timezone.now()
     if time_range == '24h':
-        time_threshold = now - timedelta(hours=24)
-        alert_history_query = alert_history_query.filter(sent_at__gte=time_threshold)
-        anomaly_query = anomaly_query.filter(timestamp__gte=time_threshold)
+        alert_history_query = alert_history_query.filter(sent_at__gte=now - timedelta(hours=24))
     elif time_range == '7d':
-        time_threshold = now - timedelta(days=7)
-        alert_history_query = alert_history_query.filter(sent_at__gte=time_threshold)
-        anomaly_query = anomaly_query.filter(timestamp__gte=time_threshold)
+        alert_history_query = alert_history_query.filter(sent_at__gte=now - timedelta(days=7))
     elif time_range == '30d':
-        time_threshold = now - timedelta(days=30)
-        alert_history_query = alert_history_query.filter(sent_at__gte=time_threshold)
-        anomaly_query = anomaly_query.filter(timestamp__gte=time_threshold)
+        alert_history_query = alert_history_query.filter(sent_at__gte=now - timedelta(days=30))
     # 'all' means no time filter
     
     # Instance filtering (by server name or IP)
@@ -4119,54 +4110,31 @@ def alert_history(request):
         alert_history_query = alert_history_query.filter(
             models.Q(server__name__icontains=instance) | models.Q(server__ip_address__icontains=instance)
         )
-        anomaly_query = anomaly_query.filter(
-            models.Q(server__name__icontains=instance) | models.Q(server__ip_address__icontains=instance)
-        )
-    
+
     if server_id:
         try:
-            server_id_int = int(server_id)
-            alert_history_query = alert_history_query.filter(server_id=server_id_int)
-            anomaly_query = anomaly_query.filter(server_id=server_id_int)
+            alert_history_query = alert_history_query.filter(server_id=int(server_id))
         except (ValueError, TypeError):
             pass  # Invalid server_id, ignore filter
-    
+
     if alert_type:
-        # Validate alert_type - can be from AlertHistory or Anomaly metric_type
         valid_alert_types = [choice[0] for choice in AlertHistory.AlertType.choices]
-        valid_anomaly_types = ['cpu', 'memory', 'disk', 'network']
-        
         if alert_type in valid_alert_types:
             alert_history_query = alert_history_query.filter(alert_type=alert_type)
-        if alert_type.upper() in [t.upper() for t in valid_anomaly_types]:
-            # Map alert type to anomaly metric_type (CPU -> cpu, MEMORY -> memory, etc.)
-            type_map = {'CPU': 'cpu', 'MEMORY': 'memory', 'DISK': 'disk', 'NETWORK': 'network'}
-            anomaly_type = type_map.get(alert_type.upper(), alert_type.lower())
-            anomaly_query = anomaly_query.filter(metric_type=anomaly_type)
-    
+
     if status:
-        # Validate status is in choices (status values are still 'triggered'/'resolved' internally)
         valid_statuses = [choice[0] for choice in AlertHistory.AlertStatus.choices]
         if status in valid_statuses:
-            if status == 'triggered':  # Unacknowledged
-                alert_history_query = alert_history_query.filter(status='triggered')
-                anomaly_query = anomaly_query.filter(resolved=False)
-            elif status == 'resolved':  # Acknowledged
-                alert_history_query = alert_history_query.filter(status='resolved')
-                anomaly_query = anomaly_query.filter(resolved=True)
-    
+            alert_history_query = alert_history_query.filter(status=status)
+
     # Handle acknowledged filter (maps to resolved/triggered)
-    if acknowledged:
-        if acknowledged == 'true':  # Acknowledged = resolved
-            alert_history_query = alert_history_query.filter(status='resolved')
-            anomaly_query = anomaly_query.filter(resolved=True)
-        elif acknowledged == 'false':  # Unacknowledged = triggered
-            alert_history_query = alert_history_query.filter(status='triggered')
-            anomaly_query = anomaly_query.filter(resolved=False)
-    
-    # Category filter (derived from type): narrow AlertHistory by the alert_types that map to
-    # the chosen category, and Anomaly by leak-vs-resource. Categories with no rows on this
-    # page (security / business) yield an empty result, which is honest.
+    if acknowledged == 'true':       # Acknowledged = resolved
+        alert_history_query = alert_history_query.filter(status='resolved')
+    elif acknowledged == 'false':    # Unacknowledged = triggered
+        alert_history_query = alert_history_query.filter(status='triggered')
+
+    # Category filter (derived from alert type): narrow by the alert_types that map to the
+    # chosen category. Categories with no rows on this page yield an empty result.
     if category:
         valid_categories = {c for c, _ in alert_categories.AlertCategory.choices}
         if category in valid_categories:
@@ -4174,39 +4142,25 @@ def alert_history(request):
                         if alert_categories.for_alert_type(t) == category]
             alert_history_query = (alert_history_query.filter(alert_type__in=ah_types)
                                    if ah_types else alert_history_query.none())
-            if category == alert_categories.AlertCategory.RESOURCE:
-                anomaly_query = anomaly_query.exclude(metric_type__icontains='leak')
-            elif category == alert_categories.AlertCategory.CAPACITY:
-                anomaly_query = anomaly_query.filter(metric_type__icontains='leak')
-            else:
-                anomaly_query = anomaly_query.none()
 
     # Get alerts ordered by most recent first
     alerts_list = list(alert_history_query.order_by('-sent_at')[:500])
-    
-    # Get anomalies ordered by most recent first
-    anomalies_list = list(anomaly_query.order_by('-timestamp')[:500])
-    
+
     # Group alerts by incident if requested
     alert_groups = None
     if group_by_incident and alerts_list:
         alert_groups = _group_alerts_by_incident(alerts_list, time_window_minutes=5)
-    
-    # Combine alerts and anomalies into unified list with type indicators
-    # Use a list of dicts with 'type' field to distinguish
+
+    # Build the unified list (alerts only).
     unified_items = []
-    
-    # Add alerts with type='alert' and calculate duration
-    now = django_timezone.now()
     for alert in alerts_list:
-        # Calculate duration
         if alert.status == 'triggered':
             duration_seconds = (now - alert.sent_at).total_seconds()
         elif alert.resolved_at:
             duration_seconds = (alert.resolved_at - alert.sent_at).total_seconds()
         else:
             duration_seconds = 0
-        
+
         _cat = alert_categories.for_alert_type(alert.alert_type)
         unified_items.append({
             'type': 'alert',
@@ -4217,40 +4171,13 @@ def alert_history(request):
             'category_label': alert_categories.label(_cat),
             'severity': getattr(alert, 'severity', '') or '',
         })
-    
-    # Add anomalies with type='anomaly' and calculate duration
-    # Duration = start -> back to normal (recovered_at), independent of admin ack.
-    for anomaly in anomalies_list:
-        end = _anomaly_window_end(anomaly)
-        if end:
-            duration_seconds = max(0, (end - anomaly.timestamp).total_seconds())
-        else:
-            duration_seconds = (now - anomaly.timestamp).total_seconds()
-        
-        _cat = alert_categories.for_anomaly(anomaly.metric_type)
-        unified_items.append({
-            'type': 'anomaly',
-            'object': anomaly,
-            'timestamp': anomaly.timestamp,
-            'duration_seconds': duration_seconds,
-            'category': _cat,
-            'category_label': alert_categories.label(_cat),
-            'severity': anomaly.severity or '',
-        })
-    
-    # Sort unified list: triggered/unresolved first, then by timestamp (most recent first)
+
+    # Sort: active (triggered) first, then most recent.
     def sort_key(item):
-        # Check if it's an alert or anomaly and if it's active
-        if item['type'] == 'alert':
-            is_active = item['object'].status == 'triggered'
-        else:  # anomaly
-            is_active = not item['object'].resolved
-        # Return tuple: (not is_active, -timestamp) so active items come first, then sorted by timestamp desc
+        is_active = item['object'].status == 'triggered'
         return (not is_active, -item['timestamp'].timestamp() if item['timestamp'] else 0)
-    
+
     unified_items.sort(key=sort_key)
-    
-    # Limit to 500 most recent items
     unified_items = unified_items[:500]
     
     # Get filter options
@@ -4262,44 +4189,26 @@ def alert_history(request):
         ('resolved', 'Acknowledged'),
     ]
     
-    # Counts for summary cards (window-scoped, but NOT narrowed by the category/instance/
-    # status filters). Mirror the list's population so the cards can't disagree with it:
-    # LOW-severity anomalies are demoted off this "critical alerts" page, so they must be
-    # excluded from the counts too (otherwise the cards count rows the table then hides).
+    # Counts for summary cards (window-scoped; alerts only -- anomalies aren't shown here).
     base_query_alerts = AlertHistory.objects.all()
-    base_query_anomalies = Anomaly.objects.all().exclude(severity=Anomaly.Severity.LOW)
-    
     if time_range == '24h':
-        time_threshold = now - timedelta(hours=24)
-        base_query_alerts = base_query_alerts.filter(sent_at__gte=time_threshold)
-        base_query_anomalies = base_query_anomalies.filter(timestamp__gte=time_threshold)
+        base_query_alerts = base_query_alerts.filter(sent_at__gte=now - timedelta(hours=24))
     elif time_range == '7d':
-        time_threshold = now - timedelta(days=7)
-        base_query_alerts = base_query_alerts.filter(sent_at__gte=time_threshold)
-        base_query_anomalies = base_query_anomalies.filter(timestamp__gte=time_threshold)
+        base_query_alerts = base_query_alerts.filter(sent_at__gte=now - timedelta(days=7))
     elif time_range == '30d':
-        time_threshold = now - timedelta(days=30)
-        base_query_alerts = base_query_alerts.filter(sent_at__gte=time_threshold)
-        base_query_anomalies = base_query_anomalies.filter(timestamp__gte=time_threshold)
-    
+        base_query_alerts = base_query_alerts.filter(sent_at__gte=now - timedelta(days=30))
+
     triggered_alerts = base_query_alerts.filter(status='triggered').count()
     resolved_alerts = base_query_alerts.filter(status='resolved').count()
-    
-    unresolved_anomalies = base_query_anomalies.filter(resolved=False).count()
-    resolved_anomalies = base_query_anomalies.filter(resolved=True).count()
-    
-    # Combined counts for summary cards
+
     # Map: Triggered = Unacknowledged, Resolved = Acknowledged
-    unacknowledged_items = triggered_alerts + unresolved_anomalies  # Unacknowledged Alerts
-    acknowledged_items = resolved_alerts + resolved_anomalies  # Acknowledged Alerts (resolved)
-    total_critical = unacknowledged_items  # Total Critical Alerts (unacknowledged)
-    # Critical Severity = items whose severity actually is CRITICAL (not "everything
-    # unacknowledged"). AlertHistory.severity reuses the Anomaly.Severity values.
-    critical_severity_count = (
-        base_query_alerts.filter(severity=Anomaly.Severity.CRITICAL).count()
-        + base_query_anomalies.filter(severity=Anomaly.Severity.CRITICAL).count()
-    )
-    
+    unacknowledged_items = triggered_alerts          # Unacknowledged Alerts
+    acknowledged_items = resolved_alerts             # Acknowledged Alerts (resolved)
+    total_critical = unacknowledged_items            # Total Critical Alerts (unacknowledged)
+    # Critical Severity = alerts whose severity actually is CRITICAL (AlertHistory.severity
+    # reuses the Anomaly.Severity values).
+    critical_severity_count = base_query_alerts.filter(severity=Anomaly.Severity.CRITICAL).count()
+
     # Filtered count
     filtered_count = len(unified_items)
     
@@ -4308,7 +4217,6 @@ def alert_history(request):
         'alerts': alerts_list,  # Keep for backward compatibility if needed
         'alert_groups': alert_groups,  # Grouped alerts by incident
         'group_by_incident': group_by_incident,  # Whether grouping is enabled
-        'anomalies': anomalies_list,  # Keep for reference
         'servers': servers,
         'alert_types': alert_types,
         'alert_statuses': alert_statuses,
@@ -5283,67 +5191,6 @@ def update_service_thresholds(request, server_id):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
-def server_anomalies_log(request, server_id):
-    """View page to display and manage anomalies for a specific server"""
-    try:
-        server = get_object_or_404(Server, id=server_id)
-    except Server.DoesNotExist:
-        from django.http import Http404
-        raise Http404("Server not found")
-    
-    # Get query parameters for filtering
-    status_filter = request.GET.get('status', '').strip()
-    severity_filter = request.GET.get('severity', '').strip()
-    
-    # Build query for anomalies
-    anomalies_query = Anomaly.objects.filter(server=server).select_related('metric').order_by('-timestamp')
-    
-    # Apply filters
-    if status_filter == 'resolved':
-        anomalies_query = anomalies_query.filter(resolved=True)
-    elif status_filter == 'unresolved':
-        anomalies_query = anomalies_query.filter(resolved=False)
-    
-    if severity_filter:
-        valid_severities = [choice[0] for choice in Anomaly.Severity.choices]
-        if severity_filter in valid_severities:
-            anomalies_query = anomalies_query.filter(severity=severity_filter)
-    
-    anomalies = list(anomalies_query[:500])  # Limit to 500 most recent
-
-    # Only offer the selection UI (select-all checkbox, per-row checkboxes, bulk-resolve
-    # button) when there is actually something to resolve in the current view -- i.e. at
-    # least one unresolved anomaly is shown. Otherwise the controls are dead and look
-    # broken (clicking select-all does nothing because resolved rows have no checkbox).
-    show_anomaly_checkboxes = status_filter != 'resolved' and any(not a.resolved for a in anomalies)
-
-    # Counts for summary
-    total_anomalies = Anomaly.objects.filter(server=server).count()
-    unresolved_count = Anomaly.objects.filter(server=server, resolved=False).count()
-    resolved_count = Anomaly.objects.filter(server=server, resolved=True).count()
-    
-    # Severity counts
-    severity_counts = {}
-    for severity_code, severity_label in Anomaly.Severity.choices:
-        severity_counts[severity_code] = Anomaly.objects.filter(server=server, severity=severity_code).count()
-    
-    context = {
-        'server': server,
-        'anomalies': anomalies,
-        'total_anomalies': total_anomalies,
-        'unresolved_count': unresolved_count,
-        'resolved_count': resolved_count,
-        'severity_counts': severity_counts,
-        'selected_status': status_filter,
-        'selected_severity': severity_filter,
-        'severity_choices': Anomaly.Severity.choices,
-        'show_anomaly_checkboxes': show_anomaly_checkboxes,
-        'show_sidebar': True,
-    }
-
-    return render(request, 'core/server_anomalies_log.html', context)
-
-
 @staff_member_required
 @require_http_methods(["GET"])
 def anomaly_detail_api(request, anomaly_id):
@@ -5689,6 +5536,59 @@ def anomaly_bulk_resolve_api(request):
             {"success": False, "error": "Internal server error", "message": str(e)},
             status=500
         )
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def anomaly_notifications_api(request):
+    """Global unresolved-anomaly feed for the dashboard anomalies icon.
+
+    Anomalies are notifications (not alerts), surfaced only here. Returns the count of
+    unresolved anomalies across all servers plus the most recent ones for the panel.
+    """
+    try:
+        qs = (Anomaly.objects.filter(resolved=False)
+              .select_related("server").order_by("-timestamp"))
+        count = qs.count()
+        items = [{
+            "id": a.id,
+            "server": a.server.name,
+            "server_id": a.server_id,
+            "metric_type": (a.metric_type or "").upper(),
+            "metric_name": a.metric_name,
+            "severity": a.severity or "LOW",
+            "value": round(a.metric_value, 1) if a.metric_value is not None else None,
+            "explanation": a.explanation or a.metric_name,
+            "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+        } for a in qs[:50]]
+        return JsonResponse({"success": True, "count": count, "items": items})
+    except Exception as e:
+        error_logger.error(f"Error in anomaly_notifications_api: {e}")
+        return JsonResponse({"success": False, "count": 0, "items": []}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def anomaly_clear_all_api(request):
+    """Clear (mark resolved) every unresolved anomaly -- the 'Clear all' action on the
+    dashboard anomalies panel. Resolved anomalies stay in the DB as history."""
+    try:
+        resolver = request.user if request.user.is_authenticated else None
+        qs = Anomaly.objects.filter(resolved=False)
+        server_ids = list(qs.values_list("server_id", flat=True).distinct())
+        count = qs.update(resolved=True, acknowledged=True,
+                          resolved_at=timezone.now(), resolved_by=resolver)
+        try:
+            from .anomaly_cache import AnomalyCache
+            for sid in server_ids:
+                AnomalyCache.clear(sid)
+        except Exception as e:
+            app_logger.warning(f"Failed to clear anomaly cache: {e}")
+        _log_user_action(request, "CLEAR_ALL_ANOMALIES", f"Cleared {count} anomalies")
+        return JsonResponse({"success": True, "cleared_count": count})
+    except Exception as e:
+        error_logger.error(f"Error in anomaly_clear_all_api: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
 @staff_member_required
