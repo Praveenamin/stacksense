@@ -175,6 +175,12 @@
             .settings-menu button:hover { background:#f8fafc; }
             .settings-item { display:block; padding:9px 16px; font-size:14px; color:#161616; text-decoration:none; }
             .settings-item:hover { background:#f4f4f4; }
+            /* Top-bar icon buttons (anomalies / trends / page actions) -- global so any
+               page can drop icons into the topbar_right slot with a consistent look. */
+            .insight-icon { position:relative; width:38px; height:38px; border:1px solid #e2e8f0; background:#fff; border-radius:9px; font-size:17px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; color:#64748b; }
+            .insight-icon:hover { background:#f1f5f9; }
+            .insight-icon.active { border-color:#0f62fe; box-shadow:0 0 0 2px rgba(15,98,254,.15); }
+            .insight-badge { position:absolute; top:-6px; right:-6px; background:#0f62fe; color:#fff; font-size:10px; font-weight:700; min-width:16px; height:16px; padding:0 4px; border-radius:999px; display:flex; align-items:center; justify-content:center; }
         </style>
         <script>
             function toggleSettingsMenu(e) {

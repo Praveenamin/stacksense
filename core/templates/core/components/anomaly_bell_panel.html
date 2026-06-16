@@ -1,0 +1,73 @@
+{% comment %}
+Anomalies panel + behavior, paired with anomaly_bell_button.html. Self-contained:
+defines window.toggleAnomalyPanel(btn) and window.clearAllAnomalies(), loads the global
+unresolved-anomaly feed into the bell badge + this panel. Include once in page content.
+{% endcomment %}
+<div id="anomaly-panel" class="insight-panel" style="display:none;margin-bottom:20px;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;">
+            <h3 style="margin:0;font-size:14px;font-weight:600;color:#0f172a;">Anomalies <span id="anomaly-panel-count" style="font-weight:400;color:#94a3b8;font-size:12px;"></span></h3>
+            <button type="button" id="anomaly-clear-all" onclick="clearAllAnomalies()" style="display:none;font-size:13px;font-weight:600;color:#0f62fe;background:#eff6ff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;">Clear all</button>
+        </div>
+        <div id="anomaly-list" style="max-height:380px;overflow-y:auto;"></div>
+    </div>
+</div>
+<script>
+(function(){
+    function getCookie(name){var v=null;if(document.cookie){document.cookie.split(';').forEach(function(c){c=c.trim();if(c.substring(0,name.length+1)===(name+'=')){v=decodeURIComponent(c.substring(name.length+1));}});}return v;}
+    function esc(t){var d=document.createElement('div');d.textContent=(t==null?'':String(t));return d.innerHTML;}
+    function sevColor(s){s=(s||'').toUpperCase();
+        if(s==='CRITICAL')return['#fef2f2','#b91c1c'];
+        if(s==='HIGH')return['#fff7ed','#c2410c'];
+        if(s==='MEDIUM')return['#fffbeb','#92400e'];
+        return['#f1f5f9','#475569'];}
+    function render(items){
+        var list=document.getElementById('anomaly-list');
+        var clearBtn=document.getElementById('anomaly-clear-all');
+        var pc=document.getElementById('anomaly-panel-count');
+        if(!list)return;
+        if(!items.length){
+            list.innerHTML='<div style="padding:28px;text-align:center;color:#94a3b8;font-size:13px;">No anomalies — you\'re all caught up.</div>';
+            if(clearBtn)clearBtn.style.display='none';
+            if(pc)pc.textContent='';
+            return;
+        }
+        if(clearBtn)clearBtn.style.display='inline-block';
+        if(pc)pc.textContent='('+items.length+' shown)';
+        list.innerHTML=items.map(function(a){
+            var c=sevColor(a.severity);
+            return '<div style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-top:1px solid #f1f5f9;">'
+                +'<span style="flex-shrink:0;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:'+c[0]+';color:'+c[1]+';">'+esc((a.severity||'LOW').toUpperCase())+' · '+esc(a.metric_type)+'</span>'
+                +'<div style="flex:1;min-width:0;"><div style="font-size:13px;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.explanation)+'</div>'
+                +'<div style="font-size:12px;color:#94a3b8;">'+esc(a.server)+'</div></div></div>';
+        }).join('');
+    }
+    function load(){
+        fetch('/api/anomalies/notifications/').then(function(r){return r.json();}).then(function(d){
+            var items=(d&&d.items)?d.items:[];
+            var count=(d&&typeof d.count==='number')?d.count:items.length;
+            var badge=document.getElementById('anomaly-bell-count');
+            if(badge){if(count>0){badge.style.display='flex';badge.textContent=count>99?'99+':count;}else{badge.style.display='none';}}
+            render(items);
+        }).catch(function(){});
+    }
+    function doClear(){
+        fetch('/api/anomalies/clear-all/',{method:'POST',headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'},credentials:'same-origin'})
+        .then(function(r){return r.json();}).then(function(){load();}).catch(function(){});
+    }
+    window.clearAllAnomalies=function(){
+        if(typeof appConfirm==='function'){
+            appConfirm({title:'Clear all anomalies',body:'Mark all current anomalies as resolved? They move to history and the badge clears.',confirmText:'Clear all',onConfirm:doClear});
+        } else if(confirm('Clear all anomalies?')){doClear();}
+    };
+    window.toggleAnomalyPanel=function(btn){
+        var p=document.getElementById('anomaly-panel');
+        if(!p)return;
+        var open=(p.style.display==='none'||p.style.display==='');
+        p.style.display=open?'block':'none';
+        if(btn&&btn.classList)btn.classList.toggle('active',open);
+        if(open)p.scrollIntoView({behavior:'smooth',block:'nearest'});
+    };
+    document.addEventListener('DOMContentLoaded',load);
+})();
+</script>
