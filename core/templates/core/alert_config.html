@@ -742,6 +742,10 @@
         <input type="hidden" name="password" id="test_password">
     </form>
 
+    <!-- Hidden Slack test / clear forms (the test view reads the SAVED config) -->
+    <form id="test-slack-form" method="post" action="{% url 'test_slack_config' %}" style="display: none;">{% csrf_token %}</form>
+    <form id="clear-slack-form" method="post" action="{% url 'clear_slack_config' %}" style="display: none;">{% csrf_token %}</form>
+
 <script>
 const providerConfigs = {
     'gmail': { smtp_host: 'smtp.gmail.com', smtp_port: 587, use_tls: true, use_ssl: false },
@@ -799,6 +803,24 @@ function testSavedConfiguration() {
     document.getElementById('test_password').value = document.getElementById('password').value;
     // The test email goes to the signed-in user's own address (resolved server-side).
     document.getElementById('test-email-form').submit();
+}
+
+function testSlackConfiguration() {
+    // Sends a test message to the saved Slack webhook (server-side).
+    document.getElementById('test-slack-form').submit();
+}
+
+function clearSlackConfiguration() {
+    var go = function () { document.getElementById('clear-slack-form').submit(); };
+    if (typeof appConfirm === 'function') {
+        appConfirm({
+            title: 'Clear Slack configuration',
+            body: 'Remove the saved Slack webhook? Slack alerts will stop until you configure it again.',
+            confirmText: 'Clear', danger: true, onConfirm: go
+        });
+    } else if (confirm('Clear the saved Slack configuration?')) {
+        go();
+    }
 }
 
 function clearConfiguration() {
