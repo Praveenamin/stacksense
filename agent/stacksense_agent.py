@@ -27,6 +27,7 @@ Usage:
 
 import json
 import os
+import platform
 import re
 import shutil
 import socket
@@ -47,7 +48,25 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.6.0"
+AGENT_VERSION = "push-1.7.0"
+
+# The agent is cross-platform (Linux + Windows). Core metrics come from psutil, which
+# is OS-portable; a few collectors are Linux-only (systemd services, SSH auth log, SysV
+# IPC, lsblk disk hardware) and are guarded by these flags. On Windows those are skipped
+# and we rely on psutil + listening-port/banner detection.
+_PLATFORM = platform.system()           # 'Linux' | 'Windows' | 'Darwin'
+_IS_WINDOWS = _PLATFORM == "Windows"
+_IS_LINUX = _PLATFORM == "Linux"
+
+
+def _os_info():
+    """Platform identity reported to the server so it knows which OS-specific detectors
+    to run. Persisted server-side (write-on-change) as Server.os_type / os_version."""
+    return {
+        "os_type": "windows" if _IS_WINDOWS else ("linux" if _IS_LINUX else "other"),
+        "os_version": (platform.platform() or "")[:200],
+        "hostname": (platform.node() or "")[:200],
+    }
 CONFIG_FILE = Path.home() / ".stacksense_agent.conf"
 DEFAULT_INTERVAL = 30
 HTTP_TIMEOUT = 15
@@ -71,6 +90,8 @@ EPHEMERAL_MOUNT_PREFIXES = (
 
 
 def _is_ephemeral_mount(mountpoint):
+    if _IS_WINDOWS:
+        return False                       # Windows drives (C:\, D:\) are all real volumes
     m = "/" + str(mountpoint or "").strip().strip("/")
     if m == "/":
         return False
@@ -336,37 +357,39 @@ def collect_services():
     services = []
     seen = set()
 
-    # systemd running services
+    # systemd running services (Linux only; Windows relies on listening-port detection
+    # below -- Windows-service-name classification is a later phase).
     sysd_count = 0
-    try:
-        out = subprocess.run(
-            ["systemctl", "list-units", "--type=service", "--state=running",
-             "--no-pager", "--no-legend", "--plain"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if out.returncode != 0:
-            print(f"[services] systemctl exited {out.returncode}: "
-                  f"{(out.stderr or '').strip()[:200]}", file=sys.stderr)
-        for line in out.stdout.splitlines():
-            parts = line.split(None, 4)
-            if not parts:
-                continue
-            unit = parts[0]
-            if unit.endswith(".service"):
-                name = unit[:-len(".service")]
-                if name and name not in seen:
-                    seen.add(name)
-                    services.append({"name": name, "status": "running", "service_type": "systemd"})
-                    sysd_count += 1
-    except FileNotFoundError:
-        print("[services] systemctl not found -- not a systemd host; "
-              "using listening-port detection only", file=sys.stderr)
-    except Exception as e:
-        print(f"[services] systemd detection failed ({e!r}); "
-              f"using listening-port detection only", file=sys.stderr)
-    if sysd_count == 0:
-        print("[services] no systemd units detected; relying on listening-port "
-              "detection (services will be named by port/banner)", file=sys.stderr)
+    if _IS_LINUX:
+        try:
+            out = subprocess.run(
+                ["systemctl", "list-units", "--type=service", "--state=running",
+                 "--no-pager", "--no-legend", "--plain"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if out.returncode != 0:
+                print(f"[services] systemctl exited {out.returncode}: "
+                      f"{(out.stderr or '').strip()[:200]}", file=sys.stderr)
+            for line in out.stdout.splitlines():
+                parts = line.split(None, 4)
+                if not parts:
+                    continue
+                unit = parts[0]
+                if unit.endswith(".service"):
+                    name = unit[:-len(".service")]
+                    if name and name not in seen:
+                        seen.add(name)
+                        services.append({"name": name, "status": "running", "service_type": "systemd"})
+                        sysd_count += 1
+        except FileNotFoundError:
+            print("[services] systemctl not found -- not a systemd host; "
+                  "using listening-port detection only", file=sys.stderr)
+        except Exception as e:
+            print(f"[services] systemd detection failed ({e!r}); "
+                  f"using listening-port detection only", file=sys.stderr)
+        if sysd_count == 0:
+            print("[services] no systemd units detected; relying on listening-port "
+                  "detection (services will be named by port/banner)", file=sys.stderr)
 
     # Listening ports (best-effort; full visibility needs root). For each port we
     # attempt a 1s loopback banner grab to name the real product; on failure we
@@ -783,6 +806,13 @@ def collect_disk_hardware():
     """
     disks, raid_arrays, mount_map = [], [], {}
 
+    # lsblk + /sys/block + /proc/mdstat are Linux-only. On Windows we report a minimal
+    # summary (disk_usage per drive is still fully populated by psutil in collect_metrics);
+    # SSD/HDD/RAID annotation is simply omitted.
+    if _IS_WINDOWS:
+        n = _safe(lambda: len(psutil.disk_partitions(all=False)), 0) or 0
+        return ({"physical_disk_count": n, "disks": [], "raid_arrays": [], "raid": "none"}, {})
+
     out = _run(["lsblk", "-J", "-b", "-o",
                 "NAME,TYPE,ROTA,TRAN,MODEL,SIZE,MOUNTPOINT"]) if _have("lsblk") else None
     if out:
@@ -862,6 +892,7 @@ def collect_metrics(prev):
     so we can compute per-second I/O rates. Returns (metrics_dict, new_prev)."""
     now = time.time()
     metrics = {"agent_version": AGENT_VERSION}
+    metrics.update(_os_info())             # os_type / os_version / hostname
 
     # CPU
     metrics["cpu_percent"] = psutil.cpu_percent(interval=1)
@@ -1041,7 +1072,7 @@ def main():
 
         # Refresh SysV IPC / shared-memory summary every ~60s and attach the latest
         # snapshot to each metrics push (so it lands on every SystemMetric row).
-        if time.monotonic() - last_ipc >= services_interval:
+        if _IS_LINUX and time.monotonic() - last_ipc >= services_interval:
             ipc_cache = collect_ipc_stats()
             last_ipc = time.monotonic()
         if metrics is not None and ipc_cache is not None:
@@ -1059,9 +1090,10 @@ def main():
             else:
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] push not accepted")
 
-        # Push new SSH auth events incrementally (only when there are any)
+        # Push new SSH auth events incrementally (Linux only; Windows auth lives in the
+        # Event Log -- a later phase). Only when there are any.
         try:
-            ssh_events = collect_ssh_auth(ssh_state)
+            ssh_events = collect_ssh_auth(ssh_state) if _IS_LINUX else []
             if ssh_events:
                 push(config, opener, "/api/agent/ssh-auth/", {"events": ssh_events, "agent_version": AGENT_VERSION})
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ssh-auth pushed ({len(ssh_events)})")
