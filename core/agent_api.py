@@ -646,6 +646,21 @@ def agent_ingest_metrics(request):
     _update_heartbeat(server, agent_version)
     _touch_credential(cred, request)
 
+    # Persist the agent-reported platform (write-on-change only -- avoids a DB write
+    # every push). Old agents omit these, so the server keeps its default (linux).
+    if isinstance(payload, dict):
+        changed = []
+        os_type = (payload.get("os_type") or "").strip().lower()
+        if os_type in ("linux", "windows", "other") and server.os_type != os_type:
+            server.os_type = os_type
+            changed.append("os_type")
+        os_version = (payload.get("os_version") or "").strip()[:200]
+        if os_version and server.os_version != os_version:
+            server.os_version = os_version
+            changed.append("os_version")
+        if changed:
+            server.save(update_fields=changed)
+
     # Respect per-server monitoring suspension: acknowledge but don't store.
     config = getattr(server, "monitoring_config", None)
     if config is not None and getattr(config, "monitoring_suspended", False):

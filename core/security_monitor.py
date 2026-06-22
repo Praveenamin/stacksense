@@ -103,6 +103,8 @@ def detect_ssh_brute_force(cfg, now):
         srv = servers.get(r["server_id"])
         if srv is None:
             continue
+        if getattr(srv, "os_type", "linux") != "linux":
+            continue  # SSH auth-log brute-force is Linux-only (Windows uses Event Log)
         ip, count = r["source_ip"], r["c"]
         event, created = _upsert_event(
             SecurityEvent.EventType.SSH_BRUTE_FORCE,

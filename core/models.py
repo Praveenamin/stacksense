@@ -13,11 +13,21 @@ class Server(models.Model):
         verbose_name = "Link Connection"
         verbose_name_plural = "Link Connections"
 
+    class OSType(models.TextChoices):
+        LINUX = "linux", "Linux"
+        WINDOWS = "windows", "Windows"
+        OTHER = "other", "Other"
+
     name = models.CharField(max_length=100)
     ip_address = models.GenericIPAddressField()
     username = models.CharField(max_length=100)
     suppress_alerts = models.BooleanField(default=False, help_text="Whether to suppress email alerts for this server")
     suspend_monitoring = models.BooleanField(default=False, help_text="Whether to suspend monitoring for this server")
+    # Platform of the monitored host. Defaults to linux so every existing server is
+    # unchanged; the agent reports its real OS on each metrics push. Drives which
+    # OS-specific detectors run (e.g. SysV-IPC leaks / SSH brute-force are Linux-only).
+    os_type = models.CharField(max_length=10, choices=OSType.choices, default=OSType.LINUX, db_index=True)
+    os_version = models.CharField(max_length=200, blank=True, default="", help_text="Reported OS version string")
 
     def __str__(self):
         return self.name

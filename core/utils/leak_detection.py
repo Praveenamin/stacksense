@@ -286,5 +286,8 @@ def detect_leaks(server, window_hours=WINDOW_HOURS):
     if sysf:
         findings.append(sysf)
     findings.extend(process_memory_leaks(metrics))
-    findings.extend(ipc_leaks(metrics))
+    # SysV IPC / shared-memory / semaphore leaks are a Linux-only concept; skip on
+    # non-Linux servers (Windows agents send no ipc_stats, so this is also a no-op there).
+    if getattr(server, "os_type", "linux") == "linux":
+        findings.extend(ipc_leaks(metrics))
     return findings
