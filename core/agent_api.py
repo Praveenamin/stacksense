@@ -22,7 +22,7 @@ import logging
 import os
 
 from django.conf import settings
-from django.http import JsonResponse, HttpResponse, Http404
+from django.http import JsonResponse, HttpResponse, Http404, HttpResponseRedirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -592,8 +592,18 @@ def serve_install_ps1(request):
 
 @require_http_methods(["GET"])
 def serve_agent_exe(request):
-    """Serve the standalone Windows agent .exe (built out-of-band by CI; see agent/)."""
-    return _serve_agent_binary("stacksense-agent.exe")
+    """Serve the standalone Windows agent .exe. Prefer a locally-placed file (e.g. a
+    signed build dropped into agent/); otherwise redirect to the published GitHub Release
+    asset (settings.WINDOWS_AGENT_EXE_URL) so the installer works with nothing on the
+    server. 404 only if neither exists."""
+    path = os.path.join(settings.BASE_DIR, "agent", "stacksense-agent.exe")
+    if os.path.isfile(path):
+        with open(path, "rb") as f:
+            return HttpResponse(f.read(), content_type="application/octet-stream")
+    url = getattr(settings, "WINDOWS_AGENT_EXE_URL", "")
+    if url:
+        return HttpResponseRedirect(url)
+    raise Http404("Windows agent exe not available")
 
 
 @require_http_methods(["GET"])

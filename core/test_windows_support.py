@@ -140,9 +140,13 @@ class WindowsServingAndCommandTests(TestCase):
         self.assertNotIn("get-pip", body)
         self.assertNotIn("embed-amd64", body)
 
-    def test_agent_exe_404_when_artifact_absent(self):
-        # Until CI builds + drops the exe into agent/, this 404s (Linux-only deploys ok).
-        self.assertEqual(self.client.get(reverse("agent_exe")).status_code, 404)
+    def test_agent_exe_redirects_to_release_when_no_local_file(self):
+        # No local agent/stacksense-agent.exe in the repo -> redirect to the published
+        # GitHub Release asset so the installer works with nothing placed on the server.
+        r = self.client.get(reverse("agent_exe"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("stacksense-agent.exe", r["Location"])
+        self.assertIn("releases", r["Location"])
 
     def test_windows_picker_creates_windows_server_with_powershell_command(self):
         self.client.force_login(self.admin)

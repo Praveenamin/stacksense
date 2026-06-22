@@ -197,6 +197,13 @@ LLM_MAX_CALLS_PER_SCAN = int(os.environ.get("LLM_MAX_CALLS_PER_SCAN", "2"))
 LLM_DELAY_BETWEEN_CALLS = int(os.environ.get("LLM_DELAY_BETWEEN_CALLS", "10"))
 LLM_ENABLED = os.environ.get("LLM_ENABLED", "True") == "True"
 
+# Windows agent .exe: when no local agent/stacksense-agent.exe is present, /agent/stacksense-agent.exe
+# redirects here (the published GitHub Release asset). Override to pin a version or self-host.
+WINDOWS_AGENT_EXE_URL = os.environ.get(
+    "WINDOWS_AGENT_EXE_URL",
+    "https://github.com/Praveenamin/stacksense/releases/latest/download/stacksense-agent.exe",
+)
+
 # Redis Configuration
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 CACHES = {
