@@ -52,7 +52,10 @@ public class StackSenseTrustAll : ICertificatePolicy {
 
 function Stop-Agent {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-    Get-CimInstance Win32_Process -Filter "Name='stacksense-agent.exe'" -ErrorAction SilentlyContinue |
+    # Kill the running agent -- the exe, and any python.exe from a prior Python-based install.
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq "stacksense-agent.exe" -or
+                       ($_.Name -eq "python.exe" -and $_.CommandLine -like "*StackSense Agent*") } |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
 }
