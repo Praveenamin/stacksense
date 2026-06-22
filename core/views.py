@@ -1515,10 +1515,19 @@ def _render_agent_install_command(request, server, raw_token, created=False, rot
     the single place the operator can copy it from.
     """
     base_url = _public_base_url(request)
-    install_cmd = (
-        f"curl -fsSL {base_url}/agent/install.sh | sudo bash -s -- "
-        f"--url {base_url} --token {raw_token}"
-    )
+    if server.os_type == "windows":
+        # PowerShell one-liner: download install.ps1 and run it elevated. The agent ships
+        # as a standalone .exe registered as a Windows service (see agent/install.ps1).
+        install_cmd = (
+            f"powershell -ExecutionPolicy Bypass -Command \""
+            f"iwr {base_url}/agent/install.ps1 -OutFile $env:TEMP\\install.ps1; "
+            f"& $env:TEMP\\install.ps1 -Url {base_url} -Token {raw_token}\""
+        )
+    else:
+        install_cmd = (
+            f"curl -fsSL {base_url}/agent/install.sh | sudo bash -s -- "
+            f"--url {base_url} --token {raw_token}"
+        )
     context = {
         "show_sidebar": True,
         "server": server,
@@ -1556,10 +1565,13 @@ def add_server_agent(request):
     _log_user_action(request, "ADD_SERVER_AGENT", "Attempting to add server (agent)")
     name = request.POST.get('name', '').strip()
     ip_address = request.POST.get('ip_address', '').strip()
+    os_type = request.POST.get('os_type', 'linux').strip().lower()
+    if os_type not in ('linux', 'windows'):
+        os_type = 'linux'
 
     def _form_error(msg):
         messages.error(request, msg)
-        context = {"show_sidebar": True, "name": name, "ip_address": ip_address}
+        context = {"show_sidebar": True, "name": name, "ip_address": ip_address, "os_type": os_type}
         context.update(admin.site.each_context(request))
         return render(request, "core/add_server_agent.html", context)
 
@@ -1576,6 +1588,7 @@ def add_server_agent(request):
         name=name,
         ip_address=ip_address,
         username='agent',  # push model does not use SSH login; placeholder
+        os_type=os_type,
     )
     MonitoringConfig.objects.get_or_create(
         server=server,

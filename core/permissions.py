@@ -83,6 +83,8 @@ PUBLIC_URL_NAMES = frozenset({
     "agent_ping", "agent_heartbeat", "agent_ingest_metrics",
     "agent_ingest_services", "agent_ingest_containers", "agent_ingest_ssh_auth",
     "kpi_ingest", "agent_install_script", "agent_script",
+    # Windows installer artifacts (public, like the Linux installer URLs above).
+    "agent_install_ps1", "agent_exe", "agent_nssm_exe",
 })
 
 # Self-service routes: require authentication (staff) but no capability — every

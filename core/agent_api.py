@@ -574,6 +574,34 @@ def serve_agent_script(request):
     return _serve_agent_file("stacksense_agent.py", "text/x-python; charset=utf-8")
 
 
+def _serve_agent_binary(filename):
+    """Serve a binary file from agent/ (the Windows .exe / nssm.exe). 404 when absent so
+    a Linux-only deploy that never built the Windows artifacts degrades cleanly."""
+    path = os.path.join(settings.BASE_DIR, "agent", filename)
+    if not os.path.isfile(path):
+        raise Http404("not found")
+    with open(path, "rb") as f:
+        return HttpResponse(f.read(), content_type="application/octet-stream")
+
+
+@require_http_methods(["GET"])
+def serve_install_ps1(request):
+    """Serve the Windows PowerShell installer (piped into PowerShell on a Windows host)."""
+    return _serve_agent_file("install.ps1", "text/plain; charset=utf-8")
+
+
+@require_http_methods(["GET"])
+def serve_agent_exe(request):
+    """Serve the standalone Windows agent .exe (built out-of-band by CI; see agent/)."""
+    return _serve_agent_binary("stacksense-agent.exe")
+
+
+@require_http_methods(["GET"])
+def serve_nssm_exe(request):
+    """Serve the vendored NSSM service wrapper used by the Windows installer."""
+    return _serve_agent_binary("nssm.exe")
+
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def agent_ping(request):

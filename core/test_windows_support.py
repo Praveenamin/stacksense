@@ -124,6 +124,42 @@ class SshBruteForceGatingTests(TestCase):
             server=srv, event_type=SecurityEvent.EventType.SSH_BRUTE_FORCE).exists())
 
 
+class WindowsServingAndCommandTests(TestCase):
+    """Windows installer artifacts are served, and the onboarding command branches by OS."""
+    def setUp(self):
+        self.admin = User.objects.create_superuser("wadmin", "a@x.test", "pw")
+        self.client = Client()
+
+    def test_install_ps1_is_served(self):
+        r = self.client.get(reverse("agent_install_ps1"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("StackSenseAgent", r.content.decode())
+
+    def test_agent_exe_404_when_artifact_absent(self):
+        # Until CI builds + drops the exe into agent/, this 404s (Linux-only deploys ok).
+        self.assertEqual(self.client.get(reverse("agent_exe")).status_code, 404)
+
+    def test_windows_picker_creates_windows_server_with_powershell_command(self):
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("add_server_agent"),
+                             {"name": "win-1", "ip_address": "10.0.0.50", "os_type": "windows"})
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("install.ps1", body)
+        self.assertIn("powershell", body)
+        self.assertEqual(Server.objects.get(name="win-1").os_type, "windows")
+
+    def test_linux_picker_keeps_bash_command(self):
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("add_server_agent"),
+                             {"name": "lin-1", "ip_address": "10.0.0.51", "os_type": "linux"})
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("install.sh", body)
+        self.assertIn("sudo bash", body)
+        self.assertEqual(Server.objects.get(name="lin-1").os_type, "linux")
+
+
 class WindowsMountFilterTests(TestCase):
     def test_windows_drives_are_not_ephemeral(self):
         for drive in ("C:\\", "D:\\", "C:\\Windows\\Temp", "E:"):

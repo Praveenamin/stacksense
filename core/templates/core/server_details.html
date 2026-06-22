@@ -66,6 +66,7 @@
             <span style="color: var(--cds-color-gray-100); font-weight: var(--cds-font-weight-medium);">{{ server.name }}</span>
         </nav>
         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2); font-size: var(--cds-font-size-sm); color: var(--cds-color-gray-70);">
+            <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;" title="{{ server.os_version|default:'' }}">{{ server.get_os_type_display }}</span>
             <span style="font-family: var(--cds-font-family-mono);">{{ server.ip_address }}</span>
             <span>•</span>
             <span id="server-status-text" style="font-weight: var(--cds-font-weight-medium);">Checking status...</span>

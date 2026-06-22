@@ -42,6 +42,16 @@
                     <div style="font-size:12px;color:#94a3b8;margin-top:6px;">For your reference on the dashboard (the agent dials out to us; we don't connect to this IP).</div>
                 </div>
 
+                <div style="margin-bottom:24px;">
+                    <label for="os_type" style="display:block;font-size:14px;font-weight:500;color:#0f172a;margin-bottom:6px;">Operating System</label>
+                    <select id="os_type" name="os_type"
+                            style="width:100%;padding:10px 14px;font-size:14px;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;">
+                        <option value="linux"{% if os_type == 'windows' %}{% else %} selected{% endif %}>Linux</option>
+                        <option value="windows"{% if os_type == 'windows' %} selected{% endif %}>Windows</option>
+                    </select>
+                    <div style="font-size:12px;color:#94a3b8;margin-top:6px;">Determines the install command (Linux shell vs Windows PowerShell). The agent confirms the real OS once it reports.</div>
+                </div>
+
                 <button type="submit"
                         style="background:#0f62fe;color:#fff;padding:10px 20px;font-size:14px;font-weight:500;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;">
                     Create &amp; get install command
