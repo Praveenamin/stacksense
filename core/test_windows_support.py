@@ -130,10 +130,15 @@ class WindowsServingAndCommandTests(TestCase):
         self.admin = User.objects.create_superuser("wadmin", "a@x.test", "pw")
         self.client = Client()
 
-    def test_install_ps1_is_served(self):
+    def test_install_ps1_is_served_and_is_exe_based(self):
         r = self.client.get(reverse("agent_install_ps1"))
         self.assertEqual(r.status_code, 200)
-        self.assertIn("StackSenseAgent", r.content.decode())
+        body = r.content.decode()
+        self.assertIn("StackSenseAgent", body)              # scheduled-task name
+        self.assertIn("stacksense-agent.exe", body)         # downloads the standalone exe
+        # No Python on the host: the installer must NOT bootstrap pip / embeddable Python.
+        self.assertNotIn("get-pip", body)
+        self.assertNotIn("embed-amd64", body)
 
     def test_agent_exe_404_when_artifact_absent(self):
         # Until CI builds + drops the exe into agent/, this 404s (Linux-only deploys ok).

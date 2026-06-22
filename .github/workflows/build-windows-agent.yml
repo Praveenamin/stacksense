@@ -1,14 +1,19 @@
 name: Build Windows agent exe
 
 # The StackSense server runs on Linux/Docker and cannot compile a Windows .exe, so the
-# standalone agent binary is built here on a Windows runner and published as an artifact.
-# Drop the resulting stacksense-agent.exe into agent/ on the server (served by
-# /agent/stacksense-agent.exe) so the PowerShell installer can fetch it.
+# standalone agent binary is built here on a Windows runner. On a tag it is also attached
+# to a GitHub Release, so the server can fetch it with:
+#   gh release download <tag> -p stacksense-agent.exe -D agent/ --clobber
+# (run once per agent version; served by /agent/stacksense-agent.exe). Manual runs
+# (workflow_dispatch) still produce the downloadable artifact.
 
 on:
   push:
     tags: ["agent-v*", "v*"]
   workflow_dispatch: {}
+
+permissions:
+  contents: write          # needed to create the Release on a tag
 
 jobs:
   build:
@@ -40,3 +45,10 @@ jobs:
           name: stacksense-agent-exe
           path: dist/stacksense-agent.exe
           if-no-files-found: error
+
+      - name: Publish to a GitHub Release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/stacksense-agent.exe
+          fail_on_unmatched_files: true
