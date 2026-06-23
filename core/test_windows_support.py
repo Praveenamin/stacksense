@@ -16,10 +16,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import (Server, AgentCredential, SystemMetric, SSHAuthEvent,
-                         SecurityEvent, SecurityMonitorConfig, MonitoringConfig)
+                         SecurityEvent, SecurityMonitorConfig, MonitoringConfig, Service)
 from core.mount_filters import is_ephemeral_mount, primary_mount, primary_disk_percent
 from core.utils.leak_detection import detect_leaks
 from core.security_monitor import detect_ssh_brute_force
+from core.views import _is_background_service
 
 User = get_user_model()
 
@@ -222,3 +223,52 @@ class WindowsDiskDisplayTests(TestCase):
         # The disk chart series uses the primary drive too (not all-zeros on Windows).
         chart = json.loads(resp.context["chart_data"])
         self.assertEqual(chart["disk"], [50.0])
+
+
+class WindowsServiceClassificationTests(TestCase):
+    """Windows services (service_type='windows') surface app/web/db services as notable
+    and collapse OS services as background, so a Windows host's panel isn't flooded."""
+    def setUp(self):
+        self.server = Server.objects.create(name="wsvc", ip_address="10.0.0.8",
+                                            username="agent", os_type="windows")
+
+    def _svc(self, name, display_name=""):
+        return Service.objects.create(server=self.server, name=name, status="running",
+                                      service_type="windows", display_name=display_name or name)
+
+    def test_iis_and_app_services_are_notable(self):
+        for name in ("W3SVC", "MSSQLSERVER", "MSSQL$SQLEXPRESS", "nginx",
+                     "postgresql-x64-15", "Apache2.4", "Tomcat9"):
+            self.assertFalse(_is_background_service(self._svc(name)),
+                             f"{name} should be a notable (visible) service")
+
+    def test_os_services_are_background(self):
+        for name in ("Dnscache", "Schedule", "Spooler", "BITS", "Themes", "WSearch"):
+            self.assertTrue(_is_background_service(self._svc(name)),
+                            f"{name} should be collapsed as background")
+
+
+class WindowsServiceIngestTests(TestCase):
+    """The agent's Windows-service rows (service_type='windows') ingest and persist."""
+    def setUp(self):
+        self.server = Server.objects.create(name="wing", ip_address="10.0.0.10", username="agent")
+        _, self.token = AgentCredential.generate_for_server(self.server)
+        self.client = Client()
+
+    def test_windows_services_persisted(self):
+        payload = {"services": [
+            {"name": "W3SVC", "status": "running", "service_type": "windows",
+             "display_name": "World Wide Web Publishing Service", "process_id": "1234"},
+            {"name": "Dnscache", "status": "running", "service_type": "windows",
+             "display_name": "DNS Client"},
+        ]}
+        r = self.client.post(reverse("agent_ingest_services"), data=json.dumps(payload),
+                             content_type="application/json",
+                             HTTP_AUTHORIZATION=f"Bearer {self.token}")
+        self.assertEqual(r.status_code, 200)
+        iis = Service.objects.get(server=self.server, name="W3SVC")
+        self.assertEqual(iis.service_type, "windows")
+        self.assertEqual(iis.display_name, "World Wide Web Publishing Service")
+        self.assertFalse(_is_background_service(iis))           # IIS shows as notable
+        self.assertTrue(_is_background_service(
+            Service.objects.get(server=self.server, name="Dnscache")))

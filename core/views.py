@@ -7447,6 +7447,22 @@ _BACKGROUND_SERVICE_PREFIXES = (
     "dpkg", "apt-", "phpsessionclean", "ua-", "ubuntu-advantage", "update-notifier",
 )
 
+# Windows runs dozens of OS services, so we invert the Linux logic: a Windows service
+# is background UNLESS it's a recognized web/app/database service. Names/prefixes are
+# matched lowercase. W3SVC=IIS, WAS=its process-activation dependency, FTPSVC=IIS FTP.
+_NOTABLE_WINDOWS_SERVICE_NAMES = {
+    "w3svc", "was", "ftpsvc",                          # IIS (web), process activation, FTP
+    "mssqlserver", "sqlserveragent", "sqlbrowser",     # SQL Server (default instance)
+    "nginx", "docker", "com.docker.service",
+    "rabbitmq", "redis", "memcached", "mongodb", "elasticsearch",
+}
+_NOTABLE_WINDOWS_SERVICE_PREFIXES = (
+    "iis", "w3svc", "ftpsvc",
+    "mssql$", "sqlagent$",          # SQL Server named instances (MSSQL$INSTANCE, ...)
+    "postgresql", "mysql", "mariadb",
+    "apache", "tomcat",
+)
+
 
 def _is_background_service(svc):
     """Heuristic: is this a low-value OS/background service (hidden by default)?"""
@@ -7458,6 +7474,12 @@ def _is_background_service(svc):
             return False
         return role_for_port(svc.port) is None
     name = (svc.name or "").lower()
+    if svc.service_type == "windows":
+        # Notable iff it's a known web/app/db service; everything else (OS services)
+        # is collapsed as background but still monitored.
+        if name in _NOTABLE_WINDOWS_SERVICE_NAMES:
+            return False
+        return not any(name.startswith(p) for p in _NOTABLE_WINDOWS_SERVICE_PREFIXES)
     if name in _BACKGROUND_SERVICE_NAMES:
         return True
     return any(name.startswith(p) for p in _BACKGROUND_SERVICE_PREFIXES)

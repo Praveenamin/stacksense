@@ -48,7 +48,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.7.0"
+AGENT_VERSION = "push-1.8.0"
 
 # The agent is cross-platform (Linux + Windows). Core metrics come from psutil, which
 # is OS-portable; a few collectors are Linux-only (systemd services, SSH auth log, SysV
@@ -390,6 +390,34 @@ def collect_services():
         if sysd_count == 0:
             print("[services] no systemd units detected; relying on listening-port "
                   "detection (services will be named by port/banner)", file=sys.stderr)
+
+    # Windows services (the analog of systemd units). psutil.win_service_iter() lists
+    # the Service Control Manager's services by name (W3SVC=IIS, MSSQLSERVER, ...). We
+    # report the running ones with service_type="windows"; the server classifies which
+    # are notable vs background. Listening-port detection below still runs too.
+    if _IS_WINDOWS and hasattr(psutil, "win_service_iter"):
+        win_count = 0
+        try:
+            for svc in psutil.win_service_iter():
+                info = _safe(lambda: svc.as_dict())
+                if not info or info.get("status") != "running":
+                    continue
+                name = info.get("name")
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                services.append({
+                    "name": name, "status": "running", "service_type": "windows",
+                    "display_name": info.get("display_name") or name,
+                    "process_id": str(info.get("pid") or ""),
+                })
+                win_count += 1
+        except Exception as e:
+            print(f"[services] Windows service enumeration failed ({e!r}); "
+                  f"relying on listening-port detection", file=sys.stderr)
+        if win_count == 0:
+            print("[services] no Windows services enumerated; relying on listening-port "
+                  "detection", file=sys.stderr)
 
     # Listening ports (best-effort; full visibility needs root). For each port we
     # attempt a 1s loopback banner grab to name the real product; on failure we
