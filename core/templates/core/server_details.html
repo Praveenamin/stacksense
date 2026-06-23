@@ -826,8 +826,11 @@
             .filter(cb => cb.checked)
             .map(cb => cb.value);
         
-        // Always include / if not already selected
-        if (!selectedDisks.includes('/')) {
+        // Always keep the root "/" monitored on Linux (its checkbox is disabled, so it's
+        // excluded above). Only do this when a "/" partition actually exists -- Windows
+        // hosts (C:\, D:\) have no "/", so don't inject a phantom one.
+        const hasRoot = document.querySelector('#disk-modal-list input[value="/"]') !== null;
+        if (hasRoot && !selectedDisks.includes('/')) {
             selectedDisks.unshift('/');
         }
         

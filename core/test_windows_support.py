@@ -16,8 +16,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import (Server, AgentCredential, SystemMetric, SSHAuthEvent,
-                         SecurityEvent, SecurityMonitorConfig)
-from core.mount_filters import is_ephemeral_mount
+                         SecurityEvent, SecurityMonitorConfig, MonitoringConfig)
+from core.mount_filters import is_ephemeral_mount, primary_mount, primary_disk_percent
 from core.utils.leak_detection import detect_leaks
 from core.security_monitor import detect_ssh_brute_force
 
@@ -177,3 +177,48 @@ class WindowsMountFilterTests(TestCase):
     def test_linux_ephemeral_still_excluded(self):
         self.assertTrue(is_ephemeral_mount("/tmp"))
         self.assertFalse(is_ephemeral_mount("/"))
+
+
+class PrimaryMountTests(TestCase):
+    def test_primary_mount_selection(self):
+        self.assertEqual(primary_mount({"/": {}}), "/")
+        self.assertEqual(primary_mount({"C:\\": {}}), "C:\\")
+        self.assertEqual(primary_mount({"D:\\": {}, "E:\\": {}}), "D:\\")
+        self.assertEqual(primary_mount({"C:\\": {}, "/": {}}), "/")   # Linux root preferred
+        self.assertIsNone(primary_mount({}))
+        self.assertIsNone(primary_mount(None))
+
+    def test_primary_disk_percent(self):
+        self.assertEqual(primary_disk_percent({"C:\\": {"percent": 42.6}}), 42.6)
+        self.assertEqual(primary_disk_percent({"/": {"percent": 10}}), 10.0)
+        self.assertEqual(primary_disk_percent({"C:\\": 33}), 33.0)
+        self.assertEqual(primary_disk_percent({}), 0.0)
+        self.assertEqual(primary_disk_percent(None), 0.0)
+
+
+class WindowsDiskDisplayTests(TestCase):
+    """A fresh Windows server (empty monitored_disks) shows its C: drive, not a blank card."""
+    def setUp(self):
+        self.admin = User.objects.create_superuser("dadm", "d@x.test", "pw")
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.server = Server.objects.create(name="wdisk", ip_address="10.0.0.7",
+                                            username="agent", os_type="windows")
+        MonitoringConfig.objects.create(server=self.server, monitored_disks=[])
+        SystemMetric.objects.create(
+            server=self.server, cpu_percent=5.0, memory_total=8_000_000_000,
+            memory_available=4_000_000_000, memory_percent=50.0, memory_used=4_000_000_000,
+            disk_usage={"C:\\": {"total": 100, "used": 50, "free": 50, "percent": 50.0}})
+
+    def test_windows_disk_card_shows_c_drive_by_default(self):
+        resp = self.client.get(reverse("server_details", args=[self.server.id]))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("C:\\", html)            # the drive renders (default monitored disk)
+        self.assertIn("50", html)              # its usage %, not blank/0
+        # The summary `disk_percent` (dashboard tiles, header) reflects C:\, not 0 --
+        # guards against the chart-history loop clobbering it by re-reading "/".
+        self.assertEqual(resp.context["disk_percent"], 50.0)
+        # The disk chart series uses the primary drive too (not all-zeros on Windows).
+        chart = json.loads(resp.context["chart_data"])
+        self.assertEqual(chart["disk"], [50.0])

@@ -47,3 +47,33 @@ def is_ephemeral_mount(mount):
         if m == p or m.startswith(p + "/"):
             return True
     return False
+
+
+def primary_mount(disk_usage):
+    """The mount that best represents "the disk" for a server: the Linux root "/", else the
+    Windows system drive "C:\\", else any drive letter (D:\\, ...), else the first key.
+    Returns None for empty/invalid input. Use this instead of hard-coding "/" so Windows
+    servers (whose disk_usage is keyed by drive letter) aren't treated as having no disk."""
+    if not isinstance(disk_usage, dict) or not disk_usage:
+        return None
+    for key in ("/", "C:\\", "C:"):
+        if key in disk_usage:
+            return key
+    for k in disk_usage:
+        if isinstance(k, str) and len(k) >= 2 and k[1] == ":":
+            return k
+    return next(iter(disk_usage), None)
+
+
+def primary_disk_percent(disk_usage):
+    """Disk-usage percent of the primary mount (0.0 if unavailable)."""
+    m = primary_mount(disk_usage)
+    v = disk_usage.get(m) if (m is not None and isinstance(disk_usage, dict)) else None
+    if isinstance(v, dict):
+        try:
+            return float(v.get("percent", 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    return 0.0

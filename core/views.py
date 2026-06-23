@@ -10,7 +10,7 @@ from .models import Server, SystemMetric, Anomaly, MonitoringConfig, Service, Em
 from .service_latency import measure_service_latency
 from . import alert_categories
 from . import alert_routing
-from .mount_filters import is_ephemeral_mount
+from .mount_filters import is_ephemeral_mount, primary_mount, primary_disk_percent
 from .port_roles import role_for_port
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -216,9 +216,7 @@ def get_live_metrics(request):
                         if isinstance(latest_metric.disk_usage, str)
                         else latest_metric.disk_usage
                     )
-                    root_partition = disk_data.get("/", None)
-                    if root_partition:
-                        disk_percent = root_partition.get("percent", 0) or 0
+                    disk_percent = primary_disk_percent(disk_data)
                 except:
                     pass
             
@@ -656,10 +654,8 @@ def server_details(request, server_id):
             if isinstance(latest_metric.disk_usage, str)
             else latest_metric.disk_usage
         )
-        # Get root partition disk percent
-        root_partition = disk_data.get("/", None)
-        if root_partition and isinstance(root_partition, dict):
-            disk_percent = root_partition.get("percent", 0) or 0
+        # Primary partition disk percent (root "/" on Linux, "C:\\" on Windows, ...).
+        disk_percent = primary_disk_percent(disk_data)
 
     # Physical disk inventory (SSD/HDD/NVMe, RAID, disk count) pushed by the agent
     disk_hardware = {}
@@ -737,8 +733,10 @@ def server_details(request, server_id):
         chart_data["cpu"].append(float(metric.cpu_percent or 0))
         chart_data["memory"].append(float(metric.memory_percent or 0))
         
-        # Get disk percent from root partition
-        disk_percent = 0
+        # Disk percent of the server's primary partition (root "/" on Linux, "C:\\" on
+        # Windows, ...). Loop-local var so we don't clobber the `disk_percent` context
+        # value computed from the latest metric above.
+        point_disk = 0
         if metric.disk_usage:
             try:
                 disk_info = (
@@ -746,12 +744,10 @@ def server_details(request, server_id):
                     if isinstance(metric.disk_usage, str)
                     else metric.disk_usage
                 )
-                root_part = disk_info.get("/", {})
-                if root_part:
-                    disk_percent = float(root_part.get("percent", 0) or 0)
-            except:
+                point_disk = primary_disk_percent(disk_info)
+            except Exception:
                 pass
-        chart_data["disk"].append(disk_percent)
+        chart_data["disk"].append(point_disk)
     
     # Convert to JSON string for template
     import json as json_module
@@ -781,8 +777,12 @@ def server_details(request, server_id):
     # Get all alert statuses
     alert_statuses = AlertHistory.AlertStatus.choices
     
-    # Get monitored disks from config (default to ["/"] if not set)
-    monitored_disks = server.monitoring_config.monitored_disks if hasattr(server, 'monitoring_config') and server.monitoring_config.monitored_disks else ["/"]
+    # Monitored disks from config; default to the server's primary drive (root "/" on
+    # Linux, "C:\\" on Windows) so a fresh server's disk card isn't blank.
+    if hasattr(server, 'monitoring_config') and server.monitoring_config.monitored_disks:
+        monitored_disks = server.monitoring_config.monitored_disks
+    else:
+        monitored_disks = [primary_mount(disk_data) or "/"]
     
     # Get monitored services for latency display (services with monitoring_enabled=True)
     monitored_services = all_services.filter(monitoring_enabled=True)
@@ -903,8 +903,7 @@ def server_list(request):
                 if latest_metric.disk_usage:
                     try:
                         disk_data = json.loads(latest_metric.disk_usage) if isinstance(latest_metric.disk_usage, str) else latest_metric.disk_usage
-                        if isinstance(disk_data, dict) and '/' in disk_data:
-                            server.disk_percent = disk_data['/'].get('percent', 0)
+                        server.disk_percent = primary_disk_percent(disk_data)
                     except:
                         pass
                 
@@ -1143,14 +1142,8 @@ def monitoring_dashboard(request):
                         if isinstance(latest_metric.disk_usage, str)
                         else latest_metric.disk_usage
                     )
-                    # Use root partition ("/") if available, otherwise first partition
-                    root_partition = disk_data.get("/", None)
-                    if root_partition:
-                        disk_percent = root_partition.get("percent", 0) or 0
-                    else:
-                        first_partition = next(iter(disk_data.values()), None)
-                        if first_partition:
-                            disk_percent = first_partition.get("percent", 0) or 0
+                    # Primary partition ("/" on Linux, "C:\\" on Windows), else first.
+                    disk_percent = primary_disk_percent(disk_data)
                 except Exception:
                     disk_percent = 0
 
