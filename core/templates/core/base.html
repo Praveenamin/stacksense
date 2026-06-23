@@ -414,6 +414,38 @@
         };
     })();
     </script>
+
+    <!-- Lightweight global toast: window.showToast(message, type) where type is
+         'success' (default) | 'error' | 'info'. Auto-dismisses after ~2.6s. -->
+    <div id="toast-stack" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
+    <script>
+    window.showToast = function (message, type) {
+        var stack = document.getElementById('toast-stack');
+        if (!stack) return;
+        var colors = {
+            success: { bg: '#ecfdf5', br: '#a7f3d0', fg: '#065f46', dot: '#10b981' },
+            error:   { bg: '#fef2f2', br: '#fecaca', fg: '#991b1b', dot: '#ef4444' },
+            info:    { bg: '#eff6ff', br: '#bfdbfe', fg: '#1e40af', dot: '#3b82f6' }
+        };
+        var c = colors[type] || colors.success;
+        var t = document.createElement('div');
+        t.setAttribute('role', 'status');
+        t.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:9px;min-width:200px;max-width:360px;' +
+            'padding:10px 14px;font-size:13px;font-weight:500;border-radius:8px;' +
+            'background:' + c.bg + ';border:1px solid ' + c.br + ';color:' + c.fg + ';' +
+            'box-shadow:0 4px 14px rgba(0,0,0,.10);opacity:0;transform:translateY(6px);' +
+            'transition:opacity .18s ease,transform .18s ease;';
+        t.innerHTML = '<span style="flex:none;width:8px;height:8px;border-radius:999px;background:' + c.dot + ';"></span>' +
+            '<span></span>';
+        t.lastChild.textContent = message;
+        stack.appendChild(t);
+        requestAnimationFrame(function () { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+        setTimeout(function () {
+            t.style.opacity = '0'; t.style.transform = 'translateY(6px)';
+            setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 220);
+        }, 2600);
+    };
+    </script>
 </body>
 
 </html>

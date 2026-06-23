@@ -603,23 +603,36 @@
         t.style.display = show ? 'table' : 'none';
         btn.textContent = (show ? '▾ Hide ' : '▸ Show ') + btn.textContent.replace(/^[▸▾]\s*(Show|Hide)\s*/, '');
     }
+    function _rowName(el, fallback) {
+        var row = el.closest('tr');
+        var cell = row ? row.querySelector('td') : null;
+        return ((cell && cell.childNodes[0] ? cell.childNodes[0].textContent : '') || '').trim() || fallback;
+    }
     function toggleServiceMonitoring(serverId, serviceId, el) {
+        var on = el.checked, name = _rowName(el, 'service');
         fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {
             method: 'POST',
             headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' }
         })
         .then(r => r.json())
-        .then(d => { if (!d.success) { el.checked = !el.checked; alert('Failed to update monitoring'); } })
-        .catch(() => { el.checked = !el.checked; alert('Failed to update monitoring'); });
+        .then(d => {
+            if (d.success) { showToast('Monitoring ' + (on ? 'enabled' : 'disabled') + ' for ' + name, on ? 'success' : 'info'); }
+            else { el.checked = !el.checked; showToast('Failed to update monitoring', 'error'); }
+        })
+        .catch(() => { el.checked = !el.checked; showToast('Failed to update monitoring', 'error'); });
     }
     function toggleContainerMonitoring(serverId, containerId, el) {
+        var on = el.checked, name = _rowName(el, 'container');
         fetch(`/api/server/${serverId}/container/${containerId}/toggle-monitoring/`, {
             method: 'POST',
             headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' }
         })
         .then(r => r.json())
-        .then(d => { if (!d.success) { el.checked = !el.checked; alert('Failed to update monitoring'); } })
-        .catch(() => { el.checked = !el.checked; alert('Failed to update monitoring'); });
+        .then(d => {
+            if (d.success) { showToast('Monitoring ' + (on ? 'enabled' : 'disabled') + ' for ' + name, on ? 'success' : 'info'); }
+            else { el.checked = !el.checked; showToast('Failed to update monitoring', 'error'); }
+        })
+        .catch(() => { el.checked = !el.checked; showToast('Failed to update monitoring', 'error'); });
     }
     
     async function loadMemoryTrend(range) {

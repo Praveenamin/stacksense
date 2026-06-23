@@ -97,9 +97,16 @@ function setServer(card, open){var body=card.querySelector('.ctr-body');var chev
 function toggleServer(id, head){var card=head.closest('.ctr-server');var body=document.getElementById(id);setServer(card, body.style.display==='none');}
 (function(){var cards=document.querySelectorAll('.ctr-server');if(cards.length===1){setServer(cards[0], true);}})();
 function toggleContainerMonitoring(serverId, containerId, el){
+    var on = el.checked;
+    var row = el.closest('tr');
+    var cell = row ? row.querySelector('td') : null;
+    var name = ((cell && cell.childNodes[0] ? cell.childNodes[0].textContent : '') || '').trim() || 'container';
     fetch(`/api/server/${serverId}/container/${containerId}/toggle-monitoring/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}})
-        .then(r=>r.json()).then(d=>{ if(!d.success){ el.checked=!el.checked; alert('Failed to update monitoring'); } })
-        .catch(()=>{ el.checked=!el.checked; alert('Failed to update monitoring'); });
+        .then(r=>r.json()).then(d=>{
+            if(d.success){ showToast('Monitoring ' + (on?'enabled':'disabled') + ' for ' + name, on?'success':'info'); }
+            else { el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); }
+        })
+        .catch(()=>{ el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); });
 }
 (function(){
     var search=document.getElementById('ctr-search');

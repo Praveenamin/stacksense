@@ -126,9 +126,16 @@ function toggleServer(id, head){
 // Auto-expand when there's only one server; otherwise keep all collapsed.
 (function(){ var cards=document.querySelectorAll('.svc-server'); if(cards.length===1){ setServer(cards[0], true); } })();
 function toggleServiceMonitoring(serverId, serviceId, el){
+    var on = el.checked;
+    var row = el.closest('tr');
+    var cell = row ? row.querySelector('td') : null;
+    var name = ((cell && cell.childNodes[0] ? cell.childNodes[0].textContent : '') || '').trim() || 'service';
     fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}})
-        .then(r=>r.json()).then(d=>{ if(!d.success){ el.checked=!el.checked; alert('Failed to update monitoring'); } })
-        .catch(()=>{ el.checked=!el.checked; alert('Failed to update monitoring'); });
+        .then(r=>r.json()).then(d=>{
+            if(d.success){ showToast('Monitoring ' + (on?'enabled':'disabled') + ' for ' + name, on?'success':'info'); }
+            else { el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); }
+        })
+        .catch(()=>{ el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); });
 }
 // Search across all rows + server names
 (function(){
