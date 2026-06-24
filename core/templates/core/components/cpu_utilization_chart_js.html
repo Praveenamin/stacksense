@@ -1,0 +1,209 @@
+{% comment %}
+Shared "CPU Utilization" chart look (phase 1 redesign): teal filled area, an orange
+horizontal AVERAGE reference line, a rich hover tooltip (timestamp + CPU % + Top
+Processes at that sample), and an Avg / Min / Max stat row. Included (not {% static %})
+on both the server-details and dashboard pages so it works under whitenoise's manifest
+storage without a collectstatic race. Compatible with Chart.js 3.x and 4.x.
+
+A data point is {x: epochMs, y: cpuPercent, top: [{name, cpu}, ...]}; `top` is optional.
+Public API on window.CpuUtil: render(canvasId, points, opts) -> chart; update(chart,
+points, opts); popout(title, points, opts).
+{% endcomment %}
+<script>
+(function () {
+    if (window.CpuUtil) return;   // include-once guard
+
+    var TEAL = '#2cbfc7', TEAL_FILL = 'rgba(45,191,199,0.35)', ORANGE = '#f97316';
+
+    function stats(points) {
+        var ys = (points || []).map(function (p) { return p.y; })
+            .filter(function (v) { return v != null && !isNaN(v); });
+        if (!ys.length) return { avg: 0, min: 0, max: 0, n: 0 };
+        var sum = ys.reduce(function (a, b) { return a + b; }, 0);
+        return { avg: sum / ys.length, min: Math.min.apply(null, ys),
+                 max: Math.max.apply(null, ys), n: ys.length };
+    }
+
+    function fmtPct(v) { return (Math.round(v * 10) / 10) + ' %'; }
+
+    function fmtTs(ms) {
+        var d = new Date(ms);
+        return d.toLocaleString([], { month: 'short', day: 'numeric',
+                                      hour: 'numeric', minute: '2-digit' });
+    }
+
+    // Per-chart inline plugin: draw the orange AVERAGE line at chart.$avg.
+    var avgLinePlugin = {
+        id: 'cpuAvgLine',
+        afterDatasetsDraw: function (chart) {
+            var avg = chart.$avg;
+            if (avg == null) return;
+            var yScale = chart.scales && chart.scales.y, area = chart.chartArea;
+            if (!yScale || !area) return;
+            var y = yScale.getPixelForValue(avg);
+            if (y < area.top || y > area.bottom) return;
+            var ctx = chart.ctx;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(area.left, y);
+            ctx.lineTo(area.right, y);
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = ORANGE;
+            ctx.stroke();
+            ctx.restore();
+        }
+    };
+
+    function tooltipCallbacks() {
+        return {
+            title: function (items) { return items.length ? fmtTs(items[0].parsed.x) : ''; },
+            label: function (item) { return 'CPU Usage : ' + fmtPct(item.parsed.y); },
+            afterBody: function (items) {
+                if (!items.length) return '';
+                var raw = items[0].raw || {};
+                var top = raw.top || [];
+                if (!top.length) return '';
+                var lines = ['', 'Top Process :'];
+                top.forEach(function (p) {
+                    lines.push('   ' + (p.name || '?') + ' : ' + fmtPct(p.cpu || 0));
+                });
+                return lines;
+            }
+        };
+    }
+
+    function defaultXScale() {
+        return {
+            type: 'linear', display: true, bounds: 'ticks',
+            grid: { display: false },
+            ticks: {
+                maxTicksLimit: 8, autoSkip: true, maxRotation: 0,
+                font: { size: 10 }, color: '#94a3b8',
+                callback: function (value) {
+                    var span = (this.max - this.min) || 0, dt = new Date(value);
+                    if (span <= 36 * 3600 * 1000)
+                        return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return dt.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                }
+            }
+        };
+    }
+
+    function buildOptions(xScale) {
+        return {
+            responsive: true, maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'index', intersect: false,
+                    backgroundColor: 'rgba(71,85,105,0.95)', padding: 10,
+                    titleColor: '#fff', bodyColor: '#fff',
+                    titleFont: { size: 12, weight: '600' }, bodyFont: { size: 12 },
+                    callbacks: tooltipCallbacks()
+                }
+            },
+            scales: {
+                x: xScale || defaultXScale(),
+                y: {
+                    min: 0, max: 100, grid: { color: 'rgba(15,23,42,0.05)' },
+                    ticks: { stepSize: 20, callback: function (v) { return v + '%'; },
+                             font: { size: 10 }, color: '#94a3b8' }
+                }
+            }
+        };
+    }
+
+    function buildDataset(points) {
+        return {
+            label: 'CPU %', data: points,
+            borderColor: TEAL, backgroundColor: TEAL_FILL,
+            fill: true, tension: 0.3, borderWidth: 1.5,
+            pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: TEAL,
+        };
+    }
+
+    function applyStats(els, s) {
+        if (!els) return;
+        if (els.avg) els.avg.textContent = fmtPct(s.avg);
+        if (els.min) els.min.textContent = fmtPct(s.min);
+        if (els.max) els.max.textContent = fmtPct(s.max);
+    }
+
+    function makeChart(canvasEl, points, opts) {
+        var chart = new Chart(canvasEl.getContext('2d'), {
+            type: 'line',
+            data: { datasets: [buildDataset(points)] },
+            options: buildOptions(opts && opts.xScale),
+            plugins: [avgLinePlugin]
+        });
+        var s = stats(points);
+        chart.$avg = s.n ? s.avg : null;
+        if (opts && opts.xWindow) {
+            chart.options.scales.x.min = opts.xWindow.min;
+            chart.options.scales.x.max = opts.xWindow.max;
+        }
+        applyStats(opts && opts.statEls, s);
+        return chart;
+    }
+
+    // --- Popout modal: render the same series larger in a centered overlay. ---
+    var pop = null;
+    function ensurePopout() {
+        if (pop) return pop;
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;' +
+            'background:rgba(15,23,42,0.55);align-items:center;justify-content:center;';
+        ov.innerHTML =
+            '<div style="background:#fff;border-radius:12px;width:min(1100px,94vw);' +
+                'max-height:90vh;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3);">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+                '<h3 id="cpu-pop-title" style="margin:0;font-size:15px;color:#0f172a;">CPU Utilization</h3>' +
+                '<button id="cpu-pop-close" style="border:none;background:#f1f5f9;border-radius:6px;' +
+                  'width:28px;height:28px;cursor:pointer;font-size:16px;color:#475569;">&times;</button>' +
+              '</div>' +
+              '<div style="height:62vh;"><canvas id="cpu-pop-canvas"></canvas></div>' +
+            '</div>';
+        document.body.appendChild(ov);
+        var close = function () {
+            ov.style.display = 'none';
+            if (pop.chart) { pop.chart.destroy(); pop.chart = null; }
+        };
+        ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+        ov.querySelector('#cpu-pop-close').addEventListener('click', close);
+        pop = { overlay: ov, chart: null };
+        return pop;
+    }
+
+    window.CpuUtil = {
+        avgLinePlugin: avgLinePlugin,
+        stats: stats,
+        render: function (canvasId, points, opts) {
+            var el = document.getElementById(canvasId);
+            if (!el) return null;
+            return makeChart(el, points || [], opts || {});
+        },
+        update: function (chart, points, opts) {
+            if (!chart) return;
+            opts = opts || {};
+            chart.data.datasets[0].data = points || [];
+            var s = stats(points);
+            chart.$avg = s.n ? s.avg : null;
+            if (opts.xWindow) {
+                chart.options.scales.x.min = opts.xWindow.min;
+                chart.options.scales.x.max = opts.xWindow.max;
+            }
+            applyStats(opts.statEls, s);
+            chart.update('none');
+        },
+        popout: function (title, points, opts) {
+            var p = ensurePopout();
+            p.overlay.querySelector('#cpu-pop-title').textContent = title || 'CPU Utilization';
+            p.overlay.style.display = 'flex';
+            if (p.chart) { p.chart.destroy(); p.chart = null; }
+            p.chart = makeChart(p.overlay.querySelector('#cpu-pop-canvas'), points || [], opts || {});
+        }
+    };
+})();
+</script>

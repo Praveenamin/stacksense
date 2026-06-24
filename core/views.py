@@ -4524,6 +4524,33 @@ def toggle_monitoring(request, server_id, action):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+def _top_cpu_procs(top_processes, limit=5):
+    """Trimmed [{name, cpu}] of the top CPU processes stored on a metric.
+
+    Reads SystemMetric.top_processes ({"cpu": [...], "memory": [...]}); tolerant of
+    str/dict/None. Feeds the CPU chart's hover tooltip (the "Top Process" list)."""
+    data = top_processes
+    if not data:
+        return []
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except (ValueError, TypeError):
+            return []
+    if not isinstance(data, dict):
+        return []
+    out = []
+    for p in (data.get("cpu") or [])[:limit]:
+        if not isinstance(p, dict):
+            continue
+        try:
+            cpu = round(float(p.get("cpu_percent") or 0), 1)
+        except (TypeError, ValueError):
+            cpu = 0.0
+        out.append({"name": p.get("name") or p.get("command") or "?", "cpu": cpu})
+    return out
+
+
 @require_http_methods(["GET"])
 def server_metrics_api(request, server_id):
     """
@@ -4611,7 +4638,8 @@ def server_metrics_api(request, server_id):
             SystemMetric.objects
             .filter(server=server, timestamp__gte=since)
             .order_by("timestamp")
-            .only("timestamp", "cpu_percent", "memory_percent", "disk_usage", "network_io")
+            .only("timestamp", "cpu_percent", "memory_percent", "disk_usage",
+                  "network_io", "top_processes")
         )
 
         metrics_list = list(metrics_qs)
@@ -4637,7 +4665,8 @@ def server_metrics_api(request, server_id):
             if cpu_val is not None:
                 cpu_data.append({
                     "timestamp": timestamp_str,
-                    "value": cpu_val
+                    "value": cpu_val,
+                    "top": _top_cpu_procs(metric.top_processes),   # tooltip "Top Process" list
                 })
 
             # Memory data
@@ -5712,45 +5741,61 @@ def dashboard_cpu_trend_api(request, period='24h'):
             # Get average of all servers
             metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
         
-        # Aggregate CPU metrics by hour
-        metrics = metrics_filter.order_by('timestamp').values('timestamp', 'cpu_percent', 'server_id')
-        
+        # Single-server mode also carries top processes for the hover tooltip; the
+        # "All VMs" average can't attribute processes, so it omits them.
+        single_server = bool(server_id and server_id != 'all')
+        fields = ['timestamp', 'cpu_percent', 'server_id']
+        if single_server:
+            fields.append('top_processes')
+        metrics = metrics_filter.order_by('timestamp').values(*fields)
+
         # Group by hour and calculate average and peak
         hourly_data = {}
+        hourly_top = {}    # hour -> (max_cpu_in_hour, top_processes) for single-server tooltip
         for metric in metrics:
             hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
-            if hour_key not in hourly_data:
-                hourly_data[hour_key] = []
-            hourly_data[hour_key].append(metric['cpu_percent'] or 0)
-        
+            cpu = metric['cpu_percent'] or 0
+            hourly_data.setdefault(hour_key, []).append(cpu)
+            if single_server:
+                prev = hourly_top.get(hour_key)
+                if prev is None or cpu >= prev[0]:   # representative = the hour's busiest sample
+                    hourly_top[hour_key] = (cpu, metric.get('top_processes'))
+
         # Calculate averages, peaks and prepare data
         for hour, values in sorted(hourly_data.items()):
             avg_cpu = sum(values) / len(values) if values else 0
             max_cpu = max(values) if values else 0
-            
+
             point = {
                 'timestamp': hour.isoformat(),
                 'value': round(avg_cpu, 2)
             }
-            
+
             # Include peak if it's significantly higher than average (indicating a spike)
             if max_cpu > avg_cpu + 10:  # Spike threshold: 10% above average
                 point['peak'] = round(max_cpu, 2)
-            
+
+            if single_server and hour in hourly_top:
+                point['top'] = _top_cpu_procs(hourly_top[hour][1])
+
             data_points.append(point)
-        
-        # Calculate current, peak, and average
+
+        # Calculate current / peak / average / minimum / maximum (over hourly points)
+        point_vals = [d['value'] for d in data_points]
         current_cpu = data_points[-1]['value'] if data_points else 0
-        peak_cpu = max([d['value'] for d in data_points]) if data_points else 0
-        avg_cpu = sum([d['value'] for d in data_points]) / len(data_points) if data_points else 0
-        
+        peak_cpu = max(point_vals) if point_vals else 0
+        min_cpu = min(point_vals) if point_vals else 0
+        avg_cpu = sum(point_vals) / len(point_vals) if point_vals else 0
+
         return JsonResponse({
             'success': True,
             'data': {
                 'points': data_points,
                 'current': round(current_cpu, 1),
                 'peak': round(peak_cpu, 1),
-                'average': round(avg_cpu, 1)
+                'average': round(avg_cpu, 1),
+                'minimum': round(min_cpu, 1),
+                'maximum': round(peak_cpu, 1)
             },
             'timestamp': timezone.now().isoformat()
         })

@@ -122,8 +122,26 @@
     <button type="button" id="range-7d" class="sd-btn-sm" onclick="setChartRange('7d')" style="background:#fff; color:#334155; border:1px solid #e2e8f0;">7d</button>
     <button type="button" id="range-30d" class="sd-btn-sm" onclick="setChartRange('30d')" style="background:#fff; color:#334155; border:1px solid #e2e8f0;">1 month</button>
 </div>
+<!-- CPU Utilization (redesigned): Avg/Min/Max stats + teal area + orange average line
+     + hover tooltip showing the top processes at that moment. -->
+<div class="sd-card" style="margin-bottom:14px;">
+    <h2 class="row" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>CPU Utilization</span>
+        <button type="button" onclick="popoutCpu()" title="Expand"
+                style="border:none;background:transparent;cursor:pointer;color:#94a3b8;padding:2px;line-height:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+        </button>
+    </h2>
+    <div style="display:flex;gap:48px;justify-content:center;margin:4px 0 14px;">
+        <div style="text-align:center;"><div style="font-size:12px;color:#94a3b8;">Average</div><div id="cpu-util-avg" style="font-size:20px;font-weight:600;color:#0f172a;">—</div></div>
+        <div style="text-align:center;"><div style="font-size:12px;color:#94a3b8;">Minimum</div><div id="cpu-util-min" style="font-size:20px;font-weight:600;color:#0f172a;">—</div></div>
+        <div style="text-align:center;"><div style="font-size:12px;color:#94a3b8;">Maximum</div><div id="cpu-util-max" style="font-size:20px;font-weight:600;color:#0f172a;">—</div></div>
+    </div>
+    <div style="position:relative;height:300px;"><canvas id="cpu-utilization-chart"></canvas></div>
+</div>
 <div class="sd-charts">
-    <div class="sd-card" style="margin-bottom:0;"><h2>CPU &amp; Memory</h2><div class="sd-chart-wrap"><canvas id="cpu-memory-chart"></canvas></div></div>
+    <div class="sd-card" style="margin-bottom:0;"><h2>Memory</h2><div class="sd-chart-wrap"><canvas id="memory-pct-chart"></canvas></div></div>
     <div class="sd-card" style="margin-bottom:0;"><h2>Disk I/O</h2><div class="sd-chart-wrap"><canvas id="disk-io-chart"></canvas></div></div>
     <div class="sd-card" style="margin-bottom:0;"><h2>Network I/O (In/Out)</h2><div class="sd-chart-wrap"><canvas id="network-io-chart"></canvas></div></div>
 </div>
@@ -422,10 +440,12 @@
 
 {% block extrajs %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+{% include "core/components/cpu_utilization_chart_js.html" %}
 <script>
     const serverId = document.getElementById('server-id').value;
     let refreshInterval;
-    let cpuMemoryChart, diskIOChart, networkIOChart, memoryTrendChart;
+    let cpuChart, memoryChart, diskIOChart, networkIOChart, memoryTrendChart;
+    let cpuPoints = [];   // latest CPU series ({x,y,top}) for the popout
     let chartRange = '24h';  // shared range for CPU&Memory / Disk I/O / Network I/O charts
 
     function setChartRange(r) {
@@ -711,11 +731,21 @@
             },
         });
 
-        // CPU & Memory (0–100%)
-        cpuMemoryChart = new Chart(document.getElementById('cpu-memory-chart').getContext('2d'), {
+        // CPU Utilization — redesigned look (teal area + orange average line + top-process
+        // tooltip + Avg/Min/Max stats) via the shared CpuUtil helper.
+        cpuChart = CpuUtil.render('cpu-utilization-chart', [], {
+            xScale: timeXScale(),
+            statEls: {
+                avg: document.getElementById('cpu-util-avg'),
+                min: document.getElementById('cpu-util-min'),
+                max: document.getElementById('cpu-util-max'),
+            },
+        });
+
+        // Memory % (0–100%) — its own card now that CPU has a dedicated chart.
+        memoryChart = new Chart(document.getElementById('memory-pct-chart').getContext('2d'), {
             type: 'line',
             data: { labels: [], datasets: [
-                series('CPU %', '#6366f1', 'rgba(99,102,241,0.12)'),
                 series('Memory %', '#14b8a6', 'rgba(20,184,166,0.12)'),
             ]},
             options: baseOptions({ min: 0, max: 100, ticks: { stepSize: 20, callback: v => v + '%', font: { size: 10 } } }),
@@ -806,11 +836,24 @@
         const MB = 1024 * 1024;
         const toXY = (arr, valFn) => (arr || []).map(d => ({ x: new Date(d.timestamp).getTime(), y: valFn(d) }));
 
-        setXWindow(cpuMemoryChart, chartRange);
-        cpuMemoryChart.data.labels = [];
-        cpuMemoryChart.data.datasets[0].data = toXY(data.cpu, d => d.value);
-        cpuMemoryChart.data.datasets[1].data = toXY(data.memory, d => d.value);
-        cpuMemoryChart.update('none');
+        // CPU Utilization — carry the per-sample top-process list for the tooltip.
+        cpuPoints = (data.cpu || []).map(d => ({
+            x: new Date(d.timestamp).getTime(), y: d.value, top: d.top || [],
+        }));
+        const now = Date.now();
+        CpuUtil.update(cpuChart, cpuPoints, {
+            xWindow: { min: now - rangeToMs(chartRange), max: now },
+            statEls: {
+                avg: document.getElementById('cpu-util-avg'),
+                min: document.getElementById('cpu-util-min'),
+                max: document.getElementById('cpu-util-max'),
+            },
+        });
+
+        setXWindow(memoryChart, chartRange);
+        memoryChart.data.labels = [];
+        memoryChart.data.datasets[0].data = toXY(data.memory, d => d.value);
+        memoryChart.update('none');
 
         setXWindow(diskIOChart, chartRange);
         diskIOChart.data.labels = [];
@@ -823,6 +866,14 @@
         networkIOChart.data.datasets[0].data = toXY(data.network, d => (d.rx || 0) / MB);
         networkIOChart.data.datasets[1].data = toXY(data.network, d => (d.tx || 0) / MB);
         networkIOChart.update('none');
+    }
+
+    // Expand the CPU Utilization chart into a larger popout overlay.
+    function popoutCpu() {
+        const now = Date.now();
+        CpuUtil.popout('CPU Utilization', cpuPoints, {
+            xWindow: { min: now - rangeToMs(chartRange), max: now },
+        });
     }
     
     function openDiskModal() {

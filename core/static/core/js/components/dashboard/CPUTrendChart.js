@@ -100,6 +100,12 @@ class CPUTrendChart extends BaseDashboardComponent {
                 this.toggleDropdown();
             });
         }
+        const popout = document.getElementById('cpu-trend-popout');
+        if (popout && window.CpuUtil) {
+            popout.addEventListener('click', () => {
+                CpuUtil.popout('CPU Usage Trend', this.points || []);
+            });
+        }
     }
     toggleDropdown() {
         const dropdown = document.getElementById('cpu-trend-filter-dropdown');
@@ -152,65 +158,27 @@ class CPUTrendChart extends BaseDashboardComponent {
     }
     render(data) {
         if (!data || !data.points) { this.showError('No data available'); return; }
-        if (data.current !== undefined) {
-            const currentEl = document.getElementById('cpu-current');
-            if (currentEl) currentEl.textContent = `${data.current}%`;
-        }
-        if (data.peak !== undefined) {
-            const peakEl = document.getElementById('cpu-peak');
-            if (peakEl) peakEl.textContent = `${data.peak}%`;
-        }
-        if (data.average !== undefined) {
-            const avgEl = document.getElementById('cpu-average');
-            if (avgEl) avgEl.textContent = `${data.average}%`;
-        }
-        const labels = data.points.map(point => {
-            const date = new Date(point.timestamp);
-            return date.toLocaleString('en-US', (this.currentPeriod === '7d' || this.currentPeriod === '30d')
-                ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-                : { hour: '2-digit', minute: '2-digit' });
-        });
-        const label = this.currentServerId === 'all' ? 'CPU % (Average)' : 'CPU %';
-        
-        // Build datasets: main line + peak markers
-        const datasets = [{
-            label: label,
-            data: data.points.map(p => p.value),
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.12)',
-            fill: true,
-            tension: 0.35,
-            order: 2
-        }];
-        
-        // Add peak markers only for spikes above 80% threshold
-        const peakData = data.points.map(p => (p.peak && p.peak > 80) ? p.peak : null);
-        if (peakData.some(v => v !== null)) {
-            datasets.push({
-                label: 'CPU Spikes',
-                data: peakData,
-                borderColor: '#ef4444',
-                backgroundColor: '#ef4444',
-                pointStyle: 'triangle',
-                pointRadius: 6,
-                pointHoverRadius: 8,
-                showLine: false,
-                order: 1,
-                clip: false  // Allow triangle to draw above chart area when at 100%
-            });
-        }
-        
-        const chartData = {
-            labels: labels,
-            datasets: datasets
+
+        // {x, y, top} points; `top` (top processes at the busiest sample of the hour) is
+        // only present in single-server mode -- the "All VMs" average can't attribute it.
+        this.points = data.points.map(p => ({
+            x: new Date(p.timestamp).getTime(),
+            y: p.value,
+            top: p.top || []
+        }));
+
+        // CpuUtil computes Avg/Min/Max from the series (consistent with the orange
+        // average line) and writes them into the summary cells.
+        const statEls = {
+            avg: document.getElementById('cpu-average'),
+            min: document.getElementById('cpu-min'),
+            max: document.getElementById('cpu-max'),
         };
+
         if (!this.chart) {
-            this.chart = ChartWrapper.createLineChart('cpu-trend-chart', chartData, {
-                layout: { padding: { top: 14 } },  // Room for spike triangles at 100%
-                scales: { x: { display: false }, y: { max: 100, ticks: { callback: function(value) { return value + '%'; } } } }
-            });
+            this.chart = CpuUtil.render('cpu-trend-chart', this.points, { statEls });
         } else {
-            ChartWrapper.updateChart(this.chart, chartData);
+            CpuUtil.update(this.chart, this.points, { statEls });
         }
     }
 }
