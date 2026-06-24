@@ -68,41 +68,10 @@ def _calculate_server_status(server):
     # hiccup). Default to 180s so a few consecutive missed pushes are tolerated while a
     # real outage still surfaces within ~3 min. Operator-tunable via settings.
     base_threshold = int(getattr(settings, "OFFLINE_THRESHOLD_SECONDS", 180))
-    app_heartbeat_key = "monitoring_app_heartbeat"
-    app_heartbeat_file = "/tmp/monitoring_app_heartbeat.txt"
-    
-    # Check if monitoring app was recently down
-    app_was_down = False
-    try:
-        from .utils import parse_app_heartbeat
-        
-        # Check cache first (fast, expires after 5 min)
-        app_last_heartbeat_str = cache.get(app_heartbeat_key)
-        if app_last_heartbeat_str:
-            app_last_heartbeat = parse_app_heartbeat(app_last_heartbeat_str)
-            if app_last_heartbeat:
-                app_downtime = (timezone.now() - app_last_heartbeat).total_seconds()
-                # If app heartbeat is missing or very old, app was likely down
-                if app_downtime > 300:  # 5 minutes
-                    app_was_down = True
-        else:
-            # Check file as fallback (persists across restarts)
-            if os.path.exists(app_heartbeat_file):
-                with open(app_heartbeat_file, 'r') as f:
-                    app_last_heartbeat_str = f.read().strip()
-                app_last_heartbeat = parse_app_heartbeat(app_last_heartbeat_str)
-                if app_last_heartbeat:
-                    app_downtime = (timezone.now() - app_last_heartbeat).total_seconds()
-                    if app_downtime > 300:  # 5 minutes
-                        app_was_down = True
-                else:
-                    app_was_down = True
-            else:
-                app_was_down = True
-    except Exception:
-        # If we can't determine, assume app wasn't down (conservative approach)
-        app_was_down = False
-    
+    # Whether the monitoring app itself was recently down (shared helper, so the
+    # cache/file check isn't repeated for every server in a fleet loop).
+    app_was_down = _app_was_down()
+
     # Use longer threshold if app was down (grace period after app restart)
     if app_was_down:
         threshold = 600  # 10 minutes grace period after app restart
@@ -136,6 +105,71 @@ def _calculate_server_status(server):
     except ServerHeartbeat.DoesNotExist:
         # No heartbeat record - server is offline
         return "offline"
+
+
+def _app_was_down():
+    """True if the monitoring app itself was recently down (>5 min without its own
+    heartbeat). Used to widen the per-server offline threshold after an app restart.
+    Extracted from _calculate_server_status so a fleet loop computes it ONCE instead
+    of re-reading the cache/file for every server."""
+    from django.core.cache import cache
+    import os
+    try:
+        from .utils import parse_app_heartbeat
+        key = "monitoring_app_heartbeat"
+        path = "/tmp/monitoring_app_heartbeat.txt"
+        s = cache.get(key)
+        if s:
+            hb = parse_app_heartbeat(s)
+            return bool(hb and (timezone.now() - hb).total_seconds() > 300)
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                s = f.read().strip()
+            hb = parse_app_heartbeat(s)
+            if hb:
+                return (timezone.now() - hb).total_seconds() > 300
+            return True          # file present but unparseable -> assume down
+        return True              # no cache, no file -> assume down
+    except Exception:
+        return False             # can't tell -> conservative (not down)
+
+
+def _bulk_server_statuses(servers):
+    """Batched equivalent of _calculate_server_status for many servers: a handful of
+    queries total (one app-downtime check + bulk heartbeats/alerts/suspended) instead
+    of ~3 queries PER server. Returns {server_id: 'online'|'warning'|'offline'} with
+    the same rules as _calculate_server_status."""
+    from .models import AlertHistory, MonitoringConfig
+    servers = list(servers)
+    ids = [s.id for s in servers]
+    now = timezone.now()
+    threshold = 600 if _app_was_down() else int(getattr(settings, "OFFLINE_THRESHOLD_SECONDS", 180))
+
+    suspended = set(MonitoringConfig.objects
+                    .filter(server_id__in=ids, monitoring_suspended=True)
+                    .values_list("server_id", flat=True))
+    heartbeats = dict(ServerHeartbeat.objects
+                      .filter(server_id__in=ids)
+                      .values_list("server_id", "last_heartbeat"))
+    # Servers with a triggered alert that counts toward "warning" (server health only;
+    # SERVICE/CONTAINER alerts surface elsewhere, matching _calculate_server_status).
+    warning_ids = set(AlertHistory.objects
+                      .filter(server_id__in=ids, status="triggered")
+                      .exclude(alert_type__in=[AlertHistory.AlertType.SERVICE,
+                                               AlertHistory.AlertType.CONTAINER])
+                      .values_list("server_id", flat=True))
+
+    out = {}
+    for s in servers:
+        if s.id in suspended:
+            out[s.id] = "offline"
+            continue
+        hb = heartbeats.get(s.id)
+        if hb is None or (now - hb).total_seconds() > threshold:
+            out[s.id] = "offline"
+            continue
+        out[s.id] = "warning" if s.id in warning_ids else "online"
+    return out
 
 
 def _get_client_ip(request):
@@ -1448,8 +1482,8 @@ def _fleet_status_counts():
     """Fleet-wide counts for the dashboard status donuts (servers + monitored
     services/containers). Used by the dashboard page and the auto-refresh API."""
     online = warning = offline = 0
-    for s in Server.objects.all():
-        st = _calculate_server_status(s)
+    statuses = _bulk_server_statuses(Server.objects.all())
+    for st in statuses.values():
         if st == "online":
             online += 1
         elif st == "warning":
@@ -6054,30 +6088,33 @@ def dashboard_disk_io_summary_api(request):
 def dashboard_top_cpu_consumers_api(request):
     """API endpoint for top 5 CPU consumers"""
     try:
-        servers = Server.objects.all()
+        servers = list(Server.objects.all())
+        statuses = _bulk_server_statuses(servers)
+        # Latest metric per server in ONE query (composite index), scalar cols only.
+        latest = (SystemMetric.objects
+                  .order_by('server_id', '-timestamp')
+                  .distinct('server_id')
+                  .values('server_id', 'server__name', 'cpu_percent'))
         server_cpu_data = []
-        
-        for server in servers:
-            latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
-            if latest_metric and latest_metric.cpu_percent is not None:
-                status = _calculate_server_status(server)
-                cpu_percent = latest_metric.cpu_percent
-                
-                # Determine status tag
-                if cpu_percent >= 85 or status == 'warning':
-                    status_tag = 'critical'
-                elif cpu_percent >= 70:
-                    status_tag = 'warning'
-                else:
-                    status_tag = 'normal'
-                
-                server_cpu_data.append({
-                    'server_name': server.name,
-                    'server_id': server.id,
-                    'cpu_percent': round(cpu_percent, 1),
-                    'status_tag': status_tag
-                })
-        
+        for m in latest:
+            cpu_percent = m['cpu_percent']
+            if cpu_percent is None:
+                continue
+            status = statuses.get(m['server_id'])
+            # Determine status tag
+            if cpu_percent >= 85 or status == 'warning':
+                status_tag = 'critical'
+            elif cpu_percent >= 70:
+                status_tag = 'warning'
+            else:
+                status_tag = 'normal'
+            server_cpu_data.append({
+                'server_name': m['server__name'],
+                'server_id': m['server_id'],
+                'cpu_percent': round(cpu_percent, 1),
+                'status_tag': status_tag
+            })
+
         # Sort by CPU and take top 5
         top_5 = sorted(server_cpu_data, key=lambda x: x['cpu_percent'], reverse=True)[:5]
         
@@ -6096,30 +6133,33 @@ def dashboard_top_cpu_consumers_api(request):
 def dashboard_top_memory_consumers_api(request):
     """API endpoint for top 5 memory consumers"""
     try:
-        servers = Server.objects.all()
+        servers = list(Server.objects.all())
+        statuses = _bulk_server_statuses(servers)
+        # Latest metric per server in ONE query (composite index), scalar cols only.
+        latest = (SystemMetric.objects
+                  .order_by('server_id', '-timestamp')
+                  .distinct('server_id')
+                  .values('server_id', 'server__name', 'memory_percent'))
         server_memory_data = []
-        
-        for server in servers:
-            latest_metric = SystemMetric.objects.filter(server=server).order_by('-timestamp').first()
-            if latest_metric and latest_metric.memory_percent is not None:
-                status = _calculate_server_status(server)
-                memory_percent = latest_metric.memory_percent
-                
-                # Determine status tag
-                if memory_percent >= 90 or status == 'warning':
-                    status_tag = 'critical'
-                elif memory_percent >= 80:
-                    status_tag = 'warning'
-                else:
-                    status_tag = 'normal'
-                
-                server_memory_data.append({
-                    'server_name': server.name,
-                    'server_id': server.id,
-                    'memory_percent': round(memory_percent, 1),
-                    'status_tag': status_tag
-                })
-        
+        for m in latest:
+            memory_percent = m['memory_percent']
+            if memory_percent is None:
+                continue
+            status = statuses.get(m['server_id'])
+            # Determine status tag
+            if memory_percent >= 90 or status == 'warning':
+                status_tag = 'critical'
+            elif memory_percent >= 80:
+                status_tag = 'warning'
+            else:
+                status_tag = 'normal'
+            server_memory_data.append({
+                'server_name': m['server__name'],
+                'server_id': m['server_id'],
+                'memory_percent': round(memory_percent, 1),
+                'status_tag': status_tag
+            })
+
         # Sort by memory and take top 5
         top_5 = sorted(server_memory_data, key=lambda x: x['memory_percent'], reverse=True)[:5]
         
