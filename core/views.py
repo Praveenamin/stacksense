@@ -5153,7 +5153,8 @@ def get_top_cpu_processes(request, server_id):
     """Top 3 CPU processes from the latest pushed metric (no SSH)."""
     try:
         server = get_object_or_404(Server, id=server_id)
-        metric = SystemMetric.objects.filter(server=server).order_by("-timestamp").first()
+        metric = (SystemMetric.objects.filter(server=server)
+                  .only("top_processes").order_by("-timestamp").first())
         procs = (metric.top_processes or {}).get("cpu", []) if metric else []
         top = [{
             "pid": p.get("pid"),
@@ -5172,7 +5173,8 @@ def get_top_ram_processes(request, server_id):
     """Top 3 memory processes from the latest pushed metric (no SSH)."""
     try:
         server = get_object_or_404(Server, id=server_id)
-        metric = SystemMetric.objects.filter(server=server).order_by("-timestamp").first()
+        metric = (SystemMetric.objects.filter(server=server)
+                  .only("top_processes").order_by("-timestamp").first())
         procs = (metric.top_processes or {}).get("memory", []) if metric else []
         top = [{
             "pid": p.get("pid"),

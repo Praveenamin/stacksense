@@ -35,7 +35,10 @@ class Server(models.Model):
 
 class SystemMetric(models.Model):
     """Stores collected system metrics"""
-    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="metrics")
+    # No standalone index on the FK: the composite Index(server, -timestamp) below
+    # already serves every server_id lookup/join/cascade, so a separate server_id
+    # index is pure write-path + storage overhead on this high-insert-rate table.
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="metrics", db_index=False)
     timestamp = models.DateTimeField(default=timezone.now, db_index=True)
     
     # CPU metrics
