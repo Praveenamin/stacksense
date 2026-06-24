@@ -6209,22 +6209,16 @@ def dashboard_recent_alerts_api(request):
 @staff_member_required
 @require_http_methods(["GET"])
 def dashboard_ai_recommendations_api(request):
-    """API endpoint for AI recommendations (rule-based)"""
+    """API endpoint for AI recommendations (rule-based).
+
+    Served from the scheduler-precomputed Redis cache (see core/dashboard_panels.py);
+    self-heals (computes once + caches) on a cold cache. This keeps the expensive
+    all-server recommendation pass off the per-refresh request path."""
     try:
-        from .utils.recommendation_engine import generate_recommendations
-        
-        recommendations = generate_recommendations()
-        
+        from .dashboard_panels import get_ai_recommendations
         return JsonResponse({
             'success': True,
-            'data': recommendations,
-            'timestamp': timezone.now().isoformat()
-        })
-    except ImportError:
-        # If recommendation engine doesn't exist yet, return empty list
-        return JsonResponse({
-            'success': True,
-            'data': [],
+            'data': get_ai_recommendations(),
             'timestamp': timezone.now().isoformat()
         })
     except Exception as e:
@@ -6762,48 +6756,22 @@ def dashboard_trend_insights_api(request):
         - Memory alerts on Fridays
     """
     try:
-        from core.trend_detection import get_trend_summary, detect_all_server_patterns
-        
+        from .dashboard_panels import (get_trend_insights, compute_trend_insights,
+                                        DEFAULT_LOOKBACK_DAYS, DEFAULT_ALERT_TYPES)
+
         lookback_days = int(request.GET.get('lookback_days', 30))
         alert_types_param = request.GET.get('alert_types', 'CPU,MEMORY,DISK')
         alert_types = [t.strip().upper() for t in alert_types_param.split(',')]
-        
-        # Get insights
-        insights = detect_all_server_patterns(
-            alert_types=alert_types,
-            lookback_days=lookback_days,
-            min_alerts=5
-        )
-        
-        # Format for API response
-        formatted_insights = []
-        for insight in insights:
-            pattern = insight['pattern']
-            formatted_insights.append({
-                'server_id': insight['server_id'],
-                'server_name': insight['server_name'],
-                'alert_type': insight['alert_type'],
-                'pattern_type': pattern['pattern_type'],
-                'pattern_description': pattern['pattern_description'],
-                'confidence': round(pattern['confidence'], 1),
-                'peak_hour': pattern.get('peak_hour'),
-                'peak_day': pattern.get('peak_day'),
-                'total_alerts': pattern['total_alerts'],
-                'recommendation': pattern['recommendation']
-            })
-        
-        # Count unique servers with patterns
-        servers_with_patterns = len(set(i['server_id'] for i in insights))
-        
-        return JsonResponse({
-            'success': True,
-            'data': {
-                'insights': formatted_insights,
-                'total_patterns': len(formatted_insights),
-                'servers_with_patterns': servers_with_patterns,
-                'analysis_period_days': lookback_days
-            }
-        })
+
+        # Default params (what the dashboard loads) -> scheduler-precomputed cache;
+        # custom params -> compute live (rare). Keeps the 30-day, all-server pattern
+        # analysis off the per-refresh request path.
+        if lookback_days == DEFAULT_LOOKBACK_DAYS and alert_types == DEFAULT_ALERT_TYPES:
+            data = get_trend_insights()
+        else:
+            data = compute_trend_insights(lookback_days=lookback_days, alert_types=alert_types)
+
+        return JsonResponse({'success': True, 'data': data})
     except Exception as e:
         error_logger.error(f"DASHBOARD_TREND_INSIGHTS_API error: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)

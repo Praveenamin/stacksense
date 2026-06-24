@@ -29,6 +29,7 @@ connectivity_check_interval = 60  # Check for down/recovered servers every minut
 leak_detection_interval = 3600  # Run memory-leak detection hourly (leaks evolve slowly)
 aggregate_interval = 86400  # Roll raw metrics into hourly/daily summaries once a day
 prune_interval = 86400  # Enforce the data-retention window once a day (runs after aggregation)
+panel_precompute_interval = 600  # Precompute the heavy dashboard panels every 10 minutes
 
 last_anomaly_check = timezone.now()
 last_synthetic_check = timezone.now()
@@ -37,6 +38,7 @@ last_connectivity_check = timezone.now()
 last_leak_check = timezone.now()
 last_aggregate = timezone.now()
 last_prune = timezone.now()
+last_panel_precompute = None  # None -> run on the first loop so the cache is warm quickly
 
 while running:
     try:
@@ -94,6 +96,19 @@ while running:
                 print("Connectivity check completed.")
             except Exception as e:
                 print(f"Error in connectivity check: {str(e)}")
+
+        # Precompute the heavy dashboard panels (trend insights + AI recommendations)
+        # into the cache so dashboard refreshes never run the 30-day, all-server
+        # analyses on the web workers. Runs immediately on first loop, then every 10 min.
+        if (last_panel_precompute is None or
+                (timezone.now() - last_panel_precompute).total_seconds() >= panel_precompute_interval):
+            try:
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Precomputing dashboard panels...")
+                call_command("precompute_dashboard_panels", verbosity=0)
+                last_panel_precompute = timezone.now()
+                print("Dashboard panels precomputed.")
+            except Exception as e:
+                print(f"Error precomputing dashboard panels: {str(e)}")
 
         # Run memory-leak detection hourly (system RAM / per-process RSS / SysV IPC)
         time_since_last_leak = (timezone.now() - last_leak_check).total_seconds()
