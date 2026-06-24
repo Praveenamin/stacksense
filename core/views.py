@@ -1052,21 +1052,42 @@ def delete_server(request, server_id):
 @staff_member_required
 def monitoring_dashboard(request):
     """Server Monitor Dashboard - Real-time infrastructure monitoring"""
-    servers = Server.objects.all().select_related("monitoring_config").order_by("name")
-    
+    servers = list(Server.objects.all().select_related("monitoring_config").order_by("name"))
+
     servers_data = []
     online_count = 0
     warning_count = 0
     offline_count = 0
-    alert_count = 0
-    
+
+    # --- Batched lookups (one query each) instead of the per-server N+1 in the loop ---
+    from django.db.models import Count
+    statuses = _bulk_server_statuses(servers)
+    # Latest metric per server in ONE query (composite index); include every field the
+    # loop reads so there are no deferred per-field loads.
+    latest_by_server = {
+        m.server_id: m for m in
+        SystemMetric.objects.order_by("server_id", "-timestamp").distinct("server_id").only(
+            "server_id", "cpu_percent", "memory_percent", "disk_usage", "timestamp",
+            "system_uptime_seconds", "network_io", "disk_io_read", "net_io_sent")
+    }
+    # Unresolved-anomaly counts + recent lists, and triggered-alert counts, batched.
+    anomaly_counts = {}
+    anomaly_lists = {}
+    for _an in Anomaly.objects.filter(resolved=False).order_by("server_id", "-timestamp"):
+        anomaly_counts[_an.server_id] = anomaly_counts.get(_an.server_id, 0) + 1
+        anomaly_lists.setdefault(_an.server_id, [])
+        if len(anomaly_lists[_an.server_id]) < 10:
+            anomaly_lists[_an.server_id].append(_an)
+    alert_counts = dict(AlertHistory.objects.filter(status="triggered")
+                        .values("server_id").annotate(c=Count("id")).values_list("server_id", "c"))
+    alert_count = sum(anomaly_counts.values())
+
     for server in servers:
-        latest_metric = SystemMetric.objects.filter(server=server).only("cpu_percent", "memory_percent", "disk_usage", "timestamp").order_by("-timestamp").first()
-        active_anomalies = Anomaly.objects.filter(server=server, resolved=False).only("id")
-        active_alerts = AlertHistory.objects.filter(server=server, status="triggered").count()
-        has_active_issues = active_anomalies.exists() or active_alerts > 0
-        alert_count += active_anomalies.count()
-        
+        latest_metric = latest_by_server.get(server.id)
+        srv_anom_count = anomaly_counts.get(server.id, 0)
+        srv_alert_count = alert_counts.get(server.id, 0)
+        has_active_issues = srv_anom_count > 0 or srv_alert_count > 0
+
         # Get monitoring config values (for display only, NOT for status calculation)
         from .models import MonitoringConfig
         try:
@@ -1086,9 +1107,9 @@ def monitoring_dashboard(request):
             alert_suppressed = False
             monitoring_suspended = False
         
-        # Calculate server status based on heartbeat
-        status = _calculate_server_status(server)
-        
+        # Server status (precomputed in one batch above)
+        status = statuses.get(server.id)
+
         # Update counts
         if status == "online":
             online_count += 1
@@ -1181,8 +1202,7 @@ def monitoring_dashboard(request):
                 except Exception:
                     disk_percent = 0
 
-        # Calculate server status based on heartbeat
-        calculated_status = _calculate_server_status(server)
+        calculated_status = status   # same value; status is computed once per server above
 
         # Create a wrapper object for latest_metric with uptime_formatted
         class MetricWrapper:
@@ -1214,8 +1234,8 @@ def monitoring_dashboard(request):
             "uptime_formatted": uptime_formatted,
             "network_download": network_download,
             "network_upload": network_upload,
-            "active_anomalies": active_anomalies.count(),
-            "active_anomalies_list": list(active_anomalies[:10]),
+            "active_anomalies": srv_anom_count,
+            "active_anomalies_list": anomaly_lists.get(server.id, []),
             "monitoring_enabled": monitoring_enabled,
             "disk_percent": disk_percent,
             "alert_suppressed": alert_suppressed,
@@ -1226,8 +1246,7 @@ def monitoring_dashboard(request):
     import json as _json
     disk_parts = []
     for srv in servers:
-        lm = (SystemMetric.objects.filter(server=srv)
-              .only("disk_usage", "timestamp").order_by("-timestamp").first())
+        lm = latest_by_server.get(srv.id)
         if not lm or not lm.disk_usage:
             continue
         du = lm.disk_usage
@@ -5906,107 +5925,30 @@ def dashboard_network_trend_api(request, period='24h'):
         server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
         since = timezone.now() - timedelta(hours=hours)
         
-        # Filter by server if specified
+        # Inbound (net_io_recv) / outbound (net_io_sent) are already stored as per-second
+        # byte rates, so aggregate them per hour IN THE DB and convert to MB/s -- no
+        # per-row JSON counter-diffing in Python (that loop was ~85% of the dashboard
+        # poll cycle and scaled with total rows across all servers).
+        from django.db.models import Avg
+        from django.db.models.functions import TruncHour
+        qs = SystemMetric.objects.filter(timestamp__gte=since)
         if server_id and server_id != 'all':
             try:
-                server = Server.objects.get(id=int(server_id))
-                metrics_filter = SystemMetric.objects.filter(
-                    server=server,
-                    timestamp__gte=since
-                )
-            except (Server.DoesNotExist, ValueError):
+                qs = qs.filter(server_id=int(server_id))
+            except (ValueError, TypeError):
                 return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
-        else:
-            # Get average of all servers
-            metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
-        
-        metrics = metrics_filter.order_by('timestamp').values('timestamp', 'network_io', 'server_id')
-        
-        # Store previous values per server to calculate differences
-        prev_values = {}  # {server_id: {recv: int, sent: int, timestamp: datetime}}
-        
-        hourly_inbound = {}
-        hourly_outbound = {}
-        
-        for metric in metrics:
-            # Ensure timestamp is timezone-aware datetime
-            timestamp = metric['timestamp']
-            # Timestamps from the database should already be timezone-aware, but handle edge cases
-            if hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is None:
-                from django.utils import timezone as tz
-                timestamp = tz.make_aware(timestamp)
-            
-            hour_key = timestamp.replace(minute=0, second=0, microsecond=0)
-            network_data = metric.get('network_io')
-            server_id = metric['server_id']
-            
-            if network_data:
-                try:
-                    if isinstance(network_data, str):
-                        network_data = json.loads(network_data)
-                    
-                    total_recv = 0
-                    total_sent = 0
-                    if isinstance(network_data, dict):
-                        for interface, data in network_data.items():
-                            if isinstance(data, dict):
-                                total_recv += data.get('bytes_recv', 0)
-                                total_sent += data.get('bytes_sent', 0)
-                    
-                    # Calculate difference from previous measurement for this server
-                    if server_id in prev_values:
-                        prev = prev_values[server_id]
-                        time_diff = (timestamp - prev['timestamp']).total_seconds()
-                        
-                        if time_diff > 0:  # Avoid division by zero
-                            # Calculate bytes per second, then convert to MB/s
-                            # Handle counter rollover (if new value is less than prev, assume rollover)
-                            recv_diff = total_recv - prev['recv']
-                            sent_diff = total_sent - prev['sent']
-                            
-                            # Only process if differences are positive (ignore rollovers for now)
-                            if recv_diff >= 0 and sent_diff >= 0:
-                                recv_bytes_per_sec = recv_diff / time_diff
-                                sent_bytes_per_sec = sent_diff / time_diff
-                                
-                                # Convert bytes/sec to MB/s
-                                recv_mb_per_sec = recv_bytes_per_sec / (1024 * 1024)
-                                sent_mb_per_sec = sent_bytes_per_sec / (1024 * 1024)
-                                
-                                # For hourly aggregation, we want average MB/s for that hour
-                                if hour_key not in hourly_inbound:
-                                    hourly_inbound[hour_key] = []
-                                    hourly_outbound[hour_key] = []
-                                hourly_inbound[hour_key].append(recv_mb_per_sec)
-                                hourly_outbound[hour_key].append(sent_mb_per_sec)
-                    
-                    # Update previous values for this server
-                    prev_values[server_id] = {
-                        'recv': total_recv,
-                        'sent': total_sent,
-                        'timestamp': timestamp
-                    }
-                except Exception as e:
-                    error_logger.error(f"Network trend calculation error: {str(e)}")
-                    pass
-        
-        data_points = []
-        for hour in sorted(set(list(hourly_inbound.keys()) + list(hourly_outbound.keys()))):
-            inbound_list = hourly_inbound.get(hour, [])
-            outbound_list = hourly_outbound.get(hour, [])
-            
-            # Calculate average, avoiding division by zero
-            avg_inbound = sum(inbound_list) / len(inbound_list) if inbound_list else 0.0
-            avg_outbound = sum(outbound_list) / len(outbound_list) if outbound_list else 0.0
-            
-            # Round to 6 decimal places to preserve very small values for frontend scaling
-            # The frontend will handle appropriate display precision
-            data_points.append({
-                'timestamp': hour.isoformat(),
-                'inbound': round(avg_inbound, 6),
-                'outbound': round(avg_outbound, 6)
-            })
-        
+
+        MB = 1024 * 1024
+        rows = (qs.annotate(bucket=TruncHour('timestamp'))
+                  .values('bucket')
+                  .annotate(recv=Avg('net_io_recv'), sent=Avg('net_io_sent'))
+                  .order_by('bucket'))
+        data_points = [{
+            'timestamp': r['bucket'].isoformat(),
+            'inbound': round((r['recv'] or 0) / MB, 6),
+            'outbound': round((r['sent'] or 0) / MB, 6),
+        } for r in rows if r['bucket'] is not None]
+
         return JsonResponse({
             'success': True,
             'data': {
