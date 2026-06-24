@@ -67,13 +67,13 @@ services:
     # them (collectstatic/logging fail). Run as root to match the bind-mount model.
     user: "root"
     # migrate + collectstatic must COMPLETE before gunicorn serves (otherwise the first
-    # requests load before the static files exist -> broken CSS). Only the scheduler is
-    # backgrounded; gunicorn is exec'd last so it starts on a fully-prepared app.
+    # requests load before the static files exist -> broken CSS). The periodic scheduler
+    # now runs in its own `scheduler` service (below) so its CPU bursts can't steal from
+    # the request workers; web only runs migrate/collectstatic then gunicorn.
     command: >
       sh -c "
         python manage.py migrate --noinput &&
         python manage.py collectstatic --noinput &&
-        (python3 metrics_scheduler.py > /tmp/metrics_scheduler.log 2>&1 &) &&
         exec gunicorn log_analyzer.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 180
       "
     volumes:
@@ -101,6 +101,39 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: monitoring_scheduler
+    user: "root"
+    # The periodic jobs (anomaly/leak detection, aggregation, retention, connectivity)
+    # run HERE, off the web workers, so their CPU bursts can't peg the request handlers.
+    # `nice` deprioritises it (web wins under contention) and `cpus` caps it as a backstop.
+    # `sleep` lets the web service finish migrate before the first tick fires.
+    command: >
+      sh -c "
+        sleep 30 &&
+        exec nice -n 10 python3 metrics_scheduler.py
+      "
+    cpus: "2"
+    environment:
+      - PYTHONUNBUFFERED=1   # so `docker compose logs scheduler` shows job output live
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - stacksense_network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   stacksense_postgres_data:
