@@ -5716,6 +5716,84 @@ def _parse_period_to_hours(period):
     else:
         return 24  # default to 24 hours
 
+
+def _trend_stats(points):
+    """Wrap hourly trend points with Current/Peak/Average/Minimum/Maximum (over the
+    hourly point values), matching the JSON shape the chart JS expects."""
+    vals = [p['value'] for p in points]
+    peak = max(vals) if vals else 0
+    return {
+        'points': points,
+        'current': round(vals[-1], 1) if vals else 0,
+        'peak': round(peak, 1),
+        'average': round(sum(vals) / len(vals), 1) if vals else 0,
+        'minimum': round(min(vals), 1) if vals else 0,
+        'maximum': round(peak, 1),
+    }
+
+
+def _fleet_trend_points(since, field, spike_delta=10):
+    """All-servers hourly trend for a percent column (cpu_percent/memory_percent),
+    aggregated IN THE DATABASE (Avg/Max per hour) instead of pulling every raw row
+    across all servers into Python. This is the heavy dashboard path at scale; doing
+    the grouping in SQL drops the worker-CPU cost from O(rows) to O(hours).
+    Returns [{timestamp, value, peak?}] ordered by hour. (No top processes -- the
+    all-VMs average can't attribute them.)"""
+    from django.db.models import Avg, Max
+    from django.db.models.functions import TruncHour
+    rows = (SystemMetric.objects
+            .filter(timestamp__gte=since)
+            .annotate(bucket=TruncHour('timestamp'))
+            .values('bucket')
+            .annotate(avg=Avg(field), mx=Max(field))
+            .order_by('bucket'))
+    points = []
+    for r in rows:
+        if r['bucket'] is None:
+            continue
+        avg = round(r['avg'] or 0, 2)
+        point = {'timestamp': r['bucket'].isoformat(), 'value': avg}
+        mx = r['mx'] or 0
+        if mx > avg + spike_delta:                 # mark a spike, like the old Python path
+            point['peak'] = round(mx, 2)
+        points.append(point)
+    return points
+
+
+def _server_trend_points(server, since, field, top_kind=None, spike_delta=10):
+    """Single-server hourly trend from RAW rows -- scoped to one server so the
+    composite (server, -timestamp) index keeps it cheap (~one server's window). When
+    top_kind is 'cpu'/'memory' it also returns the per-hour top processes (from the
+    hour's busiest sample) so the hover tooltip is preserved. Returns
+    [{timestamp, value, peak?, top?}]."""
+    vals = ['timestamp', field]
+    if top_kind:
+        vals.append('top_processes')
+    metrics = (SystemMetric.objects
+               .filter(server=server, timestamp__gte=since)
+               .order_by('timestamp').values(*vals))
+    hourly = {}
+    hourly_top = {}    # hour -> (max_in_hour, top_processes)
+    for m in metrics:
+        hk = m['timestamp'].replace(minute=0, second=0, microsecond=0)
+        v = m[field] or 0
+        hourly.setdefault(hk, []).append(v)
+        if top_kind:
+            prev = hourly_top.get(hk)
+            if prev is None or v >= prev[0]:
+                hourly_top[hk] = (v, m.get('top_processes'))
+    points = []
+    for hour, values in sorted(hourly.items()):
+        avg = sum(values) / len(values) if values else 0
+        mx = max(values) if values else 0
+        point = {'timestamp': hour.isoformat(), 'value': round(avg, 2)}
+        if mx > avg + spike_delta:
+            point['peak'] = round(mx, 2)
+        if top_kind:
+            point['top'] = _top_procs(hourly_top[hour][1], top_kind)
+        points.append(point)
+    return points
+
 @staff_member_required
 @require_http_methods(["GET"])
 def dashboard_cpu_trend_api(request, period='24h'):
@@ -5726,79 +5804,21 @@ def dashboard_cpu_trend_api(request, period='24h'):
         hours = _parse_period_to_hours(period)
         server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
         since = timezone.now() - timedelta(hours=hours)
-        
-        data_points = []
-        
-        # Filter by server if specified
+
         if server_id and server_id != 'all':
+            # Single server: raw rows, scoped + indexed; keep per-hour top processes.
             try:
                 server = Server.objects.get(id=int(server_id))
-                metrics_filter = SystemMetric.objects.filter(
-                    server=server,
-                    timestamp__gte=since
-                )
             except (Server.DoesNotExist, ValueError):
                 return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+            data_points = _server_trend_points(server, since, 'cpu_percent', top_kind='cpu')
         else:
-            # Get average of all servers
-            metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
-        
-        # Single-server mode also carries top processes for the hover tooltip; the
-        # "All VMs" average can't attribute processes, so it omits them.
-        single_server = bool(server_id and server_id != 'all')
-        fields = ['timestamp', 'cpu_percent', 'server_id']
-        if single_server:
-            fields.append('top_processes')
-        metrics = metrics_filter.order_by('timestamp').values(*fields)
-
-        # Group by hour and calculate average and peak
-        hourly_data = {}
-        hourly_top = {}    # hour -> (max_cpu_in_hour, top_processes) for single-server tooltip
-        for metric in metrics:
-            hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
-            cpu = metric['cpu_percent'] or 0
-            hourly_data.setdefault(hour_key, []).append(cpu)
-            if single_server:
-                prev = hourly_top.get(hour_key)
-                if prev is None or cpu >= prev[0]:   # representative = the hour's busiest sample
-                    hourly_top[hour_key] = (cpu, metric.get('top_processes'))
-
-        # Calculate averages, peaks and prepare data
-        for hour, values in sorted(hourly_data.items()):
-            avg_cpu = sum(values) / len(values) if values else 0
-            max_cpu = max(values) if values else 0
-
-            point = {
-                'timestamp': hour.isoformat(),
-                'value': round(avg_cpu, 2)
-            }
-
-            # Include peak if it's significantly higher than average (indicating a spike)
-            if max_cpu > avg_cpu + 10:  # Spike threshold: 10% above average
-                point['peak'] = round(max_cpu, 2)
-
-            if single_server and hour in hourly_top:
-                point['top'] = _top_procs(hourly_top[hour][1], "cpu")
-
-            data_points.append(point)
-
-        # Calculate current / peak / average / minimum / maximum (over hourly points)
-        point_vals = [d['value'] for d in data_points]
-        current_cpu = data_points[-1]['value'] if data_points else 0
-        peak_cpu = max(point_vals) if point_vals else 0
-        min_cpu = min(point_vals) if point_vals else 0
-        avg_cpu = sum(point_vals) / len(point_vals) if point_vals else 0
+            # All VMs: aggregate per hour IN THE DB (no per-row Python grouping).
+            data_points = _fleet_trend_points(since, 'cpu_percent')
 
         return JsonResponse({
             'success': True,
-            'data': {
-                'points': data_points,
-                'current': round(current_cpu, 1),
-                'peak': round(peak_cpu, 1),
-                'average': round(avg_cpu, 1),
-                'minimum': round(min_cpu, 1),
-                'maximum': round(peak_cpu, 1)
-            },
+            'data': _trend_stats(data_points),
             'timestamp': timezone.now().isoformat()
         })
     except Exception as e:
@@ -5816,75 +5836,21 @@ def dashboard_memory_trend_api(request, period='24h'):
         hours = _parse_period_to_hours(period)
         server_id = request.GET.get('server_id', 'all')  # 'all' for average, or server ID
         since = timezone.now() - timedelta(hours=hours)
-        
-        # Filter by server if specified
+
         if server_id and server_id != 'all':
+            # Single server: raw rows, scoped + indexed; keep per-hour top processes (by memory).
             try:
                 server = Server.objects.get(id=int(server_id))
-                metrics_filter = SystemMetric.objects.filter(
-                    server=server,
-                    timestamp__gte=since
-                )
             except (Server.DoesNotExist, ValueError):
                 return JsonResponse({"success": False, "error": "Invalid server ID"}, status=400)
+            data_points = _server_trend_points(server, since, 'memory_percent', top_kind='memory')
         else:
-            # Get average of all servers
-            metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
-        
-        # Single-server mode also carries top processes (by memory) for the tooltip;
-        # the "All VMs" average can't attribute processes, so it omits them.
-        single_server = bool(server_id and server_id != 'all')
-        fields = ['timestamp', 'memory_percent', 'server_id']
-        if single_server:
-            fields.append('top_processes')
-        metrics = metrics_filter.order_by('timestamp').values(*fields)
-
-        hourly_data = {}
-        hourly_top = {}    # hour -> (max_mem_in_hour, top_processes) for single-server tooltip
-        for metric in metrics:
-            hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
-            mem = metric['memory_percent'] or 0
-            hourly_data.setdefault(hour_key, []).append(mem)
-            if single_server:
-                prev = hourly_top.get(hour_key)
-                if prev is None or mem >= prev[0]:   # representative = the hour's fullest sample
-                    hourly_top[hour_key] = (mem, metric.get('top_processes'))
-
-        data_points = []
-        for hour, values in sorted(hourly_data.items()):
-            avg_memory = sum(values) / len(values) if values else 0
-            max_memory = max(values) if values else 0
-
-            point = {
-                'timestamp': hour.isoformat(),
-                'value': round(avg_memory, 2)
-            }
-
-            # Include peak if it's significantly higher than average (indicating a spike)
-            if max_memory > avg_memory + 10:  # Spike threshold: 10% above average
-                point['peak'] = round(max_memory, 2)
-
-            if single_server and hour in hourly_top:
-                point['top'] = _top_procs(hourly_top[hour][1], "memory")
-
-            data_points.append(point)
-
-        point_vals = [d['value'] for d in data_points]
-        current_memory = data_points[-1]['value'] if data_points else 0
-        peak_memory = max(point_vals) if point_vals else 0
-        min_memory = min(point_vals) if point_vals else 0
-        avg_memory = sum(point_vals) / len(point_vals) if point_vals else 0
+            # All VMs: aggregate per hour IN THE DB (no per-row Python grouping).
+            data_points = _fleet_trend_points(since, 'memory_percent')
 
         return JsonResponse({
             'success': True,
-            'data': {
-                'points': data_points,
-                'current': round(current_memory, 1),
-                'peak': round(peak_memory, 1),
-                'average': round(avg_memory, 1),
-                'minimum': round(min_memory, 1),
-                'maximum': round(peak_memory, 1)
-            },
+            'data': _trend_stats(data_points),
             'timestamp': timezone.now().isoformat()
         })
     except Exception as e:
