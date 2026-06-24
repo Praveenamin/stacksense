@@ -3,12 +3,18 @@ Memory Usage Trend Chart Component (24h)
 {% endcomment %}
 
 {% load static %}
+{% include "core/components/cpu_utilization_chart_js.html" %}
 
 <div class="dashboard-component" id="dashboard-memory-trend">
     <div class="dashboard-component-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px);">
             <span class="dashboard-component-icon">💾</span>
             <h3 class="dashboard-component-title">Memory Usage Trend</h3>
+            <button type="button" id="memory-trend-popout" title="Expand"
+                    style="border:none;background:transparent;cursor:pointer;color:#94a3b8;padding:2px;line-height:0;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            </button>
         </div>
         <div style="display: flex; gap: 12px; align-items: center;">
             <!-- Time Period Filter -->
@@ -42,16 +48,16 @@ Memory Usage Trend Chart Component (24h)
         </div>
         <div class="chart-summary">
             <div class="chart-summary-item">
-                <div class="chart-summary-label">Current</div>
-                <div class="chart-summary-value" id="memory-current">—</div>
-            </div>
-            <div class="chart-summary-item">
-                <div class="chart-summary-label">Peak</div>
-                <div class="chart-summary-value" id="memory-peak">—</div>
-            </div>
-            <div class="chart-summary-item">
                 <div class="chart-summary-label">Average</div>
                 <div class="chart-summary-value" id="memory-average">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Minimum</div>
+                <div class="chart-summary-value" id="memory-min">—</div>
+            </div>
+            <div class="chart-summary-item">
+                <div class="chart-summary-label">Maximum</div>
+                <div class="chart-summary-value" id="memory-max">—</div>
             </div>
         </div>
     </div>

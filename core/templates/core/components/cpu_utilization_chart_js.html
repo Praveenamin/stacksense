@@ -54,10 +54,11 @@ points, opts); popout(title, points, opts).
         }
     };
 
-    function tooltipCallbacks() {
+    function tooltipCallbacks(label) {
+        var metric = label || 'CPU Usage';
         return {
             title: function (items) { return items.length ? fmtTs(items[0].parsed.x) : ''; },
-            label: function (item) { return 'CPU Usage : ' + fmtPct(item.parsed.y); },
+            label: function (item) { return metric + ' : ' + fmtPct(item.parsed.y); },
             afterBody: function (items) {
                 if (!items.length) return '';
                 var raw = items[0].raw || {};
@@ -65,7 +66,8 @@ points, opts); popout(title, points, opts).
                 if (!top.length) return '';
                 var lines = ['', 'Top Process :'];
                 top.forEach(function (p) {
-                    lines.push('   ' + (p.name || '?') + ' : ' + fmtPct(p.cpu || 0));
+                    var pct = (p.pct != null) ? p.pct : (p.cpu || 0);
+                    lines.push('   ' + (p.name || '?') + ' : ' + fmtPct(pct));
                 });
                 return lines;
             }
@@ -89,7 +91,8 @@ points, opts); popout(title, points, opts).
         };
     }
 
-    function buildOptions(xScale) {
+    function buildOptions(opts) {
+        opts = opts || {};
         return {
             responsive: true, maintainAspectRatio: false,
             animation: false,
@@ -101,11 +104,11 @@ points, opts); popout(title, points, opts).
                     backgroundColor: 'rgba(71,85,105,0.95)', padding: 10,
                     titleColor: '#fff', bodyColor: '#fff',
                     titleFont: { size: 12, weight: '600' }, bodyFont: { size: 12 },
-                    callbacks: tooltipCallbacks()
+                    callbacks: tooltipCallbacks(opts.label)
                 }
             },
             scales: {
-                x: xScale || defaultXScale(),
+                x: opts.xScale || defaultXScale(),
                 y: {
                     min: 0, max: 100, grid: { color: 'rgba(15,23,42,0.05)' },
                     ticks: { stepSize: 20, callback: function (v) { return v + '%'; },
@@ -115,12 +118,14 @@ points, opts); popout(title, points, opts).
         };
     }
 
-    function buildDataset(points) {
+    function buildDataset(points, opts) {
+        opts = opts || {};
+        var color = opts.color || TEAL, fill = opts.fill || TEAL_FILL;
         return {
-            label: 'CPU %', data: points,
-            borderColor: TEAL, backgroundColor: TEAL_FILL,
+            label: (opts.label || 'CPU') + ' %', data: points,
+            borderColor: color, backgroundColor: fill,
             fill: true, tension: 0.3, borderWidth: 1.5,
-            pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: TEAL,
+            pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: color,
         };
     }
 
@@ -132,10 +137,11 @@ points, opts); popout(title, points, opts).
     }
 
     function makeChart(canvasEl, points, opts) {
+        opts = opts || {};
         var chart = new Chart(canvasEl.getContext('2d'), {
             type: 'line',
-            data: { datasets: [buildDataset(points)] },
-            options: buildOptions(opts && opts.xScale),
+            data: { datasets: [buildDataset(points, opts)] },
+            options: buildOptions(opts),
             plugins: [avgLinePlugin]
         });
         var s = stats(points);

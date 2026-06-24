@@ -140,8 +140,25 @@
     </div>
     <div style="position:relative;height:300px;"><canvas id="cpu-utilization-chart"></canvas></div>
 </div>
+<!-- Memory Utilization (same redesign as CPU): Avg/Min/Max stats + filled area
+     + orange average line + hover tooltip showing the top processes by memory. -->
+<div class="sd-card" style="margin-bottom:14px;">
+    <h2 class="row" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Memory Utilization</span>
+        <button type="button" onclick="popoutMem()" title="Expand"
+                style="border:none;background:transparent;cursor:pointer;color:#94a3b8;padding:2px;line-height:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+        </button>
+    </h2>
+    <div style="display:flex;gap:48px;justify-content:center;margin:4px 0 14px;">
+        <div style="text-align:center;"><div style="font-size:12px;color:#94a3b8;">Average</div><div id="mem-util-avg" style="font-size:20px;font-weight:600;color:#0f172a;">—</div></div>
+        <div style="text-align:center;"><div style="font-size:12px;color:#94a3b8;">Minimum</div><div id="mem-util-min" style="font-size:20px;font-weight:600;color:#0f172a;">—</div></div>
+        <div style="text-align:center;"><div style="font-size:12px;color:#94a3b8;">Maximum</div><div id="mem-util-max" style="font-size:20px;font-weight:600;color:#0f172a;">—</div></div>
+    </div>
+    <div style="position:relative;height:300px;"><canvas id="memory-utilization-chart"></canvas></div>
+</div>
 <div class="sd-charts">
-    <div class="sd-card" style="margin-bottom:0;"><h2>Memory</h2><div class="sd-chart-wrap"><canvas id="memory-pct-chart"></canvas></div></div>
     <div class="sd-card" style="margin-bottom:0;"><h2>Disk I/O</h2><div class="sd-chart-wrap"><canvas id="disk-io-chart"></canvas></div></div>
     <div class="sd-card" style="margin-bottom:0;"><h2>Network I/O (In/Out)</h2><div class="sd-chart-wrap"><canvas id="network-io-chart"></canvas></div></div>
 </div>
@@ -445,7 +462,7 @@
     const serverId = document.getElementById('server-id').value;
     let refreshInterval;
     let cpuChart, memoryChart, diskIOChart, networkIOChart, memoryTrendChart;
-    let cpuPoints = [];   // latest CPU series ({x,y,top}) for the popout
+    let cpuPoints = [], memPoints = [];   // latest {x,y,top} series for the popouts
     let chartRange = '24h';  // shared range for CPU&Memory / Disk I/O / Network I/O charts
 
     function setChartRange(r) {
@@ -742,13 +759,16 @@
             },
         });
 
-        // Memory % (0–100%) — its own card now that CPU has a dedicated chart.
-        memoryChart = new Chart(document.getElementById('memory-pct-chart').getContext('2d'), {
-            type: 'line',
-            data: { labels: [], datasets: [
-                series('Memory %', '#14b8a6', 'rgba(20,184,166,0.12)'),
-            ]},
-            options: baseOptions({ min: 0, max: 100, ticks: { stepSize: 20, callback: v => v + '%', font: { size: 10 } } }),
+        // Memory Utilization — same redesigned look as CPU (memory-green), top processes
+        // by memory in the tooltip.
+        memoryChart = CpuUtil.render('memory-utilization-chart', [], {
+            label: 'Memory Usage', color: '#14b8a6', fill: 'rgba(20,184,166,0.25)',
+            xScale: timeXScale(),
+            statEls: {
+                avg: document.getElementById('mem-util-avg'),
+                min: document.getElementById('mem-util-min'),
+                max: document.getElementById('mem-util-max'),
+            },
         });
 
         // Disk I/O (MB/s)
@@ -850,10 +870,18 @@
             },
         });
 
-        setXWindow(memoryChart, chartRange);
-        memoryChart.data.labels = [];
-        memoryChart.data.datasets[0].data = toXY(data.memory, d => d.value);
-        memoryChart.update('none');
+        // Memory Utilization — carry the per-sample top-process (by memory) list.
+        memPoints = (data.memory || []).map(d => ({
+            x: new Date(d.timestamp).getTime(), y: d.value, top: d.top || [],
+        }));
+        CpuUtil.update(memoryChart, memPoints, {
+            xWindow: { min: now - rangeToMs(chartRange), max: now },
+            statEls: {
+                avg: document.getElementById('mem-util-avg'),
+                min: document.getElementById('mem-util-min'),
+                max: document.getElementById('mem-util-max'),
+            },
+        });
 
         setXWindow(diskIOChart, chartRange);
         diskIOChart.data.labels = [];
@@ -872,6 +900,15 @@
     function popoutCpu() {
         const now = Date.now();
         CpuUtil.popout('CPU Utilization', cpuPoints, {
+            xWindow: { min: now - rangeToMs(chartRange), max: now },
+        });
+    }
+
+    // Expand the Memory Utilization chart into a larger popout overlay.
+    function popoutMem() {
+        const now = Date.now();
+        CpuUtil.popout('Memory Utilization', memPoints, {
+            label: 'Memory Usage', color: '#14b8a6', fill: 'rgba(20,184,166,0.25)',
             xWindow: { min: now - rangeToMs(chartRange), max: now },
         });
     }

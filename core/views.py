@@ -4524,11 +4524,11 @@ def toggle_monitoring(request, server_id, action):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
-def _top_cpu_procs(top_processes, limit=5):
-    """Trimmed [{name, cpu}] of the top CPU processes stored on a metric.
+def _top_procs(top_processes, kind="cpu", limit=5):
+    """Trimmed [{name, pct}] of the top processes by `kind` ("cpu" or "memory").
 
     Reads SystemMetric.top_processes ({"cpu": [...], "memory": [...]}); tolerant of
-    str/dict/None. Feeds the CPU chart's hover tooltip (the "Top Process" list)."""
+    str/dict/None. Feeds the CPU/Memory chart hover tooltips (the "Top Process" list)."""
     data = top_processes
     if not data:
         return []
@@ -4539,15 +4539,16 @@ def _top_cpu_procs(top_processes, limit=5):
             return []
     if not isinstance(data, dict):
         return []
+    pct_key = "memory_percent" if kind == "memory" else "cpu_percent"
     out = []
-    for p in (data.get("cpu") or [])[:limit]:
+    for p in (data.get(kind) or [])[:limit]:
         if not isinstance(p, dict):
             continue
         try:
-            cpu = round(float(p.get("cpu_percent") or 0), 1)
+            pct = round(float(p.get(pct_key) or 0), 1)
         except (TypeError, ValueError):
-            cpu = 0.0
-        out.append({"name": p.get("name") or p.get("command") or "?", "cpu": cpu})
+            pct = 0.0
+        out.append({"name": p.get("name") or p.get("command") or "?", "pct": pct})
     return out
 
 
@@ -4666,7 +4667,7 @@ def server_metrics_api(request, server_id):
                 cpu_data.append({
                     "timestamp": timestamp_str,
                     "value": cpu_val,
-                    "top": _top_cpu_procs(metric.top_processes),   # tooltip "Top Process" list
+                    "top": _top_procs(metric.top_processes, "cpu"),   # tooltip "Top Process" list
                 })
 
             # Memory data
@@ -4674,7 +4675,8 @@ def server_metrics_api(request, server_id):
             if memory_val is not None:
                 memory_data.append({
                     "timestamp": timestamp_str,
-                    "value": memory_val
+                    "value": memory_val,
+                    "top": _top_procs(metric.top_processes, "memory"),   # tooltip "Top Process" list
                 })
 
             # Disk data - use highest partition percentage
@@ -5776,7 +5778,7 @@ def dashboard_cpu_trend_api(request, period='24h'):
                 point['peak'] = round(max_cpu, 2)
 
             if single_server and hour in hourly_top:
-                point['top'] = _top_cpu_procs(hourly_top[hour][1])
+                point['top'] = _top_procs(hourly_top[hour][1], "cpu")
 
             data_points.append(point)
 
@@ -5829,42 +5831,59 @@ def dashboard_memory_trend_api(request, period='24h'):
             # Get average of all servers
             metrics_filter = SystemMetric.objects.filter(timestamp__gte=since)
         
-        metrics = metrics_filter.order_by('timestamp').values('timestamp', 'memory_percent', 'server_id')
-        
+        # Single-server mode also carries top processes (by memory) for the tooltip;
+        # the "All VMs" average can't attribute processes, so it omits them.
+        single_server = bool(server_id and server_id != 'all')
+        fields = ['timestamp', 'memory_percent', 'server_id']
+        if single_server:
+            fields.append('top_processes')
+        metrics = metrics_filter.order_by('timestamp').values(*fields)
+
         hourly_data = {}
+        hourly_top = {}    # hour -> (max_mem_in_hour, top_processes) for single-server tooltip
         for metric in metrics:
             hour_key = metric['timestamp'].replace(minute=0, second=0, microsecond=0)
-            if hour_key not in hourly_data:
-                hourly_data[hour_key] = []
-            hourly_data[hour_key].append(metric['memory_percent'] or 0)
-        
+            mem = metric['memory_percent'] or 0
+            hourly_data.setdefault(hour_key, []).append(mem)
+            if single_server:
+                prev = hourly_top.get(hour_key)
+                if prev is None or mem >= prev[0]:   # representative = the hour's fullest sample
+                    hourly_top[hour_key] = (mem, metric.get('top_processes'))
+
         data_points = []
         for hour, values in sorted(hourly_data.items()):
             avg_memory = sum(values) / len(values) if values else 0
             max_memory = max(values) if values else 0
-            
+
             point = {
                 'timestamp': hour.isoformat(),
                 'value': round(avg_memory, 2)
             }
-            
+
             # Include peak if it's significantly higher than average (indicating a spike)
             if max_memory > avg_memory + 10:  # Spike threshold: 10% above average
                 point['peak'] = round(max_memory, 2)
-            
+
+            if single_server and hour in hourly_top:
+                point['top'] = _top_procs(hourly_top[hour][1], "memory")
+
             data_points.append(point)
-        
+
+        point_vals = [d['value'] for d in data_points]
         current_memory = data_points[-1]['value'] if data_points else 0
-        peak_memory = max([d['value'] for d in data_points]) if data_points else 0
-        avg_memory = sum([d['value'] for d in data_points]) / len(data_points) if data_points else 0
-        
+        peak_memory = max(point_vals) if point_vals else 0
+        min_memory = min(point_vals) if point_vals else 0
+        avg_memory = sum(point_vals) / len(point_vals) if point_vals else 0
+
         return JsonResponse({
             'success': True,
             'data': {
                 'points': data_points,
                 'current': round(current_memory, 1),
                 'peak': round(peak_memory, 1),
-                'average': round(avg_memory, 1)
+                'average': round(avg_memory, 1),
+                'minimum': round(min_memory, 1),
+                'maximum': round(peak_memory, 1)
             },
             'timestamp': timezone.now().isoformat()
         })

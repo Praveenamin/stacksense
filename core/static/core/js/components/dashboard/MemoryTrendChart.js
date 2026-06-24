@@ -96,6 +96,13 @@ class MemoryTrendChart extends BaseDashboardComponent {
                 this.toggleDropdown();
             });
         }
+        const popout = document.getElementById('memory-trend-popout');
+        if (popout && window.CpuUtil) {
+            popout.addEventListener('click', () => {
+                CpuUtil.popout('Memory Usage Trend', this.points || [],
+                    { label: 'Memory Usage', color: '#14b8a6', fill: 'rgba(20,184,166,0.25)' });
+            });
+        }
     }
     toggleDropdown() {
         const dropdown = document.getElementById('memory-trend-filter-dropdown');
@@ -141,65 +148,26 @@ class MemoryTrendChart extends BaseDashboardComponent {
     }
     render(data) {
         if (!data || !data.points) { this.showError('No data available'); return; }
-        if (data.current !== undefined) {
-            const currentEl = document.getElementById('memory-current');
-            if (currentEl) currentEl.textContent = `${data.current}%`;
-        }
-        if (data.peak !== undefined) {
-            const peakEl = document.getElementById('memory-peak');
-            if (peakEl) peakEl.textContent = `${data.peak}%`;
-        }
-        if (data.average !== undefined) {
-            const avgEl = document.getElementById('memory-average');
-            if (avgEl) avgEl.textContent = `${data.average}%`;
-        }
-        const labels = data.points.map(point => {
-            const date = new Date(point.timestamp);
-            return date.toLocaleString('en-US', (this.currentPeriod === '7d' || this.currentPeriod === '30d')
-                ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-                : { hour: '2-digit', minute: '2-digit' });
-        });
-        const label = this.currentServerId === 'all' ? 'Memory % (Average)' : 'Memory %';
-        
-        // Build datasets: main line + peak markers
-        const datasets = [{
-            label: label,
-            data: data.points.map(p => p.value),
-            borderColor: '#14b8a6',
-            backgroundColor: 'rgba(20, 184, 166, 0.12)',
-            fill: true,
-            tension: 0.35,
-            order: 2
-        }];
-        
-        // Add peak markers only for spikes above 85% threshold
-        const peakData = data.points.map(p => (p.peak && p.peak > 85) ? p.peak : null);
-        if (peakData.some(v => v !== null)) {
-            datasets.push({
-                label: 'Memory Spikes',
-                data: peakData,
-                borderColor: '#ef4444',
-                backgroundColor: '#ef4444',
-                pointStyle: 'triangle',
-                pointRadius: 6,
-                pointHoverRadius: 8,
-                showLine: false,
-                order: 1,
-                clip: false  // Allow triangle to draw above chart area when at 100%
-            });
-        }
-        
-        const chartData = {
-            labels: labels,
-            datasets: datasets
+
+        // {x, y, top} points; `top` (top processes by memory at the fullest sample of the
+        // hour) is only present in single-server mode.
+        this.points = data.points.map(p => ({
+            x: new Date(p.timestamp).getTime(),
+            y: p.value,
+            top: p.top || []
+        }));
+
+        const statEls = {
+            avg: document.getElementById('memory-average'),
+            min: document.getElementById('memory-min'),
+            max: document.getElementById('memory-max'),
         };
+        const opts = { label: 'Memory Usage', color: '#14b8a6', fill: 'rgba(20,184,166,0.25)', statEls };
+
         if (!this.chart) {
-            this.chart = ChartWrapper.createLineChart('memory-trend-chart', chartData, {
-                layout: { padding: { top: 14 } },  // Room for spike triangles at 100%
-                scales: { x: { display: false }, y: { max: 100, ticks: { callback: function(value) { return value + '%'; } } } }
-            });
+            this.chart = CpuUtil.render('memory-trend-chart', this.points, opts);
         } else {
-            ChartWrapper.updateChart(this.chart, chartData);
+            CpuUtil.update(this.chart, this.points, opts);
         }
     }
 }
