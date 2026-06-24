@@ -13,6 +13,10 @@ from django.core.cache import cache
 # requests bypass the cache and compute live (rare).
 TREND_INSIGHTS_KEY = "dashboard:trend_insights:v1"
 AI_RECS_KEY = "dashboard:ai_recommendations:v1"
+# Executive right-sizing context (90-day PERCENTILE_CONT + fleet trend/forecast -- the
+# heaviest read in the app). Only the default allow_early=True variant is cached; the
+# rare ?early=0 opt-out is computed live.
+EXEC_CTX_KEY = "dashboard:executive_ctx:v1"
 
 # TTL is deliberately longer than the scheduler's precompute interval (10 min) so the
 # cache never goes cold between runs even if one run is skipped.
@@ -61,15 +65,32 @@ def compute_ai_recommendations():
         return []
 
 
+def compute_executive_context(allow_early=True):
+    """The executive right-sizing context dict (what build_executive_context returns).
+    Heavy: 90-day PERCENTILE_CONT + fleet trend/forecast scans -- precomputed off the
+    request path. Lazy import of the view function avoids a circular import."""
+    from core.views import build_executive_context
+    return build_executive_context(allow_early=allow_early)
+
+
 def refresh_panels():
-    """Recompute BOTH panels (default params) and store them in the cache. Called by the
+    """Recompute the precomputed dashboard pieces (trend insights, AI recommendations,
+    and the executive right-sizing context) and store them in the cache. Called by the
     scheduler so user requests never pay the compute cost. Returns a small summary."""
     ti = compute_trend_insights()
     cache.set(TREND_INSIGHTS_KEY, ti, PANEL_TTL)
     ar = compute_ai_recommendations()
     cache.set(AI_RECS_KEY, ar, PANEL_TTL)
-    return {"trend_insights_patterns": ti.get("total_patterns", 0),
-            "ai_recommendations": len(ar)}
+    summary = {"trend_insights_patterns": ti.get("total_patterns", 0),
+               "ai_recommendations": len(ar)}
+    # Executive context is heaviest; never let its failure drop the other panels.
+    try:
+        ec = compute_executive_context(allow_early=True)
+        cache.set(EXEC_CTX_KEY, ec, PANEL_TTL)
+        summary["executive_ctx"] = "ok"
+    except Exception as e:
+        summary["executive_ctx"] = f"error: {e}"
+    return summary
 
 
 def get_trend_insights():
@@ -87,4 +108,17 @@ def get_ai_recommendations():
     if data is None:
         data = compute_ai_recommendations()
         cache.set(AI_RECS_KEY, data, PANEL_TTL)
+    return data
+
+
+def get_executive_context(allow_early=True):
+    """Cache-first executive context for the dashboard view. Only the default
+    allow_early=True variant is cached (self-heals on a cold cache); the rare ?early=0
+    opt-out is computed live."""
+    if not allow_early:
+        return compute_executive_context(allow_early=False)
+    data = cache.get(EXEC_CTX_KEY)
+    if data is None:
+        data = compute_executive_context(allow_early=True)
+        cache.set(EXEC_CTX_KEY, data, PANEL_TTL)
     return data

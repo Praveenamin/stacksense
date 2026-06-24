@@ -1334,8 +1334,11 @@ def monitoring_dashboard(request):
         context["kpis"] = list(BusinessKPI.objects.filter(enabled=True).order_by("name"))
         try:
             # Early (0-7 day) VMs are shown by default as a directional category;
-            # pass ?early=0 to hide them.
-            context.update(build_executive_context(
+            # pass ?early=0 to hide them. Served from the scheduler-precomputed cache
+            # (the 90-day right-sizing analysis is the heaviest read in the app);
+            # the ?early=0 opt-out computes live, and a cold cache self-heals.
+            from .dashboard_panels import get_executive_context
+            context.update(get_executive_context(
                 allow_early=request.GET.get("early") != "0"))
         except Exception as e:
             error_logger.error(f"EXECUTIVE_DASHBOARD error: {e}")
