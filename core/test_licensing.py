@@ -3,6 +3,7 @@ License admin page). Uses a TEST Ed25519 keypair (settings override) so it never
 on the real vendor private key."""
 import base64
 import json
+from datetime import date, timedelta
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -123,3 +124,48 @@ class LicensingTests(TestCase):
         UserACL.get_or_create_for_user(op)                 # role=None -> no capabilities
         c = Client(); c.force_login(op)
         self.assertNotEqual(c.get(reverse("license_admin")).status_code, 200)
+
+    # --- expiry lifecycle: read-only degrade (Phase 3) ---
+    def test_expired_past_grace_is_read_only(self):
+        exp = (date.today() - timedelta(days=40)).isoformat()   # past 14-day grace
+        self._install(self._mint(edition="pro", max_servers=10, expires=exp))
+        st = licensing.current_license()
+        self.assertEqual(st.state, "expired")
+        self.assertTrue(st.read_only)
+        # A mutating UI POST is blocked (read-only) and changes nothing.
+        r = self.client.post(reverse("add_server_agent"),
+                             {"name": "ro", "ip_address": "10.7.7.7", "os_type": "linux"})
+        self.assertEqual(r.status_code, 302)               # redirected, not processed
+        self.assertFalse(Server.objects.filter(name="ro").exists())
+        # Reads still work.
+        self.assertEqual(self.client.get(reverse("monitoring_dashboard")).status_code, 200)
+        # The License page still accepts a renewed license (recovery path stays open).
+        self.client.post(reverse("license_admin"),
+                         {"license_blob": self._mint(edition="pro", max_servers=10,
+                                                     expires="2030-01-01")})
+        self.assertEqual(licensing.current_license().state, "valid")
+
+    def test_grace_period_is_not_read_only(self):
+        exp = (date.today() - timedelta(days=3)).isoformat()    # within 14-day grace
+        self._install(self._mint(edition="pro", max_servers=10, expires=exp))
+        st = licensing.current_license()
+        self.assertEqual(st.state, "expired_grace")
+        self.assertFalse(st.read_only)
+        # Not read-only: a mutating POST is NOT blocked (cap/edition allow it).
+        self.client.post(reverse("add_server_agent"),
+                         {"name": "grace", "ip_address": "10.7.7.8", "os_type": "linux"})
+        self.assertTrue(Server.objects.filter(name="grace").exists())
+
+    def test_ingest_not_blocked_while_read_only(self):
+        exp = (date.today() - timedelta(days=40)).isoformat()
+        self._install(self._mint(edition="pro", max_servers=10, expires=exp))
+        self.assertTrue(licensing.current_license().read_only)
+        # Agent ingest must NOT hit the read-only block (data keeps flowing). It fails
+        # its own token auth, but must not be the license read-only 403.
+        r = self.client.post(reverse("agent_ingest_metrics"),
+                             data="{}", content_type="application/json")
+        self.assertNotEqual(r.status_code, 302)            # not the read-only redirect
+        try:
+            self.assertNotIn("read-only", (r.json().get("error") or "").lower())
+        except ValueError:
+            pass

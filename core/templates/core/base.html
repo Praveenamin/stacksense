@@ -263,6 +263,18 @@
             </div>
             {% endif %}
 
+            {% if license_banner %}
+            <div role="status" aria-live="polite" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:14px;
+                {% if license_banner.level == 'error' %}background:#fef2f2;border:1px solid #ef4444;color:#b91c1c;
+                {% elif license_banner.level == 'warning' %}background:#fff7ed;border:1px solid #f59e0b;color:#b45309;
+                {% else %}background:#f1f5f9;border:1px solid #cbd5e1;color:#475569;{% endif %}">
+                <span>{{ license_banner.msg }}</span>
+                {% if 'manage_license' in rbac_caps %}
+                <a href="{% url 'license_admin' %}" style="white-space:nowrap;font-weight:600;color:inherit;text-decoration:underline;">Manage license</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
             <div class="w-full">
                 {% block content %}{% endblock %}
             </div>

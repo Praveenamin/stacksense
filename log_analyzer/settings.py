@@ -28,9 +28,19 @@ MIDDLEWARE = [
     "core.middleware.SetupGateMiddleware",
     "core.middleware.ImpersonationMiddleware",
     "core.middleware.RBACMiddleware",
+    "core.middleware.LicenseMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# --- Licensing (offline Ed25519-signed). Unset/default = evaluation mode. ---
+# The vendor PUBLIC key (verify-only) is embedded in core/licensing.py; override
+# LICENSE_PUBLIC_KEY_B64 only for tests. These knobs tune the EVALUATION (unlicensed)
+# experience and the expiry-warning window; real caps/features/expiry come from an
+# installed license. Defaults keep existing installs non-disruptive (eval = all on).
+LICENSE_EVAL_MAX_SERVERS = None      # unlicensed server cap (None = unlimited eval)
+LICENSE_EVAL_ALL_FEATURES = True     # unlicensed = all features unlocked (evaluation)
+LICENSE_EXPIRY_WARN_DAYS = 14        # "expiring soon" banner window (days before expiry)
 
 ROOT_URLCONF = "log_analyzer.urls"
 

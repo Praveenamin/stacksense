@@ -122,6 +122,58 @@ class RBACMiddleware:
             return HttpResponseForbidden("403 — Access denied")
 
 
+class LicenseMiddleware:
+    """Read-only degrade once the license is EXPIRED PAST ITS GRACE WINDOW.
+
+    When `current_license().read_only` is True (state == "expired"), block mutating
+    requests so no config/UI changes are made — but keep the app fully READABLE and
+    keep DATA INGEST flowing (agent/KPI endpoints are allowlisted) so monitoring never
+    stops, and keep the License page reachable so a renewed license can be installed.
+    In every other state (evaluation / valid / expiring / grace / over-limit) this is a
+    no-op — the banner handles those; node mismatch is warn-only. Runs after RBAC, so
+    authorization is decided first. Licensing errors never break the app (fail-open).
+    """
+    SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+    # Surfaces that must keep working even in read-only: ingest (data must keep
+    # flowing), Django admin + auth (recovery), static/media, health probes.
+    ALLOW_PREFIXES = ("/api/agent/", "/api/kpi/", "/admin/", "/static/",
+                      "/media/", "/health/", "/ready/")
+    # ...plus the License page itself, so a renewed license can be installed, and
+    # exiting impersonation.
+    ALLOW_URL_NAMES = frozenset({"license_admin", "impersonate_exit"})
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        if request.method in self.SAFE_METHODS:
+            return None
+        path = request.path
+        if path.startswith(self.ALLOW_PREFIXES):
+            return None
+        match = getattr(request, "resolver_match", None)
+        if match and match.url_name in self.ALLOW_URL_NAMES:
+            return None
+        try:
+            from . import licensing
+            if not licensing.current_license().read_only:
+                return None
+        except Exception:
+            return None  # licensing must never break the app
+
+        msg = ("Your license has expired — StackSense is in read-only mode. "
+               "Install a renewed license to make changes.")
+        if _is_api(request):
+            return JsonResponse({"error": msg}, status=403)
+        from django.contrib import messages
+        messages.error(request, msg)
+        return redirect(request.META.get("HTTP_REFERER")
+                        or str(getattr(settings, "LOGIN_REDIRECT_URL", "/")))
+
+
 class ImpersonationMiddleware:
     """If the session carries a validated impersonation target, swap
     request.user → target for this request and stash the real actor in

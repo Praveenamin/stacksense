@@ -26,16 +26,21 @@ def rbac(request):
             .order_by("username")[:50]
         )
 
-    # License feature set (for hiding Pro-only nav). Eval mode = all features.
+    # License status: drives the Pro-only nav gating AND the app-wide banner.
+    # Computed once here (verification is cached) so no page pays for it twice.
     license_features = frozenset()
+    license_status = None
+    license_banner = None
     if user is not None and getattr(user, "is_authenticated", False):
         try:
             from . import licensing
             st = licensing.current_license()
+            license_status = st
             if st.is_eval:
                 license_features = frozenset({"windows", "executive", "ai", "security", "business"})
             elif st.info:
                 license_features = frozenset(st.info.features)
+            license_banner = _license_banner(st, perms.MANAGE_LICENSE in caps)
         except Exception:
             license_features = frozenset()
 
@@ -46,4 +51,45 @@ def rbac(request):
         "real_user": getattr(request, "real_user", None),
         "impersonatable_users": impersonatable,
         "license_features": license_features,
+        "license_status": license_status,
+        "license_banner": license_banner,
     }
+
+
+def _license_banner(st, is_license_admin):
+    """Pick the single most important license banner for the current state (or None).
+
+    Severity order: read-only/invalid (everyone) > grace > over-limit > expiring >
+    node-mismatch > evaluation (admins only, so it doesn't nag every operator)."""
+    if st.state == "expired":
+        return {"level": "error",
+                "msg": "Your StackSense license has expired — the app is in read-only mode. "
+                       "Monitoring data still flows in, but changes are blocked until a "
+                       "renewed license is installed."}
+    if st.state == "invalid":
+        return {"level": "error",
+                "msg": "Your StackSense license is invalid — install a valid license to "
+                       "restore full access."}
+    if st.state == "expired_grace":
+        n = st.grace_left or 0
+        return {"level": "warning",
+                "msg": f"Your StackSense license has expired — the app becomes read-only in "
+                       f"{n} day{'' if n == 1 else 's'}. Renew now to avoid interruption."}
+    if st.over_limit:
+        return {"level": "warning",
+                "msg": f"Server limit exceeded ({st.server_count}/{st.max_servers}). "
+                       "Remove a server or upgrade your plan."}
+    if st.state == "expiring":
+        n = st.days_left or 0
+        return {"level": "warning",
+                "msg": f"Your StackSense license expires in {n} day{'' if n == 1 else 's'} — "
+                       "renew soon to avoid interruption."}
+    if st.node_mismatch:
+        return {"level": "warning",
+                "msg": "This license is bound to a different installation — it still works, "
+                       "but ask the vendor to re-issue it for this install."}
+    if st.state == "none" and is_license_admin:
+        return {"level": "info",
+                "msg": "Evaluation mode — no license installed. All features are unlocked "
+                       "for evaluation."}
+    return None
