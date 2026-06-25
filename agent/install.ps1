@@ -50,14 +50,25 @@ public class StackSenseTrustAll : ICertificatePolicy {
     } catch {}
 }
 
-function Stop-Agent {
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-    # Kill the running agent -- the exe, and any python.exe from a prior Python-based install.
+function Get-AgentProcs {
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -eq "stacksense-agent.exe" -or
-                       ($_.Name -eq "python.exe" -and $_.CommandLine -like "*StackSense Agent*") } |
-        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-    Start-Sleep -Seconds 1
+                       ($_.Name -eq "python.exe" -and $_.CommandLine -like "*StackSense Agent*") }
+}
+
+function Stop-Agent {
+    # Stop + remove the scheduled task, then kill the running agent (the exe, and any
+    # python.exe from a prior Python-based install).
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+    Get-AgentProcs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    # WAIT until the old process is actually gone (up to ~10s). On a redeploy where the
+    # client didn't uninstall first, a lingering instance would make the task's
+    # MultipleInstances=IgnoreNew drop the freshly-started one -> agent never comes up.
+    for ($i = 0; $i -lt 20; $i++) {
+        if (-not (Get-AgentProcs)) { break }
+        Start-Sleep -Milliseconds 500
+    }
 }
 
 if ($Uninstall) {
@@ -117,6 +128,23 @@ $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGo
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Description "StackSense monitoring push agent" -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
+
+# Verify the agent actually came up; if not (e.g. a prior instance lingered and the
+# start was dropped), force one clean restart so the NEW token takes effect now instead
+# of leaving the server offline until a manual restart.
+Start-Sleep -Seconds 3
+if (-not (Get-Process -Name stacksense-agent -ErrorAction SilentlyContinue)) {
+    Write-Host "      Agent not running yet -- forcing a restart ..."
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
+    Start-Sleep -Seconds 2
+    Start-ScheduledTask -TaskName $TaskName
+    Start-Sleep -Seconds 3
+}
+if (Get-Process -Name stacksense-agent -ErrorAction SilentlyContinue) {
+    Write-Host "      agent running (pid $((Get-Process -Name stacksense-agent | Select-Object -First 1).Id))"
+} else {
+    Write-Warning "Agent did not start. Check $LogFile and 'Get-ScheduledTask $TaskName'."
+}
 
 Write-Host ""
 Write-Host "StackSense agent installed (no Python); running via the '$TaskName' scheduled task (SYSTEM, auto-start)."

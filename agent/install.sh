@@ -220,7 +220,11 @@ if [ $PING_RC -ne 0 ]; then
 fi
 
 systemctl daemon-reload
-systemctl enable --now "$SERVICE_NAME" >/dev/null 2>&1
+systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
+# Force a (re)start so redeploying over a still-running old agent loads the NEW
+# token/config. `enable --now` no-ops on an already-active service, leaving the stale
+# token running -> the server shows offline until someone restarts the agent by hand.
+systemctl restart "$SERVICE_NAME"
 sleep 2
 if systemctl is-active --quiet "$SERVICE_NAME"; then
   echo ""
