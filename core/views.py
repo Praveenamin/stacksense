@@ -991,6 +991,7 @@ def server_list(request):
     context = {
         'servers': servers_with_data,
         'show_sidebar': True,
+        'base_url': _public_base_url(request),   # for the delete modal's uninstall command
     }
     return render(request, "core/server_list.html", context)
 
@@ -1023,6 +1024,7 @@ def edit_server(request, server_id):
     context = {
         'server': server,
         'show_sidebar': True,
+        'base_url': _public_base_url(request),   # for the delete modal's uninstall command
     }
     return render(request, "core/edit_server.html", context)
 

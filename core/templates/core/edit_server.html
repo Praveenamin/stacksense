@@ -281,7 +281,7 @@
                     </button>
                     <form id="delete-server-form" action="/server/delete/{{ server.id }}/" method="post" style="display: inline; width: 100%;">
                         {% csrf_token %}
-                        <button type="button" class="btn-delete" onclick="confirmDeleteServer('{{ server.name }}', {{ server.id }});">
+                        <button type="button" class="btn-delete" onclick="openDeleteModal('{{ server.name|escapejs }}', {{ server.id }}, '{{ server.os_type }}')">
                             <svg style="width: 16px; height: 16px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                             </svg>
@@ -321,10 +321,5 @@
         </div>
     </div>
 
-    <script>
-        function confirmDeleteServer(serverName, serverId) {
-            // Go to the gated removal page (agent-uninstall steps + type-to-confirm).
-            window.location.href = '/server/delete/' + serverId + '/';
-        }
-    </script>
+    {% include "core/components/delete_server_modal.html" %}
 {% endblock %}
