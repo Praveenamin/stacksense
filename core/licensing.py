@@ -85,8 +85,10 @@ def verify_blob(blob: str):
 
 
 def _stored_blob():
+    # Read-only (no get_or_create) so reading the license never issues a write — keeps
+    # request query counts stable and avoids a write on the hot per-request path.
     from .models import License
-    return License.get().blob or ""
+    return (License.objects.filter(id=1).values_list("blob", flat=True).first() or "")
 
 
 def install_id() -> str:
@@ -185,6 +187,25 @@ def has_feature(name: str) -> bool:
     if st.info is None:        # invalid license -> nothing
         return False
     return name in st.info.features
+
+
+def require_feature(name, message=None, redirect_to="monitoring_dashboard"):
+    """View decorator: deny access to a Pro-gated feature unless the license grants it
+    (eval mode grants all). Redirects with a message for page views."""
+    from functools import wraps
+
+    def deco(view):
+        @wraps(view)
+        def wrapped(request, *args, **kwargs):
+            if not has_feature(name):
+                from django.contrib import messages
+                from django.shortcuts import redirect
+                messages.error(request, message or
+                               "This feature requires the Pro edition. Upgrade your license.")
+                return redirect(redirect_to)
+            return view(request, *args, **kwargs)
+        return wrapped
+    return deco
 
 
 def can_add_server():

@@ -51,6 +51,17 @@ class ServerAdmin(admin.ModelAdmin):
             return "❌ Not Configured"
     monitoring_status.short_description = "Monitoring"
 
+    def add_view(self, request, form_url='', extra_context=None):
+        # License: block adding a server beyond the licensed cap (the admin is the second
+        # creation path besides add_server_agent). Admin-created servers default to Linux.
+        from .licensing import can_add_server
+        allowed, reason = can_add_server()
+        if not allowed:
+            self.message_user(request, reason, level=messages.ERROR)
+            from django.shortcuts import redirect
+            return redirect("admin:core_server_changelist")
+        return super().add_view(request, form_url, extra_context)
+
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         if not change:

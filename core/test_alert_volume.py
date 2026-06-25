@@ -54,7 +54,8 @@ class AlertsPageVolumeTests(TestCase):
         # The decisive N+1 guard: the page must issue the SAME number of queries whether
         # there are hundreds of rows or hundreds of thousands.
         self._seed(100, 100)
-        baseline = self._query_count()
+        self._get()                       # warm one-time caches (AppConfig/timezone, etc.)
+        baseline = self._query_count()    # measure warm-vs-warm so the guard tracks N+1, not cold-cache
         self._seed(50_000, 50_000)            # ~100k rows total
         at_volume = self._query_count()
         self.assertEqual(at_volume, baseline,

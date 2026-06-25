@@ -22,11 +22,12 @@ MANAGE_BUSINESS = "manage_business"       # business KPIs
 MANAGE_USERS = "manage_users"
 MANAGE_ROLES = "manage_roles"
 IMPERSONATE = "impersonate"
+MANAGE_LICENSE = "manage_license"         # install/view the product license (Admin only)
 
 ALL_CAPABILITIES = frozenset({
     VIEW_OPERATIONS, VIEW_EXECUTIVE, MANAGE_MONITORING, MANAGE_ALERTS,
     MANAGE_SECURITY, MANAGE_BUSINESS, MANAGE_USERS,
-    MANAGE_ROLES, IMPERSONATE,
+    MANAGE_ROLES, IMPERSONATE, MANAGE_LICENSE,
 })
 
 # Capability labels (for the role-editor UI / seeding)
@@ -40,6 +41,7 @@ CAPABILITY_LABELS = {
     MANAGE_USERS: "Manage Users",
     MANAGE_ROLES: "Manage Roles",
     IMPERSONATE: "Switch Between User Accounts",
+    MANAGE_LICENSE: "Manage License",
 }
 
 # ---------------------------------------------------------------------------
@@ -51,7 +53,7 @@ ROLE_OPERATOR = "Operator"
 
 # CEO: everything except user & role administration AND impersonation
 # (all Admin-only). CEO keeps operational/business management; defaults to Executive.
-CEO_CAPABILITIES = ALL_CAPABILITIES - {MANAGE_USERS, MANAGE_ROLES, IMPERSONATE}
+CEO_CAPABILITIES = ALL_CAPABILITIES - {MANAGE_USERS, MANAGE_ROLES, IMPERSONATE, MANAGE_LICENSE}
 
 ROLE_CAPABILITIES = {
     ROLE_ADMIN: ALL_CAPABILITIES,
@@ -151,6 +153,9 @@ CAPABILITY_BY_URL_NAME = {
     # Application settings (timezone/language/retention)
     "app_config": MANAGE_MONITORING,
     "app_config_legacy": MANAGE_MONITORING,
+
+    # Licensing (Admin only)
+    "license_admin": MANAGE_LICENSE,
 
     # Users & roles
     "admin_users": MANAGE_USERS, "create_admin_user": MANAGE_USERS,

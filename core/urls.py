@@ -46,6 +46,7 @@ urlpatterns = [
     path("agent/stacksense-agent.exe", agent_api.serve_agent_exe, name="agent_exe"),
     path("agent/nssm.exe", agent_api.serve_nssm_exe, name="agent_nssm_exe"),
     path("settings/", views.app_config, name="app_config"),
+    path("settings/license/", views.license_admin, name="license_admin"),
     path("config/timezone/", views.app_config, name="app_config_legacy"),  # Legacy URL for backward compatibility
     path("alert-config/", views.alert_config, name="alert_config"),
     path("alert-config/save/", views.save_alert_config, name="save_alert_config"),

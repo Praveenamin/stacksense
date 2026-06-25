@@ -12,6 +12,7 @@ from . import alert_categories
 from . import alert_routing
 from .mount_filters import is_ephemeral_mount, primary_mount, primary_disk_percent
 from .port_roles import role_for_port
+from .licensing import require_feature
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -1308,7 +1309,10 @@ def monitoring_dashboard(request):
     # Executive persona; everyone else is forced to Operations (defense in depth
     # alongside the route-level middleware).
     from .permissions import user_can, VIEW_EXECUTIVE
-    if dashboard_view == UserACL.DashboardView.EXECUTIVE and not user_can(request.user, VIEW_EXECUTIVE):
+    from .licensing import has_feature
+    if dashboard_view == UserACL.DashboardView.EXECUTIVE and (
+            not user_can(request.user, VIEW_EXECUTIVE) or not has_feature("executive")):
+        # No capability OR the license edition doesn't include the executive dashboard.
         dashboard_view = UserACL.DashboardView.OPERATIONS
 
     # Dashboard shows only services/containers the user has chosen to monitor
@@ -1480,6 +1484,7 @@ def impersonate_exit(request):
 
 
 @staff_member_required
+@require_feature("executive", "The Executive dashboard requires the Pro edition.")
 def executive_dashboard_preview(request):
     """Preview of the Executive right-sizing dashboard rendered against demo
     data (handy when the live fleet has <7 days of history). ?empty=1 forces
@@ -1654,6 +1659,15 @@ def add_server_agent(request):
     if Server.objects.filter(name=name).exists():
         return _form_error(f'A server named "{name}" already exists.')
 
+    # License gates: per-license server cap + Pro-only Windows monitoring.
+    from .licensing import can_add_server, has_feature
+    allowed, reason = can_add_server()
+    if not allowed:
+        return _form_error(reason)
+    if os_type == "windows" and not has_feature("windows"):
+        return _form_error("Windows monitoring requires the Pro edition. "
+                           "Upgrade your license, or add this host as Linux.")
+
     server = Server.objects.create(
         name=name,
         ip_address=ip_address,
@@ -1721,6 +1735,51 @@ def remove_server(request, server_id):
             'success': False,
             'error': f'Failed to remove server: {str(e)}'
         }, status=500)
+
+
+@staff_member_required
+@require_http_methods(["GET", "POST"])
+def license_admin(request):
+    """Admin License page: view the current license + install/replace a license blob.
+    Capability-gated (MANAGE_LICENSE) by the RBAC middleware via CAPABILITY_BY_URL_NAME."""
+    from .models import License
+    from . import licensing
+
+    if request.method == "POST":
+        blob = (request.POST.get("license_blob") or "").strip()
+        if not blob:
+            messages.error(request, "Paste a license to install.")
+        else:
+            info = licensing.verify_blob(blob)
+            if info is None:
+                messages.error(request, "Invalid license — the signature didn't verify. "
+                                        "Make sure you pasted the entire license string.")
+            else:
+                lic = License.get()
+                lic.blob = blob
+                lic.licensee = info.licensee
+                lic.edition = info.edition
+                lic.max_servers = info.max_servers
+                lic.expires = info.expires_date
+                lic.save()
+                _log_user_action(request, "INSTALL_LICENSE",
+                                 f"{info.edition} / {info.max_servers} servers / exp {info.expires}")
+                if info.install_id and info.install_id != licensing.install_id():
+                    messages.warning(request, "License installed, but it's bound to a different "
+                                              "Install ID — it works, but ask the vendor to "
+                                              "re-issue it for this install to clear the warning.")
+                else:
+                    messages.success(request, f"License installed: {info.edition.title()} edition, "
+                                              f"up to {info.max_servers} servers, expires {info.expires}.")
+        return redirect("license_admin")
+
+    context = {
+        "show_sidebar": True,
+        "status": licensing.current_license(),
+        "install_id": licensing.install_id(),
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/license.html", context)
 
 
 @staff_member_required
@@ -6240,9 +6299,11 @@ def dashboard_ai_recommendations_api(request):
     all-server recommendation pass off the per-refresh request path."""
     try:
         from .dashboard_panels import get_ai_recommendations
+        from .licensing import has_feature
+        data = get_ai_recommendations() if has_feature("ai") else []  # Pro-only
         return JsonResponse({
             'success': True,
-            'data': get_ai_recommendations(),
+            'data': data,
             'timestamp': timezone.now().isoformat()
         })
     except Exception as e:
@@ -6782,6 +6843,11 @@ def dashboard_trend_insights_api(request):
     try:
         from .dashboard_panels import (get_trend_insights, compute_trend_insights,
                                         DEFAULT_LOOKBACK_DAYS, DEFAULT_ALERT_TYPES)
+        from .licensing import has_feature
+        if not has_feature("ai"):   # Pro-only
+            return JsonResponse({'success': True, 'data': {
+                'insights': [], 'total_patterns': 0, 'servers_with_patterns': 0,
+                'analysis_period_days': 30}})
 
         lookback_days = int(request.GET.get('lookback_days', 30))
         alert_types_param = request.GET.get('alert_types', 'CPU,MEMORY,DISK')
@@ -7766,6 +7832,7 @@ def _exec_risk(days):
 
 
 @staff_member_required
+@require_feature("executive", "The Executive report requires the Pro edition.")
 def executive_report(request):
     """Executive Reports: fleet-optimization numbers, incidents, and forecast/risk."""
     from django.http import HttpResponse, HttpResponseForbidden
@@ -7857,6 +7924,7 @@ def _business_context(request, new_raw_token=None):
 
 
 @staff_member_required
+@require_feature("business", "Business KPIs require the Pro edition.")
 def business_dashboard(request):
     return render(request, "core/business_list.html", _business_context(request))
 
@@ -7982,6 +8050,7 @@ def business_regenerate_token(request):
 # Security / SIEM monitoring
 # ---------------------------------------------------------------------------
 @staff_member_required
+@require_feature("security", "Security monitoring requires the Pro edition.")
 def security_dashboard(request):
     """Security domain: auth threat detection overview + open events."""
     from django.db.models import Count

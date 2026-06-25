@@ -57,7 +57,7 @@
         </a>
 
         {# Security / SIEM #}
-        {% if 'manage_security' in rbac_caps %}
+        {% if 'manage_security' in rbac_caps and 'security' in license_features %}
         <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             SECURITY
         </div>
@@ -109,7 +109,7 @@
             Operational
         </a>
         {% endif %}
-        {% if 'view_executive' in rbac_caps %}
+        {% if 'view_executive' in rbac_caps and 'executive' in license_features %}
         <a href="/reports/executive/"
             class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if '/reports/executive' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
             <svg class="mr-3 h-5 w-5 {% if '/reports/executive' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,7 +120,7 @@
         {% endif %}
         {% endif %}
 
-        {% if 'manage_users' in rbac_caps or 'manage_roles' in rbac_caps or 'manage_monitoring' in rbac_caps %}
+        {% if 'manage_users' in rbac_caps or 'manage_roles' in rbac_caps or 'manage_monitoring' in rbac_caps or 'manage_license' in rbac_caps %}
         <div class="px-3 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             ADMINISTRATION
         </div>
@@ -152,6 +152,15 @@
             Settings
         </a>
         {% endif %}
+        {% if 'manage_license' in rbac_caps %}
+        <a href="/settings/license/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if request.path == '/settings/license/' %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if request.path == '/settings/license/' %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+            License
+        </a>
+        {% endif %}
         {% endif %}
 
         {# Roadmap — not built yet (shown as 'Soon', non-clickable) #}
@@ -175,7 +184,7 @@
             <span class="ml-auto rounded-full border border-sidebar-border px-2 py-0.5 uppercase tracking-wider" style="font-size:9px; font-weight:600;">Soon</span>
         </div>
         {# Business KPIs — roadmap (coming soon) #}
-        {% if 'manage_business' in rbac_caps %}
+        {% if 'manage_business' in rbac_caps and 'business' in license_features %}
         <div class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground" style="opacity:.55; cursor:not-allowed;" title="Coming soon — on the roadmap">
             <svg class="mr-3 h-5 w-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />

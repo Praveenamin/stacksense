@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+{% block title %}License - StackSense{% endblock %}
+
+{% block content %}
+<div style="max-width:820px;">
+  <h1 style="font-size:22px;font-weight:600;color:#0f172a;margin:0 0 4px;">License</h1>
+  <p style="font-size:14px;color:#64748b;margin:0 0 20px;">Your StackSense edition, server allowance and expiry.</p>
+
+  {% if messages %}
+    {% for m in messages %}
+    <div style="margin-bottom:14px;padding:10px 14px;border-radius:8px;font-size:14px;
+      {% if m.tags == 'error' %}background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;
+      {% elif m.tags == 'warning' %}background:#fff7ed;border:1px solid #fed7aa;color:#b45309;
+      {% else %}background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;{% endif %}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Current status -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:18px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h2 style="font-size:15px;font-weight:600;color:#0f172a;margin:0;">Current status</h2>
+      {% with s=status.state %}
+      <span style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;
+        {% if s == 'valid' %}background:#f0fdf4;color:#166534;
+        {% elif s == 'expiring' or s == 'expired_grace' %}background:#fff7ed;color:#b45309;
+        {% elif s == 'none' %}background:#eef2f7;color:#475569;
+        {% else %}background:#fef2f2;color:#b91c1c;{% endif %}">
+        {% if s == 'none' %}Evaluation (no license){% elif s == 'valid' %}Active
+        {% elif s == 'expiring' %}Active — expiring soon{% elif s == 'expired_grace' %}Expired — in grace
+        {% elif s == 'expired' %}Expired — read-only{% else %}Invalid{% endif %}
+      </span>
+      {% endwith %}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;font-size:14px;">
+      <div><div style="color:#94a3b8;font-size:12px;">Licensee</div><div style="color:#0f172a;">{{ status.info.licensee|default:"—" }}</div></div>
+      <div><div style="color:#94a3b8;font-size:12px;">Edition</div><div style="color:#0f172a;text-transform:capitalize;">{{ status.info.edition|default:"—" }}</div></div>
+      <div><div style="color:#94a3b8;font-size:12px;">Servers</div><div style="color:#0f172a;">{{ status.server_count }}{% if status.max_servers %} / {{ status.max_servers }}{% if status.over_limit %} <span style="color:#b91c1c;font-weight:600;">(over limit)</span>{% endif %}{% else %} / unlimited{% endif %}</div></div>
+      <div><div style="color:#94a3b8;font-size:12px;">Expires</div><div style="color:#0f172a;">{{ status.info.expires|default:"—" }}{% if status.days_left != None %} ({{ status.days_left }}d){% endif %}</div></div>
+    </div>
+    {% if status.node_mismatch %}
+    <div style="margin-top:14px;padding:9px 12px;background:#fff7ed;border:1px solid #fed7aa;color:#b45309;border-radius:8px;font-size:13px;">
+      This license is bound to a different Install ID — it still works, but ask the vendor to re-issue it for this install.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Install ID -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:18px;">
+    <h2 style="font-size:15px;font-weight:600;color:#0f172a;margin:0 0 6px;">Install ID</h2>
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">Send this to your vendor so the license can be bound to this installation (node-lock).</p>
+    <code style="display:inline-block;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;">{{ install_id }}</code>
+  </div>
+
+  <!-- Install / replace -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+    <h2 style="font-size:15px;font-weight:600;color:#0f172a;margin:0 0 10px;">Install or replace license</h2>
+    <form method="post">
+      {% csrf_token %}
+      <textarea name="license_blob" rows="4" placeholder="Paste your license string here"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;font-family:monospace;font-size:13px;
+        border:1px solid #e2e8f0;border-radius:8px;resize:vertical;margin-bottom:12px;"></textarea>
+      <button type="submit" style="background:#0f62fe;color:#fff;border:none;border-radius:8px;
+        padding:9px 18px;font-size:14px;font-weight:500;cursor:pointer;">Install license</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

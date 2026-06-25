@@ -26,10 +26,24 @@ def rbac(request):
             .order_by("username")[:50]
         )
 
+    # License feature set (for hiding Pro-only nav). Eval mode = all features.
+    license_features = frozenset()
+    if user is not None and getattr(user, "is_authenticated", False):
+        try:
+            from . import licensing
+            st = licensing.current_license()
+            if st.is_eval:
+                license_features = frozenset({"windows", "executive", "ai", "security", "business"})
+            elif st.info:
+                license_features = frozenset(st.info.features)
+        except Exception:
+            license_features = frozenset()
+
     return {
         "rbac_caps": caps,
         "is_impersonating": is_impersonating,
         "impersonated_user": request.user if is_impersonating else None,
         "real_user": getattr(request, "real_user", None),
         "impersonatable_users": impersonatable,
+        "license_features": license_features,
     }
