@@ -1,0 +1,134 @@
+# === StackSense SEALED base compose (for COMMERCIAL DISTRIBUTION) ===
+#
+# A standalone BASE (use INSTEAD of docker-compose.yml) that runs the hardened build:
+#   * web/scheduler run the SEALED IMAGE (Dockerfile.sealed) — licensing compiled to .so,
+#     vendor minting tooling + tests stripped out.
+#   * NO `.:/app` source bind-mount — the customer box never holds the readable source.
+#   * runs as the image's non-root appuser (no root needed without the bind-mount).
+#
+# This is a base file, not an overlay (an overlay can't *remove* the dev bind-mount).
+# Deploy (customer side, after `docker load` of the shipped image):
+#   docker compose -f docker-compose.sealed.yml up -d
+# With the nginx/TLS overlay:
+#   docker compose -f docker-compose.sealed.yml -f docker-compose.prod.yml up -d
+# Override the image tag with STACKSENSE_IMAGE in .env if loaded under another name.
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: monitoring_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-monitoring_db}
+      POSTGRES_USER: ${POSTGRES_USER:-monitoring_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - stacksense_postgres_data:/var/lib/postgresql/data
+    networks:
+      - stacksense_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monitoring_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: monitoring_redis
+    volumes:
+      - stacksense_redis_data:/data
+    networks:
+      - stacksense_network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: monitoring_ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - stacksense_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 90s
+
+  web:
+    image: ${STACKSENSE_IMAGE:-stacksense:sealed}
+    container_name: monitoring_web
+    # No bind-mount → the image's appuser owns /app; named static/media volumes inherit
+    # that ownership on first init, so collectstatic/logging work without running as root.
+    command: >
+      sh -c "
+        python manage.py migrate --noinput &&
+        python manage.py collectstatic --noinput &&
+        exec gunicorn log_analyzer.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 180
+      "
+    volumes:
+      - stacksense_static:/app/staticfiles
+      - stacksense_media:/app/media
+    ports:
+      # Localhost only: external traffic goes through the nginx reverse proxy (TLS overlay).
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - stacksense_network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  scheduler:
+    image: ${STACKSENSE_IMAGE:-stacksense:sealed}
+    container_name: monitoring_scheduler
+    # Periodic jobs run here, off the web workers (same split as dev). niced + cpu-capped.
+    command: >
+      sh -c "
+        sleep 30 &&
+        exec nice -n 10 python3 metrics_scheduler.py
+      "
+    cpus: "2"
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - stacksense_network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  stacksense_postgres_data:
+  stacksense_redis_data:
+  stacksense_static:
+  stacksense_media:
+  ollama_data:
+
+networks:
+  stacksense_network:
+    driver: bridge

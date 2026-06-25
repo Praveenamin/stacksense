@@ -1,0 +1,52 @@
+# === StackSense SEALED build (for COMMERCIAL DISTRIBUTION) ===
+#
+# Same runtime as Dockerfile, plus hardening for shipping to a customer-controlled host:
+#   1. Compile the licensing module to a C extension (.so) and DELETE its .py source, so
+#      the entitlement logic is not readable/patchable as plain Python.
+#   2. Strip vendor-only tooling (the license MINTING CLI + private-key handling) and the
+#      test suite from the shipped image.
+#
+# Pair with docker-compose.prod.yml, which runs this IMAGE with NO source bind-mount —
+# so the customer box never holds the readable application source. The dev compose
+# (docker-compose.yml) is unchanged and keeps the convenient `.:/app` bind-mount.
+#
+# Build & ship (vendor side, on a trusted machine — see docs/LICENSING.md):
+#   docker build -f Dockerfile.sealed -t stacksense:sealed .
+#   docker save stacksense:sealed | gzip > stacksense-sealed.tar.gz   # ship this artifact
+# Customer:
+#   docker load < stacksense-sealed.tar.gz && docker compose -f docker-compose.prod.yml up -d
+#
+# NOTE: this is deterrence + a clean licensing boundary, not unbreakable DRM. It must be
+# paired with PRIVATE distribution (do not ship the public repo) and an EULA (EULA.md).
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Build toolchain (needed to compile the Cython extension + psycopg2).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir -r requirements.txt cython
+
+COPY . .
+
+# Seal: compile sensitive modules to .so (sources removed), drop intermediates, and strip
+# vendor-only tooling + tests so the shipped image has neither the licensing source nor the
+# license-minting CLI / private-key tooling.
+RUN python build_sealed.py && \
+    find . -name '*.c' -delete && \
+    find . -name '__pycache__' -type d -prune -exec rm -rf {} + && \
+    rm -rf tools/licensing core/test_*.py build_sealed.py
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+CMD ["gunicorn", "log_analyzer.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "180"]
