@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import uuid
 
 from django.db import models
 from django.utils import timezone
@@ -424,9 +425,12 @@ class AppConfig(models.Model):
         blank=True, default="",
         help_text="Public base URL of this instance (used for absolute links in emails/UI).",
     )
+    # Stable per-install fingerprint for license node-locking (shown on the License page,
+    # given to the vendor so a license can be bound to this install). Generated once.
+    install_id = models.UUIDField(default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Application Configuration"
         verbose_name_plural = "Application Configuration"
@@ -1481,3 +1485,36 @@ class AuditLog(models.Model):
         who = self.actor.username if self.actor else "anonymous"
         as_ = f" as {self.impersonated_target.username}" if self.impersonated_target else ""
         return f"[{self.result}] {who}{as_} {self.action} {self.resource}"
+
+
+class License(models.Model):
+    """Installed license (singleton, id=1). The signed `blob` is the source of truth
+    (verified by core.licensing); the other fields are denormalized for display only and
+    refreshed when a license is installed."""
+    blob = models.TextField(blank=True, default="", help_text="Signed license token.")
+    licensee = models.CharField(max_length=255, blank=True, default="")
+    edition = models.CharField(max_length=20, blank=True, default="")
+    max_servers = models.IntegerField(null=True, blank=True)
+    expires = models.DateField(null=True, blank=True)
+    installed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "License"
+        verbose_name_plural = "License"
+
+    def save(self, *args, **kwargs):
+        self.id = 1  # single instance
+        super().save(*args, **kwargs)
+        try:
+            from django.core.cache import cache
+            cache.delete("license_verified_v2")
+        except Exception:
+            pass
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(id=1)
+        return obj
+
+    def __str__(self):
+        return f"License({self.edition or 'none'}, expires={self.expires})"
