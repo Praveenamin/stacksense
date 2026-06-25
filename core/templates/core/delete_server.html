@@ -17,10 +17,6 @@
         <!-- Action Buttons -->
         <div style="display: flex; gap: var(--cds-spacing-4);">
             <a href="/servers/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Cancel</a>
-            <form method="post" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn" style="background-color: var(--cds-color-red-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Delete Server</button>
-            </form>
         </div>
     </div>
 </div>
@@ -121,13 +117,52 @@
             </div>
         </div>
 
+        <!-- Step 1: uninstall the agent on the client VM -->
+        <div style="background-color: var(--color-neutral-ui-layer1); border: 1px solid var(--color-neutral-ui-border-subtle); border-radius: var(--cds-border-radius); padding: var(--cds-spacing-6); margin-bottom: var(--cds-spacing-8);">
+            <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Step 1 — Uninstall the agent on the VM</h3>
+            <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-4) 0; line-height: var(--line-height-body);">
+                Run this on the {% if os_type == 'windows' %}Windows host (elevated PowerShell){% else %}Linux host{% endif %} <strong>first</strong> so the agent stops and removes itself — otherwise it keeps trying to report to a server that no longer exists.
+            </p>
+            <div style="position:relative;background:#0f172a;border-radius:8px;padding:14px 16px;">
+                <button type="button" id="copy-uninstall" onclick="copyUninstall()" style="position:absolute;top:10px;right:10px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">Copy</button>
+                <pre id="uninstall-cmd" style="margin:0;white-space:pre-wrap;word-break:break-all;color:#e2e8f0;font-family:var(--font-mono, monospace);font-size:13px;line-height:1.6;">{{ uninstall_cmd }}</pre>
+            </div>
+        </div>
+
+        <!-- Step 2: type the server name to confirm -->
         <form method="post">
             {% csrf_token %}
+            <div style="margin-bottom: var(--cds-spacing-8);">
+                <h3 style="font-size: var(--font-size-heading-md); font-weight: var(--cds-font-weight-semibold); color: var(--cds-color-gray-100); margin: 0 0 var(--cds-spacing-2) 0;">Step 2 — Type the server name to confirm</h3>
+                <p style="font-size: var(--cds-font-size-base); color: var(--cds-color-gray-70); margin: 0 0 var(--cds-spacing-4) 0;">Type <strong>{{ server.name }}</strong> to enable deletion.</p>
+                <input type="text" id="confirm-name" name="confirm_name" autocomplete="off" placeholder="{{ server.name }}" oninput="checkConfirmName()"
+                       style="width:100%;max-width:420px;padding:9px 12px;font-size:14px;border:1px solid var(--cds-color-gray-30);border-radius:8px;box-sizing:border-box;">
+            </div>
             <div style="display: flex; justify-content: center; gap: var(--cds-spacing-4);">
                 <a href="/servers/" class="btn" style="background-color: var(--cds-color-white); color: var(--cds-color-gray-100); border: 1px solid var(--cds-color-gray-30); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); text-decoration: none; border-radius: var(--cds-border-radius);">Cancel</a>
-                <button type="submit" class="btn" style="background-color: var(--cds-color-red-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: pointer;">Delete Server</button>
+                <button type="submit" id="delete-btn" disabled class="btn" style="background-color: var(--cds-color-red-60); color: var(--cds-color-white); padding: var(--cds-spacing-2) var(--cds-spacing-6); font-size: var(--cds-font-size-base); font-weight: var(--cds-font-weight-medium); border: none; border-radius: var(--cds-border-radius); cursor: not-allowed; opacity: 0.5;">Delete Server</button>
             </div>
         </form>
+
+        <script>
+            var deleteServerName = "{{ server.name|escapejs }}";
+            function checkConfirmName() {
+                var inp = document.getElementById('confirm-name');
+                var btn = document.getElementById('delete-btn');
+                var ok = inp.value === deleteServerName;
+                btn.disabled = !ok;
+                btn.style.opacity = ok ? '1' : '0.5';
+                btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+            }
+            function copyUninstall() {
+                var text = document.getElementById('uninstall-cmd').textContent;
+                var btn = document.getElementById('copy-uninstall');
+                function done() { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = o; }, 1500); }
+                function fallback() { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} document.body.removeChild(ta); }
+                if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); }
+                else { fallback(); }
+            }
+        </script>
     </div>
 </section>
 {% endblock %}

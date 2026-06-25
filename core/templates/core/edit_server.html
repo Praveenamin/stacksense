@@ -323,14 +323,8 @@
 
     <script>
         function confirmDeleteServer(serverName, serverId) {
-            appConfirm({
-                title: 'Delete server',
-                body: 'Delete "' + serverName + '"? This permanently removes its configuration, ' +
-                      'collected metrics, alert history and monitoring data. This cannot be undone.',
-                confirmText: 'Delete',
-                danger: true,
-                onConfirm: function () { document.getElementById('delete-server-form').submit(); }
-            });
+            // Go to the gated removal page (agent-uninstall steps + type-to-confirm).
+            window.location.href = '/server/delete/' + serverId + '/';
         }
     </script>
 {% endblock %}

@@ -227,13 +227,8 @@ function appAlert(message, title) { appConfirm({ title: title || 'Notice', body:
 
 // ---- Actions ----
 function confirmDeleteServerList(serverName, serverId) {
-    appConfirm({
-        title: 'Delete server',
-        body: `Delete "${serverName}"? This permanently removes its configuration, metrics, alert history and monitoring data. This cannot be undone.`,
-        confirmText: 'Delete',
-        danger: true,
-        onConfirm: function () { document.getElementById('delete-form-' + serverId).submit(); }
-    });
+    // Go to the gated removal page (agent-uninstall steps + type-to-confirm).
+    window.location.href = '/server/delete/' + serverId + '/';
 }
 function toggleAlertSuppression(serverId, currentlySuppressed) {
     const action = currentlySuppressed ? 'resume' : 'suppress';

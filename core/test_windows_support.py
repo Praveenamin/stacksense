@@ -272,3 +272,46 @@ class WindowsServiceIngestTests(TestCase):
         self.assertFalse(_is_background_service(iis))           # IIS shows as notable
         self.assertTrue(_is_background_service(
             Service.objects.get(server=self.server, name="Dnscache")))
+
+
+class ServerRemovalTests(TestCase):
+    """Deleting a server shows the OS-specific agent-uninstall command and requires the
+    user to type the exact server name to confirm (browser + server-side guard)."""
+    def setUp(self):
+        self.admin = User.objects.create_superuser("rmadmin", "rm@x.test", "pw")
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _server(self, os_type, name):
+        return Server.objects.create(name=name, ip_address="10.0.0.20",
+                                     username="agent", os_type=os_type)
+
+    def test_linux_page_shows_uninstall_and_confirm(self):
+        s = self._server("linux", "del-lin")
+        html = self.client.get(reverse("delete_server", args=[s.id])).content.decode()
+        self.assertIn("install.sh", html)
+        self.assertIn("--uninstall", html)
+        self.assertIn('name="confirm_name"', html)   # type-to-confirm input present
+
+    def test_windows_page_shows_ps_uninstall(self):
+        s = self._server("windows", "del-win")
+        html = self.client.get(reverse("delete_server", args=[s.id])).content.decode()
+        self.assertIn("install.ps1", html)
+        self.assertIn("-Uninstall", html)
+
+    def test_wrong_name_does_not_delete(self):
+        s = self._server("linux", "del-keep")
+        r = self.client.post(reverse("delete_server", args=[s.id]), {"confirm_name": "nope"})
+        self.assertEqual(r.status_code, 200)                      # re-renders, no redirect
+        self.assertTrue(Server.objects.filter(id=s.id).exists())  # NOT deleted
+
+    def test_missing_name_does_not_delete(self):
+        s = self._server("linux", "del-keep2")
+        self.client.post(reverse("delete_server", args=[s.id]), {})
+        self.assertTrue(Server.objects.filter(id=s.id).exists())
+
+    def test_exact_name_deletes(self):
+        s = self._server("linux", "del-go")
+        r = self.client.post(reverse("delete_server", args=[s.id]), {"confirm_name": "del-go"})
+        self.assertEqual(r.status_code, 302)                      # redirect to server list
+        self.assertFalse(Server.objects.filter(id=s.id).exists())

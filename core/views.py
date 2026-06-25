@@ -1028,7 +1028,8 @@ def edit_server(request, server_id):
 
 @staff_member_required
 def delete_server(request, server_id):
-    """Delete server"""
+    """Delete a server (gated): show the agent-uninstall steps for the client VM, then
+    require the user to type the exact server name to confirm before removing it."""
     from .utils import has_privilege
 
     if not has_privilege(request.user, 'manage_monitoring'):
@@ -1037,15 +1038,33 @@ def delete_server(request, server_id):
 
     server = get_object_or_404(Server, id=server_id)
 
+    # Per-OS command the user runs ON THE VM to uninstall the agent (so it doesn't keep
+    # running as an orphan after the server is removed). Mirrors _render_agent_install_command.
+    base_url = _public_base_url(request)
+    if server.os_type == "windows":
+        uninstall_cmd = (
+            f"powershell -ExecutionPolicy Bypass -Command \""
+            f"iwr {base_url}/agent/install.ps1 -OutFile $env:TEMP\\install.ps1; "
+            f"& $env:TEMP\\install.ps1 -Url {base_url} -Uninstall\""
+        )
+    else:
+        uninstall_cmd = f"curl -fsSL {base_url}/agent/install.sh | sudo bash -s -- --uninstall"
+
     if request.method == 'POST':
-        server_name = server.name
-        server.delete()
-        messages.success(request, f"Server '{server_name}' deleted successfully.")
-        return redirect('server_list')
+        # Server-side guard behind the in-page type-to-confirm: the typed name must match.
+        if request.POST.get('confirm_name', '').strip() != server.name:
+            messages.error(request, "The name you typed doesn't match — the server was not deleted.")
+        else:
+            server_name = server.name
+            server.delete()
+            messages.success(request, f"Server '{server_name}' deleted successfully.")
+            return redirect('server_list')
 
     context = {
         'server': server,
         'show_sidebar': True,
+        'uninstall_cmd': uninstall_cmd,
+        'os_type': server.os_type,
     }
     return render(request, "core/delete_server.html", context)
 
