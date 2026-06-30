@@ -121,6 +121,8 @@ def notify(kpi, status, value):
     except Exception:
         logger.exception("Business KPI email alert failed for %s", kpi.key)
     try:
-        _send_slack(status, body)
+        from . import alert_routing
+        if alert_routing.slack_should_send("business", severity):
+            _send_slack(status, body)
     except Exception:
         logger.exception("Business KPI Slack alert failed for %s", kpi.key)

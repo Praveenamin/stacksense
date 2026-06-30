@@ -87,3 +87,29 @@ def recipients_for(category, severity):
             seen.add(key)
             out.append(e)
     return out
+
+
+def ensure_default_slack_rules():
+    """Idempotently create a Slack routing rule per category (default LOW = post everything
+    at or above low). Safe to call on every page load; never overwrites an admin's edits."""
+    from .models import SlackRoutingRule
+    from .alert_categories import AlertCategory
+    for category, _ in AlertCategory.choices:
+        SlackRoutingRule.objects.get_or_create(
+            category=category, defaults={"min_severity": "LOW"})
+
+
+def slack_should_send(category, severity):
+    """True if an alert of this (category, severity) should be posted to Slack, per the
+    per-category Slack routing rules. Unlike email there is no per-user dimension -- Slack
+    is one webhook. A missing rule -> True (behaviour unchanged until an admin tunes it);
+    OFF -> never; otherwise the rule's minimum severity must be at or below the alert's."""
+    from .models import SlackRoutingRule
+    cat = (category or "").strip().lower()
+    rank = SEV_RANK.get((severity or "").strip().upper(), SEV_RANK["LOW"])
+    rule = SlackRoutingRule.objects.filter(category=cat).first()
+    if rule is None:
+        return True
+    if rule.min_severity == SlackRoutingRule.OFF:
+        return False
+    return SEV_RANK.get(rule.min_severity, 99) <= rank

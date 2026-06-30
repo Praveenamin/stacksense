@@ -21,6 +21,8 @@ import json
 import logging
 import os
 
+import requests
+
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse, Http404, HttpResponseRedirect
 from django.utils import timezone
@@ -242,12 +244,12 @@ def _notify_unit(server, kind, name, down):
         subject = f"[StackSense] {kind.upper()} RECOVERED: {name} on {server.name}"
         body = f"Monitored {kind} '{name}' is running again on {server.name} (as of {timezone.now()})."
         emoji = ":large_green_circle:"
+    # Service/container up-or-down is an Availability alert; severity drives routing.
+    sev = alert_categories.default_severity_for_alert_type(
+        kind, "triggered" if down else "resolved")
     try:
         ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
         if ecfg:
-            # Service/container up-or-down is an Availability alert; route by severity.
-            sev = alert_categories.default_severity_for_alert_type(
-                kind, "triggered" if down else "resolved")
             recipients = alert_routing.recipients_for("availability", sev)
             if recipients:
                 from django.core.mail import send_mail
@@ -256,7 +258,7 @@ def _notify_unit(server, kind, name, down):
         logger.exception("%s email alert failed for %s/%s", kind, server.name, name)
     try:
         scfg = SlackAlertConfig.objects.filter(enabled=True).first()
-        if scfg and scfg.webhook_url:
+        if scfg and scfg.webhook_url and alert_routing.slack_should_send("availability", sev):
             payload = {"text": f"{emoji} {body}"}
             if scfg.channel:
                 payload["channel"] = scfg.channel

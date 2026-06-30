@@ -25,6 +25,11 @@
     .email-config-grid .requirements-card {
         margin-bottom: 0;
     }
+    /* When there's no second card yet (no saved config), let Email Configuration use the
+       full width so the provider options spread across the row instead of leaving a gap. */
+    .email-config-grid--full {
+        grid-template-columns: 1fr;
+    }
     .form-title {
         font-size: 14px;
         font-weight: 600;
@@ -320,13 +325,14 @@
         <form id="alert-config-form" method="post" action="/alert-config/save/">
             {% csrf_token %}
 
-            <!-- Row 1: Email Configuration | Configuration Actions (aligned) -->
-            <div class="email-config-grid">
+            <!-- Row 1: Email Configuration | Configuration Actions (aligned). With no saved
+                 config the Actions card is absent, so Email Configuration goes full-width. -->
+            <div class="email-config-grid{% if not config %} email-config-grid--full{% endif %}">
                 <div class="form-card">
                     <h2 class="form-title">Email Configuration</h2>
                     <p class="form-subtitle">Configure email notifications for server alerts</p>
 
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--cds-spacing-4);">
+                    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--cds-spacing-4);">
                         <label class="provider-option" id="option-gmail">
                             <input type="radio" name="provider" value="gmail" id="provider-gmail"
                                    {% if not config or config.provider == 'gmail' %}checked{% endif %}
@@ -563,7 +569,10 @@
                         <tbody>
                             {% for row in routing_rows %}
                             <tr>
-                                <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500; color: #0f172a; white-space: nowrap;">{{ row.label }}</td>
+                                <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500; color: #0f172a; white-space: nowrap;">
+                                    <span title="{{ row.hint }}" style="cursor: help; border-bottom: 1px dotted #94a3b8;">{{ row.label }}</span>
+                                    {% if row.hint %}<span title="{{ row.hint }}" style="cursor: help; color: #94a3b8; font-size: 12px; margin-left: 4px;">&#9432;</span>{% endif %}
+                                </td>
                                 {% for cell in row.cells %}
                                 <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;">
                                     <select name="route_{{ cell.role.id }}_{{ row.category }}" class="form-input" style="padding: 6px 8px; min-width: 150px;"{% if not can_edit_routing %} disabled{% endif %}>
@@ -728,6 +737,47 @@
                 <button type="submit" class="btn-submit">Save Configuration</button>
             </div>
         </form>
+
+        <!-- Slack Routing (category -> minimum severity; no per-user dimension) -->
+        <div class="form-card" style="margin-top: 24px;">
+            <form id="slack-routing-form" method="post" action="/alert-config/slack-routing/save/">
+                {% csrf_token %}
+                <h2 class="form-title">Slack Routing</h2>
+                <p class="form-subtitle">Choose the minimum severity that posts each alert category to Slack. Slack uses a single shared webhook, so there are no per-user recipients. <strong>Off</strong> means that category is never sent to Slack.</p>
+
+                <div style="overflow-x: auto; margin-top: 12px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 600; white-space: nowrap;">Category</th>
+                                <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 600; white-space: nowrap;">Post to Slack when</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in slack_routing_rows %}
+                            <tr>
+                                <td style="padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500; color: #0f172a; white-space: nowrap;">
+                                    <span title="{{ row.hint }}" style="cursor: help; border-bottom: 1px dotted #94a3b8;">{{ row.label }}</span>
+                                    {% if row.hint %}<span title="{{ row.hint }}" style="cursor: help; color: #94a3b8; font-size: 12px; margin-left: 4px;">&#9432;</span>{% endif %}
+                                </td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;">
+                                    <select name="slackroute_{{ row.category }}" class="form-input" style="padding: 6px 8px; min-width: 200px;">
+                                        {% for sev_code, sev_label in slack_min_severity_choices %}
+                                        <option value="{{ sev_code }}" {% if row.value == sev_code %}selected{% endif %}>{{ sev_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 16px;">
+                    <button type="submit" class="btn-submit">Save Slack Routing</button>
+                </div>
+            </form>
+        </div>
     </div>
     <!-- End Slack Configuration Tab -->
 

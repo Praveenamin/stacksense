@@ -51,6 +51,7 @@ urlpatterns = [
     path("alert-config/", views.alert_config, name="alert_config"),
     path("alert-config/save/", views.save_alert_config, name="save_alert_config"),
     path("alert-config/routing/save/", views.save_alert_routing, name="save_alert_routing"),
+    path("alert-config/slack-routing/save/", views.save_slack_routing, name="save_slack_routing"),
     path("alert-config/clear/", views.clear_alert_config, name="clear_alert_config"),
     path("alert-config/test/", views.test_alert_config, name="test_alert_config"),
     path("alert-config/slack/", views.slack_config, name="slack_config"),

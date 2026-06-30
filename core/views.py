@@ -1932,9 +1932,24 @@ def _build_routing_context():
         cells = [{'role': role,
                   'value': existing.get((role.id, cat_value), AlertRoutingRule.OFF)}
                  for role in roles]
-        rows.append({'category': cat_value, 'label': cat_label, 'cells': cells})
+        rows.append({'category': cat_value, 'label': cat_label,
+                     'hint': alert_categories.hint(cat_value), 'cells': cells})
 
     return roles, rows, AlertRoutingRule.MIN_SEVERITY_CHOICES
+
+
+def _build_slack_routing_context():
+    """One row per alert category for the Slack routing table: the minimum severity that
+    posts that category to Slack. No role dimension -- Slack is a single webhook."""
+    from .models import SlackRoutingRule
+    alert_routing.ensure_default_slack_rules()
+    existing = {r.category: r.min_severity for r in SlackRoutingRule.objects.all()}
+    rows = []
+    for cat_value, cat_label in alert_categories.AlertCategory.choices:
+        rows.append({'category': cat_value, 'label': cat_label,
+                     'hint': alert_categories.hint(cat_value),
+                     'value': existing.get(cat_value, 'LOW')})
+    return rows, SlackRoutingRule.MIN_SEVERITY_CHOICES
 
 
 def _is_admin(user):
@@ -1953,6 +1968,7 @@ def alert_config(request):
         config = EmailAlertConfig.objects.first()
         slack_config = SlackAlertConfig.objects.first()
         roles, routing_rows, min_severity_choices = _build_routing_context()
+        slack_routing_rows, slack_min_severity_choices = _build_slack_routing_context()
         context = {
             'config': config,
             'slack_config': slack_config,
@@ -1962,6 +1978,9 @@ def alert_config(request):
             # Routing is cross-role alerting policy -> only Admins may edit it. Others see
             # it read-only.
             'can_edit_routing': _is_admin(request.user),
+            # Slack routing has no role dimension; anyone who can reach this page (MANAGE_ALERTS) edits it.
+            'slack_routing_rows': slack_routing_rows,
+            'slack_min_severity_choices': slack_min_severity_choices,
             'show_sidebar': True,  # Match add_server page layout with sidebar
         }
         return render(request, "core/alert_config.html", context)
@@ -2013,6 +2032,39 @@ def save_alert_routing(request):
         logger.error(f"Failed to save alert routing: {e}")
         try:
             messages.error(request, f'Failed to save alert routing: {e}')
+        except Exception:
+            pass
+    return redirect('alert_config')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def save_slack_routing(request):
+    """Persist the per-category Slack routing rules from the alert-config Slack tab.
+
+    Each row posts as `slackroute_<category>` = min-severity (or OFF). No role dimension
+    (Slack is one webhook); reachable by anyone with MANAGE_ALERTS (same as the Slack config)."""
+    from .models import SlackRoutingRule
+
+    valid_categories = {c for c, _ in alert_categories.AlertCategory.choices}
+    valid_severities = {s for s, _ in SlackRoutingRule.MIN_SEVERITY_CHOICES}
+    try:
+        for key, value in request.POST.items():
+            if not key.startswith('slackroute_'):
+                continue
+            category = key[len('slackroute_'):]
+            if category not in valid_categories or value not in valid_severities:
+                continue
+            SlackRoutingRule.objects.update_or_create(
+                category=category, defaults={'min_severity': value})
+        try:
+            messages.success(request, 'Slack routing saved.')
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Failed to save Slack routing: {e}")
+        try:
+            messages.error(request, f'Failed to save Slack routing: {e}')
         except Exception:
             pass
     return redirect('alert_config')
@@ -3009,9 +3061,9 @@ def _check_and_send_alerts(server, metric):
             print(f"[ALERT] Sending {len(alerts)} alert(s) for {server.name}")
             _send_alert_email(email_config, server, alerts)
             
-            # Send Slack alert if configured
+            # Send Slack alert if configured AND this category/severity routes to Slack.
             slack_config = SlackAlertConfig.objects.filter(enabled=True).first()
-            if slack_config:
+            if slack_config and alert_routing.slack_should_send("resource", "HIGH"):
                 _send_slack_alert(
                     slack_config.webhook_url,
                     server,

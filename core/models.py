@@ -686,6 +686,28 @@ class AlertRoutingRule(models.Model):
         return f"{self.role.name} / {self.category} >= {self.min_severity}"
 
 
+class SlackRoutingRule(models.Model):
+    """Slack alert routing: one row per Alert Category saying the minimum severity at
+    which that category is posted to Slack (OFF = never). There is NO role/user dimension
+    -- Slack is a single shared webhook, so routing is category+severity only. The global
+    SlackAlertConfig.enabled switch still gates Slack overall; this filters which alerts."""
+    OFF = AlertRoutingRule.OFF
+    MIN_SEVERITY_CHOICES = AlertRoutingRule.MIN_SEVERITY_CHOICES
+
+    category = models.CharField(max_length=20, choices=AlertCategory.choices, unique=True)
+    min_severity = models.CharField(max_length=20, choices=MIN_SEVERITY_CHOICES, default="LOW",
+                                    help_text="Lowest severity that posts this category to Slack (OFF = never)")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Slack Routing Rule"
+        verbose_name_plural = "Slack Routing Rules"
+        ordering = ["category"]
+
+    def __str__(self):
+        return f"slack / {self.category} >= {self.min_severity}"
+
+
 class ServerHeartbeat(models.Model):
     """Tracks heartbeat signals from agent scripts on monitored servers"""
     server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="heartbeats")

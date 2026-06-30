@@ -69,6 +69,32 @@ def label(category):
         return str(category)
 
 
+# What feeds each category — shown as a tooltip on the Alert Routing matrix. Mirrors the
+# source -> category mapping documented at the top of this module.
+CATEGORY_HINTS = {
+    AlertCategory.RESOURCE: (
+        "CPU, memory, disk, disk I/O and network I/O threshold breaches — "
+        "plus CPU / memory / disk / network anomalies."),
+    AlertCategory.AVAILABILITY: (
+        "Server unreachable (connection lost), and monitored service / container / "
+        "uptime checks going down or recovering."),
+    AlertCategory.SECURITY: (
+        "Security events — e.g. failed SSH logins and other suspicious activity."),
+    AlertCategory.CAPACITY: (
+        "Memory-leak anomalies — shared-memory, IPC and process RSS leaks."),
+    AlertCategory.BUSINESS: (
+        "Business KPI alerts — breaching warning / critical thresholds, and recovery."),
+}
+
+
+def hint(category):
+    """One-line description of what feeds a category (for UI tooltips)."""
+    try:
+        return CATEGORY_HINTS.get(AlertCategory(category), "")
+    except ValueError:
+        return ""
+
+
 def default_severity_for_alert_type(alert_type, status="triggered"):
     """Severity for a severity-less AlertHistory alert.
 

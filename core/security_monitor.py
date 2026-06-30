@@ -266,6 +266,8 @@ def notify(event):
     except Exception:
         logger.exception("Security email alert failed for event %s", event.id)
     try:
-        _send_slack(body)
+        from . import alert_routing
+        if alert_routing.slack_should_send("security", event.severity):
+            _send_slack(body)
     except Exception:
         logger.exception("Security Slack alert failed for event %s", event.id)

@@ -219,12 +219,15 @@ def _send_slack(check, event, body):
 def notify(check, event, probe):
     """Send down/recovery notifications via configured channels."""
     subject, body = _compose(check, event, probe)
+    severity = "CRITICAL" if event == "DOWN" else "LOW"
     try:
-        _send_email(subject, body, "CRITICAL" if event == "DOWN" else "LOW")
+        _send_email(subject, body, severity)
     except Exception:
         logger.exception("Synthetic email alert failed for %s", check.name)
     try:
-        _send_slack(check, event, body)
+        from . import alert_routing
+        if alert_routing.slack_should_send("availability", severity):
+            _send_slack(check, event, body)
     except Exception:
         logger.exception("Synthetic Slack alert failed for %s", check.name)
 

@@ -129,6 +129,7 @@ CAPABILITY_BY_URL_NAME = {
     "clear_alert_config": MANAGE_ALERTS, "test_alert_config": MANAGE_ALERTS,
     "slack_config": MANAGE_ALERTS, "save_slack_config": MANAGE_ALERTS,
     "clear_slack_config": MANAGE_ALERTS, "test_slack_config": MANAGE_ALERTS,
+    "save_slack_routing": MANAGE_ALERTS,
     "disk_alerts_config_api": MANAGE_ALERTS, "save_disk_alerts_config": MANAGE_ALERTS,
     "service_alerts_config_api": MANAGE_ALERTS, "server_services_api": MANAGE_ALERTS,
     "save_service_monitoring": MANAGE_ALERTS,

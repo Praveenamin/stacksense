@@ -3,6 +3,7 @@ from django.utils import timezone
 from datetime import timedelta
 from core.models import SystemMetric, Anomaly, MonitoringConfig, EmailAlertConfig, SlackAlertConfig
 from core.views import _send_alert_email, _send_slack_alert
+from core import alert_routing
 from core.anomaly_detector import AnomalyDetector
 from core.llm_analyzer import OllamaAnalyzer
 
@@ -182,9 +183,9 @@ class Command(BaseCommand):
                                     )
                                 )
                             
-                            # Send Slack alert
+                            # Send Slack alert (anomalies are a Resource alert at HIGH).
                             slack_config = SlackAlertConfig.objects.filter(enabled=True).first()
-                            if slack_config:
+                            if slack_config and alert_routing.slack_should_send("resource", "HIGH"):
                                 _send_slack_alert(
                                     slack_config.webhook_url,
                                     metric.server,
