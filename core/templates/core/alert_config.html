@@ -605,7 +605,7 @@
         <form id="slack-config-form" method="post" action="/alert-config/slack/save/">
             {% csrf_token %}
 
-            <!-- Row 1: Slack Configuration | Configuration Actions (aligned) -->
+            <!-- Row 1: Slack Configuration | Setup Requirements (side by side) -->
             <div class="email-config-grid">
                 <div class="form-card">
                     <h2 class="form-title">Slack Configuration</h2>
@@ -653,36 +653,6 @@
                     </div>
                 </div>
 
-                {% if slack_config %}
-                <div class="form-card">
-                    <h2 class="form-title">Configuration Actions</h2>
-                    <p class="form-subtitle">Test your saved configuration or clear it</p>
-                    
-                    <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-start; align-items: center;">
-                        <button type="button" class="btn-secondary" onclick="testSlackConfiguration()">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
-                                <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"></polyline>
-                            </svg>
-                            Test Saved Configuration
-                        </button>
-                        
-                        <button type="button" class="btn-secondary" onclick="clearSlackConfiguration()"
-                                style="color: var(--cds-color-red-60); border-color: var(--cds-color-red-60);">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
-                                <polyline points="3,6 5,6 21,6"></polyline>
-                                <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                            </svg>
-                            Clear Configuration
-                        </button>
-                    </div>
-                </div>
-                {% else %}
-                <div></div>
-                {% endif %}
-            </div>
-
-            <!-- Row 2: Setup Requirements -->
-            <div class="email-config-grid">
                 <div class="requirements-card">
                     <h3 class="requirements-title">Setup Requirements</h3>
                     <div class="requirement-item">
@@ -730,8 +700,36 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {% if slack_config %}
+            <!-- Configuration Actions (only when a saved config exists) -->
+            <div class="email-config-grid">
+                <div class="form-card">
+                    <h2 class="form-title">Configuration Actions</h2>
+                    <p class="form-subtitle">Test your saved configuration or clear it</p>
+
+                    <div style="display: flex; gap: var(--cds-spacing-4); justify-content: flex-start; align-items: center;">
+                        <button type="button" class="btn-secondary" onclick="testSlackConfiguration()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                                <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"></polyline>
+                            </svg>
+                            Test Saved Configuration
+                        </button>
+
+                        <button type="button" class="btn-secondary" onclick="clearSlackConfiguration()"
+                                style="color: var(--cds-color-red-60); border-color: var(--cds-color-red-60);">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                            </svg>
+                            Clear Configuration
+                        </button>
+                    </div>
+                </div>
                 <div></div>
             </div>
+            {% endif %}
 
             <div style="display: flex; justify-content: flex-end;">
                 <button type="submit" class="btn-submit">Save Configuration</button>
