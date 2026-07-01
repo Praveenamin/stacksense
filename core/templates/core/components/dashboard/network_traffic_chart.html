@@ -9,6 +9,11 @@ Network Traffic Chart Component (24h) - Stacked Area
         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2, 8px);">
             <span class="dashboard-component-icon">🌐</span>
             <h3 class="dashboard-component-title">Network Traffic</h3>
+            <button type="button" id="network-traffic-popout" title="Expand"
+                    style="border:none;background:transparent;cursor:pointer;color:#94a3b8;padding:2px;line-height:0;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            </button>
         </div>
         <div style="display: flex; gap: 12px; align-items: center;">
             <!-- Time Period Filter -->
@@ -42,11 +47,11 @@ Network Traffic Chart Component (24h) - Stacked Area
         </div>
         <div class="chart-summary" id="network-traffic-legend">
             <div class="chart-summary-item">
-                <div class="chart-summary-label">Inbound</div>
+                <div class="chart-summary-label"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#2cbfc7;margin-right:6px;vertical-align:middle;"></span>Inbound</div>
                 <div class="chart-summary-value" id="network-inbound">— MB/s</div>
             </div>
             <div class="chart-summary-item">
-                <div class="chart-summary-label">Outbound</div>
+                <div class="chart-summary-label"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f97316;margin-right:6px;vertical-align:middle;"></span>Outbound</div>
                 <div class="chart-summary-value" id="network-outbound">— MB/s</div>
             </div>
         </div>
