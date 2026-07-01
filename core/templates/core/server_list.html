@@ -33,6 +33,14 @@
         <button class="filter-chip" data-status="offline"><span class="dot" style="background:#a8a8a8;"></span>Offline <span class="chip-count">0</span></button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
+        <div class="view-toggle" role="group" aria-label="View">
+            <button type="button" class="vt-btn active" data-view="grid" title="Grid view" aria-label="Grid view">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+            <button type="button" class="vt-btn" data-view="list" title="List view" aria-label="List view">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+        </div>
         <div style="position:relative;">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;">
                 <path d="M9 17A8 8 0 109 1a8 8 0 000 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -50,7 +58,7 @@
 </div>
 
 <!-- Card grid -->
-<div class="vm-grid">
+<div class="vm-grid" id="vm-grid">
     {% for server in servers %}
     <div class="vm-card" data-name="{{ server.name|lower }}" data-ip="{{ server.ip_address }}" data-status="{{ server.status }}"
          style="border-left-color:{% if server.status == 'online' %}#24a148{% elif server.status == 'warning' %}#ff832b{% else %}#c1c7cd{% endif %};">
@@ -105,6 +113,55 @@
     {% endfor %}
 </div>
 
+<!-- List view -->
+<div class="vm-list" id="vm-list" style="display:none;">
+    <table class="vm-list-table">
+        <thead>
+            <tr>
+                <th>Instance</th>
+                <th>Status</th>
+                <th>CPU</th>
+                <th>Memory</th>
+                <th>Disk</th>
+                <th>Uptime</th>
+                <th style="text-align:right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for server in servers %}
+            <tr class="vm-row" data-name="{{ server.name|lower }}" data-ip="{{ server.ip_address }}" data-status="{{ server.status }}">
+                <td>
+                    <a href="/server/{{ server.id }}/" class="vm-row-name">{{ server.name }}</a>
+                    <div class="vm-row-sub">{{ server.ip_address }} &middot; {{ server.get_os_type_display }}{% if server.active_alerts %} &middot; <span style="color:#b91c1c;">&#9888; {{ server.active_alerts }}</span>{% endif %}{% if server.alert_suppressed %} &middot; <span style="color:#8e3b00;">Alerts off</span>{% endif %}</div>
+                </td>
+                <td><span style="display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:500;{% if server.status == 'online' %}background:#d1f7c4;color:#0e6027;{% elif server.status == 'warning' %}background:#fff1e0;color:#8e3b00;{% else %}background:#f4f4f4;color:#525252;{% endif %}">{{ server.status|capfirst }}</span></td>
+                {% if server.agent_installed %}
+                <td><div class="li-m"><div class="bar-track"><div class="bar-fill" style="width:{{ server.cpu_percent|default:0 }}%;background:{% if server.cpu_percent|default:0 >= 90 %}#da1e28{% elif server.cpu_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};"></div></div><span class="li-mval">{% if server.cpu_percent is not None %}{{ server.cpu_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div></td>
+                <td><div class="li-m"><div class="bar-track"><div class="bar-fill" style="width:{{ server.memory_percent|default:0 }}%;background:{% if server.memory_percent|default:0 >= 90 %}#da1e28{% elif server.memory_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};"></div></div><span class="li-mval">{% if server.memory_percent is not None %}{{ server.memory_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div></td>
+                <td><div class="li-m"><div class="bar-track"><div class="bar-fill" style="width:{{ server.disk_percent|default:0 }}%;background:{% if server.disk_percent|default:0 >= 90 %}#da1e28{% elif server.disk_percent|default:0 >= 70 %}#ff832b{% else %}#0f62fe{% endif %};"></div></div><span class="li-mval">{% if server.disk_percent is not None %}{{ server.disk_percent|floatformat:0 }}%{% else %}—{% endif %}</span></div></td>
+                {% else %}
+                <td colspan="3" style="color:#94a3b8;font-size:12px;">No metrics — install the agent.</td>
+                {% endif %}
+                <td style="color:#64748b;font-size:12px;white-space:nowrap;">&#9201; {{ server.uptime_display|default:"—" }}</td>
+                <td>
+                    <div style="display:flex;justify-content:flex-end;align-items:center;gap:1px;">
+                        <a class="icon-btn icon-view" href="/server/{{ server.id }}/" title="View details" aria-label="View details"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        {% if 'manage_monitoring' in rbac_caps %}
+                        <a class="icon-btn icon-edit" href="/server/edit/{{ server.id }}/" title="Edit" aria-label="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></a>
+                        <button type="button" class="icon-btn icon-alert" onclick="toggleAlertSuppression({{ server.id }}, {% if server.alert_suppressed %}true{% else %}false{% endif %})" title="{% if server.alert_suppressed %}Resume alerts{% else %}Suspend alerts{% endif %}" aria-label="{% if server.alert_suppressed %}Resume alerts{% else %}Suspend alerts{% endif %}">
+                            {% if server.alert_suppressed %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            {% else %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>{% endif %}
+                        </button>
+                        <button type="button" class="icon-btn icon-delete" onclick="openDeleteModal('{{ server.name|escapejs }}', {{ server.id }}, '{{ server.os_type }}')" title="Delete" aria-label="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
 <!-- No-results (filter) state -->
 <div id="no-results" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:14px;">No instances match your filters.</div>
 
@@ -134,6 +191,24 @@
 
 <style>
 .vm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:14px; }
+/* View toggle (grid / list) */
+.view-toggle { display:inline-flex; background:#eef1f5; border-radius:8px; padding:3px; gap:2px; flex-shrink:0; }
+.vt-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:30px; border:none; background:transparent; color:#64748b; border-radius:6px; cursor:pointer; }
+.vt-btn:hover { color:#0f172a; }
+.vt-btn.active { background:#fff; color:#0f172a; box-shadow:0 1px 2px rgba(15,23,42,.12); }
+/* List view */
+.vm-list { overflow-x:auto; }
+.vm-list-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+.vm-list-table thead th { text-align:left; padding:11px 14px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; background:#fafbfc; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+.vm-list-table tbody td { padding:12px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.vm-list-table tbody tr:last-child td { border-bottom:none; }
+.vm-list-table tbody tr:hover { background:#fafbfc; }
+.vm-row-name { font-size:14px; font-weight:600; color:#0f172a; text-decoration:none; }
+.vm-row-name:hover { text-decoration:underline; }
+.vm-row-sub { font-size:12px; color:#94a3b8; margin-top:2px; white-space:nowrap; }
+.li-m { display:flex; align-items:center; gap:8px; }
+.li-m .bar-track { width:70px; flex:none; }
+.li-mval { min-width:34px; font-size:12px; font-weight:600; color:#0f172a; }
 /* Modal */
 .app-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:2000; padding:16px; }
 .app-modal { background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.25); width:100%; max-width:420px; padding:24px; animation:appModalIn .14s ease; }
@@ -174,20 +249,21 @@
 (function () {
     const search = document.getElementById('vm-search');
     const chips = document.querySelectorAll('.filter-chip');
-    const cards = document.querySelectorAll('.vm-card');
+    const cards = document.querySelectorAll('.vm-card');                 // one per server (used for counts)
+    const filterables = document.querySelectorAll('.vm-card, .vm-row');  // grid cards + list rows
     const noResults = document.getElementById('no-results');
     let activeStatus = 'all';
 
     function applyFilters() {
         const term = (search && search.value ? search.value : '').trim().toLowerCase();
-        let visible = 0;
-        cards.forEach(card => {
-            const matchText = !term || card.dataset.name.includes(term) || (card.dataset.ip || '').toLowerCase().includes(term);
-            const matchStatus = activeStatus === 'all' || card.dataset.status === activeStatus;
-            const show = matchText && matchStatus;
-            card.style.display = show ? '' : 'none';
-            if (show) visible++;
+        filterables.forEach(el => {
+            const matchText = !term || (el.dataset.name || '').includes(term) || (el.dataset.ip || '').toLowerCase().includes(term);
+            const matchStatus = activeStatus === 'all' || el.dataset.status === activeStatus;
+            el.style.display = (matchText && matchStatus) ? '' : 'none';
         });
+        // one card per server -> count visible cards for the empty-state (both views filter in sync)
+        let visible = 0;
+        cards.forEach(c => { if (c.style.display !== 'none') visible++; });
         if (noResults) noResults.style.display = visible ? 'none' : 'block';
     }
 
@@ -203,6 +279,25 @@
         applyFilters();
     }));
     if (search) search.addEventListener('keyup', applyFilters);
+})();
+
+// ---- View toggle (grid / list), persisted ----
+(function () {
+    const grid = document.getElementById('vm-grid');
+    const list = document.getElementById('vm-list');
+    const btns = document.querySelectorAll('.vt-btn');
+    if (!grid || !list) return;
+    function setView(v) {
+        const isList = v === 'list';
+        grid.style.display = isList ? 'none' : '';
+        list.style.display = isList ? '' : 'none';
+        btns.forEach(b => b.classList.toggle('active', b.dataset.view === v));
+        try { localStorage.setItem('vm-view', v); } catch (e) {}
+    }
+    btns.forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+    let saved = 'grid';
+    try { saved = localStorage.getItem('vm-view') || 'grid'; } catch (e) {}
+    setView(saved);
 })();
 
 // ---- Styled dialog (replaces native confirm/alert) ----
