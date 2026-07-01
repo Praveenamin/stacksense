@@ -137,13 +137,6 @@
                 </svg>
                 Mark as Acknowledged
             </button>
-            <button onclick="bulkDeleteAlerts()" style="display: inline-flex; align-items: center; gap: var(--cds-spacing-2); padding: var(--cds-spacing-2) var(--cds-spacing-4); background-color: #ef4444; color: white; border: none; border-radius: 6px; font-size: var(--cds-font-size-sm); font-weight: var(--cds-font-weight-medium); cursor: pointer;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-                Delete Selected
-            </button>
             <button onclick="clearSelection()" style="padding: var(--cds-spacing-2); background: none; border: none; color: #64748b; cursor: pointer;" title="Clear selection">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -175,7 +168,9 @@
                 {% with alert=item.object %}
                 <tr style="border-bottom: 1px solid #f3f4f6; transition: background-color 150ms ease;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor=''">
                     <td style="padding: 10px 16px; vertical-align: middle;">
+                        {% if alert.status == 'triggered' %}
                         <input type="checkbox" class="alert-checkbox" data-status="{{ alert.status }}" value="{{ alert.id }}" onchange="updateBulkActionsBar()" style="cursor: pointer; width: 18px; height: 18px;">
+                        {% endif %}
                     </td>
                     <td style="padding: 10px 16px; vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: var(--cds-spacing-2);">
@@ -419,35 +414,6 @@ function bulkAcknowledgeAlerts() {
                 else { response.json().then(data => appAlert(data.error || 'Failed to acknowledge alerts', 'Error')).catch(() => appAlert('Failed to acknowledge alerts', 'Error')); }
             })
             .catch(error => { console.error('Error:', error); appAlert('Failed to acknowledge alerts', 'Error'); });
-        }
-    });
-}
-
-// Bulk delete alerts
-function bulkDeleteAlerts() {
-    const checked = document.querySelectorAll('.alert-checkbox:checked');
-    if (checked.length === 0) {
-        appAlert('Please select at least one alert');
-        return;
-    }
-    appConfirm({
-        title: 'Delete alerts',
-        body: `Are you sure you want to permanently DELETE ${checked.length} alert(s)? This action cannot be undone.`,
-        confirmText: 'Delete',
-        danger: true,
-        onConfirm: function () {
-            const alertIds = Array.from(checked).map(cb => cb.value);
-            fetch('/api/alerts/bulk-delete/', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ alert_ids: alertIds })
-            })
-            .then(response => {
-                if (response.ok) { location.reload(); }
-                else { response.json().then(data => appAlert(data.error || 'Failed to delete alerts', 'Error')).catch(() => appAlert('Failed to delete alerts', 'Error')); }
-            })
-            .catch(error => { console.error('Error:', error); appAlert('Failed to delete alerts', 'Error'); });
         }
     });
 }
