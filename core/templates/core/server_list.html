@@ -120,16 +120,17 @@
             <tr>
                 <th>Instance</th>
                 <th>Status</th>
-                <th>CPU</th>
-                <th>Memory</th>
-                <th>Disk</th>
-                <th>Uptime</th>
+                <th class="sortable" data-key="cpu">CPU <span class="sort-ind"></span></th>
+                <th class="sortable" data-key="mem">Memory <span class="sort-ind"></span></th>
+                <th class="sortable" data-key="disk">Disk <span class="sort-ind"></span></th>
+                <th class="sortable" data-key="uptime">Uptime <span class="sort-ind"></span></th>
                 <th style="text-align:right;">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for server in servers %}
-            <tr class="vm-row" data-name="{{ server.name|lower }}" data-ip="{{ server.ip_address }}" data-status="{{ server.status }}">
+            <tr class="vm-row" data-name="{{ server.name|lower }}" data-ip="{{ server.ip_address }}" data-status="{{ server.status }}"
+                data-cpu="{{ server.cpu_percent|default_if_none:'-1' }}" data-mem="{{ server.memory_percent|default_if_none:'-1' }}" data-disk="{{ server.disk_percent|default_if_none:'-1' }}" data-uptime="{{ server.uptime_seconds|default_if_none:'-1' }}">
                 <td>
                     <a href="/server/{{ server.id }}/" class="vm-row-name">{{ server.name }}</a>
                     <div class="vm-row-sub">{{ server.ip_address }} &middot; {{ server.get_os_type_display }}{% if server.active_alerts %} &middot; <span style="color:#b91c1c;">&#9888; {{ server.active_alerts }}</span>{% endif %}{% if server.alert_suppressed %} &middot; <span style="color:#8e3b00;">Alerts off</span>{% endif %}</div>
@@ -209,6 +210,9 @@
 .li-m { display:flex; align-items:center; gap:8px; }
 .li-m .bar-track { width:70px; flex:none; }
 .li-mval { min-width:34px; font-size:12px; font-weight:600; color:#0f172a; }
+.vm-list-table th.sortable { cursor:pointer; user-select:none; }
+.vm-list-table th.sortable:hover { color:#475569; }
+.vm-list-table th.sortable .sort-ind { display:inline-block; width:9px; font-size:10px; color:#0f62fe; }
 /* Modal */
 .app-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:2000; padding:16px; }
 .app-modal { background:#fff; border-radius:12px; box-shadow:0 20px 50px rgba(15,23,42,.25); width:100%; max-width:420px; padding:24px; animation:appModalIn .14s ease; }
@@ -298,6 +302,31 @@
     let saved = 'grid';
     try { saved = localStorage.getItem('vm-view') || 'grid'; } catch (e) {}
     setView(saved);
+})();
+
+// ---- List sorting (CPU / Memory / Disk / Uptime) ----
+(function () {
+    const table = document.querySelector('.vm-list-table');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const headers = table.querySelectorAll('th.sortable');
+    let sortKey = null, sortDir = -1;   // -1 desc, 1 asc; first click = descending
+
+    function num(el, key) {
+        const v = parseFloat(el.getAttribute('data-' + key));
+        return isNaN(v) ? -Infinity : v;
+    }
+    function sortBy(key) {
+        if (sortKey === key) { sortDir = -sortDir; } else { sortKey = key; sortDir = -1; }
+        Array.from(tbody.querySelectorAll('.vm-row'))
+            .sort((a, b) => (num(a, key) - num(b, key)) * sortDir)
+            .forEach(r => tbody.appendChild(r));   // reorder (filtered rows stay hidden)
+        headers.forEach(h => {
+            const ind = h.querySelector('.sort-ind');
+            if (ind) ind.textContent = (h.dataset.key === key) ? (sortDir === 1 ? '▲' : '▼') : '';
+        });
+    }
+    headers.forEach(h => h.addEventListener('click', () => sortBy(h.dataset.key)));
 })();
 
 // ---- Styled dialog (replaces native confirm/alert) ----
