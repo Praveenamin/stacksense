@@ -145,18 +145,39 @@ class DiskIOSummary extends BaseDashboardComponent {
             statusEl.className = `forecast-warning ${data.status_class || 'info'}`;
             statusEl.style.display = 'block';
         }
+        // Match the usage-trend redesign palette: teal Read, orange Write, rounded bars.
         const chartData = {
             labels: ['Read', 'Write'],
             datasets: [{
                 label: 'IOPS',
                 data: [Math.round(data.read_iops || 0), Math.round(data.write_iops || 0)],
-                backgroundColor: ['#3b82f6', '#a78bfa']
+                backgroundColor: ['#2cbfc7', '#f97316'],
+                borderRadius: 6,
+                borderSkipped: false,
+                maxBarThickness: 72,
+                categoryPercentage: 0.6
             }]
         };
+        const chartOptions = {
+            plugins: {
+                tooltip: {
+                    backgroundColor: 'rgba(71,85,105,0.95)', padding: 10,
+                    titleColor: '#fff', bodyColor: '#fff',
+                    titleFont: { size: 12, weight: '600' }, bodyFont: { size: 12 },
+                    callbacks: { label: function (item) { return (item.parsed.y || 0).toFixed(0) + ' IOPS'; } }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 12 }, color: '#475569' } },
+                y: {
+                    beginAtZero: true, grid: { color: 'rgba(15,23,42,0.05)' },
+                    ticks: { font: { size: 10 }, color: '#94a3b8',
+                             callback: function (value) { return value.toFixed(0) + ' IOPS'; } }
+                }
+            }
+        };
         if (!this.chart) {
-            this.chart = ChartWrapper.createBarChart('disk-io-bar-chart', chartData, {
-                scales: { y: { ticks: { callback: function(value) { return value.toFixed(0) + ' IOPS'; } } } }
-            });
+            this.chart = ChartWrapper.createBarChart('disk-io-bar-chart', chartData, chartOptions);
         } else {
             ChartWrapper.updateChart(this.chart, chartData);
         }
