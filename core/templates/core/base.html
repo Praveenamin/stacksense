@@ -310,6 +310,14 @@
     .app-modal-btn-primary:hover { background:#0353e9; }
     .app-modal-btn-danger { background:#da1e28; color:#fff; }
     .app-modal-btn-danger:hover { background:#ba1b25; }
+    /* Larger overlay modal for the dashboard insight/anomaly panels (opened from header icons). */
+    .dash-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:flex-start; justify-content:center; z-index:3000; padding:48px 16px; overflow-y:auto; }
+    .dash-modal-overlay.open { display:flex; }
+    .dash-modal { width:100%; max-width:760px; animation:appModalIn .14s ease; }
+    .dash-modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .dash-modal-title { font-size:16px; font-weight:700; color:#fff; letter-spacing:.01em; }
+    .dash-modal-close { width:34px; height:34px; border-radius:8px; border:none; background:rgba(255,255,255,.16); color:#fff; font-size:22px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .dash-modal-close:hover { background:rgba(255,255,255,.28); }
     </style>
     <script>
     // Global styled confirm. opts: {title, body, confirmText, danger, alert, onConfirm,

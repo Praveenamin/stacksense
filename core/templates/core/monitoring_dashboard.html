@@ -84,22 +84,36 @@
     {% else %}
     {% include "core/components/dashboard/alerts_banner.html" %}
 
-    <!-- Insights panel (opened via the header insights/sparkles icon; always reachable) -->
-    <div id="insight-panel" class="insight-panel" style="display:none;margin-bottom:20px;">
-        <div id="insight-empty" style="display:none;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:28px;text-align:center;color:#64748b;font-size:14px;">No trends or AI recommendations right now.</div>
-        <div id="insight-trends-card" style="display:none;">{% include "core/components/dashboard/trend_insights.html" %}</div>
-        <div id="insight-ai-card" style="display:none;">{% include "core/components/dashboard/ai_recommendations.html" %}</div>
+    <!-- Insights modal (opened via the header sparkles icon) -->
+    <div id="insight-overlay" class="dash-modal-overlay" onclick="if(event.target===this)closeInsight()">
+        <div class="dash-modal">
+            <div class="dash-modal-head">
+                <span class="dash-modal-title">Trends &amp; AI recommendations</span>
+                <button type="button" class="dash-modal-close" onclick="closeInsight()" aria-label="Close">&times;</button>
+            </div>
+            <div id="insight-empty" style="display:none;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:28px;text-align:center;color:#64748b;font-size:14px;">No trends or AI recommendations right now.</div>
+            <div id="insight-trends-card" style="display:none;">{% include "core/components/dashboard/trend_insights.html" %}</div>
+            <div id="insight-ai-card" style="display:none;">{% include "core/components/dashboard/ai_recommendations.html" %}</div>
+        </div>
     </div>
 
     {% include "core/components/anomaly_bell_panel.html" %}
     <script>
+    // Header icons open their content as a centred modal (only one open at a time).
     function toggleInsight(id, btn){
-        var panel=document.getElementById(id);
-        var open=(panel.style.display==='none'||panel.style.display==='');
-        panel.style.display=open?'block':'none';
-        btn.classList.toggle('active', open);
-        if(open) panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+        var ov=document.getElementById('insight-overlay');
+        var open=!ov.classList.contains('open');
+        document.querySelectorAll('.dash-modal-overlay.open').forEach(function(o){ o.classList.remove('open'); });
+        document.querySelectorAll('.insight-icon.active').forEach(function(i){ i.classList.remove('active'); });
+        if(open){ ov.classList.add('open'); if(btn) btn.classList.add('active'); }
+        document.body.style.overflow = open ? 'hidden' : '';
     }
+    function closeInsight(){
+        var ov=document.getElementById('insight-overlay'); if(ov) ov.classList.remove('open');
+        var b=document.getElementById('insight-bell-btn'); if(b) b.classList.remove('active');
+        document.body.style.overflow='';
+    }
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeInsight(); });
     (function(){
         var trends=0, recs=0, done=0;
         function finish(){

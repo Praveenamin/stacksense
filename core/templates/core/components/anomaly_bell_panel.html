@@ -3,13 +3,19 @@ Anomalies panel + behavior, paired with anomaly_bell_button.html. Self-contained
 defines window.toggleAnomalyPanel(btn) and window.clearAllAnomalies(), loads the global
 unresolved-anomaly feed into the bell badge + this panel. Include once in page content.
 {% endcomment %}
-<div id="anomaly-panel" class="insight-panel" style="display:none;margin-bottom:20px;">
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;">
-            <h3 style="margin:0;font-size:14px;font-weight:600;color:#0f172a;">Anomalies <span id="anomaly-panel-count" style="font-weight:400;color:#94a3b8;font-size:12px;"></span></h3>
-            <button type="button" id="anomaly-clear-all" onclick="clearAllAnomalies()" style="display:none;font-size:13px;font-weight:600;color:#0f62fe;background:#eff6ff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;">Clear all</button>
+<div id="anomaly-overlay" class="dash-modal-overlay" onclick="if(event.target===this)closeAnomalyPanel()">
+    <div class="dash-modal">
+        <div class="dash-modal-head">
+            <span class="dash-modal-title">Anomalies</span>
+            <button type="button" class="dash-modal-close" onclick="closeAnomalyPanel()" aria-label="Close">&times;</button>
         </div>
-        <div id="anomaly-list" style="max-height:380px;overflow-y:auto;"></div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;">
+                <h3 style="margin:0;font-size:14px;font-weight:600;color:#0f172a;">Anomalies <span id="anomaly-panel-count" style="font-weight:400;color:#94a3b8;font-size:12px;"></span></h3>
+                <button type="button" id="anomaly-clear-all" onclick="clearAllAnomalies()" style="display:none;font-size:13px;font-weight:600;color:#0f62fe;background:#eff6ff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;">Clear all</button>
+            </div>
+            <div id="anomaly-list" style="max-height:380px;overflow-y:auto;"></div>
+        </div>
     </div>
 </div>
 <script>
@@ -60,14 +66,22 @@ unresolved-anomaly feed into the bell badge + this panel. Include once in page c
             appConfirm({title:'Clear all anomalies',body:'Mark all current anomalies as resolved? They move to history and the badge clears.',confirmText:'Clear all',onConfirm:doClear});
         } else if(confirm('Clear all anomalies?')){doClear();}
     };
+    // Open the anomalies feed as a centred modal (only one dashboard modal open at a time).
     window.toggleAnomalyPanel=function(btn){
-        var p=document.getElementById('anomaly-panel');
-        if(!p)return;
-        var open=(p.style.display==='none'||p.style.display==='');
-        p.style.display=open?'block':'none';
-        if(btn&&btn.classList)btn.classList.toggle('active',open);
-        if(open)p.scrollIntoView({behavior:'smooth',block:'nearest'});
+        var ov=document.getElementById('anomaly-overlay');
+        if(!ov)return;
+        var open=!ov.classList.contains('open');
+        document.querySelectorAll('.dash-modal-overlay.open').forEach(function(o){ o.classList.remove('open'); });
+        document.querySelectorAll('.insight-icon.active').forEach(function(i){ i.classList.remove('active'); });
+        if(open){ ov.classList.add('open'); if(btn&&btn.classList)btn.classList.add('active'); }
+        document.body.style.overflow = open ? 'hidden' : '';
     };
+    window.closeAnomalyPanel=function(){
+        var ov=document.getElementById('anomaly-overlay'); if(ov)ov.classList.remove('open');
+        var b=document.getElementById('anomaly-bell-btn'); if(b)b.classList.remove('active');
+        document.body.style.overflow='';
+    };
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') window.closeAnomalyPanel(); });
     document.addEventListener('DOMContentLoaded',load);
 })();
 </script>
