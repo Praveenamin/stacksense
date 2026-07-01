@@ -83,6 +83,13 @@
             </span>
         </label>
         <label class="cr-check">
+            <input type="checkbox" name="email_alerts" {% if acl.email_alerts_enabled %}checked{% endif %}>
+            <span>
+                <span class="cr-check-name">Email alerts</span>
+                <span class="cr-check-desc">When off, this user is never emailed for any alert (overrides routing).</span>
+            </span>
+        </label>
+        <label class="cr-check">
             <input type="checkbox" name="is_superuser" id="is_superuser" {% if user_obj.is_superuser %}checked{% endif %} onchange="toggleRoleOptions()">
             <span>
                 <span class="cr-check-name">Superuser (full administrator)</span>

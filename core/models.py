@@ -593,6 +593,11 @@ class UserACL(models.Model):
         max_length=20, choices=DashboardView.choices, default=DashboardView.OPERATIONS,
         help_text="Which dashboard perspective this user sees (Operations or Executive)",
     )
+    email_alerts_enabled = models.BooleanField(
+        default=True,
+        help_text="If off, this user is never included in alert emails (a per-user mute), "
+                  "regardless of the role-based routing rules.",
+    )
 
     # DEPRECATED: These boolean flags are kept for backward compatibility
     # but should be removed after migration to role-based system

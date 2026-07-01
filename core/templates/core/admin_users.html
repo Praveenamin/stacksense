@@ -96,7 +96,7 @@
                         </div>
                     </div>
                 </td>
-                <td>{{ acl.user.email|default:"—" }}</td>
+                <td>{{ acl.user.email|default:"—" }}{% if not acl.email_alerts_enabled %} <span title="This user is muted from alert emails" style="display:inline-block;margin-left:6px;font-size:11px;font-weight:600;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;border-radius:999px;padding:1px 7px;vertical-align:middle;">alerts off</span>{% endif %}</td>
                 <td>{% if acl.role %}<span class="um-role">{{ acl.role.name }}</span>{% else %}<span class="um-norole">No role</span>{% endif %}</td>
                 <td>
                     {% if acl.user.is_active %}

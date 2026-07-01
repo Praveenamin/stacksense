@@ -75,7 +75,8 @@ def recipients_for(category, severity):
 
     User = get_user_model()
     emails = (User.objects
-              .filter(acl__role_id__in=role_ids, is_active=True)
+              .filter(acl__role_id__in=role_ids, is_active=True,
+                      acl__email_alerts_enabled=True)   # respect the per-user email mute
               .exclude(email__isnull=True).exclude(email__exact="")
               .values_list("email", flat=True))
 

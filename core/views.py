@@ -4021,6 +4021,11 @@ def create_admin_user(request):
                     user.delete()  # Clean up the created user
                     return redirect("create_admin_user")
 
+            # Per-user email mute preference (default on).
+            acl = UserACL.get_or_create_for_user(user)
+            acl.email_alerts_enabled = request.POST.get("email_alerts") == "on"
+            acl.save(update_fields=["email_alerts_enabled", "updated_at"])
+
             messages.success(request, f"User {username} created successfully.")
             return redirect("admin_users")
         except Exception as e:
@@ -4098,6 +4103,10 @@ def edit_admin_user(request, user_id):
             # Clear role for superuser accounts
             acl.role = None
             acl.save()
+
+        # Per-user email mute (independent of role-based routing).
+        acl.email_alerts_enabled = request.POST.get("email_alerts") == "on"
+        acl.save(update_fields=["email_alerts_enabled", "updated_at"])
 
         messages.success(request, f"User {username} updated successfully.")
         return redirect("admin_users")

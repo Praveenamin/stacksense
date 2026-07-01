@@ -81,6 +81,13 @@
         <div class="cr-section-title" style="margin-top:24px;">Access</div>
         <div class="cr-group">
             <label class="cr-check">
+                <input type="checkbox" name="email_alerts" checked>
+                <span>
+                    <span class="cr-check-name">Email alerts</span>
+                    <span class="cr-check-desc">When off, this user is never emailed for any alert (overrides routing).</span>
+                </span>
+            </label>
+            <label class="cr-check">
                 <input type="checkbox" name="is_superuser" id="is_superuser" onchange="toggleRoleOptions()">
                 <span>
                     <span class="cr-check-name">Superuser (full administrator)</span>
