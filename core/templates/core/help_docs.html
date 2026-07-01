@@ -1,482 +1,417 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Help Documentation - StackWatch{% endblock %}
+{% block title %}Help & Documentation - Stack Alert{% endblock %}
 
 {% block extrahead %}
 <style>
-    .page-header {
-        margin-bottom: 32px;
+    .help-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f3d91 100%);
+        border-radius: 14px;
+        padding: 30px 34px;
+        color: #fff;
+        margin-bottom: 22px;
+        box-shadow: 0 10px 30px rgba(15,23,42,.18);
     }
-    .page-title {
-        font-size: 24px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 8px 0;
+    .help-hero h1 { font-size: 25px; font-weight: 700; margin: 0 0 8px; letter-spacing: .01em; }
+    .help-hero p { font-size: 14px; color: #cbd5e1; margin: 0; line-height: 1.6; max-width: 720px; }
+    .help-jump { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+    .help-jump a {
+        font-size: 12.5px; font-weight: 600; color: #334155; text-decoration: none;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 6px 13px;
     }
-    .page-subtitle {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0;
-    }
-    .help-section {
-        margin-bottom: 32px;
-    }
+    .help-jump a:hover { background: #f1f5f9; border-color: #cbd5e1; }
+    .help-section { margin-bottom: 26px; scroll-margin-top: 90px; }
     .help-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 32px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        margin-bottom: 24px;
+        background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+        padding: 28px 30px; box-shadow: 0 1px 3px rgba(15,23,42,.05);
     }
     .help-card-title {
-        font-size: 20px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 16px 0;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #e2e8f0;
+        font-size: 19px; font-weight: 700; color: #0f172a; margin: 0 0 6px;
+        display: flex; align-items: center; gap: 10px;
     }
-    .help-card-description {
-        font-size: 14px;
-        color: #64748b;
-        margin: 0 0 24px 0;
-        line-height: 1.6;
+    .help-card-title .step { width: 26px; height: 26px; border-radius: 7px; background: #eef4ff; color: #0f62fe;
+        font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+    .help-card-description { font-size: 14px; color: #64748b; margin: 0 0 22px; line-height: 1.65; }
+    .help-item { margin-bottom: 22px; padding-top: 20px; border-top: 1px solid #f1f5f9; }
+    .help-item:first-of-type { border-top: none; padding-top: 4px; }
+    .help-item-title { font-size: 15.5px; font-weight: 600; color: #0f172a; margin: 0 0 8px; display: flex; align-items: center; gap: 9px; }
+    .help-item-title svg { width: 19px; height: 19px; color: #0f62fe; flex-shrink: 0; }
+    .help-item-content { font-size: 14px; color: #475569; line-height: 1.65; margin: 0; padding-left: 28px; }
+    .help-item-content ul { margin: 8px 0; padding-left: 20px; }
+    .help-item-content li { margin-bottom: 5px; }
+    .help-item-content code {
+        background: #0f172a; color: #e2e8f0; border-radius: 5px; padding: 2px 7px; font-size: 12.5px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
-    .help-item {
-        margin-bottom: 24px;
-    }
-    .help-item:last-child {
-        margin-bottom: 0;
-    }
-    .help-item-title {
-        font-size: 16px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 8px 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .help-item-title svg {
-        width: 20px;
-        height: 20px;
-        color: #0ea5e9;
-        flex-shrink: 0;
-    }
-    .help-item-content {
-        font-size: 14px;
-        color: #64748b;
-        line-height: 1.6;
-        margin: 0;
-        padding-left: 28px;
-    }
-    .help-item-content ul {
-        margin: 8px 0;
-        padding-left: 24px;
-    }
-    .help-item-content li {
-        margin-bottom: 4px;
-    }
-    .help-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    .help-list-item {
-        padding: 16px;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        margin-bottom: 12px;
-    }
-    .help-list-item:last-child {
-        margin-bottom: 0;
-    }
-    .help-list-item-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: #0f172a;
-        margin: 0 0 4px 0;
-    }
-    .help-list-item-text {
-        font-size: 13px;
-        color: #64748b;
-        margin: 0;
-    }
-    .help-note {
-        background-color: #eff6ff;
-        border: 1px solid #bfdbfe;
-        border-radius: 6px;
-        padding: 12px 16px;
-        margin-top: 16px;
-        font-size: 13px;
-        color: #1e40af;
-    }
-    .help-note strong {
-        color: #1e3a8a;
-    }
+    .help-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+    .help-list-item { padding: 15px 16px; background-color: #f8fafc; border: 1px solid #e9eef4; border-radius: 9px; }
+    .help-list-item-title { font-size: 14px; font-weight: 600; color: #0f172a; margin: 0 0 4px; }
+    .help-list-item-text { font-size: 13px; color: #64748b; margin: 0; line-height: 1.55; }
+    .help-note { background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 15px; margin-top: 14px; font-size: 13px; color: #1e40af; line-height: 1.55; }
+    .help-note strong { color: #1e3a8a; }
+    .help-note.warn { background: #fff7ed; border-color: #fed7aa; color: #b45309; }
+    .help-note.warn strong { color: #9a3412; }
+    /* category chips */
+    .cat-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+    .cat-chip { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 11px; }
+    .cat-resource { background:#eef4ff; color:#0f62fe; }
+    .cat-availability { background:#ecfdf5; color:#047857; }
+    .cat-security { background:#fef2f2; color:#b91c1c; }
+    .cat-capacity { background:#fffbeb; color:#b45309; }
+    .cat-business { background:#f5f3ff; color:#6d28d9; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<div class="page-header">
-    <h1 class="page-title">Help Documentation</h1>
-    <p class="page-subtitle">Learn how to use StackWatch monitoring features</p>
+<div class="help-hero">
+    <h1>Help &amp; Documentation</h1>
+    <p>Stack Alert is a push-based infrastructure monitoring platform. A lightweight agent on each server
+       dials out to Stack Alert over HTTPS — there are no inbound ports to open and no credentials to your
+       fleet stored here, so it works behind NAT and in air-gapped networks. This guide covers everything
+       from installing the agent to alert routing, roles and licensing.</p>
+</div>
+
+<div class="help-jump">
+    <a href="#getting-started">Getting started</a>
+    <a href="#architecture">How it works</a>
+    <a href="#monitoring">Monitoring</a>
+    <a href="#alerts">Alerts &amp; routing</a>
+    <a href="#servers">Server management</a>
+    <a href="#users">Users &amp; roles</a>
+    <a href="#executive">Executive &amp; reports</a>
+    <a href="#licensing">Licensing</a>
+    <a href="#settings">Settings</a>
+    <a href="#security">Security</a>
+    <a href="#troubleshooting">Troubleshooting</a>
 </div>
 
 <!-- Getting Started -->
-<div class="help-section">
+<div class="help-section" id="getting-started">
     <div class="help-card">
-        <h2 class="help-card-title">Getting Started</h2>
-        <p class="help-card-description">
-            StackWatch is a comprehensive server monitoring and infrastructure management platform. 
-            This guide will help you get started with the key features.
-        </p>
-        
+        <h2 class="help-card-title"><span class="step">1</span> Getting Started</h2>
+        <p class="help-card-description">Add a server by installing the agent on it, then watch metrics, alerts
+           and anomalies flow into the dashboard.</p>
+
         <div class="help-item">
             <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                </svg>
-                Adding a Server
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                Adding a server (install the agent)
             </h3>
             <div class="help-item-content">
-                <p>To start monitoring a server:</p>
+                <p>Stack Alert never logs in to your servers. Instead you install a small agent on each one:</p>
                 <ul>
-                    <li>Navigate to "Add Server" from the sidebar or server list</li>
-                    <li>Enter the server's name, IP address, SSH port, username, and password</li>
-                    <li>The system will automatically deploy SSH keys for secure, passwordless access</li>
-                    <li>Required dependencies (psutil) will be installed on the remote server</li>
-                    <li>Initial metrics will be collected immediately after setup</li>
+                    <li>Go to <strong>Servers → Add Server</strong> and enter a name, IP and OS type (Linux or Windows).</li>
+                    <li>Stack Alert creates the server and shows a ready-to-run <strong>install command</strong> carrying a unique, per-server token.</li>
+                    <li>Run that command on the target machine — <code>install.sh</code> on Linux, <code>install.ps1</code> (or the packaged <code>.exe</code>) on Windows. It installs the agent as a service and starts it.</li>
+                    <li>The agent immediately begins pushing metrics; the server turns <strong>Online</strong> within a minute or two.</li>
                 </ul>
-                <div class="help-note">
-                    <strong>Note:</strong> The password is used only once for initial SSH key deployment and is never stored. All subsequent connections use SSH key authentication.
-                </div>
+                <div class="help-note"><strong>No SSH, no passwords.</strong> The agent authenticates with its own bearer token and connects <em>outbound only</em> over HTTPS (443). Nothing needs to be opened toward the server.</div>
             </div>
         </div>
 
         <div class="help-item">
             <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                </svg>
-                Viewing the Dashboard
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                The dashboard
             </h3>
             <div class="help-item-content">
-                <p>The main dashboard provides an overview of your infrastructure:</p>
+                <p>The dashboard is your fleet at a glance:</p>
                 <ul>
-                    <li><strong>Reliability Metrics:</strong> System uptime and SLI/SLO compliance</li>
-                    <li><strong>CPU & Memory Trends:</strong> Real-time charts with spike detection (triangle markers)</li>
-                    <li><strong>Disk I/O Summary:</strong> Read/write operations across servers</li>
-                    <li><strong>Health Status:</strong> Quick view of online, warning, and offline servers</li>
-                    <li><strong>Recent Alerts:</strong> Timeline of recent alert events</li>
-                    <li><strong>Trend Insights:</strong> AI-analyzed patterns and recommendations</li>
-                    <li><strong>AI Recommendations:</strong> Intelligent suggestions for optimization</li>
+                    <li><strong>Health banner</strong> — how many targets are healthy vs need attention, refreshed live.</li>
+                    <li><strong>Top consumers</strong> — the busiest servers by CPU, memory and disk.</li>
+                    <li><strong>CPU / Memory trends</strong> — charts with Avg/Min/Max, an average line, a top-process tooltip and a pop-out.</li>
+                    <li><strong>Header icons</strong> — the ✨ (Trends &amp; AI) and 🔔 (Anomalies) icons open as modals over the page.</li>
+                    <li><strong>Persona toggle</strong> — Admins/CEOs can switch between the <em>Operations</em> and <em>Executive</em> views (top right).</li>
                 </ul>
             </div>
         </div>
 
         <div class="help-item">
             <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
-                </svg>
-                Server Details
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+                Server details
             </h3>
             <div class="help-item-content">
-                <p>Click on any server from the dashboard or server list to view detailed metrics:</p>
+                <p>Click any server to drill in:</p>
                 <ul>
-                    <li>Real-time CPU, memory, disk, and network usage</li>
-                    <li>Top processes consuming CPU and memory</li>
-                    <li>Service status and monitoring controls</li>
-                    <li>Historical metrics with customizable time ranges (1h, 6h, 24h, 7d)</li>
-                    <li>Anomaly detection results and AI explanations</li>
-                    <li>Disk usage by partition with type detection (SSD/HDD/NVMe)</li>
-                    <li>System uptime and load averages</li>
+                    <li>Live CPU, memory, disk and network, with historical ranges (1h / 6h / 24h / 7d).</li>
+                    <li>Top CPU and memory processes.</li>
+                    <li>Services and containers, with per-item monitoring toggles.</li>
+                    <li>Disk usage per partition (with SSD/HDD/NVMe detection) and system uptime / load.</li>
+                    <li>Anomalies detected for this server, with optional AI explanations.</li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Monitoring Features -->
-<div class="help-section">
+<!-- How it works -->
+<div class="help-section" id="architecture">
     <div class="help-card">
-        <h2 class="help-card-title">Monitoring Features</h2>
-        
+        <h2 class="help-card-title"><span class="step">2</span> How monitoring works</h2>
         <div class="help-item">
             <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                Server Status
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                The push-agent model
             </h3>
             <div class="help-item-content">
-                <p>The system continuously monitors server connectivity through SSH heartbeat checks:</p>
                 <ul>
-                    <li><strong>Online:</strong> Server is responding and has no active alerts</li>
-                    <li><strong>Warning:</strong> Server is online but has active alerts or anomalies</li>
-                    <li><strong>Offline:</strong> Server is not responding or monitoring is suspended</li>
-                </ul>
-                <p>Heartbeat checks run every 30-60 seconds to ensure accurate status reporting.</p>
-            </div>
-        </div>
-
-        <div class="help-item">
-            <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                </svg>
-                Alerts & Notifications
-            </h3>
-            <div class="help-item-content">
-                <p>Configure alerts to be notified when issues are detected:</p>
-                <ul>
-                    <li><strong>Email Notifications:</strong> Configure SMTP settings (Gmail, Outlook, custom SMTP)</li>
-                    <li><strong>Slack Notifications:</strong> Set up Slack webhook for instant team alerts</li>
-                    <li><strong>Threshold Alerts:</strong> CPU, memory, disk usage, and I/O thresholds</li>
-                    <li><strong>Service Alerts:</strong> Get notified when monitored services go down</li>
-                    <li><strong>Connection Alerts:</strong> Alerts when servers go offline or come back online</li>
-                </ul>
-                <div class="help-note">
-                    <strong>New:</strong> CPU and Memory alerts now capture the top processes at the time of the spike, helping you identify the cause of resource issues.
-                </div>
-            </div>
-        </div>
-
-        <div class="help-item">
-            <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01"/>
-                </svg>
-                Anomaly Detection
-            </h3>
-            <div class="help-item-content">
-                <p>The system automatically detects anomalies in your server metrics:</p>
-                <ul>
-                    <li>Uses ADTK (Anomaly Detection Toolkit) and machine learning algorithms</li>
-                    <li>Detects threshold violations, level shifts, and volatility changes</li>
-                    <li>Severity levels: Low, Medium, High, Critical</li>
-                    <li>AI-powered explanations for detected anomalies</li>
-                    <li>View and resolve anomalies from the server details page</li>
+                    <li>Each monitored server runs the Stack Alert agent, which <strong>dials out</strong> to this server over HTTPS and authenticates with a per-server bearer token (only a hash of the token is stored here).</li>
+                    <li>Because it is <strong>outbound-only</strong>, you don't open inbound firewall rules or expose the servers — it is NAT- and air-gap-friendly.</li>
+                    <li>A compromise of the Stack Alert box gives an attacker <strong>no way in</strong> to your fleet: this server holds no credentials that can log into any monitored machine.</li>
+                    <li>The agent runs as a background service (systemd on Linux, a Windows service) and restarts automatically.</li>
                 </ul>
             </div>
         </div>
-
         <div class="help-item">
             <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
-                </svg>
-                Service Monitoring
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Server status &amp; heartbeats
             </h3>
             <div class="help-item-content">
-                <p>Monitor critical services running on your servers:</p>
+                <p>The agent sends regular heartbeats and metric pushes. Status is derived from that:</p>
                 <ul>
-                    <li>Auto-discovery of running services (Apache, Nginx, MySQL, PostgreSQL, etc.)</li>
-                    <li>Enable/disable monitoring for individual services</li>
-                    <li>Real-time service status (running/stopped/failed)</li>
-                    <li>Service latency measurements for web services</li>
-                    <li>Alerts when services go down or come back up</li>
+                    <li><strong>Online</strong> — reporting normally, no active issues.</li>
+                    <li><strong>Warning</strong> — online but with active alerts or anomalies.</li>
+                    <li><strong>Offline</strong> — not reporting (agent stopped / host down / lost connectivity), or monitoring is suspended.</li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Server Management -->
-<div class="help-section">
+<!-- Monitoring features -->
+<div class="help-section" id="monitoring">
     <div class="help-card">
-        <h2 class="help-card-title">Server Management</h2>
-        
+        <h2 class="help-card-title"><span class="step">3</span> Monitoring features</h2>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01"/></svg>
+                Anomaly detection
+            </h3>
+            <div class="help-item-content">
+                <p>Stack Alert learns each server's normal behaviour and flags deviations automatically:</p>
+                <ul>
+                    <li>Statistical + ML detection (ADTK / Isolation Forest) for spikes, level shifts and volatility.</li>
+                    <li>Severity levels: <strong>Low, Medium, High, Critical</strong>. High/Critical also raise alerts.</li>
+                    <li>Per-server sensitivity (or Off) in the server's monitoring configuration.</li>
+                    <li><strong>Memory-leak</strong> detection (shared-memory / IPC / process RSS growth) is surfaced as a Capacity signal.</li>
+                    <li>When the optional local AI is enabled, each anomaly gets a plain-English <em>Cause / Fix</em> explanation.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                Services &amp; containers
+            </h3>
+            <div class="help-item-content">
+                <ul>
+                    <li>Auto-discovery of running services and Docker containers.</li>
+                    <li>Enable/disable monitoring per service or container.</li>
+                    <li>Real-time up/down state, with alerts when a monitored unit goes down or recovers.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                Synthetic uptime &amp; security
+            </h3>
+            <div class="help-item-content">
+                <ul>
+                    <li><strong>Synthetic checks</strong> probe URLs/endpoints on a schedule and raise Availability alerts on down/recovery.</li>
+                    <li><strong>Security monitoring</strong> surfaces events such as failed SSH logins on the Security page and raises Security alerts.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alerts & routing -->
+<div class="help-section" id="alerts">
+    <div class="help-card">
+        <h2 class="help-card-title"><span class="step">4</span> Alerts &amp; routing</h2>
+        <p class="help-card-description">Every alert belongs to one <strong>category</strong> and carries a
+           <strong>severity</strong>. Routing decides who is notified — separately for email and Slack.</p>
+
+        <div class="cat-row">
+            <span class="cat-chip cat-resource">Resource</span>
+            <span class="cat-chip cat-availability">Availability</span>
+            <span class="cat-chip cat-security">Security</span>
+            <span class="cat-chip cat-capacity">Capacity</span>
+            <span class="cat-chip cat-business">Business</span>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                Email routing (by role &amp; severity)
+            </h3>
+            <div class="help-item-content">
+                <p>On <strong>Alert Configuration → Alert Routing</strong>, each cell of the <em>Role × Category</em> matrix sets the
+                   <strong>minimum severity</strong> at which that role is emailed (or <strong>Off</strong>). Recipients are the email
+                   addresses of the active users who hold a qualifying role — there is no single "to" address any more.</p>
+                <ul>
+                    <li>Hover a category name for a tooltip explaining what feeds it.</li>
+                    <li>Example: set <em>CEO → Availability = Critical</em> so leadership is only paged when a server is down.</li>
+                    <li>Editing the matrix is Admin-only (it is cross-role policy).</li>
+                </ul>
+                <div class="help-note"><strong>Per-user mute:</strong> in <strong>Users → Edit user</strong>, turn off <em>Email alerts</em> to exclude that person from all alert emails regardless of their role.</div>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                Slack routing (by category &amp; severity)
+            </h3>
+            <div class="help-item-content">
+                <p>Slack uses a single shared webhook, so there is no per-user dimension. On the <strong>Slack</strong> tab, the
+                   <strong>Slack Routing</strong> table sets a minimum severity per category (or Off). An alert posts to Slack only
+                   if Slack is enabled <em>and</em> its category/severity passes the rule.</p>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                Setting up channels
+            </h3>
+            <div class="help-item-content">
+                <ul>
+                    <li><strong>Email:</strong> pick a provider (Gmail via App Password, Outlook/Office 365, or custom SMTP) and enter the account; alerts are sent <em>from</em> that authenticated address. Use <em>Save Configuration</em> and the Test button.</li>
+                    <li><strong>Slack:</strong> create an Incoming Webhook, paste the URL, optionally set a channel/username/emoji, and enable it.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-item">
+            <h3 class="help-item-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Alerts History
+            </h3>
+            <div class="help-item-content">
+                <ul>
+                    <li>Review every alert, filter by acknowledged/unacknowledged, category and time range.</li>
+                    <li><strong>Acknowledge</strong> alerts (individually or in bulk) — acknowledged alerts can't be re-acknowledged.</li>
+                    <li>There is no manual delete: alert data is pruned automatically by the <strong>Data retention</strong> setting.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Server management -->
+<div class="help-section" id="servers">
+    <div class="help-card">
+        <h2 class="help-card-title"><span class="step">5</span> Server management</h2>
         <ul class="help-list">
-            <li class="help-list-item">
-                <div class="help-list-item-title">Edit Server</div>
-                <div class="help-list-item-text">Update server name, IP address, and SSH port. Changes take effect immediately.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Suspend Monitoring</div>
-                <div class="help-list-item-text">Temporarily pause monitoring, data collection, and alerts for a server without removing it from the system. Server will show as "Offline" while suspended.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Suppress Alerts</div>
-                <div class="help-list-item-text">Stop receiving alert notifications while keeping monitoring active. Useful for planned maintenance windows.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Configure Thresholds</div>
-                <div class="help-list-item-text">Set custom alert thresholds for CPU, memory, disk usage, and I/O metrics per server.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Manage Services</div>
-                <div class="help-list-item-text">Enable or disable monitoring for specific services. View service status and configure alert settings.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Select Monitored Disks</div>
-                <div class="help-list-item-text">Choose which disk partitions to monitor for space alerts. Exclude virtual filesystems automatically.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Delete Server</div>
-                <div class="help-list-item-text">Remove a server from monitoring. This action cannot be undone and will delete all associated metrics and alerts.</div>
-            </li>
+            <li class="help-list-item"><div class="help-list-item-title">Edit server</div><div class="help-list-item-text">Update the server's name, IP and details. Changes take effect immediately.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Suspend monitoring</div><div class="help-list-item-text">Pause data collection and alerts without removing the server. It shows as Offline while suspended.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Suppress alerts</div><div class="help-list-item-text">Keep collecting data but stop notifications — ideal for planned maintenance.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Thresholds</div><div class="help-list-item-text">Set per-server CPU, memory, disk and I/O thresholds that trigger Resource alerts.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Services &amp; disks</div><div class="help-list-item-text">Choose which services/containers and which disk partitions to monitor.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Remove server</div><div class="help-list-item-text">Removal shows the OS-specific agent-uninstall steps and asks you to type the server name to confirm. This deletes its metrics and alerts.</div></li>
         </ul>
+        <div class="help-note warn"><strong>Re-deploying an agent:</strong> installing again on the same machine refreshes the token and restarts the service, so a re-issued server comes back Online automatically.</div>
     </div>
 </div>
 
-<!-- Alert Configuration -->
-<div class="help-section">
+<!-- Users & roles -->
+<div class="help-section" id="users">
     <div class="help-card">
-        <h2 class="help-card-title">Alert Configuration</h2>
-        
+        <h2 class="help-card-title"><span class="step">6</span> Users, roles &amp; access</h2>
         <div class="help-item">
             <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                </svg>
-                Email Configuration
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                Roles
             </h3>
             <div class="help-item-content">
-                <p>Set up email alerts:</p>
+                <p>Access is role-based and <strong>enforced on the server</strong> (the UI only reflects what the server already permits):</p>
                 <ul>
-                    <li><strong>Gmail:</strong> Use smtp.gmail.com with an App Password (requires 2FA)</li>
-                    <li><strong>Outlook/Office 365:</strong> Use smtp.office365.com with your credentials</li>
-                    <li><strong>Custom SMTP:</strong> Configure any SMTP server with TLS/SSL options</li>
-                    <li>Test your configuration before saving</li>
-                    <li>Multiple recipients supported (comma-separated)</li>
+                    <li><strong>Admin</strong> — full access, including users, roles, alert routing and licensing.</li>
+                    <li><strong>Operator</strong> — day-to-day operations (servers, alerts, monitoring), no user/role admin.</li>
+                    <li><strong>CEO</strong> — the Executive view and business signals; a read-slanted leadership persona.</li>
+                    <li>Create custom roles on the <strong>Roles</strong> page and assign capabilities.</li>
                 </ul>
             </div>
         </div>
-
         <div class="help-item">
             <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                </svg>
-                Slack Configuration
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                Personas &amp; impersonation
             </h3>
             <div class="help-item-content">
-                <p>Set up Slack notifications:</p>
                 <ul>
-                    <li>Create an Incoming Webhook in your Slack workspace</li>
-                    <li>Paste the webhook URL in the configuration</li>
-                    <li>Optionally specify a channel, username, and icon</li>
-                    <li>Test the configuration to verify it works</li>
-                    <li>Alerts will be sent to Slack alongside email (if both configured)</li>
+                    <li><strong>Personas:</strong> the dashboard has an <em>Operations</em> and an <em>Executive</em> view; users land on the one that fits their role and can switch if permitted.</li>
+                    <li><strong>Impersonation:</strong> Admins/CEOs can "view as" a lower-privilege user to see exactly what they see — actions are audited and the impersonator can never gain extra privileges.</li>
+                    <li><strong>Email alerts</strong> can be toggled per user (see Alerts &amp; routing).</li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
 
-<!-- User & Role Management -->
-<div class="help-section">
+<!-- Executive & reports -->
+<div class="help-section" id="executive">
     <div class="help-card">
-        <h2 class="help-card-title">User & Role Management</h2>
-        
-        <div class="help-item">
-            <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-                </svg>
-                Managing Users
-            </h3>
-            <div class="help-item-content">
-                <p>Create and manage user accounts:</p>
-                <ul>
-                    <li>Create new users with specific roles and permissions</li>
-                    <li>Edit user information, passwords, and access levels</li>
-                    <li>Activate or deactivate user accounts</li>
-                    <li>Assign roles to control what users can access</li>
-                    <li>Superusers have full access to all features</li>
-                </ul>
-            </div>
+        <h2 class="help-card-title"><span class="step">7</span> Executive view &amp; reports</h2>
+        <div class="help-item-content" style="padding-left:0;">
+            <ul>
+                <li><strong>Executive dashboard</strong> — right-sizing recommendations that compare each VM's real usage against its allocation and suggest scaling up/down.</li>
+                <li><strong>Operations report</strong> (<code>/reports/operations/</code>) — an operational summary of fleet health and alerts.</li>
+                <li><strong>Executive report</strong> (<code>/reports/executive/</code>) — a leadership-oriented summary for sharing.</li>
+            </ul>
         </div>
+    </div>
+</div>
 
-        <div class="help-item">
-            <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-                Roles & Permissions
-            </h3>
-            <div class="help-item-content">
-                <p>Control access with role-based permissions:</p>
-                <ul>
-                    <li>Create custom roles with specific privileges</li>
-                    <li>Available privileges: view servers, manage servers, manage users, configure alerts, etc.</li>
-                    <li>Edit or delete roles (except protected system roles)</li>
-                    <li>View which users are assigned to each role</li>
-                </ul>
-            </div>
+<!-- Licensing -->
+<div class="help-section" id="licensing">
+    <div class="help-card">
+        <h2 class="help-card-title"><span class="step">8</span> Licensing</h2>
+        <div class="help-item-content" style="padding-left:0;">
+            <p>Stack Alert uses an offline, signed license — no phone-home, so it works air-gapped. Open <strong>License</strong> (under Administration):</p>
+            <ul>
+                <li><strong>Editions:</strong> Standard and Pro (Pro unlocks Windows agents, the Executive dashboard, AI insights, Security and Business).</li>
+                <li><strong>Server cap &amp; expiry:</strong> each license allows a number of servers and has a renewal date.</li>
+                <li><strong>Install ID:</strong> shown on the License page — send it to your vendor to have a license issued/renewed, then paste the license string back in.</li>
+                <li><strong>Evaluation mode:</strong> with no license installed, all features are unlocked for evaluation (an admin-only banner reminds you).</li>
+            </ul>
+            <div class="help-note">After expiry there is a grace period; beyond that the app becomes <strong>read-only</strong> (data keeps flowing in) until a renewed license is installed.</div>
         </div>
     </div>
 </div>
 
 <!-- Settings -->
-<div class="help-section">
+<div class="help-section" id="settings">
     <div class="help-card">
-        <h2 class="help-card-title">Settings</h2>
-        
+        <h2 class="help-card-title"><span class="step">9</span> Settings</h2>
         <ul class="help-list">
-            <li class="help-list-item">
-                <div class="help-list-item-title">Timezone</div>
-                <div class="help-list-item-text">Set the display timezone for all timestamps in the application. All data is stored in UTC and converted for display.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Language</div>
-                <div class="help-list-item-text">Choose the interface language for the application.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Log Retention</div>
-                <div class="help-list-item-text">Configure how long log events are retained (7, 15, or 30 days). Older logs are automatically purged.</div>
-            </li>
+            <li class="help-list-item"><div class="help-list-item-title">Display timezone</div><div class="help-list-item-text">All timestamps (metrics, alerts, logs, charts) display in this timezone. Data is stored in UTC and converted at display time.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Language</div><div class="help-list-item-text">Interface language for the application.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Data retention</div><div class="help-list-item-text">Keep the last N days (7–365) of collected data — metrics, incidents, alerts and logs. Older data is pruned automatically each day; daily summaries are kept longer for long-range trends.</div></li>
         </ul>
     </div>
 </div>
 
-<!-- Data Collection -->
-<div class="help-section">
+<!-- Security -->
+<div class="help-section" id="security">
     <div class="help-card">
-        <h2 class="help-card-title">Data Collection & Security</h2>
-        
-        <div class="help-item">
-            <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                </svg>
-                How Data is Collected
-            </h3>
-            <div class="help-item-content">
-                <p>StackWatch collects metrics using read-only operations:</p>
-                <ul>
-                    <li>A lightweight Python script is uploaded to <code>/tmp/collect_metrics.py</code> on each monitored server</li>
-                    <li>The script uses psutil to read system metrics (CPU, memory, disk, network)</li>
-                    <li>No data is modified on client servers - all operations are read-only</li>
-                    <li>Connections are made via SSH using key-based authentication</li>
-                    <li>Metrics are collected every 1-5 minutes depending on server load</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="help-item">
-            <h3 class="help-item-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-                Security Practices
-            </h3>
-            <div class="help-item-content">
-                <p>StackWatch follows security best practices:</p>
-                <ul>
-                    <li>Server passwords are never stored - only used once for SSH key deployment</li>
-                    <li>SSH key authentication is used for all subsequent connections</li>
-                    <li>No destructive operations are performed on monitored servers</li>
-                    <li>The monitoring script is read-only (no service restarts, no file modifications)</li>
-                    <li>All communication is encrypted via SSH</li>
-                </ul>
-            </div>
+        <h2 class="help-card-title"><span class="step">10</span> Security &amp; privacy</h2>
+        <div class="help-item-content" style="padding-left:0;">
+            <ul>
+                <li><strong>Outbound-only agents</strong> — no inbound ports on your servers; nothing to expose.</li>
+                <li><strong>Token auth</strong> — each agent has its own bearer token; only a hash is stored here, and it grants nothing beyond pushing that server's data.</li>
+                <li><strong>No fleet credentials</strong> — this server can't log into any monitored machine, so compromising it doesn't compromise your fleet.</li>
+                <li><strong>Read-only collection</strong> — the agent reads system metrics; it doesn't restart services or modify the host.</li>
+                <li><strong>Offline licensing</strong> — verified locally against an embedded public key, safe for air-gapped installs.</li>
+            </ul>
         </div>
     </div>
 </div>
@@ -484,63 +419,28 @@
 <!-- Best Practices -->
 <div class="help-section">
     <div class="help-card">
-        <h2 class="help-card-title">Best Practices</h2>
-        
+        <h2 class="help-card-title">Best practices</h2>
         <ul class="help-list">
-            <li class="help-list-item">
-                <div class="help-list-item-title">Set Appropriate Thresholds</div>
-                <div class="help-list-item-text">Configure alert thresholds based on your server's normal usage patterns. Start with defaults (80% CPU, 80% memory, 90% disk) and adjust based on observed behavior.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Monitor Critical Services</div>
-                <div class="help-list-item-text">Enable monitoring for services that are critical to your application (web servers, databases, caches). This ensures immediate notification when they go down.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Review AI Recommendations</div>
-                <div class="help-list-item-text">Check the AI Recommendations panel regularly for optimization suggestions. The AI analyzes your metrics over time to identify potential improvements.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Use Alert Suppression for Maintenance</div>
-                <div class="help-list-item-text">Before performing planned maintenance, enable alert suppression to avoid unnecessary notifications. Remember to re-enable alerts afterward.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Configure Both Email and Slack</div>
-                <div class="help-list-item-text">For critical infrastructure, configure both email and Slack notifications to ensure alerts are received through multiple channels.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Review Alert History</div>
-                <div class="help-list-item-text">Regularly review the Alert History page to understand patterns, identify recurring issues, and verify that alerts are being resolved.</div>
-            </li>
+            <li class="help-list-item"><div class="help-list-item-title">Tune thresholds &amp; sensitivity</div><div class="help-list-item-text">Start with defaults, then adjust per-server CPU/memory/disk thresholds and anomaly sensitivity to match each workload's normal.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Route deliberately</div><div class="help-list-item-text">Use the routing matrix so each role gets the right categories at the right severity — avoid alert fatigue by raising the minimum severity for noisy categories.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Suppress during maintenance</div><div class="help-list-item-text">Turn on alert suppression before planned work, and remember to turn it back off.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Use both channels for critical infra</div><div class="help-list-item-text">Configure email and Slack so critical alerts reach people through more than one path.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Right-size regularly</div><div class="help-list-item-text">Check the Executive view's recommendations to reclaim over-provisioned VMs or relieve strained ones.</div></li>
         </ul>
     </div>
 </div>
 
 <!-- Troubleshooting -->
-<div class="help-section">
+<div class="help-section" id="troubleshooting">
     <div class="help-card">
         <h2 class="help-card-title">Troubleshooting</h2>
-        
         <ul class="help-list">
-            <li class="help-list-item">
-                <div class="help-list-item-title">Server Shows Offline</div>
-                <div class="help-list-item-text">Check that the server is reachable via SSH. Verify the IP address, port, and that the SSH key is still authorized on the server. Check if monitoring is suspended.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">No Metrics Being Collected</div>
-                <div class="help-list-item-text">Ensure psutil is installed on the monitored server (<code>pip3 install psutil</code>). Check SSH connectivity and verify the monitoring cron jobs are running.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Email Alerts Not Sending</div>
-                <div class="help-list-item-text">Test your email configuration using the "Test" button. For Gmail, ensure you're using an App Password (not your regular password). Check spam folders.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">Slack Alerts Not Working</div>
-                <div class="help-list-item-text">Verify the webhook URL is correct and the Slack app is installed in your workspace. Test the configuration using the "Test" button.</div>
-            </li>
-            <li class="help-list-item">
-                <div class="help-list-item-title">High CPU/Memory But No Alert</div>
-                <div class="help-list-item-text">Check if alert suppression is enabled for the server. Verify the threshold values in the server's monitoring configuration.</div>
-            </li>
+            <li class="help-list-item"><div class="help-list-item-title">Server shows Offline</div><div class="help-list-item-text">Check the agent service is running on the machine (systemd on Linux, Services on Windows) and that it can reach Stack Alert <em>outbound on 443</em>. Confirm monitoring isn't suspended. Re-running the installer refreshes the token and restarts the agent.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">No metrics coming in</div><div class="help-list-item-text">Verify the agent started without errors and the server's token matches (re-install to re-issue). A proxy/firewall blocking outbound HTTPS is the most common cause.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Someone isn't getting email alerts</div><div class="help-list-item-text">Check the <strong>Alert Routing</strong> matrix (their role + category must be at or below the alert's severity, not Off), confirm their user has <em>Email alerts</em> enabled, and that they have an email address. Use the SMTP Test button.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">Slack not posting</div><div class="help-list-item-text">Confirm Slack is enabled, the webhook URL is valid, and the alert's category passes the <strong>Slack Routing</strong> minimum severity. Use the Slack Test button.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">App is read-only</div><div class="help-list-item-text">The license has expired past its grace period. Install a renewed license on the License page — ingest keeps running throughout.</div></li>
+            <li class="help-list-item"><div class="help-list-item-title">High usage but no alert</div><div class="help-list-item-text">Check the server's thresholds and whether alert suppression is on, and confirm the Resource category is routed to a role/severity that reaches you.</div></li>
         </ul>
     </div>
 </div>
