@@ -6324,8 +6324,12 @@ def dashboard_recent_alerts_api(request):
                 days = int(time_ago.total_seconds() / 86400)
                 time_str = f"{days} day{'s' if days != 1 else ''} ago"
             
-            # Determine severity
-            severity = 'critical' if alert.status == 'triggered' else 'resolved'
+            # Use the alert's real severity for triggered alerts (low/medium/high/critical);
+            # acknowledged/cleared alerts show as "resolved".
+            if alert.status == 'triggered':
+                severity = (getattr(alert, 'severity', '') or 'medium').lower()
+            else:
+                severity = 'resolved'
             
             display_timestamp = convert_to_display_timezone(alert.sent_at)
             alert_list.append({
