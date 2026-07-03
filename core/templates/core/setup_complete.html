@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StackSense — Setup complete</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+           background:#0f172a; color:#0f172a; display:flex; min-height:100vh; align-items:center; justify-content:center; }
+    .card { background:#fff; width:100%; max-width:500px; margin:24px; padding:32px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+    .brand { font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#0f62fe; }
+    .check { width:44px; height:44px; border-radius:50%; background:#dcfce7; color:#16a34a; display:flex; align-items:center; justify-content:center; margin:12px 0; }
+    h1 { font-size:22px; margin:0 0 4px; }
+    .sub { margin:0 0 20px; color:#475569; font-size:14px; line-height:1.55; }
+    .trial { background:#fff7ed; border:1px solid #fed7aa; color:#b45309; font-size:13px; border-radius:8px; padding:11px 13px; margin-bottom:18px; line-height:1.5; }
+    .eval { background:#f1f5f9; border:1px solid #e2e8f0; color:#475569; font-size:13px; border-radius:8px; padding:11px 13px; margin-bottom:18px; line-height:1.5; }
+    .idlabel { font-size:12px; font-weight:600; color:#334155; margin-bottom:6px; }
+    .idrow { display:flex; gap:8px; align-items:stretch; }
+    .idbox { flex:1; background:#0f172a; color:#e2e8f0; border-radius:8px; padding:10px 12px; font-family:ui-monospace,Menlo,monospace; font-size:13px; word-break:break-all; }
+    .copybtn { flex-shrink:0; background:#eef2f7; color:#334155; border:1px solid #e2e8f0; border-radius:8px; padding:0 14px; font-size:13px; font-weight:600; cursor:pointer; }
+    .copybtn:hover { background:#e2e8f0; }
+    .steps { font-size:13px; color:#475569; line-height:1.65; margin:18px 0 0; padding-left:18px; }
+    .steps b { color:#0f172a; }
+    .signin { display:block; text-align:center; text-decoration:none; margin-top:22px; padding:12px; background:#0f62fe; color:#fff; border-radius:8px; font-size:15px; font-weight:600; }
+    .signin:hover { background:#0b50d0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">StackSense</div>
+    <div class="check">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h1>Setup complete</h1>
+    <p class="sub">Your administrator account is ready. One more step before you go in — licensing.</p>
+
+    {% if trial_state == 'trial' %}
+    <div class="trial"><b>You're on a {{ trial_days_left }}-day trial.</b> Install a license before it ends, or the app switches to read-only (monitoring data keeps flowing in either way).</div>
+    {% elif trial_state == 'none' %}
+    <div class="eval">Running in <b>evaluation mode</b> — all features unlocked, no expiry. Install a license anytime to activate your edition.</div>
+    {% endif %}
+
+    {% if install_id %}
+    <div class="idlabel">Install ID (node-lock — send this to your license provider)</div>
+    <div class="idrow">
+      <code class="idbox" id="install-id">{{ install_id }}</code>
+      <button type="button" class="copybtn" onclick="copyId(this)">Copy</button>
+    </div>
+    {% endif %}
+
+    <ol class="steps">
+      <li>Send the <b>Install ID</b> above to your license provider.</li>
+      <li>They send you back a license string.</li>
+      <li>Sign in, then paste it at <b>Settings &rarr; License</b> to activate.</li>
+    </ol>
+
+    <a class="signin" href="{{ login_url }}">Sign in to continue</a>
+  </div>
+  <script>
+    function copyId(btn){
+      var el = document.getElementById('install-id');
+      var t = el ? el.textContent.trim() : '';
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject())
+        .then(function(){ btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = 'Copy'; }, 1500); })
+        .catch(function(){ /* clipboard blocked (e.g. non-HTTPS) — select the text manually */ });
+    }
+  </script>
+</body>
+</html>

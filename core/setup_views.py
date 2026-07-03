@@ -81,7 +81,21 @@ def setup_view(request):
             cfg.base_url = form.cleaned_data["base_url"]
             cfg.setup_completed = True
             cfg.save()
-        messages.success(request, "Setup complete — please sign in with your new admin account.")
-        return redirect(settings.LOGIN_URL)
+        # Guide the operator to licensing: show the Install ID (node-lock) + trial status
+        # and where to install the license, then let them sign in. Never let a licensing
+        # hiccup break the completion screen (the admin is already created).
+        iid, trial_state, trial_days = "", None, None
+        try:
+            from . import licensing
+            st = licensing.current_license()
+            iid, trial_state, trial_days = licensing.install_id(), st.state, st.days_left
+        except Exception:
+            pass
+        return render(request, "core/setup_complete.html", {
+            "install_id": iid,
+            "trial_state": trial_state,
+            "trial_days_left": trial_days,
+            "login_url": str(settings.LOGIN_URL),
+        })
 
     return render(request, "core/setup.html", {"form": form})

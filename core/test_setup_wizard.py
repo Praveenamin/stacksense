@@ -87,8 +87,11 @@ class SetupViewTests(TestCase):
 
     def test_valid_post_creates_admin_assigns_role_and_locks(self):
         r = self.client.post(SETUP_URL, VALID)
-        self.assertEqual(r.status_code, 302)
-        self.assertEqual(r["Location"], LOGIN_URL)
+        # Setup now ends on a completion screen (licensing guidance) with a Sign-in link,
+        # instead of redirecting straight to the login page.
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Setup complete")
+        self.assertContains(r, LOGIN_URL)                    # the "Sign in to continue" link
 
         u = User.objects.get(username="owner")
         self.assertTrue(u.is_superuser and u.is_active)
