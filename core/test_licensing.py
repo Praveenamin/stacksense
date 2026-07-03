@@ -12,8 +12,9 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from core.models import Server, License, UserACL
+from core.models import Server, License, UserACL, AppConfig
 from core import licensing
 
 User = get_user_model()
@@ -169,3 +170,59 @@ class LicensingTests(TestCase):
             self.assertNotIn("read-only", (r.json().get("error") or "").lower())
         except ValueError:
             pass
+
+
+@override_settings(LICENSE_TRIAL_DAYS=7)
+class TrialTests(TestCase):
+    """A fresh, unlicensed install with LICENSE_TRIAL_DAYS>0 gets an N-day trial (fully
+    permissive) that degrades to read-only when it lapses. Trial anchor = AppConfig.created_at.
+    LICENSE_TRIAL_DAYS=0 (the default) keeps the old unlimited evaluation."""
+
+    def setUp(self):
+        cache.delete("license_verified_v2")
+        self.addCleanup(cache.delete, "license_verified_v2")
+        self.admin = User.objects.create_superuser("trialadm", "tr@x.test", "pw")
+        self.client = Client(); self.client.force_login(self.admin)
+
+    def _set_install_age(self, days):
+        cfg = AppConfig.get_config()
+        AppConfig.objects.filter(pk=cfg.pk).update(
+            created_at=timezone.now() - timedelta(days=days))
+
+    def test_active_trial_is_permissive(self):
+        self._set_install_age(0)
+        st = licensing.current_license()
+        self.assertEqual(st.state, "trial")
+        self.assertEqual(st.days_left, 7)
+        self.assertFalse(st.read_only)
+        self.assertTrue(licensing.can_add_server()[0])
+        self.assertTrue(licensing.has_feature("windows"))     # trial unlocks everything
+
+    def test_trial_counts_down(self):
+        self._set_install_age(5)
+        st = licensing.current_license()
+        self.assertEqual(st.state, "trial")
+        self.assertEqual(st.days_left, 2)
+
+    def test_expired_trial_is_read_only(self):
+        self._set_install_age(10)                              # past the 7-day trial
+        st = licensing.current_license()
+        self.assertEqual(st.state, "trial_expired")
+        self.assertTrue(st.read_only)
+        self.assertFalse(licensing.can_add_server()[0])
+        self.assertFalse(licensing.has_feature("windows"))
+        # a mutating UI POST is blocked; reads still work
+        r = self.client.post(reverse("add_server_agent"),
+                             {"name": "tx", "ip_address": "10.7.7.7", "os_type": "linux"})
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(Server.objects.filter(name="tx").exists())
+        self.assertEqual(self.client.get(reverse("monitoring_dashboard")).status_code, 200)
+
+    @override_settings(LICENSE_TRIAL_DAYS=0)
+    def test_disabled_is_unlimited_eval(self):
+        self._set_install_age(999)                            # old install, but trial off
+        st = licensing.current_license()
+        self.assertEqual(st.state, "none")                    # unlimited evaluation, not read-only
+        self.assertFalse(st.read_only)
+        self.assertTrue(licensing.can_add_server()[0])
+        self.assertTrue(licensing.has_feature("windows"))

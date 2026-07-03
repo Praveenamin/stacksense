@@ -22,11 +22,12 @@
       {% with s=status.state %}
       <span style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;
         {% if s == 'valid' %}background:#f0fdf4;color:#166534;
-        {% elif s == 'expiring' or s == 'expired_grace' %}background:#fff7ed;color:#b45309;
+        {% elif s == 'expiring' or s == 'expired_grace' or s == 'trial' %}background:#fff7ed;color:#b45309;
         {% elif s == 'none' %}background:#eef2f7;color:#475569;
         {% else %}background:#fef2f2;color:#b91c1c;{% endif %}">
         {% if s == 'none' %}Evaluation (no license){% elif s == 'valid' %}Active
         {% elif s == 'expiring' %}Active — expiring soon{% elif s == 'expired_grace' %}Expired — in grace
+        {% elif s == 'trial' %}Trial — {{ status.days_left }}d left{% elif s == 'trial_expired' %}Trial ended — read-only
         {% elif s == 'expired' %}Expired — read-only{% else %}Invalid{% endif %}
       </span>
       {% endwith %}

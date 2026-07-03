@@ -36,7 +36,7 @@ def rbac(request):
             from . import licensing
             st = licensing.current_license()
             license_status = st
-            if st.is_eval:
+            if st.state in ("none", "trial"):   # eval + active trial unlock everything
                 license_features = frozenset({"windows", "executive", "ai", "security", "business"})
             elif st.info:
                 license_features = frozenset(st.info.features)
@@ -66,6 +66,10 @@ def _license_banner(st, is_license_admin):
                 "msg": "Your StackSense license has expired — the app is in read-only mode. "
                        "Monitoring data still flows in, but changes are blocked until a "
                        "renewed license is installed."}
+    if st.state == "trial_expired":
+        return {"level": "error",
+                "msg": "Your trial has ended — the app is in read-only mode. Monitoring data "
+                       "still flows in, but changes are blocked until a license is installed."}
     if st.state == "invalid":
         return {"level": "error",
                 "msg": "Your StackSense license is invalid — install a valid license to "
@@ -84,6 +88,11 @@ def _license_banner(st, is_license_admin):
         return {"level": "warning",
                 "msg": f"Your StackSense license expires in {n} day{'' if n == 1 else 's'} — "
                        "renew soon to avoid interruption."}
+    if st.state == "trial":
+        n = st.days_left or 0
+        return {"level": "warning",
+                "msg": f"Trial: {n} day{'' if n == 1 else 's'} left. Install a license before it "
+                       "ends to keep full access."}
     if st.node_mismatch:
         return {"level": "warning",
                 "msg": "This license is bound to a different installation — it still works, "

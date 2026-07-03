@@ -97,6 +97,16 @@ def install_id() -> str:
     return str(AppConfig.get_config().install_id)
 
 
+def _install_start_date():
+    """Date this install was first created (AppConfig.created_at) — the trial anchor."""
+    from .models import AppConfig
+    try:
+        cfg = AppConfig.get_config()
+        return cfg.created_at.date() if getattr(cfg, "created_at", None) else None
+    except Exception:
+        return None
+
+
 def _verified_info():
     """The installed, signature-verified LicenseInfo (or None), cached briefly."""
     blob = _stored_blob()
@@ -130,8 +140,9 @@ class LicenseStatus:
 
     @property
     def read_only(self):
-        """True once the app should block config/UI mutations (expired past grace)."""
-        return self.state == "expired"
+        """True once the app should block config/UI mutations: a license expired past its
+        grace window, or an unlicensed trial that has run out."""
+        return self.state in ("expired", "trial_expired")
 
 
 def current_license(server_count: int | None = None) -> LicenseStatus:
@@ -144,12 +155,26 @@ def current_license(server_count: int | None = None) -> LicenseStatus:
     blob = _stored_blob()
 
     if not blob:
-        # Unlicensed -> evaluation mode.
+        # Unlicensed. Either an unlimited evaluation (LICENSE_TRIAL_DAYS=0, the default, so
+        # existing installs are unchanged) or a fixed trial that degrades to read-only when
+        # it lapses (LICENSE_TRIAL_DAYS>0, set by setup.sh for new deploys).
         cap = getattr(settings, "LICENSE_EVAL_MAX_SERVERS", None)
+        over = cap is not None and server_count > cap
+        trial_days = int(getattr(settings, "LICENSE_TRIAL_DAYS", 0) or 0)
+        if trial_days > 0:
+            start = _install_start_date()
+            used = (date.today() - start).days if start else 0
+            left = trial_days - used
+            if left > 0:
+                return LicenseStatus(
+                    state="trial", info=None, server_count=server_count, max_servers=cap,
+                    over_limit=over, days_left=left, node_mismatch=False)
+            return LicenseStatus(
+                state="trial_expired", info=None, server_count=server_count, max_servers=0,
+                over_limit=True, days_left=left, node_mismatch=False)
         return LicenseStatus(
             state="none", info=None, server_count=server_count, max_servers=cap,
-            over_limit=(cap is not None and server_count > cap),
-            days_left=None, node_mismatch=False)
+            over_limit=over, days_left=None, node_mismatch=False)
     if info is None:
         # A blob is stored but doesn't verify (tampered/corrupt) -> treat as invalid.
         return LicenseStatus(
@@ -180,11 +205,12 @@ def current_license(server_count: int | None = None) -> LicenseStatus:
 
 
 def has_feature(name: str) -> bool:
-    """Is a (Pro-gated) feature available under the current license? Eval = all on."""
+    """Is a (Pro-gated) feature available under the current license? Evaluation and an
+    ACTIVE trial grant all features; an expired trial / invalid license grant none."""
     st = current_license()
-    if st.is_eval:
+    if st.state in ("none", "trial"):
         return bool(getattr(settings, "LICENSE_EVAL_ALL_FEATURES", True))
-    if st.info is None:        # invalid license -> nothing
+    if st.info is None:        # invalid / trial_expired -> nothing
         return False
     return name in st.info.features
 
@@ -213,6 +239,8 @@ def can_add_server():
     st = current_license()
     if st.state == "expired":
         return False, "License expired — renew to add servers."
+    if st.state == "trial_expired":
+        return False, "Trial period has ended — install a license to add servers."
     if st.state == "invalid":
         return False, "License invalid — install a valid license to add servers."
     cap = st.max_servers

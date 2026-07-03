@@ -120,6 +120,10 @@ OLLAMA_MODEL=llama3.2
 OLLAMA_TIMEOUT=120
 LLM_ENABLED=True
 
+# Licensing: a fresh install runs on a 7-day trial, then degrades to read-only until a
+# license is installed. Set to 0 for an unlimited evaluation (no expiry).
+LICENSE_TRIAL_DAYS=7
+
 # The initial admin is created via the first-run web form (/setup).
 EOF
 }
@@ -286,4 +290,21 @@ echo "  Open your browser to finish setup (create your admin):"
 echo "      ${EXT_ORIGIN}/setup"
 [ "$HTTPS_ONLY" = true ] && echo "      (forward your external port ${EXT_PORT} -> this VM's port 443 in CloudStack)"
 [ "$SSL" = self-signed ] && echo "      (self-signed cert -> expect a browser warning; safe for IP/internal use)"
+echo
+
+# ---- install id (node-lock for licensing) ----------------------------------------
+IID="$($COMPOSE exec -T web python -c "import django,os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','log_analyzer.settings'); django.setup(); from core import licensing; print(licensing.install_id())" 2>/dev/null | tr -d '\r' | tail -n1)"
+TRIAL_DAYS="$(grep -E '^LICENSE_TRIAL_DAYS=' .env 2>/dev/null | tail -n1 | cut -d= -f2 | tr -d '[:space:]')"
+echo "  Install ID (node-lock -- send this to your vendor to license this install):"
+if [ -n "$IID" ]; then
+  echo "      $IID"
+else
+  echo "      (not ready yet -- once the app is up, run:"
+  echo "       $COMPOSE exec web python manage.py shell -c \"from core import licensing; print(licensing.install_id())\")"
+fi
+if [ -n "$TRIAL_DAYS" ] && [ "$TRIAL_DAYS" != "0" ]; then
+  echo
+  echo "  This install runs on a ${TRIAL_DAYS}-day trial, then goes read-only until a license"
+  echo "  is installed at ${EXT_ORIGIN}/settings/license/  (adjust via LICENSE_TRIAL_DAYS in .env)."
+fi
 echo

@@ -41,6 +41,10 @@ MIDDLEWARE = [
 LICENSE_EVAL_MAX_SERVERS = None      # unlicensed server cap (None = unlimited eval)
 LICENSE_EVAL_ALL_FEATURES = True     # unlicensed = all features unlocked (evaluation)
 LICENSE_EXPIRY_WARN_DAYS = 14        # "expiring soon" banner window (days before expiry)
+# Trial: 0 (default) = unlimited evaluation, no expiry (existing installs unchanged).
+# >0 = a fresh, unlicensed install gets this many days from first run, then degrades to
+# read-only until a license is installed. setup.sh writes LICENSE_TRIAL_DAYS=7 for NEW deploys.
+LICENSE_TRIAL_DAYS = int(os.environ.get("LICENSE_TRIAL_DAYS", "0") or "0")
 
 ROOT_URLCONF = "log_analyzer.urls"
 
