@@ -444,6 +444,21 @@ def _synthetic_buckets(server, start_date, end_date, trunc_func):
                  .order_by('period'))
 
 
+def _avg_response_ms(server, start_date, end_date):
+    """Average successful synthetic-probe latency (ms) over the window, for one server or all
+    (server=None). This is the honest 'performance' number -- outside-in endpoint response
+    time. None when there is no successful probe latency to report (we don't fabricate)."""
+    from core.models import SyntheticCheckResult
+    qs = SyntheticCheckResult.objects.filter(
+        timestamp__gte=start_date, timestamp__lte=end_date,
+        success=True, response_time_ms__isnull=False,
+    )
+    if server is not None:
+        qs = qs.filter(synthetic_check__server=server)
+    val = qs.aggregate(a=Avg("response_time_ms"))["a"]
+    return round(val, 2) if val is not None else None
+
+
 def _get_availability_timeseries(server, start_date, end_date, trunc_func):
     """Real endpoint availability % per period = successful probes / total probes (from
     SyntheticCheckResult). Empty list when there is no probe data."""
@@ -513,6 +528,7 @@ def get_reliability_metrics_timeseries(server_id, period='24h'):
         'disk': get_metric_timeseries(server, 'DISK', start_date, end_date, interval),
         'error_rate': get_metric_timeseries(server, 'ERROR_RATE', start_date, end_date, interval),
         'mttr_seconds': calculate_mttr_seconds(server, start_date, end_date),
+        'response_time_ms': _avg_response_ms(server, start_date, end_date),
         'period': period,
         'interval': interval,
         'start_date': start_date.isoformat(),

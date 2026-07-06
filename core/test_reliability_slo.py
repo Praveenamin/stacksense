@@ -298,3 +298,25 @@ class ReliabilityPageTests(TestCase):
         self.assertEqual(data["availability"][-1]["value"], 100.0)
         self.assertIn("mttr_text", data)               # "—" when no ended anomalies
         self.assertEqual(data["mttr_text"], "—")
+        # Performance = avg successful-probe latency (ms); 10 probes at 40ms -> 40.0.
+        self.assertEqual(data["response_time_ms"], 40.0)
+
+
+class DashboardReliabilityRowTests(TestCase):
+    """The main dashboard surfaces the reliability KPI row (Availability / Performance / MTTR /
+    Error rate) for users who can view operations."""
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(User.objects.create_superuser("boss2", "b2@x.test", "pw"))
+
+    def test_dashboard_shows_reliability_kpi_row(self):
+        resp = self.client.get(reverse("dashboard"))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        for tile in ('dash-rel-availability', 'dash-rel-performance',
+                     'dash-rel-mttr', 'dash-rel-errorrate'):
+            self.assertIn('id="%s"' % tile, body)
+        self.assertIn('Reliability &amp; SLOs', body)
+        self.assertIn('Performance', body)
+        self.assertIn('Error rate', body)
