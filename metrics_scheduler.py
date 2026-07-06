@@ -27,6 +27,7 @@ synthetic_check_interval = 30  # Run due synthetic (uptime) checks every 30s
 security_detection_interval = 60  # Run security detection every minute
 connectivity_check_interval = 60  # Check for down/recovered servers every minute
 leak_detection_interval = 3600  # Run memory-leak detection hourly (leaks evolve slowly)
+sli_compliance_interval = 1800  # Recompute SLI values + SLO compliance every 30 minutes
 aggregate_interval = 86400  # Roll raw metrics into hourly/daily summaries once a day
 prune_interval = 86400  # Enforce the data-retention window once a day (runs after aggregation)
 panel_precompute_interval = 600  # Precompute the heavy dashboard panels every 10 minutes
@@ -36,6 +37,7 @@ last_synthetic_check = timezone.now()
 last_security_detection = timezone.now()
 last_connectivity_check = timezone.now()
 last_leak_check = timezone.now()
+last_sli_compliance = timezone.now()
 last_aggregate = timezone.now()
 last_prune = timezone.now()
 last_panel_precompute = None  # None -> run on the first loop so the cache is warm quickly
@@ -120,6 +122,19 @@ while running:
                 print("Memory-leak detection completed.")
             except Exception as e:
                 print(f"Error in memory-leak detection: {str(e)}")
+
+        # Recompute SLI values + SLO compliance every 30 minutes so the Reliability & SLOs
+        # view has fresh SLIMeasurement rows. Metrics with no data in the window are skipped
+        # (no fabricated measurements) by the command itself.
+        time_since_last_sli = (timezone.now() - last_sli_compliance).total_seconds()
+        if time_since_last_sli >= sli_compliance_interval:
+            try:
+                print(f"[{timezone.now().strftime('%Y-%m-%d %H:%M:%S')}] Running SLI/SLO compliance calculation...")
+                call_command("calculate_sli_compliance", verbosity=0)
+                last_sli_compliance = timezone.now()
+                print("SLI/SLO compliance calculation completed.")
+            except Exception as e:
+                print(f"Error in SLI/SLO compliance calculation: {str(e)}")
 
         # Roll raw metrics into hourly/daily summaries once a day (BEFORE the prune,
         # so daily roll-ups exist before the raw they summarize is deleted).

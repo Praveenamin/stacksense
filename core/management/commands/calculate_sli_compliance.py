@@ -93,7 +93,14 @@ class Command(BaseCommand):
                 try:
                     # Calculate SLI value
                     sli_value = calculate_sli_value(server, metric_type, window_start, now)
-                    
+
+                    # No data for this metric in the window -> don't fabricate a measurement.
+                    if sli_value is None:
+                        self.stdout.write(
+                            f"  {self.style.WARNING('SKIPPED')} {metric_type} - no data in window"
+                        )
+                        continue
+
                     # Get SLO config for compliance check
                     if not slo_config:
                         self.stdout.write(

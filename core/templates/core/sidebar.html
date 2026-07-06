@@ -108,6 +108,13 @@
             </svg>
             Operational
         </a>
+        <a href="/reliability/"
+            class="flex items-center px-3 py-2 text-sm font-medium rounded-md {% if '/reliability' in request.path %}bg-sidebar-accent text-sidebar-accent-foreground{% else %}text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground{% endif %} transition-colors group">
+            <svg class="mr-3 h-5 w-5 {% if '/reliability' in request.path %}text-primary{% else %}text-muted-foreground group-hover:text-primary{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Reliability &amp; SLOs
+        </a>
         {% endif %}
         {% if 'view_executive' in rbac_caps and 'executive' in license_features %}
         <a href="/reports/executive/"

@@ -6598,45 +6598,51 @@ def dashboard_sli_compliance_api(request):
     """API endpoint for overall SLI/SLO compliance summary for dashboard"""
     try:
         from core.models import SLIMeasurement
-        from django.db.models import Count, Q, Avg
-        
-        # Get latest measurements for each server and metric type
-        servers = Server.objects.all()
+
         metric_types = ['UPTIME', 'CPU', 'MEMORY', 'DISK', 'NETWORK', 'RESPONSE_TIME', 'ERROR_RATE']
-        
-        total_servers = servers.count()
-        compliant_servers = 0
-        by_metric = {}
-        
-        # Calculate overall compliance per metric type
-        for metric_type in metric_types:
-            # Get latest measurement for each server for this metric
-            latest_measurements = SLIMeasurement.objects.filter(
-                metric_type=metric_type
-            ).order_by('server', '-time_window_end').distinct('server')
-            
-            compliant_count = latest_measurements.filter(is_compliant=True).count()
-            total_count = latest_measurements.count()
-            
-            compliance_percentage = (compliant_count / total_count * 100) if total_count > 0 else 0.0
-            
-            by_metric[metric_type] = {
-                'compliant_servers': compliant_count,
-                'total_servers': total_count,
-                'compliance_percentage': round(compliance_percentage, 2)
-            }
-        
-        # Calculate overall compliance (servers that are compliant for all metrics)
-        # This is simplified - in reality, you might want different logic
-        overall_compliance = 0.0
-        if by_metric:
-            avg_compliance = sum(m['compliance_percentage'] for m in by_metric.values()) / len(by_metric)
-            overall_compliance = round(avg_compliance, 2)
-        
+
+        # One pass: the LATEST measurement per (server, metric_type). Doing the DISTINCT ON in
+        # the DB and the compliant/total tally in Python avoids the subtle bug where filtering
+        # is_compliant=True on a DISTINCT-ON queryset picks the latest *compliant* row rather
+        # than judging the actual latest row.
+        latest = list(
+            SLIMeasurement.objects
+            .order_by('server_id', 'metric_type', '-time_window_end')
+            .distinct('server_id', 'metric_type')
+            .values('server_id', 'metric_type', 'is_compliant')
+        )
+
+        by_metric = {mt: {'compliant_servers': 0, 'total_servers': 0} for mt in metric_types}
+        server_all_ok = {}  # server_id -> True only if ALL its latest metrics are compliant
+        for row in latest:
+            mt = row['metric_type']
+            if mt in by_metric:
+                by_metric[mt]['total_servers'] += 1
+                if row['is_compliant']:
+                    by_metric[mt]['compliant_servers'] += 1
+            sid = row['server_id']
+            server_all_ok[sid] = server_all_ok.get(sid, True) and bool(row['is_compliant'])
+
+        for mt, d in by_metric.items():
+            d['compliance_percentage'] = (
+                round(d['compliant_servers'] / d['total_servers'] * 100, 2)
+                if d['total_servers'] else 0.0
+            )
+
+        # Honest denominator: only servers we actually have measurements for can be judged
+        # compliant/non-compliant. A server is "compliant" only if every one of its latest
+        # SLIs meets its SLO.
+        servers_measured = len(server_all_ok)
+        compliant_servers = sum(1 for ok in server_all_ok.values() if ok)
+        overall_compliance = (
+            round(compliant_servers / servers_measured * 100, 2) if servers_measured else 0.0
+        )
+
         return JsonResponse({
             'success': True,
             'data': {
-                'total_servers': total_servers,
+                'total_servers': servers_measured,          # servers with SLI data (judgeable)
+                'total_servers_all': Server.objects.count(),  # all registered servers, for context
                 'compliant_servers': compliant_servers,
                 'compliance_percentage': overall_compliance,
                 'by_metric': by_metric
@@ -6986,12 +6992,18 @@ def dashboard_reliability_metrics_api(request):
             }
         
         data['stats'] = {
+            'availability': calc_stats(data.get('availability', [])),
             'cpu': calc_stats(data.get('cpu', [])),
             'memory': calc_stats(data.get('memory', [])),
             'disk': calc_stats(data.get('disk', [])),
             'error_rate': calc_stats(data.get('error_rate', []))
         }
-        
+
+        # MTTR is a scalar (None when no ended anomalies in the window). Humanize with the same
+        # helper the Operations Report uses so the two views read identically.
+        mttr = data.get('mttr_seconds')
+        data['mttr_text'] = _humanize_duration(mttr) if mttr is not None else "—"
+
         return JsonResponse({
             'success': True,
             'data': data
@@ -7813,6 +7825,25 @@ def operations_report(request):
     }
     context.update(admin.site.each_context(request))
     return render(request, "core/operations_report.html", context)
+
+
+@staff_member_required
+def reliability_dashboard(request):
+    """Reliability & SLOs — a live ops/SRE view of endpoint availability (from synthetic
+    probes), SLO compliance, MTTR, and the check-failure rate. All numbers come from the
+    fixed, real-data APIs (dashboard_sli_compliance_api + dashboard_reliability_metrics_api);
+    this view just renders the shell and lets the reused JS components fetch them."""
+    from .permissions import user_can, VIEW_OPERATIONS
+    if not user_can(request.user, VIEW_OPERATIONS):
+        return HttpResponseForbidden("Access denied")
+
+    context = {
+        "show_sidebar": True,
+        "title": "Reliability & SLOs",
+        "servers": Server.objects.all().order_by("name"),
+    }
+    context.update(admin.site.each_context(request))
+    return render(request, "core/reliability.html", context)
 
 
 _SEV_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}

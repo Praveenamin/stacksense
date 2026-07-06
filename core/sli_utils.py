@@ -37,253 +37,140 @@ def get_slo_config(server, metric_type):
     return global_slo
 
 
+# Resource reliability thresholds: the resource SLIs report the % of samples whose value is
+# at/under these (a real "how often did we stay healthy" indicator, not a raw average).
+RESOURCE_THRESHOLDS = {"CPU": 85.0, "MEMORY": 90.0, "DISK": 90.0, "NETWORK": 80.0}
+
+
+def _synthetic_results_for_server(server, start_date, end_date):
+    """SyntheticCheckResult queryset for all of a server's synthetic checks in the window."""
+    from core.models import SyntheticCheckResult
+    return SyntheticCheckResult.objects.filter(
+        synthetic_check__server=server,
+        timestamp__gte=start_date,
+        timestamp__lte=end_date,
+    )
+
+
+def _pct_at_or_under(values, threshold):
+    """% of the (non-None) values that are at or under `threshold`. None if no values."""
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return None
+    under = sum(1 for v in vals if v <= threshold)
+    return round(under / len(vals) * 100.0, 2)
+
+
 def calculate_uptime_sli(server, start_date, end_date):
-    """
-    Calculate uptime SLI as percentage of time server was available.
-    
-    Returns: percentage (0-100)
-    """
+    """Availability SLI = % of this server's synthetic probes that SUCCEEDED in the window.
+
+    This is real ENDPOINT availability from persisted SyntheticCheckResult rows (higher is
+    better). Returns None when the server has no synthetic-check data in the window -- we do
+    NOT fabricate an uptime number from metric presence."""
     try:
-        # Get total time window in seconds
-        total_seconds = (end_date - start_date).total_seconds()
-        
-        if total_seconds <= 0:
-            return 0.0
-        
-        # Get metrics in time window
-        metrics = SystemMetric.objects.filter(
-            server=server,
-            timestamp__gte=start_date,
-            timestamp__lte=end_date
-        ).order_by('timestamp')
-        
-        if not metrics.exists():
-            return 0.0
-        
-        # Calculate uptime based on system_uptime_seconds
-        # If system_uptime_seconds exists, we can infer server was online
-        # Count metrics with system_uptime_seconds > 0 as "up"
-        up_metrics = metrics.filter(system_uptime_seconds__gt=0)
-        total_metrics = metrics.count()
-        
-        if total_metrics == 0:
-            return 0.0
-        
-        # Approximate uptime percentage based on metric availability
-        # This is a simplified calculation - assumes metrics are collected regularly
-        uptime_percentage = (up_metrics.count() / total_metrics) * 100
-        
-        return round(uptime_percentage, 2)
+        qs = _synthetic_results_for_server(server, start_date, end_date)
+        total = qs.count()
+        if not total:
+            return None
+        ok = qs.filter(success=True).count()
+        return round(ok / total * 100.0, 2)
     except Exception:
-        return 0.0
-
-
-def calculate_cpu_sli(server, start_date, end_date):
-    """
-    Calculate CPU SLI as average CPU usage percentage.
-    
-    Returns: average CPU percentage
-    """
-    try:
-        avg_cpu = SystemMetric.objects.filter(
-            server=server,
-            timestamp__gte=start_date,
-            timestamp__lte=end_date
-        ).aggregate(avg=Avg('cpu_percent'))['avg']
-        
-        return round(avg_cpu or 0.0, 2)
-    except Exception:
-        return 0.0
-
-
-def calculate_memory_sli(server, start_date, end_date):
-    """
-    Calculate Memory SLI as average memory usage percentage.
-    
-    Returns: average memory percentage
-    """
-    try:
-        avg_memory = SystemMetric.objects.filter(
-            server=server,
-            timestamp__gte=start_date,
-            timestamp__lte=end_date
-        ).aggregate(avg=Avg('memory_percent'))['avg']
-        
-        return round(avg_memory or 0.0, 2)
-    except Exception:
-        return 0.0
-
-
-def calculate_disk_sli(server, start_date, end_date):
-    """
-    Calculate Disk SLI as average disk usage percentage.
-    Uses the root partition (/) by default, or calculates average across all partitions.
-    
-    Returns: average disk percentage
-    """
-    try:
-        metrics = SystemMetric.objects.filter(
-            server=server,
-            timestamp__gte=start_date,
-            timestamp__lte=end_date
-        )
-        
-        if not metrics.exists():
-            return 0.0
-        
-        # Calculate average disk usage from disk_usage JSON field
-        total_percent = 0.0
-        count = 0
-        
-        for metric in metrics:
-            disk_usage = metric.disk_usage or {}
-            if isinstance(disk_usage, dict):
-                # Get root partition (/) or calculate average
-                if '/' in disk_usage:
-                    disk_info = disk_usage['/']
-                    if isinstance(disk_info, dict) and 'percent' in disk_info:
-                        total_percent += disk_info['percent']
-                        count += 1
-                else:
-                    # Average across all partitions
-                    percents = [
-                        info.get('percent', 0)
-                        for info in disk_usage.values()
-                        if isinstance(info, dict) and 'percent' in info
-                    ]
-                    if percents:
-                        total_percent += sum(percents) / len(percents)
-                        count += 1
-        
-        if count == 0:
-            return 0.0
-        
-        return round(total_percent / count, 2)
-    except Exception:
-        return 0.0
-
-
-def calculate_network_sli(server, start_date, end_date):
-    """
-    Calculate Network SLI as average network utilization percentage.
-    
-    Returns: average network utilization percentage
-    """
-    try:
-        metrics = SystemMetric.objects.filter(
-            server=server,
-            timestamp__gte=start_date,
-            timestamp__lte=end_date
-        ).exclude(
-            Q(net_utilization_sent__isnull=True) | Q(net_utilization_recv__isnull=True)
-        )
-        
-        if not metrics.exists():
-            return 0.0
-        
-        # Calculate average of sent and received utilization
-        total_util = 0.0
-        count = 0
-        
-        for metric in metrics:
-            sent = metric.net_utilization_sent or 0.0
-            recv = metric.net_utilization_recv or 0.0
-            # Average of sent and received
-            avg_util = (sent + recv) / 2.0
-            total_util += avg_util
-            count += 1
-        
-        if count == 0:
-            return 0.0
-        
-        return round(total_util / count, 2)
-    except Exception:
-        return 0.0
-
-
-def calculate_response_time_sli(server, start_date, end_date):
-    """
-    Calculate Response Time SLI as average latency in milliseconds.
-    Only includes services with monitoring_enabled=True.
-    
-    Returns: average latency in milliseconds
-    """
-    try:
-        # Get all monitored services for this server
-        monitored_services = Service.objects.filter(
-            server=server,
-            monitoring_enabled=True
-        )
-        
-        if not monitored_services.exists():
-            return 0.0
-        
-        # Get latency measurements for monitored services in time window
-        measurements = ServiceLatencyMeasurement.objects.filter(
-            service__in=monitored_services,
-            timestamp__gte=start_date,
-            timestamp__lte=end_date,
-            success=True
-        )
-        
-        if not measurements.exists():
-            return 0.0
-        
-        # Calculate average latency
-        avg_latency = measurements.aggregate(avg=Avg('latency_ms'))['avg']
-        
-        return round(avg_latency or 0.0, 2)
-    except Exception:
-        return 0.0
+        return None
 
 
 def calculate_error_rate_sli(server, start_date, end_date):
-    """
-    Calculate Error Rate SLI as percentage of time alerts were triggered.
-    
-    This measures the alert rate - the percentage of monitoring intervals
-    where at least one alert (CPU, MEMORY, DISK, SERVICE) was triggered.
-    
-    Returns: error rate percentage (0-100) - lower is better
-    """
+    """Check-failure rate = % of this server's synthetic probes that FAILED in the window
+    (i.e. 100 - availability), from real SyntheticCheckResult data (lower is better).
+    Returns None when there is no probe data. (Replaces the old alert-frequency proxy.)"""
     try:
-        from core.models import AlertHistory
-        
-        # Get total time window in hours
-        total_hours = (end_date - start_date).total_seconds() / 3600
-        
-        if total_hours <= 0:
-            return 0.0
-        
-        # Count unique hours where alerts were triggered
-        # This gives us a more accurate picture than just counting alerts
-        alerts = AlertHistory.objects.filter(
-            server=server,
-            sent_at__gte=start_date,
-            sent_at__lte=end_date,
-            status='triggered'
-        )
-        
-        total_alerts = alerts.count()
-        
-        if total_alerts == 0:
-            return 0.0
-        
-        # Count unique hours with alerts (to avoid double-counting burst alerts)
-        unique_alert_hours = set()
-        for alert in alerts.values('sent_at'):
-            # Round to nearest hour
-            hour_key = alert['sent_at'].replace(minute=0, second=0, microsecond=0)
-            unique_alert_hours.add(hour_key)
-        
-        # Calculate error rate as percentage of hours with alerts
-        # This measures "what percentage of time had issues"
-        error_rate = (len(unique_alert_hours) / total_hours) * 100
-        
-        # Cap at 100%
-        return round(min(error_rate, 100.0), 2)
+        qs = _synthetic_results_for_server(server, start_date, end_date)
+        total = qs.count()
+        if not total:
+            return None
+        failed = qs.exclude(success=True).count()
+        return round(failed / total * 100.0, 2)
     except Exception:
-        return 0.0
+        return None
+
+
+def calculate_response_time_sli(server, start_date, end_date):
+    """Response-time SLI = average synthetic-probe latency (ms) for SUCCESSFUL probes in the
+    window (lower is better). This is outside-in probe latency to the server's checks.
+    Returns None when there is no probe latency data. (Replaces the disabled service-latency feed.)"""
+    try:
+        val = _synthetic_results_for_server(server, start_date, end_date).filter(
+            success=True, response_time_ms__isnull=False
+        ).aggregate(a=Avg("response_time_ms"))["a"]
+        return round(val, 2) if val is not None else None
+    except Exception:
+        return None
+
+
+def calculate_cpu_sli(server, start_date, end_date):
+    """CPU reliability SLI = % of samples with CPU at/under the reliability threshold
+    (higher is better). None if no samples."""
+    try:
+        vals = SystemMetric.objects.filter(
+            server=server, timestamp__gte=start_date, timestamp__lte=end_date
+        ).values_list("cpu_percent", flat=True)
+        return _pct_at_or_under(list(vals), RESOURCE_THRESHOLDS["CPU"])
+    except Exception:
+        return None
+
+
+def calculate_memory_sli(server, start_date, end_date):
+    """Memory reliability SLI = % of samples with memory at/under the threshold (higher is
+    better). None if no samples."""
+    try:
+        vals = SystemMetric.objects.filter(
+            server=server, timestamp__gte=start_date, timestamp__lte=end_date
+        ).values_list("memory_percent", flat=True)
+        return _pct_at_or_under(list(vals), RESOURCE_THRESHOLDS["MEMORY"])
+    except Exception:
+        return None
+
+
+def calculate_disk_sli(server, start_date, end_date):
+    """Disk reliability SLI = % of samples with primary-disk usage at/under the threshold
+    (higher is better). Parses the disk_usage JSON per sample. None if no samples."""
+    try:
+        metrics = SystemMetric.objects.filter(
+            server=server, timestamp__gte=start_date, timestamp__lte=end_date
+        ).only("disk_usage")
+        percents = []
+        for metric in metrics:
+            disk_usage = metric.disk_usage or {}
+            if not isinstance(disk_usage, dict):
+                continue
+            if "/" in disk_usage and isinstance(disk_usage["/"], dict) and "percent" in disk_usage["/"]:
+                percents.append(disk_usage["/"]["percent"])
+            else:
+                ps = [i.get("percent", 0) for i in disk_usage.values()
+                      if isinstance(i, dict) and "percent" in i]
+                if ps:
+                    percents.append(sum(ps) / len(ps))
+        return _pct_at_or_under(percents, RESOURCE_THRESHOLDS["DISK"])
+    except Exception:
+        return None
+
+
+def calculate_network_sli(server, start_date, end_date):
+    """Network reliability SLI = % of samples with network utilization at/under the threshold
+    (higher is better). None if no samples."""
+    try:
+        metrics = SystemMetric.objects.filter(
+            server=server, timestamp__gte=start_date, timestamp__lte=end_date
+        ).only("net_utilization_sent", "net_utilization_recv")
+        vals = []
+        for metric in metrics:
+            sent = metric.net_utilization_sent
+            recv = metric.net_utilization_recv
+            if sent is None and recv is None:
+                continue
+            vals.append(((sent or 0.0) + (recv or 0.0)) / 2.0)
+        return _pct_at_or_under(vals, RESOURCE_THRESHOLDS["NETWORK"])
+    except Exception:
+        return None
 
 
 def calculate_sli_value(server, metric_type, start_date, end_date):
@@ -355,6 +242,37 @@ def check_compliance(sli_value, slo_config):
             compliance_percentage = 100.0 if is_compliant else 0.0
     
     return is_compliant, round(compliance_percentage, 2)
+
+
+def _anomaly_resolution_end(anomaly):
+    """When an anomaly's window ended: recovered_at (auto-detected back-to-normal) preferred,
+    else the admin resolution time, else None (still ongoing). Mirrors views._anomaly_window_end
+    so MTTR here matches the Operations Report 'Avg time-to-resolve'."""
+    if getattr(anomaly, "recovered_at", None):
+        return anomaly.recovered_at
+    if getattr(anomaly, "resolved", False) and getattr(anomaly, "resolved_at", None):
+        return anomaly.resolved_at
+    return None
+
+
+def calculate_mttr_seconds(server, start_date, end_date):
+    """MTTR = mean time to resolve, in seconds, over anomalies in the window that have ENDED
+    (auto-recovered or admin-resolved). Duration is start -> end per anomaly.
+
+    Returns None when there is no ended anomaly in the window -- we do not fabricate an MTTR.
+    (Reuses the same window-end preference as the Operations Report.)"""
+    from core.models import Anomaly
+    qs = Anomaly.objects.filter(timestamp__gte=start_date, timestamp__lte=end_date)
+    if server is not None:
+        qs = qs.filter(server=server)
+    durations = []
+    for a in qs.only("timestamp", "recovered_at", "resolved", "resolved_at")[:5000]:
+        end = _anomaly_resolution_end(a)
+        if end:
+            durations.append(max(0.0, (end - a.timestamp).total_seconds()))
+    if not durations:
+        return None
+    return round(sum(durations) / len(durations), 2)
 
 
 def get_metric_timeseries(server, metric_type, start_date, end_date, interval='hour'):
@@ -510,56 +428,41 @@ def _get_disk_timeseries(server, start_date, end_date, trunc_func):
     return data_points
 
 
-def _get_error_rate_timeseries(server, start_date, end_date, trunc_func, interval):
-    """Get Error Rate time-series data based on alert frequency."""
-    from core.models import AlertHistory
-    
-    # Get all alerts in the time window
-    query = AlertHistory.objects.filter(
-        sent_at__gte=start_date,
-        sent_at__lte=end_date,
-        status='triggered'
+def _synthetic_buckets(server, start_date, end_date, trunc_func):
+    """Per-period (total, ok) counts of synthetic-probe results -- the real basis for the
+    availability and check-failure series. Only returns periods that actually have probe data
+    (no fabricated zero-fill). Empty when the server/window has no synthetic checks."""
+    from core.models import SyntheticCheckResult
+    query = SyntheticCheckResult.objects.filter(
+        timestamp__gte=start_date, timestamp__lte=end_date
     )
-    
     if server:
-        query = query.filter(server=server)
-    
-    # Count alerts per period
-    aggregated = query.annotate(
-        period=trunc_func('sent_at')
-    ).values('period').annotate(
-        alert_count=Count('id')
-    ).order_by('period')
-    
-    # Build a complete timeline with zeros for periods without alerts
-    alert_periods = {item['period'].isoformat(): item['alert_count'] for item in aggregated}
-    
-    # Generate all time periods
-    data_points = []
-    current = start_date.replace(minute=0, second=0, microsecond=0)
-    
-    if interval == 'day':
-        current = current.replace(hour=0)
-        delta = timedelta(days=1)
-    else:
-        delta = timedelta(hours=1)
-    
-    while current <= end_date:
-        period_key = current.isoformat()
-        # Convert alert count to error rate percentage (scaled)
-        # For visualization: 0 alerts = 0%, 1+ alerts = shows as percentage
-        # We use a scaling factor to make the error rate visible on the same chart
-        alert_count = alert_periods.get(period_key, 0)
-        # Scale: each alert in a period adds to the error rate (capped at 100)
-        error_rate = min(alert_count * 10, 100)  # Each alert = 10% for visibility
-        
-        data_points.append({
-            'timestamp': period_key,
-            'value': error_rate
-        })
-        current += delta
-    
-    return data_points
+        query = query.filter(synthetic_check__server=server)
+    return (query.annotate(period=trunc_func('timestamp'))
+                 .values('period')
+                 .annotate(total=Count('id'), ok=Count('id', filter=Q(success=True)))
+                 .order_by('period'))
+
+
+def _get_availability_timeseries(server, start_date, end_date, trunc_func):
+    """Real endpoint availability % per period = successful probes / total probes (from
+    SyntheticCheckResult). Empty list when there is no probe data."""
+    return [
+        {'timestamp': b['period'].isoformat(),
+         'value': round((b['ok'] / b['total']) * 100.0, 2) if b['total'] else None}
+        for b in _synthetic_buckets(server, start_date, end_date, trunc_func)
+    ]
+
+
+def _get_error_rate_timeseries(server, start_date, end_date, trunc_func, interval):
+    """Real check-failure % per period = failed probes / total probes (100 - availability),
+    from SyntheticCheckResult. Replaces the old alert-frequency (alert_count x 10) proxy.
+    Empty list when there is no probe data -- we don't fabricate a zero-filled timeline."""
+    return [
+        {'timestamp': b['period'].isoformat(),
+         'value': round(((b['total'] - b['ok']) / b['total']) * 100.0, 2) if b['total'] else None}
+        for b in _synthetic_buckets(server, start_date, end_date, trunc_func)
+    ]
 
 
 def get_reliability_metrics_timeseries(server_id, period='24h'):
@@ -597,12 +500,19 @@ def get_reliability_metrics_timeseries(server_id, period='24h'):
         except (Server.DoesNotExist, ValueError):
             pass
     
-    # Get time-series for each metric
+    from django.db.models.functions import TruncHour, TruncDay
+    trunc_func = TruncHour if interval == 'hour' else TruncDay
+
+    # error_rate is now the REAL synthetic check-failure %, and we add a real availability series.
+    # cpu/memory/disk stay as true utilization trends (context). MTTR is a scalar (None if no
+    # ended anomalies in the window) -- the view humanizes it.
     return {
+        'availability': _get_availability_timeseries(server, start_date, end_date, trunc_func),
         'cpu': get_metric_timeseries(server, 'CPU', start_date, end_date, interval),
         'memory': get_metric_timeseries(server, 'MEMORY', start_date, end_date, interval),
         'disk': get_metric_timeseries(server, 'DISK', start_date, end_date, interval),
         'error_rate': get_metric_timeseries(server, 'ERROR_RATE', start_date, end_date, interval),
+        'mttr_seconds': calculate_mttr_seconds(server, start_date, end_date),
         'period': period,
         'interval': interval,
         'start_date': start_date.isoformat(),

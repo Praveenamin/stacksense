@@ -78,13 +78,13 @@ class SLIComplianceCards {
 
     getMetricTypeLabel(metricType) {
         const labels = {
-            'UPTIME': 'Uptime',
+            'UPTIME': 'Availability',
             'CPU': 'CPU',
             'MEMORY': 'Memory',
             'DISK': 'Disk',
             'NETWORK': 'Network',
-            'RESPONSE_TIME': 'Response Time',
-            'ERROR_RATE': 'Error Rate'
+            'RESPONSE_TIME': 'Response time',
+            'ERROR_RATE': 'Check failure'
         };
         return labels[metricType] || metricType;
     }

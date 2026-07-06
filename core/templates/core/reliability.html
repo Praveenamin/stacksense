@@ -1,0 +1,158 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Reliability &amp; SLOs — Stack Alert{% endblock %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="{% static 'core/css/components/dashboard.css' %}">
+<style>
+/* ---- Reliability page ---- */
+.rel-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.rel-hero { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:14px; margin:18px 0 8px; }
+.rel-hero-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; }
+.rel-hero-value { font-size:30px; font-weight:600; color:#0f172a; line-height:1.1; }
+.rel-hero-label { font-size:13px; color:#334155; font-weight:600; margin-top:6px; }
+.rel-hero-sub { font-size:11px; color:#94a3b8; margin-top:3px; }
+.rel-section-title { font-size:15px; font-weight:600; color:#0f172a; margin:26px 0 4px; }
+.rel-section-sub { font-size:12.5px; color:#64748b; margin:0 0 14px; }
+
+/* Trend chart controls */
+.reliability-period-btn { padding:6px 12px; font-size:12.5px; font-weight:500; border-radius:7px; cursor:pointer;
+    border:1px solid #e2e8f0; background:#fff; color:#334155; }
+.reliability-period-btn.active { background:#0f62fe; color:#fff; border-color:#0f62fe; }
+.rel-toggle-btn { padding:6px 12px; font-size:12.5px; font-weight:500; border-radius:7px; cursor:pointer;
+    border:1px solid #e2e8f0; background:#fff; color:#334155; }
+.rel-toggle-btn.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+
+/* Trend chart + stat cards (consumed by SLOComplianceGauges.js) */
+.reliability-chart-wrapper { position:relative; height:300px; width:100%; }
+#reliability-stats-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-top:16px; }
+.reliability-stat-card { background:#f8fafc; border:1px solid #eef2f7; border-radius:10px; padding:12px 14px; }
+.reliability-stat-card .stat-label { font-size:12px; color:#334155; font-weight:600; margin-bottom:9px; }
+.reliability-stat-card .stat-values { display:flex; gap:16px; }
+.reliability-stat-card .stat-item { display:flex; flex-direction:column; gap:2px; }
+.reliability-stat-card .stat-value { font-size:16px; font-weight:600; color:#0f172a; }
+.reliability-stat-card .stat-value.error-value { color:#dc2626; }
+.reliability-stat-card .stat-sublabel { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.03em; }
+
+.rel-note { font-size:12px; color:#64748b; background:#f8fafc; border:1px solid #eef2f7; border-radius:10px;
+    padding:11px 14px; margin-top:8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div>
+    <h1 style="font-size:28px; font-weight:600; color:#161616; margin:0 0 4px 0; line-height:1.2;">Reliability &amp; SLOs</h1>
+    <p style="font-size:14px; color:#525252; margin:0;">
+        Endpoint availability from synthetic probes, SLO compliance, mean time to resolve, and the check-failure rate.
+        These are measured server-side — no agent change.
+    </p>
+</div>
+
+<!-- Headline tiles (30-day) -->
+<div class="rel-hero">
+    <div class="rel-hero-card">
+        <div class="rel-hero-value" id="rel-availability">—</div>
+        <div class="rel-hero-label">Availability</div>
+        <div class="rel-hero-sub">endpoint uptime · 30 days</div>
+    </div>
+    <div class="rel-hero-card">
+        <div class="rel-hero-value" id="rel-check-failure">—</div>
+        <div class="rel-hero-label">Check-failure rate</div>
+        <div class="rel-hero-sub">failed synthetic probes · 30 days</div>
+    </div>
+    <div class="rel-hero-card">
+        <div class="rel-hero-value" id="rel-mttr">—</div>
+        <div class="rel-hero-label">MTTR</div>
+        <div class="rel-hero-sub">avg time-to-resolve · 30 days</div>
+    </div>
+    <div class="rel-hero-card">
+        <div class="rel-hero-value" id="rel-slo-compliance">—</div>
+        <div class="rel-hero-label">SLO compliance</div>
+        <div class="rel-hero-sub" id="rel-slo-servers">servers meeting all SLOs</div>
+    </div>
+</div>
+
+<div class="rel-note">
+    Availability &amp; check-failure come from <strong>synthetic HTTP/TCP probes</strong> (a server needs at least one
+    check to appear here). MTTR reuses the same “avg time-to-resolve” shown on the Operational report.
+    Servers without probe or metric data are simply not counted — nothing here is estimated.
+</div>
+
+<!-- SLO compliance by metric -->
+<div class="rel-section-title">SLO compliance by metric</div>
+<p class="rel-section-sub">How many measured servers currently meet each Service Level Objective.</p>
+<div id="sli-compliance-cards-container" class="dashboard-grid"></div>
+
+<!-- Availability & reliability trend -->
+<div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px; margin-top:26px;">
+    <div>
+        <div class="rel-section-title" style="margin-top:0;">Availability &amp; reliability trend</div>
+        <p class="rel-section-sub" style="margin-bottom:0;">Availability and check-failure from synthetic probes, with resource-usage context.</p>
+    </div>
+    <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+        <!-- Overall / per-server -->
+        <div style="display:flex; gap:6px; align-items:center;">
+            <button type="button" id="slo-view-overall" class="rel-toggle-btn active">All servers</button>
+            <button type="button" id="slo-view-server" class="rel-toggle-btn">Per server</button>
+            <select id="slo-server-select" style="display:none; padding:6px 10px; font-size:12.5px; border:1px solid #e2e8f0; border-radius:7px; background:#fff; color:#0f172a;">
+                <option value="">Select server…</option>
+            </select>
+        </div>
+        <!-- Time window -->
+        <div style="display:flex; gap:6px;">
+            <button type="button" class="reliability-period-btn active" data-period="24h">24h</button>
+            <button type="button" class="reliability-period-btn" data-period="7d">7d</button>
+            <button type="button" class="reliability-period-btn" data-period="30d">30d</button>
+        </div>
+    </div>
+</div>
+
+<div class="rel-card" style="padding:18px 18px 14px; margin-top:14px;">
+    <div id="slo-compliance-gauges-container"></div>
+    <div id="reliability-stats-row"></div>
+</div>
+{% endblock %}
+
+{% block extrajs %}
+<script src="{% static 'core/js/components/dashboard/SLIComplianceCards.js' %}"></script>
+<script src="{% static 'core/js/components/dashboard/SLOComplianceGauges.js' %}"></script>
+<script>
+// Headline tiles: pull the same real APIs the components use. 30-day window for a stable
+// headline (the trend chart below has its own 24h/7d/30d toggle). All-or-nothing honest:
+// show "—" when a number isn't available rather than a fabricated zero.
+(function () {
+    function setText(id, text) { var el = document.getElementById(id); if (el) el.textContent = text; }
+    function pct(v) { return (v === null || v === undefined) ? null : (Math.round(v * 10) / 10) + '%'; }
+
+    fetch('/api/dashboard/reliability-metrics/?period=30d&server_id=all')
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (!res || !res.success || !res.data) return;
+            var d = res.data, stats = d.stats || {};
+            var availSeries = d.availability || [];
+            var failSeries = d.error_rate || [];
+            setText('rel-availability', availSeries.length ? (pct(stats.availability && stats.availability.average) || '—') : 'No probes');
+            setText('rel-check-failure', failSeries.length ? (pct(stats.error_rate && stats.error_rate.average) || '—') : '—');
+            setText('rel-mttr', d.mttr_text || '—');
+        })
+        .catch(function () {});
+
+    fetch('/api/dashboard/sli-compliance/')
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (!res || !res.success || !res.data) return;
+            var d = res.data;
+            if (d.total_servers && d.total_servers > 0) {
+                setText('rel-slo-compliance', pct(d.compliance_percentage));
+                setText('rel-slo-servers', (d.compliant_servers || 0) + ' of ' + d.total_servers + ' servers meeting all SLOs');
+            } else {
+                setText('rel-slo-compliance', 'No data');
+                setText('rel-slo-servers', 'no SLI measurements yet');
+            }
+        })
+        .catch(function () {});
+})();
+</script>
+{% endblock %}

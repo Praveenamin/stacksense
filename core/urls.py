@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/server/<int:server_id>/container/<int:container_id>/toggle-monitoring/", views.toggle_container_monitoring, name="toggle_container_monitoring"),
     path("api/server/<int:server_id>/container/<int:container_id>/inspect/", views.container_inspect_api, name="container_inspect_api"),
     path("reports/operations/", views.operations_report, name="operations_report"),
+    path("reliability/", views.reliability_dashboard, name="reliability_dashboard"),
     path("reports/executive/", views.executive_report, name="executive_report"),
     path("server/edit/<int:server_id>/", views.edit_server, name="edit_server"),
     path("server/delete/<int:server_id>/", views.delete_server, name="delete_server"),

@@ -18,6 +18,10 @@ class SLOComplianceGauges {
         // Chart colors
         // Calmer, cohesive palette with translucent area fills
         this.colors = {
+            availability: {
+                line: '#22c55e',      // Green — endpoint availability (higher is better)
+                fill: 'rgba(34, 197, 94, 0.12)'
+            },
             cpu: {
                 line: '#6366f1',      // Indigo
                 fill: 'rgba(99, 102, 241, 0.12)'
@@ -270,6 +274,7 @@ class SLOComplianceGauges {
         }
 
         // Prepare labels and datasets
+        const availabilityData = data.availability || [];
         const cpuData = data.cpu || [];
         const memoryData = data.memory || [];
         const diskData = data.disk || [];
@@ -277,12 +282,13 @@ class SLOComplianceGauges {
 
         // Get all unique timestamps for labels
         const allTimestamps = new Set();
-        [cpuData, memoryData, diskData, errorRateData].forEach(dataset => {
+        [availabilityData, cpuData, memoryData, diskData, errorRateData].forEach(dataset => {
             dataset.forEach(point => allTimestamps.add(point.timestamp));
         });
         const sortedTimestamps = Array.from(allTimestamps).sort();
 
         // Create value maps for easy lookup (including peak values)
+        const availabilityMap = new Map(availabilityData.map(p => [p.timestamp, p.value]));
         const cpuMap = new Map(cpuData.map(p => [p.timestamp, { value: p.value, peak: p.peak }]));
         const memoryMap = new Map(memoryData.map(p => [p.timestamp, { value: p.value, peak: p.peak }]));
         const diskMap = new Map(diskData.map(p => [p.timestamp, p.value]));
@@ -295,8 +301,21 @@ class SLOComplianceGauges {
         const cpuHasSpikes = cpuData.some(p => p.peak && p.peak > 80);
         const memoryHasSpikes = memoryData.some(p => p.peak && p.peak > 85);
 
-        // Build datasets
+        // Build datasets — Availability first (the reliability headline), then resource
+        // context lines, then the check-failure line.
         const datasets = [
+            {
+                label: 'Availability',
+                data: sortedTimestamps.map(ts => availabilityMap.get(ts) ?? null),
+                borderColor: this.colors.availability.line,
+                backgroundColor: this.colors.availability.fill,
+                borderWidth: 2.5,
+                fill: true,
+                tension: 0.35,
+                pointRadius: sortedTimestamps.length > 48 ? 0 : 2,
+                pointHoverRadius: 5,
+                spanGaps: true
+            },
             {
                 label: 'CPU',
                 data: sortedTimestamps.map(ts => {
@@ -379,16 +398,17 @@ class SLOComplianceGauges {
                 pointHoverRadius: 5
             },
             {
-                label: 'Error Rate',
+                label: 'Check failure',
                 data: sortedTimestamps.map(ts => errorRateMap.get(ts) ?? null),
                 borderColor: this.colors.error_rate.line,
                 backgroundColor: this.colors.error_rate.fill,
                 borderWidth: 2,
-                borderDash: [5, 5],  // Dashed line for error rate
+                borderDash: [5, 5],  // Dashed line for the check-failure %
                 fill: false,
                 tension: 0.3,
                 pointRadius: sortedTimestamps.length > 48 ? 0 : 3,
-                pointHoverRadius: 5
+                pointHoverRadius: 5,
+                spanGaps: true
             }
         ];
 
@@ -493,10 +513,11 @@ class SLOComplianceGauges {
         if (!statsRow || !stats) return;
 
         const metrics = [
+            { key: 'availability', label: 'Availability', color: this.colors.availability.line },
             { key: 'cpu', label: 'CPU', color: this.colors.cpu.line },
             { key: 'memory', label: 'Memory', color: this.colors.memory.line },
             { key: 'disk', label: 'Disk', color: this.colors.disk.line },
-            { key: 'error_rate', label: 'Error Rate', color: this.colors.error_rate.line }
+            { key: 'error_rate', label: 'Check failure', color: this.colors.error_rate.line }
         ];
 
         statsRow.innerHTML = metrics.map(metric => {
