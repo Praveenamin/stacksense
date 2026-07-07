@@ -222,7 +222,7 @@
     <div style="margin-bottom:32px;">
     {% if service_health.problem_count %}
     <div class="sh-banner sh-{{ service_health.severity }}">
-        <div class="sh-verdict"><span style="color:{% if service_health.severity == 'down' %}#dc2626{% else %}#d97706{% endif %};">●</span> {{ service_health.problem_count }} service{{ service_health.problem_count|pluralize }} need attention</div>
+        <div class="sh-verdict"><span style="color:{% if service_health.severity == 'down' %}#dc2626{% else %}#d97706{% endif %};">●</span> {{ service_health.problem_count }} {% if service_health.has_key %}key {% endif %}service{{ service_health.problem_count|pluralize }} need{{ service_health.problem_count|pluralize:"s," }} attention</div>
         <div class="sh-problems">
             {% for p in service_health.problems %}
             <a class="sh-problem" href="/services/">
@@ -235,12 +235,13 @@
             {% endfor %}
             {% if service_health.problem_count > 8 %}<div style="font-size:12px; color:#94a3b8; padding:2px 12px;">…and {{ service_health.problem_count|add:"-8" }} more</div>{% endif %}
         </div>
-        <div class="sh-sub">{{ service_health.healthy }} other{{ service_health.healthy|pluralize }} healthy{% if service_health.avg_avail is not None %} · {{ service_health.avg_avail }}% available (24h){% endif %}</div>
+        <div class="sh-sub">{{ service_health.healthy }} other{{ service_health.healthy|pluralize }} healthy{% if service_health.has_key and service_health.bg_total %} · {{ service_health.bg_total }} background/system also monitored{% endif %}{% if service_health.bg_problem_count %} · {{ service_health.bg_problem_count }} background also need attention{% endif %}{% if service_health.avg_avail is not None %} · {{ service_health.avg_avail }}% available (24h){% endif %}</div>
     </div>
     {% else %}
     <div class="sh-banner sh-ok">
-        <div class="sh-verdict"><span style="color:#16a34a; font-weight:700;">✓</span> All services healthy</div>
-        <div class="sh-sub">{{ service_health.healthy }} of {{ service_health.total }} monitored service{{ service_health.total|pluralize }} up and responding within target{% if service_health.avg_avail is not None %} · {{ service_health.avg_avail }}% available (24h){% endif %}</div>
+        <div class="sh-verdict"><span style="color:#16a34a; font-weight:700;">✓</span> All {% if service_health.has_key %}key {% endif %}services healthy</div>
+        <div class="sh-sub">{{ service_health.healthy }} of {{ service_health.total }} {% if service_health.has_key %}key {% else %}monitored {% endif %}service{{ service_health.total|pluralize }} up and responding within target{% if service_health.has_key and service_health.bg_total %} · {{ service_health.bg_total }} background/system also monitored{% endif %}{% if service_health.avg_avail is not None %} · {{ service_health.avg_avail }}% available (24h){% endif %}</div>
+        {% if service_health.bg_problem_count %}<div class="sh-sub" style="color:#b45309;">{{ service_health.bg_problem_count }} background/system service{{ service_health.bg_problem_count|pluralize }} need{{ service_health.bg_problem_count|pluralize:"s," }} attention · <a href="/services/" style="color:#0f62fe; font-weight:600;">View all →</a></div>{% endif %}
     </div>
     {% endif %}
     {% if reliability.avail_7d is not None or reliability.incident_count or reliability.last_incident_at %}

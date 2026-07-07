@@ -247,7 +247,7 @@ class DashboardServiceHealthTests(TestCase):
         self.assertEqual(r.status_code, 200)
         b = r.content.decode()
         self.assertIn("Service health · monitored services", b)
-        self.assertIn("All services healthy", b)   # the calm verdict banner
+        self.assertIn("All key services healthy", b)   # mysqld is a key (notable) service
         # No synthetic checks -> the external uptime row is hidden.
         self.assertNotIn("Reliability &amp; SLOs · last 30 days", b)
 
@@ -263,7 +263,7 @@ class DashboardServiceHealthTests(TestCase):
         r = self.client.get(reverse("dashboard"))
         self.assertEqual(r.status_code, 200)
         b = r.content.decode()
-        self.assertIn("2 services need attention", b)          # verdict, not counts
+        self.assertIn("2 key services need attention", b)      # verdict, not counts
         self.assertIn("checkout-api", b)                       # problems named
         self.assertIn("search", b)
         self.assertIn("port not responding", b)                # down reason
@@ -310,3 +310,29 @@ class DashboardServiceHealthTests(TestCase):
         r = self.client.get(reverse("dashboard"))
         self.assertEqual(r.status_code, 200)
         self.assertIn("No incidents in 30 days", r.content.decode())
+
+    def test_headline_focuses_on_key_services_not_background(self):
+        # One recognized key service + three ephemeral background ports, all monitored.
+        Service.objects.create(server=self.server, name="mysqld", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="healthy")
+        for p in (52201, 44210, 38999):
+            Service.objects.create(server=self.server, name="port-%d" % p, status="running",
+                service_type="port", port=p, monitoring_enabled=True, health_status="healthy")
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        b = r.content.decode()
+        self.assertIn("All key services healthy", b)
+        self.assertIn("1 of 1 key service", b)                 # headline = 1 key, not 4
+        self.assertIn("3 background/system also monitored", b)  # noise counted separately
+
+    def test_background_problem_noted_while_key_stays_green(self):
+        Service.objects.create(server=self.server, name="mysqld", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="healthy")
+        Service.objects.create(server=self.server, name="port-52201", status="running",
+            service_type="port", port=52201, monitoring_enabled=True,
+            health_status="down", health_reason="not running")
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        b = r.content.decode()
+        self.assertIn("All key services healthy", b)           # key verdict stays green
+        self.assertIn("1 background/system service needs attention", b)  # but bg flagged

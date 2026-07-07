@@ -1335,53 +1335,56 @@ def monitoring_dashboard(request):
         "last_updated": _latest_hb.last_heartbeat if _latest_hb else None,
     }
 
-    # Agent-side (inside-out) service-health summary for the dashboard headline -- always shown.
-    # The synthetic (outside-in) Reliability row is only shown when uptime checks are enabled.
-    from django.db.models import Avg, Count, Q
-    _hc = Service.objects.filter(monitoring_enabled=True).aggregate(
-        total=Count("id"),
-        healthy=Count("id", filter=Q(health_status="healthy")),
-        degraded=Count("id", filter=Q(health_status="degraded")),
-        down=Count("id", filter=Q(health_status="down")),
-        avg_avail=Avg("availability_24h_pct"),
-        avg_resp=Avg("last_latency_ms", filter=Q(last_latency_success=True)),
-    )
+    # Service-health headline (agent-side, inside-out). Lead with KEY (notable) services so the
+    # verdict isn't inflated by auto-detected background/system ports; background services are
+    # counted separately and only surfaced when they have problems. The synthetic (outside-in)
+    # Reliability row is shown separately, only when uptime checks are enabled.
+    from core.models import AppConfig as _AppConfig
+    _hthr = _AppConfig.get_config().slow_latency_threshold_ms or 500
+
+    def _sh_bucket():
+        return {"total": 0, "healthy": 0, "problems": []}
+    _key, _bg = _sh_bucket(), _sh_bucket()
+    _avail_vals, _resp_vals = [], []
+    for s in Service.objects.filter(monitoring_enabled=True).select_related("server"):
+        _b = _bg if _is_background_service(s) else _key
+        _b["total"] += 1
+        if s.health_status == "healthy":
+            _b["healthy"] += 1
+        elif s.health_status in ("down", "degraded"):
+            _b["problems"].append(s)
+        if s.availability_24h_pct is not None:
+            _avail_vals.append(s.availability_24h_pct)
+        if s.last_latency_success and s.last_latency_ms is not None:
+            _resp_vals.append(s.last_latency_ms)
+
+    _has_key = _key["total"] > 0
+    _primary = _key if _has_key else _bg
+    _rank = {"down": 0, "degraded": 1}
+    _problems = []
+    for s in sorted(_primary["problems"], key=lambda x: (_rank.get(x.health_status, 2), x.name))[:8]:
+        if s.health_status == "down":
+            detail = s.health_reason or "not responding"
+        elif s.latency_status == "slow" and s.last_latency_ms is not None:
+            detail = f"{round(s.last_latency_ms)} ms (target {int(s.latency_threshold_ms or _hthr)})"
+        else:
+            detail = s.health_reason or "degraded"
+        _problems.append({"label": s.label, "server": s.server.name,
+                          "status": s.health_status, "detail": detail})
+
+    _pdown = sum(1 for s in _primary["problems"] if s.health_status == "down")
     service_health = {
-        "total": _hc["total"] or 0,
-        "healthy": _hc["healthy"] or 0,
-        "degraded": _hc["degraded"] or 0,
-        "down": _hc["down"] or 0,
-        "avg_avail": round(_hc["avg_avail"], 1) if _hc["avg_avail"] is not None else None,
-        "avg_resp": round(_hc["avg_resp"]) if _hc["avg_resp"] is not None else None,
+        "total": _primary["total"],
+        "healthy": _primary["healthy"],
+        "problem_count": len(_primary["problems"]),
+        "problems": _problems,
+        "severity": "down" if _pdown else ("degraded" if _primary["problems"] else "ok"),
+        "has_key": _has_key,
+        "bg_total": _bg["total"] if _has_key else 0,
+        "bg_problem_count": len(_bg["problems"]) if _has_key else 0,
+        "avg_avail": round(sum(_avail_vals) / len(_avail_vals), 1) if _avail_vals else None,
+        "avg_resp": round(sum(_resp_vals) / len(_resp_vals)) if _resp_vals else None,
     }
-    # Named problem list for the status banner (down first, then degraded) -- reuses the
-    # health fields; the banner leads the dashboard so a user reads the verdict, not counts.
-    problem_count = service_health["degraded"] + service_health["down"]
-    problems = []
-    if problem_count:
-        from core.models import AppConfig
-        _cfg = AppConfig.get_config()
-        _rank = {"down": 0, "degraded": 1}
-        _probs = sorted(
-            Service.objects.filter(monitoring_enabled=True)
-                   .exclude(health_status__in=["healthy", "unknown"])
-                   .select_related("server"),
-            key=lambda s: (_rank.get(s.health_status, 2), s.name),
-        )
-        for s in _probs[:8]:
-            if s.health_status == "down":
-                detail = s.health_reason or "not responding"
-            elif s.latency_status == "slow" and s.last_latency_ms is not None:
-                _thr = s.latency_threshold_ms or _cfg.slow_latency_threshold_ms or 500
-                detail = f"{round(s.last_latency_ms)} ms (target {int(_thr)})"
-            else:
-                detail = s.health_reason or "degraded"
-            problems.append({"label": s.label, "server": s.server.name,
-                             "status": s.health_status, "detail": detail})
-    service_health["problem_count"] = problem_count
-    service_health["problems"] = problems
-    service_health["severity"] = ("down" if service_health["down"]
-                                  else "degraded" if service_health["degraded"] else "ok")
 
     # P2 -- reliability over time: 7-day availability + a daily sparkline, plus service
     # incidents/MTTR from the SERVICE alert ledger. Cached 60s (aggregates over the sample
@@ -1392,7 +1395,7 @@ def monitoring_dashboard(request):
     except Exception:
         reliability = None
     if reliability is None:
-        from django.db.models import Max, ExpressionWrapper, DurationField, F
+        from django.db.models import Max, ExpressionWrapper, DurationField, F, Avg, Count, Q
         from django.db.models.functions import TruncDate
         from core.models import ServiceAvailabilitySample, AppConfig as _AppConfig
         _now = timezone.now()
