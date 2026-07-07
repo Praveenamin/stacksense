@@ -7,6 +7,7 @@ import json
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -14,6 +15,7 @@ from django.utils import timezone
 
 from core.models import (
     Server, AgentCredential, Service, ServiceAvailabilitySample, AppConfig, SyntheticCheck,
+    AlertHistory,
 )
 
 
@@ -223,9 +225,19 @@ class DashboardServiceHealthTests(TestCase):
     (outside-in) Reliability row only appears when an uptime check is enabled."""
 
     def setUp(self):
+        cache.clear()   # the reliability strip is cached 60s; isolate tests
         self.client = Client()
         self.client.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
         self.server = Server.objects.create(name="db1", ip_address="10.0.0.5", username="agent")
+
+    def _samples(self, svc, days, up_per_day=9, down_per_day=1):
+        for d in days:
+            for _ in range(up_per_day):
+                ServiceAvailabilitySample.objects.create(
+                    service=svc, up=True, timestamp=timezone.now() - timedelta(days=d, hours=1))
+            for _ in range(down_per_day):
+                ServiceAvailabilitySample.objects.create(
+                    service=svc, up=False, timestamp=timezone.now() - timedelta(days=d, hours=2))
 
     def test_service_health_shown_and_synthetic_hidden_by_default(self):
         Service.objects.create(server=self.server, name="mysqld", status="running",
@@ -272,3 +284,29 @@ class DashboardServiceHealthTests(TestCase):
         r = self.client.get(reverse("dashboard"))
         self.assertEqual(r.status_code, 200)
         self.assertIn("No services monitored yet", r.content.decode())
+
+    def test_reliability_strip_shows_availability_trend_and_incident(self):
+        svc = Service.objects.create(server=self.server, name="mysqld", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="healthy",
+            availability_24h_pct=90.0)
+        self._samples(svc, days=(1, 2, 3))          # 27 up / 30 -> 90% over 7d, 3 sparkline days
+        t = timezone.now() - timedelta(days=5)      # one resolved SERVICE incident, 10-min MTTR
+        AlertHistory.objects.create(server=self.server,
+            alert_type=AlertHistory.AlertType.SERVICE, status=AlertHistory.AlertStatus.RESOLVED,
+            severity="HIGH", value=0, threshold=1, message="[svc:mysqld] down", recipients="",
+            sent_at=t, resolved_at=t + timedelta(minutes=10))
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        b = r.content.decode()
+        self.assertIn("availability · 7d", b)       # trend headline
+        self.assertIn("sh-bar", b)                  # sparkline rendered (>=2 days of data)
+        self.assertIn("1 incident in 30d", b)
+        self.assertIn("avg resolved in", b)         # MTTR
+
+    def test_reliability_strip_no_incidents(self):
+        svc = Service.objects.create(server=self.server, name="mysqld", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="healthy")
+        self._samples(svc, days=(1, 2), up_per_day=10, down_per_day=0)   # samples, no alerts
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("No incidents in 30 days", r.content.decode())

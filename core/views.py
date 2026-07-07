@@ -1382,6 +1382,58 @@ def monitoring_dashboard(request):
     service_health["problems"] = problems
     service_health["severity"] = ("down" if service_health["down"]
                                   else "degraded" if service_health["degraded"] else "ok")
+
+    # P2 -- reliability over time: 7-day availability + a daily sparkline, plus service
+    # incidents/MTTR from the SERVICE alert ledger. Cached 60s (aggregates over the sample
+    # history can be heavy on a hot page); degrades gracefully if the cache backend is down.
+    from django.core.cache import cache as _cache
+    try:
+        reliability = _cache.get("dash_service_reliability")
+    except Exception:
+        reliability = None
+    if reliability is None:
+        from django.db.models import Max, ExpressionWrapper, DurationField, F
+        from django.db.models.functions import TruncDate
+        from core.models import ServiceAvailabilitySample, AppConfig as _AppConfig
+        _now = timezone.now()
+        _target = _AppConfig.get_config().availability_target_pct or 99.0
+        _daily = list(
+            ServiceAvailabilitySample.objects
+            .filter(service__monitoring_enabled=True, timestamp__gte=_now - timedelta(days=7))
+            .annotate(day=TruncDate("timestamp"))
+            .values("day").annotate(total=Count("id"), up=Count("id", filter=Q(up=True)))
+            .order_by("day")
+        )
+        _pts = [d["up"] / d["total"] * 100.0 for d in _daily if d["total"]]
+        _t7 = sum(d["total"] for d in _daily)
+        _u7 = sum(d["up"] for d in _daily)
+        spark = []
+        if len(_pts) >= 2:
+            _lo = min(min(_pts), 99.5)
+            _span = max(100.0 - _lo, 0.5)
+            for _p in _pts:
+                spark.append({"h": 4 + round((_p - _lo) / _span * 22),
+                              "low": _p < _target, "pct": round(_p, 1)})
+        _inc = AlertHistory.objects.filter(
+            alert_type=AlertHistory.AlertType.SERVICE, sent_at__gte=_now - timedelta(days=30)
+        ).aggregate(n=Count("id"), last=Max("sent_at"))
+        _mttr = AlertHistory.objects.filter(
+            alert_type=AlertHistory.AlertType.SERVICE, status=AlertHistory.AlertStatus.RESOLVED,
+            sent_at__gte=_now - timedelta(days=30), resolved_at__isnull=False,
+        ).annotate(dur=ExpressionWrapper(F("resolved_at") - F("sent_at"), output_field=DurationField())
+                   ).aggregate(a=Avg("dur"))["a"]
+        reliability = {
+            "avail_7d": round(_u7 / _t7 * 100.0, 1) if _t7 else None,
+            "spark": spark,
+            "incident_count": _inc["n"] or 0,
+            "last_incident_at": _inc["last"],
+            "mttr_text": _humanize_duration(_mttr.total_seconds()) if _mttr else None,
+        }
+        try:
+            _cache.set("dash_service_reliability", reliability, 60)
+        except Exception:
+            pass
+
     has_synthetic_checks = SyntheticCheck.objects.filter(enabled=True).exists()
 
     context = {
@@ -1394,6 +1446,7 @@ def monitoring_dashboard(request):
         "show_sidebar": True,
         "dashboard_view": dashboard_view,
         "service_health": service_health,
+        "reliability": reliability,
         "has_synthetic_checks": has_synthetic_checks,
         "overview": overview,
         "services_total": services_total,

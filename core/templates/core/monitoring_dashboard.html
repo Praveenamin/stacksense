@@ -186,7 +186,7 @@
         .rel-kpi-label { font-size:13px; font-weight:600; color:#334155; margin-top:6px; }
         .rel-kpi-sub { font-size:11px; color:#94a3b8; margin-top:3px; }
         /* Service-health status banner (verdict-first) */
-        .sh-banner { border:1px solid #e2e8f0; border-left-width:4px; border-radius:12px; padding:16px 18px; margin-bottom:32px; background:#fff; }
+        .sh-banner { border:1px solid #e2e8f0; border-left-width:4px; border-radius:12px; padding:16px 18px; background:#fff; }
         .sh-banner.sh-ok { border-left-color:#16a34a; background:#f6fef9; }
         .sh-banner.sh-degraded { border-left-color:#d97706; background:#fffdf5; }
         .sh-banner.sh-down { border-left-color:#dc2626; background:#fef7f7; }
@@ -204,6 +204,13 @@
         .sh-problem .sh-state.degraded { color:#b45309; background:#fffbeb; }
         .sh-problem .sh-detail { font-size:12.5px; color:#475569; }
         .sh-problem .sh-server { margin-left:auto; font-size:11px; color:#94a3b8; }
+        /* Reliability-over-time strip (P2) */
+        .sh-reliability { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; color:#64748b; margin-top:10px; padding-left:2px; }
+        .sh-reliability b { color:#0f172a; font-weight:600; }
+        .sh-rel-sep { color:#cbd5e1; }
+        .sh-spark { display:inline-flex; align-items:flex-end; gap:2px; height:28px; }
+        .sh-spark .sh-bar { width:5px; background:#94a3b8; border-radius:1px; }
+        .sh-spark .sh-bar.low { background:#d97706; }
     </style>
 
     <!-- Service health (agent-side / inside-out) — always shown -->
@@ -212,6 +219,7 @@
         <a href="/services/" style="font-size:12px; font-weight:600; color:#0f62fe; text-decoration:none;">View services →</a>
     </div>
     {% if service_health.total %}
+    <div style="margin-bottom:32px;">
     {% if service_health.problem_count %}
     <div class="sh-banner sh-{{ service_health.severity }}">
         <div class="sh-verdict"><span style="color:{% if service_health.severity == 'down' %}#dc2626{% else %}#d97706{% endif %};">●</span> {{ service_health.problem_count }} service{{ service_health.problem_count|pluralize }} need attention</div>
@@ -235,6 +243,12 @@
         <div class="sh-sub">{{ service_health.healthy }} of {{ service_health.total }} monitored service{{ service_health.total|pluralize }} up and responding within target{% if service_health.avg_avail is not None %} · {{ service_health.avg_avail }}% available (24h){% endif %}</div>
     </div>
     {% endif %}
+    {% if reliability.avail_7d is not None or reliability.incident_count or reliability.last_incident_at %}
+    <div class="sh-reliability">
+        {% if reliability.avail_7d is not None %}<span><b>{{ reliability.avail_7d }}%</b> availability · 7d</span>{% if reliability.spark %}<span class="sh-spark">{% for b in reliability.spark %}<span class="sh-bar{% if b.low %} low{% endif %}" style="height:{{ b.h }}px;" title="{{ b.pct }}%"></span>{% endfor %}</span>{% endif %}<span class="sh-rel-sep">·</span>{% endif %}{% if reliability.incident_count %}<span>{{ reliability.incident_count }} incident{{ reliability.incident_count|pluralize }} in 30d{% if reliability.last_incident_at %}, last {{ reliability.last_incident_at|timesince }} ago{% endif %}</span>{% if reliability.mttr_text %}<span class="sh-rel-sep">·</span><span>avg resolved in {{ reliability.mttr_text }}</span>{% endif %}{% else %}<span>No incidents in 30 days</span>{% endif %}
+    </div>
+    {% endif %}
+    </div>
     {% else %}
     <div style="background:#fff; border:1px dashed #cbd5e1; border-radius:12px; padding:16px 18px; margin-bottom:32px; font-size:13px; color:#64748b;">
         No services monitored yet — turn on <b style="color:#334155;">Monitor</b> for the services you care about to track their health, availability and response time.
