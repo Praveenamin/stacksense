@@ -235,9 +235,29 @@ class DashboardServiceHealthTests(TestCase):
         self.assertEqual(r.status_code, 200)
         b = r.content.decode()
         self.assertIn("Service health · monitored services", b)
-        self.assertIn(">Healthy</div>", b)
+        self.assertIn("All services healthy", b)   # the calm verdict banner
         # No synthetic checks -> the external uptime row is hidden.
         self.assertNotIn("Reliability &amp; SLOs · last 30 days", b)
+
+    def test_problem_banner_names_degraded_and_down_services(self):
+        Service.objects.create(server=self.server, name="checkout-api", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="down",
+            health_reason="port not responding")
+        Service.objects.create(server=self.server, name="search", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="degraded",
+            latency_status="slow", last_latency_ms=820, last_latency_success=True)
+        Service.objects.create(server=self.server, name="nginx", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="healthy")
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        b = r.content.decode()
+        self.assertIn("2 services need attention", b)          # verdict, not counts
+        self.assertIn("checkout-api", b)                       # problems named
+        self.assertIn("search", b)
+        self.assertIn("port not responding", b)                # down reason
+        self.assertIn("820 ms (target 500)", b)                # degraded latency detail
+        self.assertIn("1 other healthy", b)                    # demoted healthy count
+        self.assertNotIn("All services healthy", b)            # not the calm banner
 
     def test_synthetic_row_appears_when_uptime_check_enabled(self):
         Service.objects.create(server=self.server, name="mysqld",

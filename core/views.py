@@ -1354,6 +1354,34 @@ def monitoring_dashboard(request):
         "avg_avail": round(_hc["avg_avail"], 1) if _hc["avg_avail"] is not None else None,
         "avg_resp": round(_hc["avg_resp"]) if _hc["avg_resp"] is not None else None,
     }
+    # Named problem list for the status banner (down first, then degraded) -- reuses the
+    # health fields; the banner leads the dashboard so a user reads the verdict, not counts.
+    problem_count = service_health["degraded"] + service_health["down"]
+    problems = []
+    if problem_count:
+        from core.models import AppConfig
+        _cfg = AppConfig.get_config()
+        _rank = {"down": 0, "degraded": 1}
+        _probs = sorted(
+            Service.objects.filter(monitoring_enabled=True)
+                   .exclude(health_status__in=["healthy", "unknown"])
+                   .select_related("server"),
+            key=lambda s: (_rank.get(s.health_status, 2), s.name),
+        )
+        for s in _probs[:8]:
+            if s.health_status == "down":
+                detail = s.health_reason or "not responding"
+            elif s.latency_status == "slow" and s.last_latency_ms is not None:
+                _thr = s.latency_threshold_ms or _cfg.slow_latency_threshold_ms or 500
+                detail = f"{round(s.last_latency_ms)} ms (target {int(_thr)})"
+            else:
+                detail = s.health_reason or "degraded"
+            problems.append({"label": s.label, "server": s.server.name,
+                             "status": s.health_status, "detail": detail})
+    service_health["problem_count"] = problem_count
+    service_health["problems"] = problems
+    service_health["severity"] = ("down" if service_health["down"]
+                                  else "degraded" if service_health["degraded"] else "ok")
     has_synthetic_checks = SyntheticCheck.objects.filter(enabled=True).exists()
 
     context = {

@@ -185,6 +185,25 @@
         .rel-kpi-value { font-size:26px; font-weight:600; color:#0f172a; line-height:1.1; }
         .rel-kpi-label { font-size:13px; font-weight:600; color:#334155; margin-top:6px; }
         .rel-kpi-sub { font-size:11px; color:#94a3b8; margin-top:3px; }
+        /* Service-health status banner (verdict-first) */
+        .sh-banner { border:1px solid #e2e8f0; border-left-width:4px; border-radius:12px; padding:16px 18px; margin-bottom:32px; background:#fff; }
+        .sh-banner.sh-ok { border-left-color:#16a34a; background:#f6fef9; }
+        .sh-banner.sh-degraded { border-left-color:#d97706; background:#fffdf5; }
+        .sh-banner.sh-down { border-left-color:#dc2626; background:#fef7f7; }
+        .sh-verdict { font-size:17px; font-weight:600; color:#0f172a; display:flex; align-items:center; gap:8px; }
+        .sh-sub { font-size:12.5px; color:#64748b; margin-top:6px; }
+        .sh-problems { margin:12px 0 4px; display:flex; flex-direction:column; gap:8px; }
+        .sh-problem { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid #f1f5f9; border-radius:9px; text-decoration:none; background:#fff; }
+        .sh-problem:hover { border-color:#e2e8f0; background:#fafbfc; }
+        .sh-problem .sh-dot { width:9px; height:9px; border-radius:999px; flex-shrink:0; }
+        .sh-problem .sh-dot.down { background:#dc2626; }
+        .sh-problem .sh-dot.degraded { background:#d97706; }
+        .sh-problem .sh-name { font-weight:600; color:#0f172a; font-size:14px; }
+        .sh-problem .sh-state { font-size:10px; font-weight:700; letter-spacing:.04em; padding:2px 7px; border-radius:999px; }
+        .sh-problem .sh-state.down { color:#b91c1c; background:#fef2f2; }
+        .sh-problem .sh-state.degraded { color:#b45309; background:#fffbeb; }
+        .sh-problem .sh-detail { font-size:12.5px; color:#475569; }
+        .sh-problem .sh-server { margin-left:auto; font-size:11px; color:#94a3b8; }
     </style>
 
     <!-- Service health (agent-side / inside-out) — always shown -->
@@ -193,28 +212,29 @@
         <a href="/services/" style="font-size:12px; font-weight:600; color:#0f62fe; text-decoration:none;">View services →</a>
     </div>
     {% if service_health.total %}
-    <div class="rel-kpi-grid">
-        <a class="rel-kpi" href="/services/">
-            <div class="rel-kpi-value" style="color:#166534;">{{ service_health.healthy }}</div>
-            <div class="rel-kpi-label">Healthy</div>
-            <div class="rel-kpi-sub">of {{ service_health.total }} monitored</div>
-        </a>
-        <a class="rel-kpi" href="/services/">
-            <div class="rel-kpi-value" style="color:{% if service_health.degraded %}#b45309{% else %}#0f172a{% endif %};">{{ service_health.degraded }}</div>
-            <div class="rel-kpi-label">Degraded</div>
-            <div class="rel-kpi-sub">up but breaching SLO</div>
-        </a>
-        <a class="rel-kpi" href="/services/">
-            <div class="rel-kpi-value" style="color:{% if service_health.down %}#b91c1c{% else %}#0f172a{% endif %};">{{ service_health.down }}</div>
-            <div class="rel-kpi-label">Down</div>
-            <div class="rel-kpi-sub">not responding</div>
-        </a>
-        <a class="rel-kpi" href="/services/">
-            <div class="rel-kpi-value">{% if service_health.avg_avail is not None %}{{ service_health.avg_avail }}%{% else %}—{% endif %}</div>
-            <div class="rel-kpi-label">Availability</div>
-            <div class="rel-kpi-sub">avg{% if service_health.avg_resp is not None %} · {{ service_health.avg_resp }} ms response{% endif %} · 24h</div>
-        </a>
+    {% if service_health.problem_count %}
+    <div class="sh-banner sh-{{ service_health.severity }}">
+        <div class="sh-verdict"><span style="color:{% if service_health.severity == 'down' %}#dc2626{% else %}#d97706{% endif %};">●</span> {{ service_health.problem_count }} service{{ service_health.problem_count|pluralize }} need attention</div>
+        <div class="sh-problems">
+            {% for p in service_health.problems %}
+            <a class="sh-problem" href="/services/">
+                <span class="sh-dot {{ p.status }}"></span>
+                <span class="sh-name">{{ p.label }}</span>
+                <span class="sh-state {{ p.status }}">{{ p.status|upper }}</span>
+                <span class="sh-detail">{{ p.detail }}</span>
+                <span class="sh-server">{{ p.server }}</span>
+            </a>
+            {% endfor %}
+            {% if service_health.problem_count > 8 %}<div style="font-size:12px; color:#94a3b8; padding:2px 12px;">…and {{ service_health.problem_count|add:"-8" }} more</div>{% endif %}
+        </div>
+        <div class="sh-sub">{{ service_health.healthy }} other{{ service_health.healthy|pluralize }} healthy{% if service_health.avg_avail is not None %} · {{ service_health.avg_avail }}% available (24h){% endif %}</div>
     </div>
+    {% else %}
+    <div class="sh-banner sh-ok">
+        <div class="sh-verdict"><span style="color:#16a34a; font-weight:700;">✓</span> All services healthy</div>
+        <div class="sh-sub">{{ service_health.healthy }} of {{ service_health.total }} monitored service{{ service_health.total|pluralize }} up and responding within target{% if service_health.avg_avail is not None %} · {{ service_health.avg_avail }}% available (24h){% endif %}</div>
+    </div>
+    {% endif %}
     {% else %}
     <div style="background:#fff; border:1px dashed #cbd5e1; border-radius:12px; padding:16px 18px; margin-bottom:32px; font-size:13px; color:#64748b;">
         No services monitored yet — turn on <b style="color:#334155;">Monitor</b> for the services you care about to track their health, availability and response time.
