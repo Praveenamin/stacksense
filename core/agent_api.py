@@ -33,6 +33,7 @@ from .models import (
     AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion,
     BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service, Container,
     AlertHistory, EmailAlertConfig, SlackAlertConfig, SSHAuthEvent,
+    ServiceLatencyMeasurement, AppConfig,
 )
 from . import alert_categories
 from . import alert_routing
@@ -271,6 +272,42 @@ def _notify_unit(server, kind, name, down):
         logger.exception("%s slack alert failed for %s/%s", kind, server.name, name)
 
 
+def _notify_slow_service(server, name, slow):
+    """Email/Slack a monitored-service SLOW / response-recovered notice (best-effort).
+    MEDIUM severity -- slow is a degradation, less urgent than a hard down."""
+    if slow:
+        subject = f"[StackSense] SERVICE SLOW: {name} on {server.name}"
+        body = f"Monitored service '{name}' is up but responding slowly on {server.name} (as of {timezone.now()})."
+        emoji = ":warning:"
+    else:
+        subject = f"[StackSense] SERVICE RESPONSE RECOVERED: {name} on {server.name}"
+        body = f"Monitored service '{name}' is responding normally again on {server.name} (as of {timezone.now()})."
+        emoji = ":large_green_circle:"
+    sev = alert_categories.SEV_MEDIUM
+    try:
+        ecfg = EmailAlertConfig.objects.filter(enabled=True).first()
+        if ecfg:
+            recipients = alert_routing.recipients_for("availability", sev)
+            if recipients:
+                from django.core.mail import send_mail
+                send_mail(subject, body, ecfg.from_email or None, recipients, fail_silently=True)
+    except Exception:
+        logger.exception("slow-service email alert failed for %s/%s", server.name, name)
+    try:
+        scfg = SlackAlertConfig.objects.filter(enabled=True).first()
+        if scfg and scfg.webhook_url and alert_routing.slack_should_send("availability", sev):
+            payload = {"text": f"{emoji} {body}"}
+            if scfg.channel:
+                payload["channel"] = scfg.channel
+            if scfg.username:
+                payload["username"] = scfg.username
+            if scfg.icon_emoji:
+                payload["icon_emoji"] = scfg.icon_emoji
+            requests.post(scfg.webhook_url, json=payload, timeout=10)
+    except Exception:
+        logger.exception("slow-service slack alert failed for %s/%s", server.name, name)
+
+
 def evaluate_service_alerts(server):
     """Raise/resolve alerts for this server's MONITORED services based on status.
 
@@ -312,6 +349,46 @@ def evaluate_service_alerts(server):
             _notify_unit(server, "service", svc.name, down=False)
 
 
+def evaluate_slow_service_alerts(server):
+    """Raise/resolve alerts for monitored services that are UP but responding SLOWLY.
+
+    Opt-in via AppConfig.slow_service_alert_enabled (off by default -- slow is noisier than
+    down). A monitored service whose latency_status is 'slow' raises a single triggered SERVICE
+    AlertHistory at MEDIUM severity, marked `[svc-slow:<name>]` so it never collides with the
+    `[svc:<name>]` down alert; when it responds normally again the open slow-alert is resolved.
+    Honors the same suppression guards as the down path."""
+    cfg = AppConfig.get_config()
+    if not cfg.slow_service_alert_enabled:
+        return
+    mconfig = getattr(server, "monitoring_config", None)
+    suppressed = getattr(server, "suppress_alerts", False) or (mconfig and getattr(mconfig, "alert_suppressed", False))
+    now = timezone.now()
+    for svc in Service.objects.filter(server=server, monitoring_enabled=True):
+        marker = f"[svc-slow:{svc.name}]"
+        open_alert = AlertHistory.objects.filter(
+            server=server, alert_type=AlertHistory.AlertType.SERVICE,
+            status=AlertHistory.AlertStatus.TRIGGERED, message__contains=marker,
+        ).first()
+        is_slow = svc.latency_status == Service.LatencyStatus.SLOW
+        if is_slow and not open_alert and not suppressed:
+            AlertHistory.objects.create(
+                server=server, alert_type=AlertHistory.AlertType.SERVICE,
+                status=AlertHistory.AlertStatus.TRIGGERED,
+                severity=alert_categories.SEV_MEDIUM,
+                value=svc.last_latency_ms or 0,
+                threshold=svc.latency_threshold_ms or cfg.slow_latency_threshold_ms or 500,
+                message=f"{marker} Service '{svc.name}' is up but responding slowly on {server.name}.",
+                recipients=", ".join(alert_routing.recipients_for("availability", alert_categories.SEV_MEDIUM)),
+                sent_at=now,
+            )
+            _notify_slow_service(server, svc.name, slow=True)
+        elif (not is_slow) and open_alert:
+            open_alert.status = AlertHistory.AlertStatus.RESOLVED
+            open_alert.resolved_at = now
+            open_alert.save(update_fields=["status", "resolved_at"])
+            _notify_slow_service(server, svc.name, slow=False)
+
+
 def evaluate_container_alerts(server):
     """Raise/resolve alerts for this server's MONITORED containers based on state.
 
@@ -350,6 +427,94 @@ def evaluate_container_alerts(server):
             _notify_unit(server, "container", ctr.name, down=False)
 
 
+_VALID_LATENCY_TYPES = {c[0] for c in ServiceLatencyMeasurement.MeasurementType.choices}
+# Defensive cap: at most this many latency history rows written per services push.
+_MAX_LATENCY_ROWS_PER_PUSH = 200
+
+
+def _parse_service_latency(item):
+    """Extract an optional agent-measured latency sample from a pushed service item.
+
+    Returns {latency_ms, success, type, error} when the agent sent a measurement (push-1.9.0+),
+    or None when the keys are absent (old agents omit them -> no measurement, no row)."""
+    if not isinstance(item, dict):
+        return None
+    if "latency_ms" not in item and "latency_success" not in item:
+        return None  # old agent payload -> nothing to record
+    raw = item.get("latency_ms")
+    try:
+        latency_ms = float(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        latency_ms = None
+    ltype = item.get("latency_type") or "TCP"
+    if ltype not in _VALID_LATENCY_TYPES:
+        ltype = "OTHER"
+    err = item.get("latency_error")
+    return {
+        "latency_ms": latency_ms,                 # None on a failed probe -> stored as 0
+        "success": bool(item.get("latency_success")),
+        "type": ltype,
+        "error": (str(err)[:1000] if err else None),
+    }
+
+
+def apply_service_latency(service, sample, now, config):
+    """Update the denormalized latest-latency snapshot + Slow/Degraded state on a Service from a
+    fresh agent sample. Uses an N-consecutive-sample streak with hysteresis (clear below
+    0.8x the threshold) so a single spike never flips it. A FAILED probe updates the snapshot
+    but leaves the responsiveness state alone -- down/stopped is owned by the service-status
+    path. Persists only the changed fields. Runs for every measured service so the UI column
+    works even before monitoring is enabled; alerting stays gated to monitored services."""
+    latency = sample["latency_ms"]
+    success = sample["success"]
+    service.last_latency_ms = latency
+    service.last_latency_at = now
+    service.last_latency_success = success
+    fields = ["last_latency_ms", "last_latency_at", "last_latency_success"]
+
+    if success and latency is not None:
+        threshold = service.latency_threshold_ms or config.slow_latency_threshold_ms or 500
+        n_required = max(1, config.slow_consecutive_samples or 3)
+        if latency > threshold:
+            service.slow_streak = (service.slow_streak or 0) + 1
+            if service.slow_streak >= n_required:
+                service.latency_status = Service.LatencyStatus.SLOW
+        elif latency < 0.8 * threshold:
+            service.slow_streak = 0
+            service.latency_status = Service.LatencyStatus.OK
+        else:
+            # Inside the hysteresis band: hold the current state; only lift "unknown" to ok.
+            if service.latency_status == Service.LatencyStatus.UNKNOWN:
+                service.latency_status = Service.LatencyStatus.OK
+        fields += ["slow_streak", "latency_status"]
+
+    try:
+        service.save(update_fields=fields)
+    except Exception:
+        logger.exception("Failed to apply latency state for service %s", service.name)
+
+
+def _store_service_latency(service, sample, now):
+    """Persist a ServiceLatencyMeasurement history row -- only for MONITORED services (bounds
+    volume and matches the read APIs that filter service__monitoring_enabled=True). Returns
+    True if a row was written. Best-effort: never breaks the ingest."""
+    if not service.monitoring_enabled:
+        return False
+    try:
+        ServiceLatencyMeasurement.objects.create(
+            service=service,
+            latency_ms=sample["latency_ms"] or 0,
+            timestamp=now,
+            success=sample["success"],
+            error_message=sample["error"],
+            measurement_type=sample["type"],
+        )
+        return True
+    except Exception:
+        logger.exception("Failed to store latency for service %s", service.name)
+        return False
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def agent_ingest_services(request):
@@ -381,6 +546,8 @@ def agent_ingest_services(request):
 
     now = timezone.now()
     reported_names = set()
+    latency_rows = 0
+    config = None  # AppConfig fetched lazily, only if a latency sample actually arrives
     for item in services:
         if not isinstance(item, dict):
             continue
@@ -393,7 +560,7 @@ def agent_ingest_services(request):
             port = int(port) if port not in (None, "") else None
         except (TypeError, ValueError):
             port = None
-        Service.objects.update_or_create(
+        svc, _ = Service.objects.update_or_create(
             server=server,
             name=name,
             defaults={
@@ -411,6 +578,15 @@ def agent_ingest_services(request):
             },
         )
 
+        # Agent-measured per-service response time (push-1.9.0+). Absent for old agents.
+        sample = _parse_service_latency(item)
+        if sample is not None:
+            if config is None:
+                config = AppConfig.get_config()
+            apply_service_latency(svc, sample, now, config)   # denormalized state (all services)
+            if latency_rows < _MAX_LATENCY_ROWS_PER_PUSH and _store_service_latency(svc, sample, now):
+                latency_rows += 1  # history row (monitored services only)
+
     # Mark previously auto-detected services that are no longer reported as stopped.
     if reported_names:
         (Service.objects
@@ -424,6 +600,12 @@ def agent_ingest_services(request):
         evaluate_service_alerts(server)
     except Exception:
         logger.exception("Service alert evaluation failed for %s", server.name)
+
+    # Raise/resolve "responding slowly" alerts for monitored services (opt-in, off by default).
+    try:
+        evaluate_slow_service_alerts(server)
+    except Exception:
+        logger.exception("Slow-service alert evaluation failed for %s", server.name)
 
     return JsonResponse({"status": "ok", "received": len(reported_names)})
 

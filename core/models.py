@@ -179,6 +179,26 @@ class Service(models.Model):
     # How this service was identified: systemd | port-banner | port-map | port-unknown
     detected_via = models.CharField(max_length=30, null=True, blank=True, help_text="Detection provenance")
 
+    # --- Agent-measured response time + Slow/Degraded state (push-1.9.0+) ---
+    # The agent times a TCP connect to the service locally and pushes latency_ms; the server
+    # denormalizes the latest snapshot here (history lives in ServiceLatencyMeasurement) and
+    # derives a responsiveness state so "up but slow ≈ down" is visible without a per-row join.
+    class LatencyStatus(models.TextChoices):
+        UNKNOWN = "unknown", "Unknown"
+        OK = "ok", "OK"
+        SLOW = "slow", "Slow"
+    last_latency_ms = models.FloatField(null=True, blank=True,
+        help_text="Most recent agent-measured response time (ms); NULL if never measured")
+    last_latency_at = models.DateTimeField(null=True, blank=True)
+    last_latency_success = models.BooleanField(null=True, blank=True,
+        help_text="Whether the most recent latency probe connected")
+    latency_status = models.CharField(max_length=10, choices=LatencyStatus.choices,
+        default=LatencyStatus.UNKNOWN, help_text="Responsiveness: ok / slow (degraded) / unknown")
+    slow_streak = models.PositiveSmallIntegerField(default=0,
+        help_text="Consecutive over-threshold samples (anti-flap counter)")
+    latency_threshold_ms = models.PositiveIntegerField(null=True, blank=True,
+        help_text="Per-service slow threshold (ms); NULL uses the global default")
+
     class Meta:
         unique_together = [["server", "name"]]
         indexes = [
@@ -424,6 +444,21 @@ class AppConfig(models.Model):
     base_url = models.URLField(
         blank=True, default="",
         help_text="Public base URL of this instance (used for absolute links in emails/UI).",
+    )
+    # Per-service responsiveness ("Slow/Degraded") thresholds. A monitored service that is up
+    # but responds slower than the threshold for N consecutive samples is flagged "slow".
+    slow_latency_threshold_ms = models.PositiveIntegerField(
+        default=500,
+        help_text="A service is 'slow' when its response time exceeds this many ms "
+                  "(global default; a per-service override lives on the Service).",
+    )
+    slow_consecutive_samples = models.PositiveSmallIntegerField(
+        default=3,
+        help_text="Consecutive over-threshold samples before a service is flagged slow (anti-flap).",
+    )
+    slow_service_alert_enabled = models.BooleanField(
+        default=False,
+        help_text="Raise an alert when a monitored service becomes slow (off by default).",
     )
     # Stable per-install fingerprint for license node-locking (shown on the License page,
     # given to the vendor so a license can be bound to this install). Generated once.

@@ -18,6 +18,7 @@
         <button class="filter-chip active" data-status="all">All <span class="chip-count">0</span></button>
         <button class="filter-chip" data-status="running"><span class="dot" style="background:#24a148;"></span>Running <span class="chip-count">0</span></button>
         <button class="filter-chip" data-status="stopped"><span class="dot" style="background:#a8a8a8;"></span>Stopped <span class="chip-count">0</span></button>
+        <button class="filter-chip" data-status="slow"><span class="dot" style="background:#f59e0b;"></span>Slow <span class="chip-count">0</span></button>
     </div>
     <div style="position:relative;">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;"><path d="M9 17A8 8 0 109 1a8 8 0 000 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -49,14 +50,16 @@
             <th style="padding:9px 18px;font-weight:500;">Service</th>
             <th style="padding:9px 18px;font-weight:500;">Type</th>
             <th style="padding:9px 18px;font-weight:500;">Status</th>
+            <th style="padding:9px 18px;font-weight:500;">Response</th>
             <th style="padding:9px 18px;font-weight:500;text-align:right;">Monitor</th>
         </tr></thead>
         <tbody>
         {% for s in g.notable %}
-            <tr class="svc-row" data-name="{{ s.label|lower }}" data-status="{{ s.status }}" style="border-top:1px solid #f1f5f9;">
+            <tr class="svc-row" data-name="{{ s.label|lower }}" data-status="{{ s.status }}" data-latency="{{ s.latency_status }}" style="border-top:1px solid #f1f5f9;">
                 <td style="padding:9px 18px;color:#0f172a;font-weight:500;">{{ s.label }}{% if s.service_type == 'port' %} <span title="Detected by listening port" style="font-size:10px;font-weight:600;color:#64748b;background:#f1f5f9;padding:1px 6px;border-radius:999px;vertical-align:middle;">via port</span>{% endif %}</td>
                 <td style="padding:9px 18px;color:#64748b;">{{ s.service_type }}</td>
-                <td style="padding:9px 18px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
+                <td style="padding:9px 18px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}{% if s.latency_status == 'slow' %} <span title="Up but responding slowly (over the latency threshold)" style="color:#b45309;font-weight:600;margin-left:6px;">● Slow</span>{% endif %}</td>
+                <td style="padding:9px 18px;">{% if s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#334155{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;" title="Not measured (no listening port, or agent not yet reporting latency)">—</span>{% endif %}</td>
                 <td style="padding:9px 18px;text-align:right;">
                     <label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
                 </td>
@@ -76,10 +79,11 @@
         <table id="bg-{{ g.server.id }}" style="display:none;width:100%;border-collapse:collapse;font-size:13px;">
             <tbody>
             {% for s in g.background %}
-                <tr class="svc-row" data-name="{{ s.label|lower }}" data-status="{{ s.status }}" style="border-top:1px solid #f1f5f9;background:#fcfcfd;">
+                <tr class="svc-row" data-name="{{ s.label|lower }}" data-status="{{ s.status }}" data-latency="{{ s.latency_status }}" style="border-top:1px solid #f1f5f9;background:#fcfcfd;">
                     <td style="padding:8px 18px;color:#475569;">{{ s.label }}{% if s.service_type == 'port' %} <span title="Detected by listening port" style="font-size:10px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:999px;vertical-align:middle;">via port</span>{% endif %}</td>
                     <td style="padding:8px 18px;color:#94a3b8;">{{ s.service_type }}</td>
-                    <td style="padding:8px 18px;">{% if s.status == 'running' %}<span style="color:#166534;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
+                    <td style="padding:8px 18px;">{% if s.status == 'running' %}<span style="color:#166534;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}{% if s.latency_status == 'slow' %} <span title="Up but responding slowly (over the latency threshold)" style="color:#b45309;font-weight:600;margin-left:6px;">● Slow</span>{% endif %}</td>
+                    <td style="padding:8px 18px;">{% if s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#64748b{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                     <td style="padding:8px 18px;text-align:right;"><label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
                 </tr>
             {% endfor %}
@@ -145,6 +149,7 @@ function toggleServiceMonitoring(serverId, serviceId, el){
     var activeStatus='all';
     function rowStatusMatches(r){
         if(activeStatus==='all') return true;
+        if(activeStatus==='slow') return r.dataset.latency==='slow';
         var running = r.dataset.status==='running';
         return activeStatus==='running' ? running : !running;
     }
@@ -167,8 +172,8 @@ function toggleServiceMonitoring(serverId, serviceId, el){
         });
     }
     // chip counts
-    var counts={all:0,running:0,stopped:0};
-    document.querySelectorAll('.svc-row').forEach(function(r){ counts.all++; if(r.dataset.status==='running') counts.running++; else counts.stopped++; });
+    var counts={all:0,running:0,stopped:0,slow:0};
+    document.querySelectorAll('.svc-row').forEach(function(r){ counts.all++; if(r.dataset.status==='running') counts.running++; else counts.stopped++; if(r.dataset.latency==='slow') counts.slow++; });
     chips.forEach(function(c){ var el=c.querySelector('.chip-count'); if(el) el.textContent=counts[c.dataset.status]||0; });
     chips.forEach(function(c){ c.addEventListener('click', function(){ activeStatus=c.dataset.status; chips.forEach(function(x){x.classList.remove('active');}); c.classList.add('active'); apply(); }); });
     if(search) search.addEventListener('keyup', apply);

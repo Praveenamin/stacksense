@@ -7639,7 +7639,7 @@ def services_overview(request):
     """Services grouped by server, with the non-critical/background ones filtered
     out by default and a per-service monitoring toggle."""
     groups = {}
-    total = running = monitored = 0
+    total = running = monitored = slow = 0
     # Include port-detected services: well-known / banner-identified ones are shown
     # as key services; unrecognized ephemeral ports fall into the background group.
     for svc in Service.objects.select_related("server").order_by("server__name", "name"):
@@ -7648,6 +7648,8 @@ def services_overview(request):
             running += 1
         if svc.monitoring_enabled:
             monitored += 1
+        if svc.latency_status == "slow":
+            slow += 1
         g = groups.setdefault(svc.server_id, {
             "server": svc.server, "notable": [], "background": [], "monitored": 0,
         })
@@ -7662,6 +7664,7 @@ def services_overview(request):
             "total": total,
             "running": running,
             "monitored": monitored,
+            "slow": slow,
             "servers": len(groups),
         },
     }

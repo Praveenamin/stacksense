@@ -25,6 +25,7 @@ Usage:
     python3 stacksense_agent.py --dry-run  # collect & print one sample, push nothing
 """
 
+import concurrent.futures
 import json
 import os
 import platform
@@ -48,7 +49,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.8.0"
+AGENT_VERSION = "push-1.9.0"
 
 # The agent is cross-platform (Linux + Windows). Core metrics come from psutil, which
 # is OS-portable; a few collectors are Linux-only (systemd services, SSH auth log, SysV
@@ -345,6 +346,77 @@ def _name_for_port(port, product, pname=""):
     return f"port-{port}", "port-unknown"
 
 
+# --- Per-service response time (agent-side TCP-connect latency) ------------------------
+# We time a plain TCP connect to each ported service, locally on the box, so localhost-bound
+# services (which the StackSense server can't reach in the outbound-only push model) are
+# measurable. A completed handshake only -- no application request is ever sent, so there are
+# no side effects on the monitored service. Mirrors core/service_latency.py, run agent-side.
+_LATENCY_TIMEOUT = 1.5        # seconds per connect (short: bounds the whole batch)
+_LATENCY_MAX_TARGETS = 50     # cap distinct (target, port) probes per push
+_WILDCARD_BINDS = ("0.0.0.0", "::", "*", "")
+_LOOPBACK_BINDS = ("::1", "localhost")
+
+
+def _target_for_service(bind_address):
+    """Where to connect to time a service: a concrete external bind IP as-is; a wildcard,
+    empty, or loopback bind -> 127.0.0.1 (mirrors is_externally_accessible/is_localhost_bound
+    in core/service_latency.py)."""
+    addr = (bind_address or "").strip()
+    if addr in _WILDCARD_BINDS or addr in _LOOPBACK_BINDS:
+        return "127.0.0.1"
+    return addr
+
+
+def measure_tcp_latency(host, port, timeout=_LATENCY_TIMEOUT):
+    """Time a TCP connect to host:port. Returns {latency_ms, success, error_message}.
+    A completed handshake only -- nothing is sent. latency_ms is None on failure."""
+    try:
+        start = time.monotonic()
+        with socket.create_connection((host, port), timeout=timeout):
+            pass
+        return {"latency_ms": round((time.monotonic() - start) * 1000.0, 1),
+                "success": True, "error_message": None}
+    except Exception as e:
+        return {"latency_ms": None, "success": False, "error_message": str(e)[:200]}
+
+
+def _attach_service_latency(services):
+    """Measure TCP-connect latency for each ported service and attach latency_ms/
+    latency_success/latency_type/latency_error to its dict. Deduped by (target, port) and
+    capped; each connect is bounded by _LATENCY_TIMEOUT so the whole batch stays short."""
+    work = {}  # (target, port) -> [service dicts sharing it]
+    for svc in services:
+        port = svc.get("port")
+        if not port:
+            continue
+        target = _target_for_service(svc.get("bind_address"))
+        if not target:
+            continue
+        work.setdefault((target, int(port)), []).append(svc)
+    if not work:
+        return
+    keys = list(work.keys())[:_LATENCY_MAX_TARGETS]
+    results = {}
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(16, len(keys))) as ex:
+            fut_to_key = {ex.submit(measure_tcp_latency, t, p): (t, p) for (t, p) in keys}
+            for fut, key in fut_to_key.items():
+                results[key] = _safe(fut.result) or {}
+    except Exception as e:
+        print(f"[services] latency measurement skipped ({e!r})", file=sys.stderr)
+        return
+    for key, svcs in work.items():
+        r = results.get(key)
+        if not r:
+            continue
+        for svc in svcs:
+            svc["latency_ms"] = r.get("latency_ms")
+            svc["latency_success"] = r.get("success", False)
+            svc["latency_type"] = "TCP"
+            if r.get("error_message"):
+                svc["latency_error"] = r["error_message"]
+
+
 def collect_services():
     """Detect running services on this host.
 
@@ -450,6 +522,13 @@ def collect_services():
             })
     except Exception:
         pass
+
+    # Time each ported service (TCP connect) so the server can show per-service response
+    # time + flag "slow". Best-effort: never let it break service collection.
+    try:
+        _attach_service_latency(services)
+    except Exception as e:
+        print(f"[services] latency measurement error ({e!r})", file=sys.stderr)
 
     return services
 
