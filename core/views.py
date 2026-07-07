@@ -1335,6 +1335,27 @@ def monitoring_dashboard(request):
         "last_updated": _latest_hb.last_heartbeat if _latest_hb else None,
     }
 
+    # Agent-side (inside-out) service-health summary for the dashboard headline -- always shown.
+    # The synthetic (outside-in) Reliability row is only shown when uptime checks are enabled.
+    from django.db.models import Avg, Count, Q
+    _hc = Service.objects.filter(monitoring_enabled=True).aggregate(
+        total=Count("id"),
+        healthy=Count("id", filter=Q(health_status="healthy")),
+        degraded=Count("id", filter=Q(health_status="degraded")),
+        down=Count("id", filter=Q(health_status="down")),
+        avg_avail=Avg("availability_24h_pct"),
+        avg_resp=Avg("last_latency_ms", filter=Q(last_latency_success=True)),
+    )
+    service_health = {
+        "total": _hc["total"] or 0,
+        "healthy": _hc["healthy"] or 0,
+        "degraded": _hc["degraded"] or 0,
+        "down": _hc["down"] or 0,
+        "avg_avail": round(_hc["avg_avail"], 1) if _hc["avg_avail"] is not None else None,
+        "avg_resp": round(_hc["avg_resp"]) if _hc["avg_resp"] is not None else None,
+    }
+    has_synthetic_checks = SyntheticCheck.objects.filter(enabled=True).exists()
+
     context = {
         "servers_data": servers_data,
         "total_servers": len(servers_data),
@@ -1344,6 +1365,8 @@ def monitoring_dashboard(request):
         "alert_count": alert_count,
         "show_sidebar": True,
         "dashboard_view": dashboard_view,
+        "service_health": service_health,
+        "has_synthetic_checks": has_synthetic_checks,
         "overview": overview,
         "services_total": services_total,
         "services_running": services_running,

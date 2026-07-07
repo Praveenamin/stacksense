@@ -311,6 +311,9 @@ class DashboardReliabilityRowTests(TestCase):
         self.client.force_login(User.objects.create_superuser("boss2", "b2@x.test", "pw"))
 
     def test_dashboard_shows_reliability_kpi_row(self):
+        # The synthetic (outside-in) Reliability row now shows only when an uptime check exists.
+        SyntheticCheck.objects.create(name="site", check_type="HTTP",
+                                      url="https://x.test", enabled=True)
         resp = self.client.get(reverse("dashboard"))
         self.assertEqual(resp.status_code, 200)
         body = resp.content.decode()

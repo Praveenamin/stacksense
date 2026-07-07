@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import (
-    Server, AgentCredential, Service, ServiceAvailabilitySample, AppConfig,
+    Server, AgentCredential, Service, ServiceAvailabilitySample, AppConfig, SyntheticCheck,
 )
 
 
@@ -216,3 +216,39 @@ class Phase4RetentionTests(TestCase):
         ids = set(ServiceAvailabilitySample.objects.values_list("id", flat=True))
         self.assertNotIn(old.id, ids)      # older than 30d -> pruned
         self.assertIn(recent.id, ids)      # within the window -> kept
+
+
+class DashboardServiceHealthTests(TestCase):
+    """The dashboard always shows the agent-side Service-health summary; the synthetic
+    (outside-in) Reliability row only appears when an uptime check is enabled."""
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
+        self.server = Server.objects.create(name="db1", ip_address="10.0.0.5", username="agent")
+
+    def test_service_health_shown_and_synthetic_hidden_by_default(self):
+        Service.objects.create(server=self.server, name="mysqld", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="healthy",
+            availability_24h_pct=99.9, last_latency_ms=20, last_latency_success=True)
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        b = r.content.decode()
+        self.assertIn("Service health · monitored services", b)
+        self.assertIn(">Healthy</div>", b)
+        # No synthetic checks -> the external uptime row is hidden.
+        self.assertNotIn("Reliability &amp; SLOs · last 30 days", b)
+
+    def test_synthetic_row_appears_when_uptime_check_enabled(self):
+        Service.objects.create(server=self.server, name="mysqld",
+            monitoring_enabled=True, health_status="healthy")
+        SyntheticCheck.objects.create(name="site", check_type="HTTP",
+                                      url="https://x.test", enabled=True)
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Reliability &amp; SLOs · last 30 days", r.content.decode())
+
+    def test_empty_state_when_no_monitored_services(self):
+        r = self.client.get(reverse("dashboard"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("No services monitored yet", r.content.decode())

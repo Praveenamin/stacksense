@@ -186,6 +186,44 @@
         .rel-kpi-label { font-size:13px; font-weight:600; color:#334155; margin-top:6px; }
         .rel-kpi-sub { font-size:11px; color:#94a3b8; margin-top:3px; }
     </style>
+
+    <!-- Service health (agent-side / inside-out) — always shown -->
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin:4px 0 14px 0;">
+        <span class="dash-section" style="margin:0;">Service health · monitored services</span>
+        <a href="/services/" style="font-size:12px; font-weight:600; color:#0f62fe; text-decoration:none;">View services →</a>
+    </div>
+    {% if service_health.total %}
+    <div class="rel-kpi-grid">
+        <a class="rel-kpi" href="/services/">
+            <div class="rel-kpi-value" style="color:#166534;">{{ service_health.healthy }}</div>
+            <div class="rel-kpi-label">Healthy</div>
+            <div class="rel-kpi-sub">of {{ service_health.total }} monitored</div>
+        </a>
+        <a class="rel-kpi" href="/services/">
+            <div class="rel-kpi-value" style="color:{% if service_health.degraded %}#b45309{% else %}#0f172a{% endif %};">{{ service_health.degraded }}</div>
+            <div class="rel-kpi-label">Degraded</div>
+            <div class="rel-kpi-sub">up but breaching SLO</div>
+        </a>
+        <a class="rel-kpi" href="/services/">
+            <div class="rel-kpi-value" style="color:{% if service_health.down %}#b91c1c{% else %}#0f172a{% endif %};">{{ service_health.down }}</div>
+            <div class="rel-kpi-label">Down</div>
+            <div class="rel-kpi-sub">not responding</div>
+        </a>
+        <a class="rel-kpi" href="/services/">
+            <div class="rel-kpi-value">{% if service_health.avg_avail is not None %}{{ service_health.avg_avail }}%{% else %}—{% endif %}</div>
+            <div class="rel-kpi-label">Availability</div>
+            <div class="rel-kpi-sub">avg{% if service_health.avg_resp is not None %} · {{ service_health.avg_resp }} ms response{% endif %} · 24h</div>
+        </a>
+    </div>
+    {% else %}
+    <div style="background:#fff; border:1px dashed #cbd5e1; border-radius:12px; padding:16px 18px; margin-bottom:32px; font-size:13px; color:#64748b;">
+        No services monitored yet — turn on <b style="color:#334155;">Monitor</b> for the services you care about to track their health, availability and response time.
+        <a href="/services/" style="color:#0f62fe; font-weight:600; text-decoration:none; margin-left:6px;">Go to Services →</a>
+    </div>
+    {% endif %}
+
+    <!-- External uptime checks (synthetic / outside-in) — only when enabled -->
+    {% if has_synthetic_checks %}
     <div style="display:flex; justify-content:space-between; align-items:baseline; margin:4px 0 14px 0;">
         <span class="dash-section" style="margin:0;">Reliability &amp; SLOs · last 30 days</span>
         <a href="/reliability/" style="font-size:12px; font-weight:600; color:#0f62fe; text-decoration:none;">View details →</a>
@@ -230,7 +268,8 @@
             .catch(function(){});
     })();
     </script>
-    {% endif %}
+    {% endif %}{# /has_synthetic_checks #}
+    {% endif %}{# /view_operations #}
 
     <!-- Top Consumers: CPU / Memory / Disk usage combined into one box -->
     <style>
