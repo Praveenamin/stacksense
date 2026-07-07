@@ -194,11 +194,27 @@ class Phase3ServicesPageTests(TestCase):
     def test_unmonitored_service_shows_dash(self):
         Service.objects.create(server=self.server, name="mysqld", status="running",
             service_type="systemd", monitoring_enabled=False)   # not monitored
-        r = self.client.get(reverse("services_overview"))
+        r = self.client.get(reverse("services_overview") + "?all=1")   # reveal all
         self.assertEqual(r.status_code, 200)
         b = r.content.decode()
         self.assertIn("—", b)
         self.assertNotIn("● Healthy", b)   # no health badge for unmonitored
+
+    def test_default_hides_unmonitored_toggle_reveals(self):
+        Service.objects.create(server=self.server, name="apache2", status="running",
+            service_type="systemd", monitoring_enabled=True, health_status="healthy")
+        Service.objects.create(server=self.server, name="port-54321", status="running",
+            service_type="port", port=54321, monitoring_enabled=False)   # ephemeral -> label = name
+        # Default: monitored only -> apache2 shown, the ephemeral port hidden.
+        b = self.client.get(reverse("services_overview")).content.decode()
+        self.assertIn("apache2", b)
+        self.assertNotIn("port-54321", b)
+        self.assertIn("Show all 2 services", b)         # the reveal toggle
+        # ?all=1: everything shown.
+        b2 = self.client.get(reverse("services_overview") + "?all=1").content.decode()
+        self.assertIn("apache2", b2)
+        self.assertIn("port-54321", b2)
+        self.assertIn("Monitored only", b2)             # the toggle flips back
 
 
 class Phase4RetentionTests(TestCase):

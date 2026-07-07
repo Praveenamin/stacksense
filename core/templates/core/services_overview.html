@@ -10,6 +10,15 @@
         <p style="font-size:14px;color:#525252;margin:0;">Auto-detected per server. Toggle the ones you want to actively monitor.</p>
         <p style="font-size:12px;color:#94a3b8;margin:6px 0 0;">Health is measured on the host by the agent (inside-out): available + fast enough. Outside-in endpoint availability lives on <a href="/reliability/" style="color:#0f62fe;text-decoration:none;">Reliability &amp; SLOs</a>.</p>
     </div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#64748b;flex-shrink:0;">
+        {% if show_all %}
+        <span>Showing <b style="color:#0f172a;">all services</b></span>
+        <a href="/services/" style="padding:7px 14px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#334155;text-decoration:none;font-weight:500;">Monitored only</a>
+        {% else %}
+        <span>Showing <b style="color:#0f172a;">monitored only</b>{% if stats.monitored %} ({{ stats.monitored }}){% endif %}</span>
+        <a href="?all=1" style="padding:7px 14px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#334155;text-decoration:none;font-weight:500;">Show all {{ stats.total }} services</a>
+        {% endif %}
+    </div>
 </div>
 
 {% if groups %}
@@ -104,6 +113,12 @@
 </div>
 {% endfor %}
 
+{% elif not show_all and stats.total %}
+<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
+    <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No services monitored yet</h3>
+    <p style="font-size:14px;color:#64748b;margin:0 auto 16px;max-width:520px;line-height:1.6;">{{ stats.total }} service{{ stats.total|pluralize }} detected, but none are being monitored. Show all to pick the ones you care about and turn on <b>Monitor</b>.</p>
+    <a href="?all=1" style="display:inline-block;padding:9px 18px;background:#0f62fe;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Show all {{ stats.total }} services →</a>
+</div>
 {% else %}
 <div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
     <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No services detected yet</h3>

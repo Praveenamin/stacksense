@@ -7745,6 +7745,9 @@ def _is_background_service(svc):
 def services_overview(request):
     """Services grouped by server, with the non-critical/background ones filtered
     out by default and a per-service monitoring toggle."""
+    # Show only the services the user chose to monitor by default; ?all=1 reveals everything
+    # (needed to pick new ones to monitor).
+    show_all = request.GET.get("all") == "1"
     groups = {}
     total = running = monitored = degraded = down = 0
     # Worst-of ranking for the per-server health rollup (down worst, unknown never overrides).
@@ -7761,6 +7764,9 @@ def services_overview(request):
                 degraded += 1
             elif svc.health_status == "down":
                 down += 1
+        # Hide unmonitored services unless the operator asked to see all.
+        if not svc.monitoring_enabled and not show_all:
+            continue
         g = groups.setdefault(svc.server_id, {
             "server": svc.server, "notable": [], "background": [], "monitored": 0,
             "_rank": 0, "health": "unknown",
@@ -7774,6 +7780,7 @@ def services_overview(request):
 
     context = {
         "show_sidebar": True,
+        "show_all": show_all,
         "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
         "stats": {
             "total": total,

@@ -120,7 +120,9 @@ class _ControlsBase(TestCase):
         acl.role = Role.objects.get(name=perms.ROLE_OPERATOR)
         acl.save()
         cls.server = Server.objects.create(name="s1", ip_address="10.0.0.1", username="agent")
-        Service.objects.create(server=cls.server, name="nginx", service_type="systemd", status="running")
+        # Monitored so it shows in the Services page's default (monitored-only) view.
+        Service.objects.create(server=cls.server, name="nginx", service_type="systemd",
+                               status="running", monitoring_enabled=True)
         Container.objects.create(server=cls.server, name="web", image="nginx:latest", state="running")
 
     def html(self, user, url):
