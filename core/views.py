@@ -7639,7 +7639,9 @@ def services_overview(request):
     """Services grouped by server, with the non-critical/background ones filtered
     out by default and a per-service monitoring toggle."""
     groups = {}
-    total = running = monitored = slow = 0
+    total = running = monitored = degraded = down = 0
+    # Worst-of ranking for the per-server health rollup (down worst, unknown never overrides).
+    _health_rank = {"down": 3, "degraded": 2, "healthy": 1, "unknown": 0}
     # Include port-detected services: well-known / banner-identified ones are shown
     # as key services; unrecognized ephemeral ports fall into the background group.
     for svc in Service.objects.select_related("server").order_by("server__name", "name"):
@@ -7648,13 +7650,19 @@ def services_overview(request):
             running += 1
         if svc.monitoring_enabled:
             monitored += 1
-        if svc.latency_status == "slow":
-            slow += 1
+            if svc.health_status == "degraded":
+                degraded += 1
+            elif svc.health_status == "down":
+                down += 1
         g = groups.setdefault(svc.server_id, {
             "server": svc.server, "notable": [], "background": [], "monitored": 0,
+            "_rank": 0, "health": "unknown",
         })
         if svc.monitoring_enabled:
             g["monitored"] += 1
+            rank = _health_rank.get(svc.health_status, 0)
+            if rank > g["_rank"]:
+                g["_rank"], g["health"] = rank, svc.health_status
         (g["background"] if _is_background_service(svc) else g["notable"]).append(svc)
 
     context = {
@@ -7664,7 +7672,8 @@ def services_overview(request):
             "total": total,
             "running": running,
             "monitored": monitored,
-            "slow": slow,
+            "degraded": degraded,
+            "down": down,
             "servers": len(groups),
         },
     }

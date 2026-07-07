@@ -140,15 +140,15 @@ class Phase3DegradedTests(_IngestBase):
 
 
 class Phase4ServicesPageTests(TestCase):
-    """The Services page shows a Response Time column, an amber Slow badge for degraded
-    services, and a Slow filter chip."""
+    """The Services page shows a Response column with each service's latency. (The slow *state*
+    and its filter now live in the Health column — see core/test_service_health.py.)"""
 
     def setUp(self):
         self.client = Client()
         self.client.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
         self.server = Server.objects.create(name="db1", ip_address="10.0.0.5", username="agent")
 
-    def test_page_shows_response_column_slow_badge_and_filter(self):
+    def test_page_shows_response_column(self):
         Service.objects.create(server=self.server, name="mysqld", status="running",
             service_type="systemd", monitoring_enabled=True, latency_status="slow",
             last_latency_ms=800, last_latency_success=True, last_latency_at=timezone.now())
@@ -158,12 +158,9 @@ class Phase4ServicesPageTests(TestCase):
         r = self.client.get(reverse("services_overview"))
         self.assertEqual(r.status_code, 200)
         b = r.content.decode()
-        self.assertIn(">Response</th>", b)           # the new column header
-        self.assertIn("● Slow", b)                   # degraded badge
+        self.assertIn(">Response</th>", b)           # the Response column header
         self.assertIn("800 ms", b)                   # slow service response time
         self.assertIn("30 ms", b)                    # healthy service response time
-        self.assertIn('data-status="slow"', b)       # the Slow filter chip
-        self.assertIn('data-latency="slow"', b)      # row tagged for filtering
 
     def test_never_measured_service_shows_dash(self):
         Service.objects.create(server=self.server, name="mysqld", status="running",

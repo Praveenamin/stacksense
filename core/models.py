@@ -199,6 +199,21 @@ class Service(models.Model):
     latency_threshold_ms = models.PositiveIntegerField(null=True, blank=True,
         help_text="Per-service slow threshold (ms); NULL uses the global default")
 
+    # --- Agent-side (inside-out) SLO health: available + fast enough (push-1.9.0+) ---
+    class HealthStatus(models.TextChoices):
+        UNKNOWN = "unknown", "Unknown"
+        HEALTHY = "healthy", "Healthy"
+        DEGRADED = "degraded", "Degraded"
+        DOWN = "down", "Down"
+    availability_target_pct = models.FloatField(null=True, blank=True,
+        help_text="Per-service availability SLO target %; NULL uses the global default")
+    availability_24h_pct = models.FloatField(null=True, blank=True,
+        help_text="Denormalized availability % over the last 24h (from ServiceAvailabilitySample)")
+    health_status = models.CharField(max_length=10, choices=HealthStatus.choices,
+        default=HealthStatus.UNKNOWN, help_text="Overall health: healthy / degraded / down / unknown")
+    health_reason = models.CharField(max_length=120, null=True, blank=True,
+        help_text="Which SLO drove the current health state (for the UI tooltip)")
+
     class Meta:
         unique_together = [["server", "name"]]
         indexes = [
@@ -459,6 +474,11 @@ class AppConfig(models.Model):
     slow_service_alert_enabled = models.BooleanField(
         default=False,
         help_text="Raise an alert when a monitored service becomes slow (off by default).",
+    )
+    availability_target_pct = models.FloatField(
+        default=99.0,
+        help_text="Global availability SLO target %: a monitored service is 'degraded' when its "
+                  "24h availability falls below this (per-service override lives on the Service).",
     )
     # Stable per-install fingerprint for license node-locking (shown on the License page,
     # given to the vendor so a license can be bound to this install). Generated once.
@@ -977,6 +997,34 @@ class ServiceLatencyMeasurement(models.Model):
     
     def __str__(self):
         return f"{self.service.name} - {self.latency_ms}ms at {self.timestamp}"
+
+
+class ServiceAvailabilitySample(models.Model):
+    """One up/down sample per push for a MONITORED service — the basis for agent-side
+    (inside-out) availability. Recorded even when the service is down (its port stops
+    listening, so no latency row exists), which is what lets availability count real
+    downtime rather than reading 100% while a service is dead. Deliberately carries NO
+    latency (that would corrupt the latency averages in ServiceLatencyMeasurement)."""
+    service = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name="availability_samples",
+        help_text="Service this availability sample belongs to",
+    )
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    up = models.BooleanField(help_text="Whether the service was available at this sample")
+
+    class Meta:
+        verbose_name = "Service Availability Sample"
+        verbose_name_plural = "Service Availability Samples"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["service", "-timestamp"]),
+            models.Index(fields=["timestamp"]),
+        ]
+
+    def __str__(self):
+        return f"{self.service.name} - {'up' if self.up else 'down'} at {self.timestamp}"
 
 
 class SLIMeasurement(models.Model):

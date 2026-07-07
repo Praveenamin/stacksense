@@ -20,10 +20,12 @@ ever stored server-side.
 import json
 import logging
 import os
+from datetime import timedelta
 
 import requests
 
 from django.conf import settings
+from django.db.models import Count, Q
 from django.http import JsonResponse, HttpResponse, Http404, HttpResponseRedirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -33,7 +35,7 @@ from .models import (
     AgentCredential, SystemMetric, ServerHeartbeat, AgentVersion,
     BusinessKPI, BusinessKPIValue, BusinessMonitorConfig, Service, Container,
     AlertHistory, EmailAlertConfig, SlackAlertConfig, SSHAuthEvent,
-    ServiceLatencyMeasurement, AppConfig,
+    ServiceLatencyMeasurement, ServiceAvailabilitySample, AppConfig,
 )
 from . import alert_categories
 from . import alert_routing
@@ -515,6 +517,73 @@ def _store_service_latency(service, sample, now):
         return False
 
 
+def _service_is_up(svc):
+    """Is a monitored service currently available? Up = reported running AND not (it has a
+    listening port whose most-recent probe failed). A running service that was never probed or
+    has no port counts as up (we can't probe it, so liveness falls back to the reported status).
+    This is the single source of truth for the per-push availability sample and health state."""
+    if svc.status != "running":
+        return False
+    if svc.port is not None and svc.last_latency_success is False:
+        return False
+    return True
+
+
+# Health/availability tuning. HEALTH_WINDOW is the rolling window the 24h availability SLO is
+# judged over; MIN_AVAIL_SAMPLES gates the availability judgment so a freshly-monitored service
+# with only a few samples can't be flagged degraded on a single early blip.
+HEALTH_WINDOW = timedelta(hours=24)
+MIN_AVAIL_SAMPLES = 10
+
+
+def service_availability(service, window):
+    """Availability % for a service over `window` = up samples / total samples. Returns
+    (pct, sample_count); pct is None when there are no samples yet."""
+    agg = ServiceAvailabilitySample.objects.filter(
+        service=service, timestamp__gte=timezone.now() - window
+    ).aggregate(total=Count("id"), up=Count("id", filter=Q(up=True)))
+    total = agg["total"] or 0
+    if not total:
+        return None, 0
+    return round(agg["up"] / total * 100.0, 2), total
+
+
+def apply_service_health(service, now, config):
+    """Derive a monitored service's overall Health from Availability + Latency SLIs and store it
+    on the Service (denormalized for single-query rendering). Mirrors apply_service_latency.
+
+    Precedence: Down (not currently up) -> Degraded (latency 'slow') -> Degraded (24h availability
+    below target, once we have enough samples) -> Healthy. Unknown only before any signal. A
+    failed/stopped service is owned by the Down branch; latency is already anti-flapped, and the
+    rolling window smooths the availability judgment, so no extra streak is needed here."""
+    pct, n = service_availability(service, HEALTH_WINDOW)
+    target = service.availability_target_pct or config.availability_target_pct or 99.0
+
+    if not _service_is_up(service):
+        status = Service.HealthStatus.DOWN
+        reason = "not running" if service.status != "running" else "port not responding"
+    elif service.latency_status == Service.LatencyStatus.SLOW:
+        status = Service.HealthStatus.DEGRADED
+        reason = "responding slowly"
+    elif pct is not None and n >= MIN_AVAIL_SAMPLES and pct < target:
+        status = Service.HealthStatus.DEGRADED
+        reason = f"availability {pct:.1f}% < {target:.0f}% (24h)"
+    elif pct is None:
+        status = Service.HealthStatus.UNKNOWN
+        reason = None
+    else:
+        status = Service.HealthStatus.HEALTHY
+        reason = None
+
+    service.availability_24h_pct = pct
+    service.health_status = status
+    service.health_reason = reason
+    try:
+        service.save(update_fields=["availability_24h_pct", "health_status", "health_reason"])
+    except Exception:
+        logger.exception("Failed to apply health for service %s", service.name)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def agent_ingest_services(request):
@@ -594,6 +663,25 @@ def agent_ingest_services(request):
          .exclude(name__in=reported_names)
          .exclude(status="stopped")
          .update(status="stopped", last_checked=now))
+
+    # Record one up/down availability sample per MONITORED service, then recompute Health.
+    # Done AFTER the stopped sweep and with a fresh DB read, so a service that vanished from
+    # this push (now marked 'stopped') contributes a DOWN sample instead of silently going
+    # missing -- that's what lets availability count real downtime. Health reads the freshly
+    # updated latency_status + the just-written sample. Server-side only; no agent change.
+    try:
+        monitored = list(Service.objects.filter(server=server, monitoring_enabled=True))
+        if monitored:
+            if config is None:
+                config = AppConfig.get_config()
+            ServiceAvailabilitySample.objects.bulk_create([
+                ServiceAvailabilitySample(service=svc, timestamp=now, up=_service_is_up(svc))
+                for svc in monitored
+            ])
+            for svc in monitored:
+                apply_service_health(svc, now, config)
+    except Exception:
+        logger.exception("Availability sampling / health failed for %s", server.name)
 
     # Raise/resolve alerts for monitored services based on their current status.
     try:
