@@ -6006,6 +6006,31 @@ def toggle_slow_alert_master(request):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def set_service_label(request, server_id, service_id):
+    """Set/clear the operator-assigned friendly name for a service (mainly custom ports, e.g.
+    'port-3000' -> 'Checkout API'). An empty value clears it back to the auto-detected name.
+    Agent pushes never touch user_label, so the name persists."""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        service = get_object_or_404(Service, id=service_id, server=server)
+        try:
+            label = (json.loads(request.body or "{}").get("label") or "").strip()[:100]
+        except (ValueError, TypeError):
+            label = (request.POST.get("label") or "").strip()[:100]
+        service.user_label = label or None
+        service.save(update_fields=["user_label"])
+        _log_user_action(request, "SET_SERVICE_LABEL",
+                         f"Service {service.name} on {server.name} -> label "
+                         f"{service.user_label or '(cleared)'}")
+        return JsonResponse({"success": True, "label": service.label,
+                             "user_label": service.user_label})
+    except Exception as e:
+        error_logger.error(f"SET_SERVICE_LABEL error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
 @require_http_methods(["GET"])
 def dashboard_summary_stats_api(request):
     """API endpoint for dashboard summary statistics"""

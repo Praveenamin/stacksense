@@ -243,7 +243,7 @@ class Phase5SlowAlertTests(_IngestBase):
 
     def test_per_service_column_only_shown_when_master_on(self):
         c = Client(); c.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
-        Service.objects.create(server=self.server, name="mysqld", service_type="systemd",
+        Service.objects.create(server=self.server, name="mysqld", service_type="port", port=3306,
                                monitoring_enabled=True, slow_alert_enabled=True)
         # Master OFF: the fleet control shows, but no per-service Slow-alert column/toggle.
         b = c.get(reverse("services_overview")).content.decode()
@@ -255,6 +255,18 @@ class Phase5SlowAlertTests(_IngestBase):
         b2 = c.get(reverse("services_overview")).content.decode()
         self.assertIn(">Slow alert</th>", b2)
         self.assertIn('onchange="toggleServiceSlowAlert(', b2)
+
+    def test_slow_toggle_only_for_ported_services(self):
+        c = Client(); c.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
+        cfg = AppConfig.get_config(); cfg.slow_service_alert_enabled = True; cfg.save()
+        ported = Service.objects.create(server=self.server, name="webapp",
+            service_type="port", port=8080, monitoring_enabled=True)
+        portless = Service.objects.create(server=self.server, name="cron",
+            service_type="systemd", monitoring_enabled=True)
+        b = c.get(reverse("services_overview")).content.decode()
+        self.assertIn('onchange="toggleServiceSlowAlert(%d, %d,' % (self.server.id, ported.id), b)
+        self.assertNotIn('onchange="toggleServiceSlowAlert(%d, %d,' % (self.server.id, portless.id), b)
+        self.assertIn("No listening port to time", b)   # the portless dash tooltip
 
     def test_slow_alert_coexists_with_down_alert(self):
         # A slow alert uses a distinct marker so it never collides with the down alert.
@@ -269,3 +281,35 @@ class Phase5SlowAlertTests(_IngestBase):
                                            message__contains="[svc:mysqld]",
                                            status=AlertHistory.AlertStatus.TRIGGERED)
         self.assertEqual(down.count(), 1)
+
+
+class ServiceLabelTests(_IngestBase):
+    """Operator-assigned name for a (custom) port service: overrides the auto label, survives
+    agent pushes, and is set/cleared via the endpoint."""
+
+    def test_user_label_wins_and_survives_agent_push(self):
+        svc = Service.objects.create(server=self.server, name="port-3000", service_type="port",
+            port=3000, display_name="port-3000", user_label="Checkout API")
+        self.assertEqual(svc.label, "Checkout API")
+        # An agent push for the same (server, name) must NOT clobber the user's name.
+        self._push([{"name": "port-3000", "status": "running", "service_type": "port",
+                     "port": 3000, "display_name": "node (:3000)"}])
+        svc.refresh_from_db()
+        self.assertEqual(svc.user_label, "Checkout API")
+        self.assertEqual(svc.label, "Checkout API")
+
+    def test_set_label_endpoint_sets_and_clears(self):
+        c = Client(); c.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
+        svc = Service.objects.create(server=self.server, name="port-3000",
+                                     service_type="port", port=3000)
+        r = c.post(reverse("set_service_label", args=[self.server.id, svc.id]),
+                   data=json.dumps({"label": "Checkout API"}), content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["label"], "Checkout API")
+        svc.refresh_from_db()
+        self.assertEqual(svc.user_label, "Checkout API")
+        # Empty value clears it back to the auto-detected name.
+        c.post(reverse("set_service_label", args=[self.server.id, svc.id]),
+               data=json.dumps({"label": ""}), content_type="application/json")
+        svc.refresh_from_db()
+        self.assertIsNone(svc.user_label)

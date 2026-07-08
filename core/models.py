@@ -178,6 +178,11 @@ class Service(models.Model):
     display_name = models.CharField(max_length=150, null=True, blank=True, help_text="Friendly UI label; identity stays in name")
     # How this service was identified: systemd | port-banner | port-map | port-unknown
     detected_via = models.CharField(max_length=30, null=True, blank=True, help_text="Detection provenance")
+    # Operator-assigned friendly name (mainly for custom/unrecognized ports, e.g. "port-3000"
+    # -> "Checkout API"). User-set from the UI; agent pushes never overwrite it, and it wins
+    # over the agent's auto display_name in `label`.
+    user_label = models.CharField(max_length=100, null=True, blank=True,
+        help_text="Operator-assigned name; overrides the auto-detected label")
 
     # --- Agent-measured response time + Slow/Degraded state (push-1.9.0+) ---
     # The agent times a TCP connect to the service locally and pushes latency_ms; the server
@@ -229,8 +234,11 @@ class Service(models.Model):
 
     @property
     def label(self):
-        """Human label for the UI. Precedence: agent-supplied display_name, then a
-        role-from-port name ("HTTP (:80)"), then the raw identity name."""
+        """Human label for the UI. Precedence: operator-assigned user_label, then the
+        agent-supplied display_name, then a role-from-port name ("HTTP (:80)"), then the raw
+        identity name."""
+        if self.user_label:
+            return self.user_label
         if self.display_name:
             return self.display_name
         if self.service_type == "port" and self.port:
