@@ -116,6 +116,7 @@ CAPABILITY_BY_URL_NAME = {
     "toggle_service_slow_alert": MANAGE_MONITORING,
     "toggle_slow_alert_master": MANAGE_MONITORING,
     "set_service_label": MANAGE_MONITORING,
+    "set_service_threshold": MANAGE_MONITORING,
     "update_monitored_services": MANAGE_MONITORING,
     "update_service_thresholds": MANAGE_MONITORING,
     "update_monitored_disks": MANAGE_MONITORING,

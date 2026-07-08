@@ -313,3 +313,67 @@ class ServiceLabelTests(_IngestBase):
                data=json.dumps({"label": ""}), content_type="application/json")
         svc.refresh_from_db()
         self.assertIsNone(svc.user_label)
+
+
+class ServiceThresholdTests(_IngestBase):
+    """Per-service response-time SLO threshold, entered in SECONDS, stored as ms."""
+
+    def _client(self):
+        c = Client(); c.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
+        return c
+
+    def _svc(self):
+        return Service.objects.create(server=self.server, name="webapp",
+                                      service_type="port", port=8080)
+
+    def test_seconds_stored_as_ms(self):
+        c, svc = self._client(), self._svc()
+        r = c.post(reverse("set_service_threshold", args=[self.server.id, svc.id]),
+                   data=json.dumps({"seconds": 2}), content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        svc.refresh_from_db()
+        self.assertEqual(svc.latency_threshold_ms, 2000)         # 2 s -> 2000 ms
+        c.post(reverse("set_service_threshold", args=[self.server.id, svc.id]),
+               data=json.dumps({"seconds": 0.5}), content_type="application/json")
+        svc.refresh_from_db()
+        self.assertEqual(svc.latency_threshold_ms, 500)          # 0.5 s -> 500 ms
+
+    def test_blank_clears_to_global_default(self):
+        c = self._client()
+        svc = Service.objects.create(server=self.server, name="webapp",
+                                     service_type="port", port=8080, latency_threshold_ms=2000)
+        c.post(reverse("set_service_threshold", args=[self.server.id, svc.id]),
+               data=json.dumps({"seconds": ""}), content_type="application/json")
+        svc.refresh_from_db()
+        self.assertIsNone(svc.latency_threshold_ms)              # NULL -> use global 500 ms
+
+    def test_out_of_range_rejected(self):
+        c, svc = self._client(), self._svc()
+        r = c.post(reverse("set_service_threshold", args=[self.server.id, svc.id]),
+                   data=json.dumps({"seconds": 5000}), content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+        svc.refresh_from_db()
+        self.assertIsNone(svc.latency_threshold_ms)
+
+    def test_default_slo_rendered_for_monitored_ported_service(self):
+        c = self._client()
+        Service.objects.create(server=self.server, name="webapp", service_type="port",
+                               port=8080, monitoring_enabled=True)
+        b = c.get(reverse("services_overview")).content.decode()
+        self.assertIn("SLO ≤ 0.5s", b)             # global default 500 ms -> 0.5 s
+        self.assertIn("editThreshold(", b)              # inline editor wired for admins
+
+    def test_custom_slo_rendered(self):
+        c = self._client()
+        Service.objects.create(server=self.server, name="webapp", service_type="port",
+                               port=8080, monitoring_enabled=True, latency_threshold_ms=1500)
+        b = c.get(reverse("services_overview")).content.decode()
+        self.assertIn("SLO ≤ 1.5s", b)             # per-service override, trailing zeros trimmed
+
+    def test_no_slo_editor_for_portless_service(self):
+        c = self._client()
+        Service.objects.create(server=self.server, name="cron", service_type="systemd",
+                               port=None, monitoring_enabled=True)
+        b = c.get(reverse("services_overview")).content.decode()
+        # Portless units are up/down only — no response-time SLO to time or edit.
+        self.assertNotIn("SLO ≤", b)

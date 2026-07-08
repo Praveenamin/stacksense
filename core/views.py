@@ -6031,6 +6031,40 @@ def set_service_label(request, server_id, service_id):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def set_service_threshold(request, server_id, service_id):
+    """Set/clear a service's response-time SLO threshold. Input is in SECONDS (e.g. 0.5, 2);
+    stored as latency_threshold_ms. Blank/empty clears it -> falls back to the global default
+    (AppConfig.slow_latency_threshold_ms). Only meaningful for services with a listening port."""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        service = get_object_or_404(Service, id=service_id, server=server)
+        try:
+            raw = json.loads(request.body or "{}").get("seconds")
+        except (ValueError, TypeError):
+            raw = request.POST.get("seconds")
+        if raw in (None, "", "null"):
+            service.latency_threshold_ms = None
+        else:
+            seconds = float(raw)
+            if not (0.01 <= seconds <= 3600):
+                return JsonResponse(
+                    {"success": False, "error": "Threshold must be between 0.01 and 3600 seconds."},
+                    status=400)
+            service.latency_threshold_ms = int(round(seconds * 1000))
+        service.save(update_fields=["latency_threshold_ms"])
+        _log_user_action(request, "SET_SERVICE_THRESHOLD",
+                         f"Service {service.name} on {server.name} -> threshold "
+                         f"{service.latency_threshold_ms if service.latency_threshold_ms is not None else '(default)'} ms")
+        return JsonResponse({"success": True, "latency_threshold_ms": service.latency_threshold_ms})
+    except (ValueError, TypeError):
+        return JsonResponse({"success": False, "error": "Please enter a number of seconds."}, status=400)
+    except Exception as e:
+        error_logger.error(f"SET_SERVICE_THRESHOLD error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
 @require_http_methods(["GET"])
 def dashboard_summary_stats_api(request):
     """API endpoint for dashboard summary statistics"""
@@ -7819,6 +7853,9 @@ def services_overview(request):
     total = running = monitored = degraded = down = 0
     # Worst-of ranking for the per-server health rollup (down worst, unknown never overrides).
     _health_rank = {"down": 3, "degraded": 2, "healthy": 1, "unknown": 0}
+    from .models import AppConfig
+    _cfg = AppConfig.get_config()
+    _default_thr = _cfg.slow_latency_threshold_ms or 500   # global response-time SLO default (ms)
     # Include port-detected services: well-known / banner-identified ones are shown
     # as key services; unrecognized ephemeral ports fall into the background group.
     for svc in Service.objects.select_related("server").order_by("server__name", "name"):
@@ -7843,13 +7880,16 @@ def services_overview(request):
             rank = _health_rank.get(svc.health_status, 0)
             if rank > g["_rank"]:
                 g["_rank"], g["health"] = rank, svc.health_status
+        # Effective response-time SLO (seconds) for the inline editor beside Response.
+        svc.threshold_s = (svc.latency_threshold_ms or _default_thr) / 1000.0
+        svc.threshold_disp = "%g" % svc.threshold_s   # 0.5, 1.5, 2 — no trailing zeros
+        svc.threshold_is_custom = svc.latency_threshold_ms is not None
         (g["background"] if _is_background_service(svc) else g["notable"]).append(svc)
 
-    from .models import AppConfig
     context = {
         "show_sidebar": True,
         "show_all": show_all,
-        "slow_alerts_master": AppConfig.get_config().slow_service_alert_enabled,
+        "slow_alerts_master": _cfg.slow_service_alert_enabled,
         "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
         "stats": {
             "total": total,
