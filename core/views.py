@@ -5964,6 +5964,48 @@ def toggle_service_monitoring(request, server_id, service_id):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def toggle_service_slow_alert(request, server_id, service_id):
+    """Toggle the per-service slow-alert switch: whether THIS service alerts (email/Slack) and
+    counts as an incident when it's up but slow. Requires the fleet master
+    (AppConfig.slow_service_alert_enabled) to also be on for alerts to actually fire."""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        service = get_object_or_404(Service, id=service_id, server=server)
+        service.slow_alert_enabled = not service.slow_alert_enabled
+        service.save(update_fields=["slow_alert_enabled"])
+        _log_user_action(request, "TOGGLE_SERVICE_SLOW_ALERT",
+                         f"Service: {service.name} on {server.name} - Slow alert "
+                         f"{'enabled' if service.slow_alert_enabled else 'disabled'}")
+        return JsonResponse({
+            "success": True,
+            "slow_alert_enabled": service.slow_alert_enabled,
+            "message": f"Slow alert {'enabled' if service.slow_alert_enabled else 'disabled'} for {service.name}",
+        })
+    except Exception as e:
+        error_logger.error(f"TOGGLE_SERVICE_SLOW_ALERT error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def toggle_slow_alert_master(request):
+    """Toggle the fleet-wide master switch for slow-service alerts (AppConfig). When off, no
+    service raises a slow alert regardless of its per-service toggle."""
+    try:
+        from .models import AppConfig
+        cfg = AppConfig.get_config()
+        cfg.slow_service_alert_enabled = not cfg.slow_service_alert_enabled
+        cfg.save()
+        _log_user_action(request, "TOGGLE_SLOW_ALERT_MASTER",
+                         f"Fleet slow-service alerts {'enabled' if cfg.slow_service_alert_enabled else 'disabled'}")
+        return JsonResponse({"success": True, "enabled": cfg.slow_service_alert_enabled})
+    except Exception as e:
+        error_logger.error(f"TOGGLE_SLOW_ALERT_MASTER error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
 @require_http_methods(["GET"])
 def dashboard_summary_stats_api(request):
     """API endpoint for dashboard summary statistics"""
@@ -7778,9 +7820,11 @@ def services_overview(request):
                 g["_rank"], g["health"] = rank, svc.health_status
         (g["background"] if _is_background_service(svc) else g["notable"]).append(svc)
 
+    from .models import AppConfig
     context = {
         "show_sidebar": True,
         "show_all": show_all,
+        "slow_alerts_master": AppConfig.get_config().slow_service_alert_enabled,
         "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
         "stats": {
             "total": total,

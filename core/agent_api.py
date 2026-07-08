@@ -354,13 +354,14 @@ def evaluate_service_alerts(server):
 def evaluate_slow_service_alerts(server):
     """Raise/resolve alerts for monitored services that are UP but responding SLOWLY.
 
-    Opt-in via AppConfig.slow_service_alert_enabled (off by default -- slow is noisier than
-    down). A monitored service whose latency_status is 'slow' raises a single triggered SERVICE
-    AlertHistory at MEDIUM severity, marked `[svc-slow:<name>]` so it never collides with the
-    `[svc:<name>]` down alert; when it responds normally again the open slow-alert is resolved.
-    Honors the same suppression guards as the down path."""
+    Two gates: the fleet master AppConfig.slow_service_alert_enabled (off by default -- slow is
+    noisier than down) AND a per-service Service.slow_alert_enabled toggle. A monitored service
+    with both on whose latency_status is 'slow' raises a single triggered SERVICE AlertHistory at
+    MEDIUM severity, marked `[svc-slow:<name>]` so it never collides with the `[svc:<name>]` down
+    alert. The open alert resolves when the service responds normally again OR its per-service
+    toggle is turned off. Honors the same suppression guards as the down path."""
     cfg = AppConfig.get_config()
-    if not cfg.slow_service_alert_enabled:
+    if not cfg.slow_service_alert_enabled:   # fleet master off -> no slow alerts at all
         return
     mconfig = getattr(server, "monitoring_config", None)
     suppressed = getattr(server, "suppress_alerts", False) or (mconfig and getattr(mconfig, "alert_suppressed", False))
@@ -371,8 +372,9 @@ def evaluate_slow_service_alerts(server):
             server=server, alert_type=AlertHistory.AlertType.SERVICE,
             status=AlertHistory.AlertStatus.TRIGGERED, message__contains=marker,
         ).first()
-        is_slow = svc.latency_status == Service.LatencyStatus.SLOW
-        if is_slow and not open_alert and not suppressed:
+        # Per-service gate: only services with their own toggle on can raise a slow alert.
+        should_alert = svc.slow_alert_enabled and svc.latency_status == Service.LatencyStatus.SLOW
+        if should_alert and not open_alert and not suppressed:
             AlertHistory.objects.create(
                 server=server, alert_type=AlertHistory.AlertType.SERVICE,
                 status=AlertHistory.AlertStatus.TRIGGERED,
@@ -384,7 +386,7 @@ def evaluate_slow_service_alerts(server):
                 sent_at=now,
             )
             _notify_slow_service(server, svc.name, slow=True)
-        elif (not is_slow) and open_alert:
+        elif open_alert and not should_alert:   # recovered OR the per-service toggle was turned off
             open_alert.status = AlertHistory.AlertStatus.RESOLVED
             open_alert.resolved_at = now
             open_alert.save(update_fields=["status", "resolved_at"])

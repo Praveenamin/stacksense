@@ -22,6 +22,15 @@
 </div>
 
 {% if groups %}
+<!-- Slow-service alert master switch (fleet) -->
+<div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+    <label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change this"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if slow_alerts_master %}checked{% endif %} onchange="toggleSlowAlertMaster(this)"><span class="slider"></span></label>
+    <div style="min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:#0f172a;">Slow-service alerts (fleet): {% if slow_alerts_master %}<span style="color:#166534;">on</span>{% else %}<span style="color:#94a3b8;">off</span>{% endif %}</div>
+        <div style="font-size:12px;color:#64748b;">Alert + count as an incident when a monitored service is up but responding slowly.{% if slow_alerts_master %} Use the per-service switches below to choose which services alert.{% else %} Turn on, then pick services below. Needs email/Slack alert config to actually notify.{% endif %}</div>
+    </div>
+</div>
+
 <!-- Filter / control bar (consistent with Instances) -->
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -65,6 +74,7 @@
             <th style="padding:9px 18px;font-weight:500;">Health</th>
             <th style="padding:9px 18px;font-weight:500;">Availability</th>
             <th style="padding:9px 18px;font-weight:500;">Response</th>
+            {% if slow_alerts_master %}<th style="padding:9px 18px;font-weight:500;">Slow alert</th>{% endif %}
             <th style="padding:9px 18px;font-weight:500;text-align:right;">Monitor</th>
         </tr></thead>
         <tbody>
@@ -76,6 +86,7 @@
                 <td style="padding:9px 18px;">{% if s.monitoring_enabled %}{% if s.health_status == 'healthy' %}<span style="color:#166534;font-weight:600;" title="Available and within thresholds">● Healthy</span>{% elif s.health_status == 'degraded' %}<span style="color:#b45309;font-weight:600;" title="{{ s.health_reason }}">● Degraded</span>{% elif s.health_status == 'down' %}<span style="color:#b91c1c;font-weight:600;" title="{{ s.health_reason }}">● Down</span>{% else %}<span style="color:#94a3b8;" title="Not enough data yet">● Unknown</span>{% endif %}{% else %}<span style="color:#cbd5e1;" title="Enable Monitor to track health">—</span>{% endif %}</td>
                 <td style="padding:9px 18px;">{% if s.monitoring_enabled and s.availability_24h_pct is not None %}<span style="color:#334155;">{{ s.availability_24h_pct|floatformat:1 }}%</span><span style="font-size:10px;color:#94a3b8;"> 24h</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                 <td style="padding:9px 18px;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#334155{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;" title="Enable Monitor to measure response time">—</span>{% endif %}</td>
+                {% if slow_alerts_master %}<td style="padding:9px 18px;">{% if s.monitoring_enabled %}<label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}" title="Alert + count as an incident when this service is slow"><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.slow_alert_enabled %}checked{% endif %} onchange="toggleServiceSlowAlert({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>{% endif %}
                 <td style="padding:9px 18px;text-align:right;">
                     <label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
                 </td>
@@ -102,6 +113,7 @@
                     <td style="padding:8px 18px;">{% if s.monitoring_enabled %}{% if s.health_status == 'healthy' %}<span style="color:#166534;font-weight:600;" title="Available and within thresholds">● Healthy</span>{% elif s.health_status == 'degraded' %}<span style="color:#b45309;font-weight:600;" title="{{ s.health_reason }}">● Degraded</span>{% elif s.health_status == 'down' %}<span style="color:#b91c1c;font-weight:600;" title="{{ s.health_reason }}">● Down</span>{% else %}<span style="color:#94a3b8;">● Unknown</span>{% endif %}{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                     <td style="padding:8px 18px;">{% if s.monitoring_enabled and s.availability_24h_pct is not None %}<span style="color:#64748b;">{{ s.availability_24h_pct|floatformat:1 }}%</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                     <td style="padding:8px 18px;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#64748b{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
+                    {% if slow_alerts_master %}<td style="padding:8px 18px;">{% if s.monitoring_enabled %}<label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}" title="Alert + count as an incident when this service is slow"><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.slow_alert_enabled %}checked{% endif %} onchange="toggleServiceSlowAlert({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>{% endif %}
                     <td style="padding:8px 18px;text-align:right;"><label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
                 </tr>
             {% endfor %}
@@ -164,6 +176,24 @@ function toggleServiceMonitoring(serverId, serviceId, el){
             else { el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); }
         })
         .catch(()=>{ el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); });
+}
+function toggleServiceSlowAlert(serverId, serviceId, el){
+    var on = el.checked;
+    fetch(`/api/server/${serverId}/service/${serviceId}/toggle-slow-alert/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}})
+        .then(r=>r.json()).then(d=>{
+            if(d.success){ showToast('Slow alert ' + (on?'enabled':'disabled'), on?'success':'info'); }
+            else { el.checked=!el.checked; showToast('Failed to update slow alert', 'error'); }
+        })
+        .catch(()=>{ el.checked=!el.checked; showToast('Failed to update slow alert', 'error'); });
+}
+function toggleSlowAlertMaster(el){
+    var on = el.checked;
+    fetch('/api/slow-alerts/master/', {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}})
+        .then(r=>r.json()).then(d=>{
+            if(d.success){ showToast('Slow-service alerts ' + (on?'enabled':'disabled'), on?'success':'info'); setTimeout(function(){ location.reload(); }, 400); }
+            else { el.checked=!el.checked; showToast('Failed to update', 'error'); }
+        })
+        .catch(()=>{ el.checked=!el.checked; showToast('Failed to update', 'error'); });
 }
 // Search across all rows + server names
 (function(){

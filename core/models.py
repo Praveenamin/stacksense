@@ -198,6 +198,9 @@ class Service(models.Model):
         help_text="Consecutive over-threshold samples (anti-flap counter)")
     latency_threshold_ms = models.PositiveIntegerField(null=True, blank=True,
         help_text="Per-service slow threshold (ms); NULL uses the global default")
+    slow_alert_enabled = models.BooleanField(default=False,
+        help_text="Alert + count as an incident when THIS service is slow. Also requires the "
+                  "fleet master (AppConfig.slow_service_alert_enabled) to be on.")
 
     # --- Agent-side (inside-out) SLO health: available + fast enough (push-1.9.0+) ---
     class HealthStatus(models.TextChoices):
