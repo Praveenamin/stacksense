@@ -569,7 +569,7 @@ def apply_service_health(service, now, config):
         reason = "responding slowly"
     elif pct is not None and n >= MIN_AVAIL_SAMPLES and pct < target:
         status = Service.HealthStatus.DEGRADED
-        reason = f"availability {pct:.1f}% < {target:.0f}% (24h)"
+        reason = f"availability {pct:.1f}% < {target:g}% (24h)"
     elif pct is None:
         status = Service.HealthStatus.UNKNOWN
         reason = None

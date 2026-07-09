@@ -380,3 +380,63 @@ class ServiceThresholdTests(_IngestBase):
         # Portless units are up/down only — no response-time SLO to time or edit.
         self.assertNotIn("SLO ≤", b)                    # the row editor is not rendered
         self.assertNotIn('class="svc-slo"', b)          # no editable SLO span for this service
+
+
+class ServiceAvailabilityTargetTests(_IngestBase):
+    """Per-service availability SLO target, entered as a PERCENT, stored on availability_target_pct
+    (null -> global AppConfig.availability_target_pct = 99). Applies to any monitored service."""
+
+    def _client(self):
+        c = Client(); c.force_login(User.objects.create_superuser("boss2", "b2@x.test", "pw"))
+        return c
+
+    def _svc(self):
+        return Service.objects.create(server=self.server, name="webapp",
+                                      service_type="systemd", monitoring_enabled=True)
+
+    def test_percent_stored(self):
+        c, svc = self._client(), self._svc()
+        r = c.post(reverse("set_service_availability_target", args=[self.server.id, svc.id]),
+                   data=json.dumps({"percent": 99.9}), content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        svc.refresh_from_db()
+        self.assertEqual(svc.availability_target_pct, 99.9)
+        c.post(reverse("set_service_availability_target", args=[self.server.id, svc.id]),
+               data=json.dumps({"percent": 95}), content_type="application/json")
+        svc.refresh_from_db()
+        self.assertEqual(svc.availability_target_pct, 95.0)
+
+    def test_blank_clears_to_global_default(self):
+        c = self._client()
+        svc = Service.objects.create(server=self.server, name="webapp", service_type="systemd",
+                                     monitoring_enabled=True, availability_target_pct=95.0)
+        c.post(reverse("set_service_availability_target", args=[self.server.id, svc.id]),
+               data=json.dumps({"percent": ""}), content_type="application/json")
+        svc.refresh_from_db()
+        self.assertIsNone(svc.availability_target_pct)          # NULL -> use global 99%
+
+    def test_out_of_range_rejected(self):
+        c, svc = self._client(), self._svc()
+        for bad in (150, 0):
+            r = c.post(reverse("set_service_availability_target", args=[self.server.id, svc.id]),
+                       data=json.dumps({"percent": bad}), content_type="application/json")
+            self.assertEqual(r.status_code, 400)
+        svc.refresh_from_db()
+        self.assertIsNone(svc.availability_target_pct)
+
+    def test_default_target_rendered(self):
+        c = self._client()
+        Service.objects.create(server=self.server, name="webapp", service_type="systemd",
+                               monitoring_enabled=True)
+        b = c.get(reverse("services_overview")).content.decode()
+        self.assertIn('data-percent="99"', b)                  # global default 99%
+        self.assertIn('class="avail-val">99</span>', b)
+        self.assertIn("editAvailTarget(this)", b)              # inline editor wired for admins
+
+    def test_custom_target_rendered(self):
+        c = self._client()
+        Service.objects.create(server=self.server, name="webapp", service_type="systemd",
+                               monitoring_enabled=True, availability_target_pct=99.9)
+        b = c.get(reverse("services_overview")).content.decode()
+        self.assertIn('data-percent="99.9"', b)                # per-service override, trimmed
+        self.assertIn('class="avail-val">99.9</span>', b)

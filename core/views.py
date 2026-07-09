@@ -6041,6 +6041,40 @@ def set_service_threshold(request, server_id, service_id):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def set_service_availability_target(request, server_id, service_id):
+    """Set/clear a service's availability SLO target, as a PERCENT (e.g. 99, 99.9). Stored on
+    Service.availability_target_pct; blank/empty clears it -> falls back to the global default
+    (AppConfig.availability_target_pct). Health flags Warning when 24h availability drops below it."""
+    try:
+        server = get_object_or_404(Server, id=server_id)
+        service = get_object_or_404(Service, id=service_id, server=server)
+        try:
+            raw = json.loads(request.body or "{}").get("percent")
+        except (ValueError, TypeError):
+            raw = request.POST.get("percent")
+        if raw in (None, "", "null"):
+            service.availability_target_pct = None
+        else:
+            percent = float(raw)
+            if not (1 <= percent <= 100):
+                return JsonResponse(
+                    {"success": False, "error": "Target must be between 1 and 100 percent."},
+                    status=400)
+            service.availability_target_pct = percent
+        service.save(update_fields=["availability_target_pct"])
+        _log_user_action(request, "SET_SERVICE_AVAIL_TARGET",
+                         f"Service {service.name} on {server.name} -> availability target "
+                         f"{service.availability_target_pct if service.availability_target_pct is not None else '(default)'}%")
+        return JsonResponse({"success": True, "availability_target_pct": service.availability_target_pct})
+    except (ValueError, TypeError):
+        return JsonResponse({"success": False, "error": "Please enter a percentage."}, status=400)
+    except Exception as e:
+        error_logger.error(f"SET_SERVICE_AVAIL_TARGET error: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
 @require_http_methods(["GET"])
 def dashboard_summary_stats_api(request):
     """API endpoint for dashboard summary statistics"""
@@ -7832,6 +7866,7 @@ def services_overview(request):
     from .models import AppConfig
     _cfg = AppConfig.get_config()
     _default_thr = _cfg.slow_latency_threshold_ms or 500   # global response-time SLO default (ms)
+    _default_avail = _cfg.availability_target_pct or 99.0   # global availability SLO default (%)
     # Include port-detected services: well-known / banner-identified ones are shown
     # as key services; unrecognized ephemeral ports fall into the background group.
     for svc in Service.objects.select_related("server").order_by("server__name", "name"):
@@ -7863,6 +7898,10 @@ def services_overview(request):
         svc.threshold_s = (svc.latency_threshold_ms or _default_thr) / 1000.0
         svc.threshold_disp = "%g" % svc.threshold_s   # 0.5, 1.5, 2 — no trailing zeros
         svc.threshold_is_custom = svc.latency_threshold_ms is not None
+        # Effective availability SLO (percent) for the inline editor beside Availability.
+        svc.avail_target = svc.availability_target_pct or _default_avail
+        svc.avail_target_disp = "%g" % svc.avail_target   # 99, 99.9 — no trailing zeros
+        svc.avail_target_is_custom = svc.availability_target_pct is not None
         (g["background"] if _is_background_service(svc) else g["notable"]).append(svc)
 
     context = {
@@ -7870,6 +7909,7 @@ def services_overview(request):
         "view": view,
         "slow_alerts_master": _cfg.slow_service_alert_enabled,
         "default_threshold_disp": "%g" % (_default_thr / 1000.0),   # global SLO fallback, seconds
+        "default_avail_disp": "%g" % _default_avail,                # global availability SLO fallback, %
         "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
         "stats": {
             "total": total,

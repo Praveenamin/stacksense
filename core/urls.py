@@ -94,6 +94,7 @@ urlpatterns = [
     path("api/slow-alerts/master/", views.toggle_slow_alert_master, name="toggle_slow_alert_master"),
     path("api/server/<int:server_id>/service/<int:service_id>/label/", views.set_service_label, name="set_service_label"),
     path("api/server/<int:server_id>/service/<int:service_id>/threshold/", views.set_service_threshold, name="set_service_threshold"),
+    path("api/server/<int:server_id>/service/<int:service_id>/availability-target/", views.set_service_availability_target, name="set_service_availability_target"),
     path("api/server/<int:server_id>/anomaly-status/", views.anomaly_status_api, name="anomaly_status_api"),
     path("api/server/<int:server_id>/metric-history/", views.metric_history_api, name="metric_history_api"),
     path("api/server/<int:server_id>/metrics/", views.server_metrics_api, name="server_metrics_api"),
