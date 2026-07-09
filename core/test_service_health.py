@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.core.management import call_command
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -168,6 +168,20 @@ class Phase3ServicesPageTests(TestCase):
         self.client = Client()
         self.client.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
         self.server = Server.objects.create(name="db1", ip_address="10.0.0.5", username="agent")
+
+    # DummyCache so the 60s reliability cache can't leak test data into the shared (live) Redis.
+    @override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}})
+    def test_incident_count_links_to_service_alerts(self):
+        from core.models import AlertHistory
+        # The reliability strip only renders when there's at least one monitored service.
+        Service.objects.create(server=self.server, name="webmail", status="running",
+            service_type="port", port=2095, monitoring_enabled=True, health_status="healthy")
+        AlertHistory.objects.create(server=self.server, alert_type="SERVICE",
+                                    message="[svc:webmail] down", value=0, threshold=0,
+                                    recipients="")   # one service incident in 30d
+        b = self.client.get(reverse("monitoring_dashboard")).content.decode()
+        self.assertIn("1 incident in 30d", b)
+        self.assertIn("/alerts/?alert_type=SERVICE&time_range=30d", b)   # the clickable link
 
     def test_degraded_renders_as_warning_on_dashboard_banner(self):
         # The 'degraded' health status is surfaced to users as "Warning" (internal value unchanged).
