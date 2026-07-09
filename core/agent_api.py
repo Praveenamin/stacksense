@@ -586,6 +586,89 @@ def apply_service_health(service, now, config):
         logger.exception("Failed to apply health for service %s", service.name)
 
 
+# Well-known port -> the systemd unit names that plausibly own it. Used ONLY to fold a
+# listening-port entry into a reported unit when the agent couldn't name the port's process
+# (unprivileged /proc fallback) or the process name differs from the unit (mysqld vs mariadb,
+# sshd vs ssh). Deliberately conservative: a port merges only when EXACTLY ONE reported unit
+# is a candidate -- if two candidates are present (e.g. apache2 AND nginx both on :80) we do
+# NOT guess, we leave the port as its own row. Product-name matching lives here, not in
+# port_roles.py (which is role-only by design).
+_PORT_UNIT_HINTS = {
+    22: {"ssh", "sshd"},
+    21: {"vsftpd", "proftpd", "pure-ftpd", "ftpd"},
+    25: {"postfix", "exim", "exim4", "sendmail"},
+    465: {"postfix", "exim", "exim4"},
+    587: {"postfix", "exim", "exim4"},
+    110: {"dovecot"},
+    995: {"dovecot"},
+    143: {"dovecot"},
+    993: {"dovecot"},
+    53: {"named", "bind9", "unbound", "dnsmasq", "pdns", "systemd-resolved"},
+    3306: {"mariadb", "mysql", "mysqld"},
+    5432: {"postgresql", "postgres"},
+    6379: {"redis", "redis-server"},
+    27017: {"mongod", "mongodb"},
+    80: {"apache2", "httpd", "nginx", "caddy", "lighttpd", "litespeed", "lshttpd"},
+    443: {"apache2", "httpd", "nginx", "caddy", "lighttpd", "litespeed", "lshttpd"},
+}
+
+
+def _merge_ports_into_units(services):
+    """Conservative systemd<->port de-dup (2b). When a listening-port entry clearly belongs to a
+    reported systemd unit, fold the port (+ its measured latency) into that unit's entry and drop
+    the standalone port entry -- so the service renders as ONE row that has a port (=> Response/SLO
+    lights up), instead of a "mariadb" unit row plus a separate "mysqld"/":3306" row.
+
+    Matching, most-confident first: (1) the port's process name equals a reported unit name
+    exactly; else (2) the port is well-known AND exactly one reported unit is a candidate for it.
+    Ambiguous (0 or >1 candidates) is never merged -- correctness over completeness. No agent
+    change: the fold is server-side, and the now-unreported port row self-heals via the stopped
+    sweep."""
+    units = {}   # lowercased unit name -> its item
+    for it in services:
+        if isinstance(it, dict) and it.get("service_type") == "systemd":
+            nm = (it.get("name") or "").strip().lower()
+            if nm:
+                units.setdefault(nm, it)
+    if not units:
+        return services
+    unit_names = set(units.keys())
+
+    def _port_of(it):
+        try:
+            return int(it.get("port"))
+        except (TypeError, ValueError):
+            return None
+
+    port_items = [it for it in services
+                  if isinstance(it, dict) and it.get("service_type") == "port" and _port_of(it)]
+    merged = set()   # id() of port items folded away
+    for it in sorted(port_items, key=lambda x: _port_of(x)):   # lowest port wins as the primary
+        port = _port_of(it)
+        pname = (it.get("name") or "").strip().lower()
+        target = None
+        if pname and not pname.startswith("port-") and pname in unit_names:
+            target = units[pname]                                  # (1) exact process-name match
+        else:
+            candidates = [u for u in unit_names if u in _PORT_UNIT_HINTS.get(port, ())]
+            if len(candidates) == 1:
+                target = units[candidates[0]]                      # (2) unique well-known match
+        if target is None:
+            continue
+        if not target.get("port"):   # first matched port enriches the unit; extras just drop
+            target["port"] = port
+            target["bind_address"] = it.get("bind_address")
+            if it.get("process_id"):
+                target["process_id"] = it.get("process_id")
+            for k in ("latency_ms", "latency_success", "latency_type", "latency_error"):
+                if k in it:
+                    target[k] = it[k]
+        merged.add(id(it))
+    if not merged:
+        return services
+    return [it for it in services if id(it) not in merged]
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def agent_ingest_services(request):
@@ -614,6 +697,10 @@ def agent_ingest_services(request):
     services = payload.get("services") if isinstance(payload, dict) else None
     if not isinstance(services, list):
         return JsonResponse({"error": "missing 'services' list"}, status=400)
+
+    # Conservative systemd<->port de-dup: fold a listening port into the unit that owns it so
+    # the service is one row (with a port => Response/SLO), not two. See _merge_ports_into_units.
+    services = _merge_ports_into_units(services)
 
     now = timezone.now()
     reported_names = set()

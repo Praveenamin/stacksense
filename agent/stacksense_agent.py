@@ -49,7 +49,7 @@ except ImportError:
     )
     sys.exit(1)
 
-AGENT_VERSION = "push-1.9.0"
+AGENT_VERSION = "push-1.10.0"
 
 # The agent is cross-platform (Linux + Windows). Core metrics come from psutil, which
 # is OS-portable; a few collectors are Linux-only (systemd services, SSH auth log, SysV
@@ -417,6 +417,59 @@ def _attach_service_latency(services):
                 svc["latency_error"] = r["error_message"]
 
 
+def _decode_proc_addr(hexaddr, is_v6):
+    """Decode the hex local-address field from /proc/net/tcp{,6} to a printable IP.
+    Addresses are stored in host byte order (little-endian on the platforms we run on)."""
+    try:
+        raw = bytes.fromhex(hexaddr)
+        if is_v6:
+            # 16 bytes stored as four little-endian 32-bit words.
+            packed = b"".join(raw[i:i + 4][::-1] for i in range(0, 16, 4))
+            return socket.inet_ntop(socket.AF_INET6, packed)
+        return socket.inet_ntop(socket.AF_INET, raw[::-1])
+    except Exception:
+        return ""
+
+
+def _parse_proc_net_tcp_listeners(text, is_v6):
+    """Parse /proc/net/tcp{,6} content -> [(port, bind_address), ...] for LISTEN sockets.
+    State column 0A is TCP_LISTEN. These files are world-readable, so this works without
+    root -- there is no PID/owner here, so callers name the service by port/banner."""
+    out = []
+    for line in text.splitlines()[1:]:   # skip the header row
+        parts = line.split()
+        if len(parts) < 4 or parts[3] != "0A":
+            continue
+        hexaddr, _, hexport = parts[1].partition(":")
+        try:
+            port = int(hexport, 16)
+        except ValueError:
+            continue
+        if port:
+            out.append((port, _decode_proc_addr(hexaddr, is_v6)))
+    return out
+
+
+def _listening_ports_from_proc():
+    """Fallback listening-port discovery for hosts where psutil.net_connections is denied
+    (unprivileged Linux): read /proc/net/tcp{,6} directly. Returns [(port, bind_address), ...]
+    deduped by port (first occurrence kept)."""
+    seen_ports = set()
+    results = []
+    for path, is_v6 in (("/proc/net/tcp", False), ("/proc/net/tcp6", True)):
+        try:
+            with open(path, "r") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        for port, addr in _parse_proc_net_tcp_listeners(text, is_v6):
+            if port in seen_ports:
+                continue
+            seen_ports.add(port)
+            results.append((port, addr))
+    return results
+
+
 def collect_services():
     """Detect running services on this host.
 
@@ -497,6 +550,7 @@ def collect_services():
     # identity) stays stable (process name when visible, else "port-<n>"); the
     # friendly label rides in display_name so it can change without churning rows.
     probed = {}  # port -> product (a port can appear on both IPv4 and IPv6)
+    discovered_ports = set()   # ports psutil already surfaced -> don't double-add via fallback
     try:
         for conn in psutil.net_connections(kind="inet"):
             if conn.status != "LISTEN" or not conn.laddr:
@@ -511,6 +565,7 @@ def collect_services():
             if key in seen:
                 continue
             seen.add(key)
+            discovered_ports.add(port)
             if port not in probed:
                 probed[port] = _safe(lambda: _identify_port(port))
             display_name, detected_via = _name_for_port(port, probed[port], pname)
@@ -522,6 +577,32 @@ def collect_services():
             })
     except Exception:
         pass
+
+    # Non-root fallback: on unprivileged Linux, psutil.net_connections raises AccessDenied
+    # and yields nothing, so listening services never get a port row -> no Response/SLO.
+    # Recover the ports we missed straight from /proc/net/tcp{,6} (world-readable). There is
+    # no owning PID there, so these are named by port/banner only.
+    if _IS_LINUX:
+        try:
+            for port, addr in _listening_ports_from_proc():
+                if port in discovered_ports:
+                    continue
+                name = f"port-{port}"
+                key = ("port", name, port)
+                if key in seen:
+                    continue
+                seen.add(key)
+                discovered_ports.add(port)
+                if port not in probed:
+                    probed[port] = _safe(lambda: _identify_port(port))
+                display_name, detected_via = _name_for_port(port, probed[port], "")
+                services.append({
+                    "name": name, "status": "running", "service_type": "port",
+                    "port": port, "bind_address": addr, "process_id": "",
+                    "display_name": display_name, "detected_via": detected_via,
+                })
+        except Exception as e:
+            print(f"[services] /proc port fallback failed ({e!r})", file=sys.stderr)
 
     # Time each ported service (TCP connect) so the server can show per-service response
     # time + flag "slow". Best-effort: never let it break service collection.
