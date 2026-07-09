@@ -1344,7 +1344,7 @@ def monitoring_dashboard(request):
         elif s.latency_status == "slow" and s.last_latency_ms is not None:
             detail = f"{round(s.last_latency_ms)} ms (target {int(s.latency_threshold_ms or _hthr)})"
         else:
-            detail = s.health_reason or "degraded"
+            detail = s.health_reason or "warning"
         _problems.append({"label": s.label, "server": s.server.name,
                           "status": s.health_status, "detail": detail})
 

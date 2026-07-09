@@ -161,13 +161,22 @@ class Phase2HealthTests(_IngestBase):
 
 
 class Phase3ServicesPageTests(TestCase):
-    """The Services page shows Health + Availability columns, Degraded/Down filter chips (the old
+    """The Services page shows Health + Availability columns, Warning/Down filter chips (the old
     Slow chip is gone), a per-server rollup badge, and a dash for unmonitored services."""
 
     def setUp(self):
         self.client = Client()
         self.client.force_login(User.objects.create_superuser("boss", "b@x.test", "pw"))
         self.server = Server.objects.create(name="db1", ip_address="10.0.0.5", username="agent")
+
+    def test_degraded_renders_as_warning_on_dashboard_banner(self):
+        # The 'degraded' health status is surfaced to users as "Warning" (internal value unchanged).
+        Service.objects.create(server=self.server, name="webapp", status="running",
+            service_type="port", port=8080, monitoring_enabled=True,
+            health_status="degraded", health_reason="availability 76.8% < 99% (24h)")
+        b = self.client.get(reverse("monitoring_dashboard")).content.decode()
+        self.assertIn("WARNING", b)             # banner badge maps degraded -> WARNING
+        self.assertNotIn("DEGRADED", b)         # the old label is gone
 
     def test_page_shows_health_and_availability(self):
         Service.objects.create(server=self.server, name="mysqld", status="running",
@@ -182,10 +191,10 @@ class Phase3ServicesPageTests(TestCase):
         b = r.content.decode()
         self.assertIn(">Health</th>", b)
         self.assertIn(">Availability</th>", b)
-        self.assertIn("● Degraded", b)
+        self.assertIn("● Warning", b)                   # 'degraded' state shows as "Warning"
         self.assertIn("● Healthy", b)
         self.assertIn("97.5%", b)
-        self.assertIn('data-health="degraded"', b)
+        self.assertIn('data-health="degraded"', b)      # internal status value unchanged
         # New health filter chips replace the old Slow chip.
         self.assertIn('data-status="degraded"', b)
         self.assertIn('data-status="down"', b)

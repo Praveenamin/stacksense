@@ -185,7 +185,7 @@
             <a class="sh-problem" href="/services/">
                 <span class="sh-dot {{ p.status }}"></span>
                 <span class="sh-name">{{ p.label }}</span>
-                <span class="sh-state {{ p.status }}">{{ p.status|upper }}</span>
+                <span class="sh-state {{ p.status }}">{% if p.status == 'degraded' %}WARNING{% else %}{{ p.status|upper }}{% endif %}</span>
                 <span class="sh-detail">{{ p.detail }}</span>
                 <span class="sh-server">{{ p.server }}</span>
             </a>
