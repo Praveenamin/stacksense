@@ -211,3 +211,47 @@ class OperationalSafetyTests(_Base):
         _set_retention(30)
         call_command("prune_old_data")
         self.assertEqual(SystemMetric.objects.count(), 0)
+
+
+class StaleServiceOrphanTests(_Base):
+    """Stale auto-detected service rows (unmonitored + stopped + >24h unseen) are orphans left
+    after the systemd<->port merge and must be pruned so each service shows as ONE row -- but a
+    running, monitored, manual, or recently-seen service must never be deleted."""
+
+    def _svc(self, name, *, status="stopped", monitored=False, auto=True, age_hours=48):
+        return Service.objects.create(
+            server=self.server, name=name, service_type="port",
+            status=status, monitoring_enabled=monitored, auto_detected=auto,
+            last_checked=timezone.now() - timedelta(hours=age_hours),
+        )
+
+    def test_stale_stopped_orphan_is_pruned(self):
+        self._svc("port-22", status="stopped", monitored=False, auto=True, age_hours=48)
+        call_command("prune_old_data")
+        self.assertFalse(Service.objects.filter(name="port-22").exists())
+
+    def test_running_service_is_kept(self):
+        self._svc("apache2", status="running", monitored=False, auto=True, age_hours=48)
+        call_command("prune_old_data")
+        self.assertTrue(Service.objects.filter(name="apache2").exists())
+
+    def test_monitored_service_is_kept(self):
+        self._svc("mariadb", status="stopped", monitored=True, auto=True, age_hours=48)
+        call_command("prune_old_data")
+        self.assertTrue(Service.objects.filter(name="mariadb").exists())
+
+    def test_manual_service_is_kept(self):
+        self._svc("my-app", status="stopped", monitored=False, auto=False, age_hours=48)
+        call_command("prune_old_data")
+        self.assertTrue(Service.objects.filter(name="my-app").exists())
+
+    def test_recently_seen_stopped_service_is_kept(self):
+        # Stopped only an hour ago -> not yet an orphan (could be a brief restart).
+        self._svc("port-9999", status="stopped", monitored=False, auto=True, age_hours=1)
+        call_command("prune_old_data")
+        self.assertTrue(Service.objects.filter(name="port-9999").exists())
+
+    def test_dry_run_keeps_orphan(self):
+        self._svc("port-53", status="stopped", monitored=False, auto=True, age_hours=48)
+        call_command("prune_old_data", dry_run=True)
+        self.assertTrue(Service.objects.filter(name="port-53").exists())
