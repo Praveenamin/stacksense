@@ -7822,9 +7822,9 @@ def _is_background_service(svc):
 def services_overview(request):
     """Services grouped by server, with the non-critical/background ones filtered
     out by default and a per-service monitoring toggle."""
-    # Show only the services the user chose to monitor by default; ?all=1 reveals everything
-    # (needed to pick new ones to monitor).
-    show_all = request.GET.get("all") == "1"
+    # Two tabs: "monitored" (default) lists the services being monitored; "disabled" lists the
+    # rest so you can enable them. Same grouping / search / layout, different membership.
+    view = "disabled" if request.GET.get("view") == "disabled" else "monitored"
     groups = {}
     total = running = monitored = degraded = down = 0
     # Worst-of ranking for the per-server health rollup (down worst, unknown never overrides).
@@ -7844,8 +7844,11 @@ def services_overview(request):
                 degraded += 1
             elif svc.health_status == "down":
                 down += 1
-        # Hide unmonitored services unless the operator asked to see all.
-        if not svc.monitoring_enabled and not show_all:
+        # Tab membership: the Monitored tab shows only enabled services; the Not-monitored
+        # tab shows only the rest (so the user can find and enable them).
+        if view == "monitored" and not svc.monitoring_enabled:
+            continue
+        if view == "disabled" and svc.monitoring_enabled:
             continue
         g = groups.setdefault(svc.server_id, {
             "server": svc.server, "notable": [], "background": [], "monitored": 0,
@@ -7864,7 +7867,7 @@ def services_overview(request):
 
     context = {
         "show_sidebar": True,
-        "show_all": show_all,
+        "view": view,
         "slow_alerts_master": _cfg.slow_service_alert_enabled,
         "default_threshold_disp": "%g" % (_default_thr / 1000.0),   # global SLO fallback, seconds
         "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
@@ -7872,6 +7875,7 @@ def services_overview(request):
             "total": total,
             "running": running,
             "monitored": monitored,
+            "disabled": total - monitored,
             "degraded": degraded,
             "down": down,
             "servers": len(groups),

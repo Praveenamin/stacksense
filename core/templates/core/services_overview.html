@@ -10,18 +10,18 @@
         <p style="font-size:14px;color:#525252;margin:0;">Auto-detected per server. Toggle the ones you want to actively monitor.</p>
         <p style="font-size:12px;color:#94a3b8;margin:6px 0 0;">Health is measured on the host by the agent (inside-out): available + fast enough. Outside-in endpoint availability lives on <a href="/reliability/" style="color:#0f62fe;text-decoration:none;">Reliability &amp; SLOs</a>.</p>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#64748b;flex-shrink:0;">
-        {% if show_all %}
-        <span>Showing <b style="color:#0f172a;">all services</b></span>
-        <a href="/services/" style="padding:7px 14px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#334155;text-decoration:none;font-weight:500;">Monitored only</a>
-        {% else %}
-        <span>Showing <b style="color:#0f172a;">monitored only</b>{% if stats.monitored %} ({{ stats.monitored }}){% endif %}</span>
-        <a href="?all=1" style="padding:7px 14px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#334155;text-decoration:none;font-weight:500;">Show all {{ stats.total }} services</a>
-        {% endif %}
+    <div class="svc-tabs" style="display:inline-flex;align-items:center;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:3px;flex-shrink:0;">
+        <a href="?view=monitored" style="padding:7px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:600;{% if view == 'monitored' %}background:#fff;color:#0f172a;box-shadow:0 1px 2px rgba(0,0,0,.06);{% else %}background:none;color:#64748b;{% endif %}">Monitored{% if stats.monitored %} <span style="opacity:.65;font-weight:500;">{{ stats.monitored }}</span>{% endif %}</a>
+        <a href="?view=disabled" style="padding:7px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:600;{% if view == 'disabled' %}background:#fff;color:#0f172a;box-shadow:0 1px 2px rgba(0,0,0,.06);{% else %}background:none;color:#64748b;{% endif %}">Not monitored{% if stats.disabled %} <span style="opacity:.65;font-weight:500;">{{ stats.disabled }}</span>{% endif %}</a>
     </div>
 </div>
 
+{% if view == 'disabled' %}
+<div style="font-size:13px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 16px;margin-bottom:14px;">These services are detected but <b>not monitored</b>. Flip <b>Monitor</b> on to start tracking health, availability and response time.</div>
+{% endif %}
+
 {% if groups %}
+{% if view == 'monitored' %}
 <!-- Slow-service alert master switch (fleet) -->
 <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
     <label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change this"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if slow_alerts_master %}checked{% endif %} onchange="toggleSlowAlertMaster(this)"><span class="slider"></span></label>
@@ -30,6 +30,7 @@
         <div style="font-size:12px;color:#64748b;">Alert + count as an incident when a monitored service is up but responding slowly.{% if slow_alerts_master %} Use the per-service switches below to choose which services alert.{% else %} Turn on, then pick services below. Needs email/Slack alert config to actually notify.{% endif %}</div>
     </div>
 </div>
+{% endif %}
 
 <!-- Filter / control bar (consistent with Instances) -->
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
@@ -37,8 +38,10 @@
         <button class="filter-chip active" data-status="all">All <span class="chip-count">0</span></button>
         <button class="filter-chip" data-status="running"><span class="dot" style="background:#24a148;"></span>Running <span class="chip-count">0</span></button>
         <button class="filter-chip" data-status="stopped"><span class="dot" style="background:#a8a8a8;"></span>Stopped <span class="chip-count">0</span></button>
+        {% if view == 'monitored' %}
         <button class="filter-chip" data-status="degraded"><span class="dot" style="background:#f59e0b;"></span>Degraded <span class="chip-count">0</span></button>
         <button class="filter-chip" data-status="down"><span class="dot" style="background:#ef4444;"></span>Down <span class="chip-count">0</span></button>
+        {% endif %}
     </div>
     <div style="position:relative;">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;"><path d="M9 17A8 8 0 109 1a8 8 0 000 16zM19 19l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -71,10 +74,12 @@
             <th style="padding:9px 18px;font-weight:500;">Service</th>
             <th style="padding:9px 18px;font-weight:500;">Type</th>
             <th style="padding:9px 18px;font-weight:500;">Status</th>
+            {% if view == 'monitored' %}
             <th style="padding:9px 18px;font-weight:500;">Health</th>
             <th style="padding:9px 18px;font-weight:500;">Availability</th>
             <th style="padding:9px 18px;font-weight:500;">Response</th>
             {% if slow_alerts_master %}<th style="padding:9px 18px;font-weight:500;">Slow alert</th>{% endif %}
+            {% endif %}
             <th style="padding:9px 18px;font-weight:500;text-align:right;">Monitor</th>
         </tr></thead>
         <tbody>
@@ -83,10 +88,12 @@
                 <td style="padding:9px 18px;color:#0f172a;font-weight:500;"><span class="svc-label">{{ s.label }}</span>{% if s.service_type == 'port' %} <span title="Detected by listening port" style="font-size:10px;font-weight:600;color:#64748b;background:#f1f5f9;padding:1px 6px;border-radius:999px;vertical-align:middle;">via port</span>{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Rename this service" onclick="renameService({{ g.server.id }}, {{ s.id }}, '{{ s.label|escapejs }}', this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:12px;">✎</button>{% endif %}{% endif %}</td>
                 <td style="padding:9px 18px;color:#64748b;">{{ s.service_type }}</td>
                 <td style="padding:9px 18px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
+                {% if view == 'monitored' %}
                 <td style="padding:9px 18px;">{% if s.monitoring_enabled %}{% if s.health_status == 'healthy' %}<span style="color:#166534;font-weight:600;" title="Available and within thresholds">● Healthy</span>{% elif s.health_status == 'degraded' %}<span style="color:#b45309;font-weight:600;" title="{{ s.health_reason }}">● Degraded</span>{% elif s.health_status == 'down' %}<span style="color:#b91c1c;font-weight:600;" title="{{ s.health_reason }}">● Down</span>{% else %}<span style="color:#94a3b8;" title="Not enough data yet">● Unknown</span>{% endif %}{% else %}<span style="color:#cbd5e1;" title="Enable Monitor to track health">—</span>{% endif %}</td>
                 <td style="padding:9px 18px;">{% if s.monitoring_enabled and s.availability_24h_pct is not None %}<span style="color:#334155;">{{ s.availability_24h_pct|floatformat:1 }}%</span><span style="font-size:10px;color:#94a3b8;"> 24h</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                 <td style="padding:9px 18px;white-space:nowrap;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#334155{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;" title="Enable Monitor to measure response time">—</span>{% endif %}{% if s.monitoring_enabled and s.port %} <span class="svc-slo" data-server="{{ g.server.id }}" data-service="{{ s.id }}" data-seconds="{{ s.threshold_disp }}" style="font-size:11px;color:#94a3b8;" title="Response-time SLO: flagged Degraded when connect latency stays above this"><span class="slo-view">· SLO ≤ <span class="slo-val">{{ s.threshold_disp }}</span>s{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Set response-time SLO (seconds)" onclick="editThreshold(this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:11px;">✎</button>{% endif %}</span></span>{% endif %}</td>
                 {% if slow_alerts_master %}<td style="padding:9px 18px;">{% if s.monitoring_enabled and s.port %}<label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}" title="Alert + count as an incident when this service is slow"><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.slow_alert_enabled %}checked{% endif %} onchange="toggleServiceSlowAlert({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>{% else %}<span style="color:#cbd5e1;" title="No listening port to time — this service is tracked up/down only">—</span>{% endif %}</td>{% endif %}
+                {% endif %}
                 <td style="padding:9px 18px;text-align:right;">
                     <label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
                 </td>
@@ -110,10 +117,12 @@
                     <td style="padding:8px 18px;color:#475569;"><span class="svc-label">{{ s.label }}</span>{% if s.service_type == 'port' %} <span title="Detected by listening port" style="font-size:10px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:999px;vertical-align:middle;">via port</span>{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Rename this service" onclick="renameService({{ g.server.id }}, {{ s.id }}, '{{ s.label|escapejs }}', this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:12px;">✎</button>{% endif %}{% endif %}</td>
                     <td style="padding:8px 18px;color:#94a3b8;">{{ s.service_type }}</td>
                     <td style="padding:8px 18px;">{% if s.status == 'running' %}<span style="color:#166534;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
+                    {% if view == 'monitored' %}
                     <td style="padding:8px 18px;">{% if s.monitoring_enabled %}{% if s.health_status == 'healthy' %}<span style="color:#166534;font-weight:600;" title="Available and within thresholds">● Healthy</span>{% elif s.health_status == 'degraded' %}<span style="color:#b45309;font-weight:600;" title="{{ s.health_reason }}">● Degraded</span>{% elif s.health_status == 'down' %}<span style="color:#b91c1c;font-weight:600;" title="{{ s.health_reason }}">● Down</span>{% else %}<span style="color:#94a3b8;">● Unknown</span>{% endif %}{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                     <td style="padding:8px 18px;">{% if s.monitoring_enabled and s.availability_24h_pct is not None %}<span style="color:#64748b;">{{ s.availability_24h_pct|floatformat:1 }}%</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                     <td style="padding:8px 18px;white-space:nowrap;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#64748b{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}{% if s.monitoring_enabled and s.port %} <span class="svc-slo" data-server="{{ g.server.id }}" data-service="{{ s.id }}" data-seconds="{{ s.threshold_disp }}" style="font-size:11px;color:#94a3b8;" title="Response-time SLO: flagged Degraded when connect latency stays above this"><span class="slo-view">· SLO ≤ <span class="slo-val">{{ s.threshold_disp }}</span>s{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Set response-time SLO (seconds)" onclick="editThreshold(this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:11px;">✎</button>{% endif %}</span></span>{% endif %}</td>
                     {% if slow_alerts_master %}<td style="padding:8px 18px;">{% if s.monitoring_enabled and s.port %}<label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}" title="Alert + count as an incident when this service is slow"><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.slow_alert_enabled %}checked{% endif %} onchange="toggleServiceSlowAlert({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>{% else %}<span style="color:#cbd5e1;" title="No listening port to time — this service is tracked up/down only">—</span>{% endif %}</td>{% endif %}
+                    {% endif %}
                     <td style="padding:8px 18px;text-align:right;"><label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
                 </tr>
             {% endfor %}
@@ -125,16 +134,22 @@
 </div>
 {% endfor %}
 
-{% elif not show_all and stats.total %}
-<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
-    <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No services monitored yet</h3>
-    <p style="font-size:14px;color:#64748b;margin:0 auto 16px;max-width:520px;line-height:1.6;">{{ stats.total }} service{{ stats.total|pluralize }} detected, but none are being monitored. Show all to pick the ones you care about and turn on <b>Monitor</b>.</p>
-    <a href="?all=1" style="display:inline-block;padding:9px 18px;background:#0f62fe;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Show all {{ stats.total }} services →</a>
-</div>
-{% else %}
+{% elif not stats.total %}
 <div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
     <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No services detected yet</h3>
     <p style="font-size:14px;color:#64748b;margin:0;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6;">The agent reports running services every few minutes. Make sure each VM runs the latest agent (re-run the install command to update).</p>
+</div>
+{% elif view == 'monitored' %}
+<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
+    <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">No services monitored yet</h3>
+    <p style="font-size:14px;color:#64748b;margin:0 auto 16px;max-width:520px;line-height:1.6;">{{ stats.total }} service{{ stats.total|pluralize }} detected, but none are being monitored. Open <b>Not monitored</b> to pick the ones you care about and turn on <b>Monitor</b>.</p>
+    <a href="?view=disabled" style="display:inline-block;padding:9px 18px;background:#0f62fe;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Browse {{ stats.disabled }} service{{ stats.disabled|pluralize }} to enable →</a>
+</div>
+{% else %}
+<div style="background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:48px;text-align:center;">
+    <h3 style="font-size:18px;font-weight:600;color:#0f172a;margin:0 0 8px 0;">Everything is being monitored</h3>
+    <p style="font-size:14px;color:#64748b;margin:0 auto 16px;max-width:520px;line-height:1.6;">Every detected service is already enabled — there's nothing sitting unmonitored.</p>
+    <a href="?view=monitored" style="display:inline-block;padding:9px 18px;background:#fff;border:1px solid #e2e8f0;color:#334155;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Back to Monitored →</a>
 </div>
 {% endif %}
 
@@ -152,6 +167,7 @@
 .filter-chip .chip-count { font-size:11px; opacity:.7; }
 </style>
 <script>
+var SVC_VIEW = '{{ view }}';   // 'monitored' | 'disabled' — an enabled service leaves the Not-monitored tab
 function getCookie(name){var v=null;if(document.cookie){document.cookie.split(';').forEach(function(c){c=c.trim();if(c.substring(0,name.length+1)===(name+'=')){v=decodeURIComponent(c.substring(name.length+1));}});}return v;}
 function toggleBg(id, btn){var t=document.getElementById(id);var show=t.style.display==='none';t.style.display=show?'table':'none';btn.textContent=(show?'▾ Hide ':'▸ Show ')+btn.textContent.replace(/^[▸▾]\s*(Show|Hide)\s*/,'');}
 function setServer(card, open){
@@ -172,7 +188,11 @@ function toggleServiceMonitoring(serverId, serviceId, el){
     var name = ((cell && cell.childNodes[0] ? cell.childNodes[0].textContent : '') || '').trim() || 'service';
     fetch(`/api/server/${serverId}/service/${serviceId}/toggle-monitoring/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}})
         .then(r=>r.json()).then(d=>{
-            if(d.success){ showToast('Monitoring ' + (on?'enabled':'disabled') + ' for ' + name, on?'success':'info'); }
+            if(d.success){
+                showToast('Monitoring ' + (on?'enabled':'disabled') + ' for ' + name, on?'success':'info');
+                // A just-enabled service belongs on the Monitored tab; fade its row out of this one.
+                if(SVC_VIEW==='disabled' && on){ if(row){ row.style.transition='opacity .3s'; row.style.opacity='.35'; } setTimeout(function(){ location.reload(); }, 600); }
+            }
             else { el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); }
         })
         .catch(()=>{ el.checked=!el.checked; showToast('Failed to update monitoring', 'error'); });

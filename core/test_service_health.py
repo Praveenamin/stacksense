@@ -191,30 +191,29 @@ class Phase3ServicesPageTests(TestCase):
         self.assertIn('data-status="down"', b)
         self.assertNotIn('data-status="slow"', b)
 
-    def test_unmonitored_service_shows_dash(self):
+    def test_unmonitored_service_shows_in_not_monitored_tab(self):
         Service.objects.create(server=self.server, name="mysqld", status="running",
             service_type="systemd", monitoring_enabled=False)   # not monitored
-        r = self.client.get(reverse("services_overview") + "?all=1")   # reveal all
+        r = self.client.get(reverse("services_overview") + "?view=disabled")   # Not-monitored tab
         self.assertEqual(r.status_code, 200)
         b = r.content.decode()
-        self.assertIn("—", b)
-        self.assertNotIn("● Healthy", b)   # no health badge for unmonitored
+        self.assertIn("mysqld", b)
+        self.assertNotIn("● Healthy", b)   # health isn't surfaced in the disabled tab
 
-    def test_default_hides_unmonitored_toggle_reveals(self):
+    def test_tabs_split_monitored_and_disabled(self):
         Service.objects.create(server=self.server, name="apache2", status="running",
             service_type="systemd", monitoring_enabled=True, health_status="healthy")
         Service.objects.create(server=self.server, name="port-54321", status="running",
             service_type="port", port=54321, monitoring_enabled=False)   # ephemeral -> label = name
-        # Default: monitored only -> apache2 shown, the ephemeral port hidden.
+        # Monitored tab (default): apache2 shown, the disabled ephemeral port hidden.
         b = self.client.get(reverse("services_overview")).content.decode()
         self.assertIn("apache2", b)
         self.assertNotIn("port-54321", b)
-        self.assertIn("Show all 2 services", b)         # the reveal toggle
-        # ?all=1: everything shown.
-        b2 = self.client.get(reverse("services_overview") + "?all=1").content.decode()
-        self.assertIn("apache2", b2)
+        self.assertIn("?view=disabled", b)              # the Not-monitored tab link
+        # Not-monitored tab: the disabled port shown, the monitored apache2 hidden.
+        b2 = self.client.get(reverse("services_overview") + "?view=disabled").content.decode()
         self.assertIn("port-54321", b2)
-        self.assertIn("Monitored only", b2)             # the toggle flips back
+        self.assertNotIn("apache2", b2)
 
 
 class Phase4RetentionTests(TestCase):
