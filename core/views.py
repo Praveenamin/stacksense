@@ -7890,6 +7890,7 @@ def services_overview(request):
         "show_sidebar": True,
         "show_all": show_all,
         "slow_alerts_master": _cfg.slow_service_alert_enabled,
+        "default_threshold_disp": "%g" % (_default_thr / 1000.0),   # global SLO fallback, seconds
         "groups": sorted(groups.values(), key=lambda x: x["server"].name.lower()),
         "stats": {
             "total": total,

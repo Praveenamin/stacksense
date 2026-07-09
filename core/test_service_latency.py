@@ -360,15 +360,17 @@ class ServiceThresholdTests(_IngestBase):
         Service.objects.create(server=self.server, name="webapp", service_type="port",
                                port=8080, monitoring_enabled=True)
         b = c.get(reverse("services_overview")).content.decode()
-        self.assertIn("SLO ≤ 0.5s", b)             # global default 500 ms -> 0.5 s
-        self.assertIn("editThreshold(", b)              # inline editor wired for admins
+        self.assertIn('data-seconds="0.5"', b)          # global default 500 ms -> 0.5 s
+        self.assertIn('class="slo-val">0.5</span>', b)
+        self.assertIn("editThreshold(this)", b)         # inline editor wired for admins
 
     def test_custom_slo_rendered(self):
         c = self._client()
         Service.objects.create(server=self.server, name="webapp", service_type="port",
                                port=8080, monitoring_enabled=True, latency_threshold_ms=1500)
         b = c.get(reverse("services_overview")).content.decode()
-        self.assertIn("SLO ≤ 1.5s", b)             # per-service override, trailing zeros trimmed
+        self.assertIn('data-seconds="1.5"', b)          # per-service override, trailing zeros trimmed
+        self.assertIn('class="slo-val">1.5</span>', b)
 
     def test_no_slo_editor_for_portless_service(self):
         c = self._client()
@@ -376,4 +378,5 @@ class ServiceThresholdTests(_IngestBase):
                                port=None, monitoring_enabled=True)
         b = c.get(reverse("services_overview")).content.decode()
         # Portless units are up/down only — no response-time SLO to time or edit.
-        self.assertNotIn("SLO ≤", b)
+        self.assertNotIn("SLO ≤", b)                    # the row editor is not rendered
+        self.assertNotIn('class="svc-slo"', b)          # no editable SLO span for this service

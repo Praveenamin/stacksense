@@ -85,7 +85,7 @@
                 <td style="padding:9px 18px;">{% if s.status == 'running' %}<span style="color:#166534;font-weight:600;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
                 <td style="padding:9px 18px;">{% if s.monitoring_enabled %}{% if s.health_status == 'healthy' %}<span style="color:#166534;font-weight:600;" title="Available and within thresholds">● Healthy</span>{% elif s.health_status == 'degraded' %}<span style="color:#b45309;font-weight:600;" title="{{ s.health_reason }}">● Degraded</span>{% elif s.health_status == 'down' %}<span style="color:#b91c1c;font-weight:600;" title="{{ s.health_reason }}">● Down</span>{% else %}<span style="color:#94a3b8;" title="Not enough data yet">● Unknown</span>{% endif %}{% else %}<span style="color:#cbd5e1;" title="Enable Monitor to track health">—</span>{% endif %}</td>
                 <td style="padding:9px 18px;">{% if s.monitoring_enabled and s.availability_24h_pct is not None %}<span style="color:#334155;">{{ s.availability_24h_pct|floatformat:1 }}%</span><span style="font-size:10px;color:#94a3b8;"> 24h</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
-                <td style="padding:9px 18px;white-space:nowrap;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#334155{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;" title="Enable Monitor to measure response time">—</span>{% endif %}{% if s.monitoring_enabled and s.port %} <span style="font-size:11px;color:#94a3b8;" title="Response-time SLO: flagged Degraded when connect latency stays above this">· SLO ≤ {{ s.threshold_disp }}s{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Set response-time SLO (seconds)" onclick="editThreshold({{ g.server.id }}, {{ s.id }}, '{{ s.threshold_disp }}', this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:11px;">✎</button>{% endif %}</span>{% endif %}</td>
+                <td style="padding:9px 18px;white-space:nowrap;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#334155{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;" title="Enable Monitor to measure response time">—</span>{% endif %}{% if s.monitoring_enabled and s.port %} <span class="svc-slo" data-server="{{ g.server.id }}" data-service="{{ s.id }}" data-seconds="{{ s.threshold_disp }}" style="font-size:11px;color:#94a3b8;" title="Response-time SLO: flagged Degraded when connect latency stays above this"><span class="slo-view">· SLO ≤ <span class="slo-val">{{ s.threshold_disp }}</span>s{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Set response-time SLO (seconds)" onclick="editThreshold(this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:11px;">✎</button>{% endif %}</span></span>{% endif %}</td>
                 {% if slow_alerts_master %}<td style="padding:9px 18px;">{% if s.monitoring_enabled and s.port %}<label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}" title="Alert + count as an incident when this service is slow"><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.slow_alert_enabled %}checked{% endif %} onchange="toggleServiceSlowAlert({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>{% else %}<span style="color:#cbd5e1;" title="No listening port to time — this service is tracked up/down only">—</span>{% endif %}</td>{% endif %}
                 <td style="padding:9px 18px;text-align:right;">
                     <label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>
@@ -112,7 +112,7 @@
                     <td style="padding:8px 18px;">{% if s.status == 'running' %}<span style="color:#166534;">● Running</span>{% else %}<span style="color:#b91c1c;font-weight:600;">● {{ s.status|capfirst }}</span>{% endif %}</td>
                     <td style="padding:8px 18px;">{% if s.monitoring_enabled %}{% if s.health_status == 'healthy' %}<span style="color:#166534;font-weight:600;" title="Available and within thresholds">● Healthy</span>{% elif s.health_status == 'degraded' %}<span style="color:#b45309;font-weight:600;" title="{{ s.health_reason }}">● Degraded</span>{% elif s.health_status == 'down' %}<span style="color:#b91c1c;font-weight:600;" title="{{ s.health_reason }}">● Down</span>{% else %}<span style="color:#94a3b8;">● Unknown</span>{% endif %}{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
                     <td style="padding:8px 18px;">{% if s.monitoring_enabled and s.availability_24h_pct is not None %}<span style="color:#64748b;">{{ s.availability_24h_pct|floatformat:1 }}%</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
-                    <td style="padding:8px 18px;white-space:nowrap;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#64748b{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}{% if s.monitoring_enabled and s.port %} <span style="font-size:11px;color:#94a3b8;" title="Response-time SLO: flagged Degraded when connect latency stays above this">· SLO ≤ {{ s.threshold_disp }}s{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Set response-time SLO (seconds)" onclick="editThreshold({{ g.server.id }}, {{ s.id }}, '{{ s.threshold_disp }}', this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:11px;">✎</button>{% endif %}</span>{% endif %}</td>
+                    <td style="padding:8px 18px;white-space:nowrap;">{% if s.monitoring_enabled and s.last_latency_success %}<span style="color:{% if s.latency_status == 'slow' %}#b45309;font-weight:600{% else %}#64748b{% endif %};">{{ s.last_latency_ms|floatformat:0 }} ms</span>{% elif s.monitoring_enabled and s.last_latency_at %}<span style="color:#b91c1c;" title="Latency probe could not connect">—</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}{% if s.monitoring_enabled and s.port %} <span class="svc-slo" data-server="{{ g.server.id }}" data-service="{{ s.id }}" data-seconds="{{ s.threshold_disp }}" style="font-size:11px;color:#94a3b8;" title="Response-time SLO: flagged Degraded when connect latency stays above this"><span class="slo-view">· SLO ≤ <span class="slo-val">{{ s.threshold_disp }}</span>s{% if 'manage_monitoring' in rbac_caps %} <button type="button" title="Set response-time SLO (seconds)" onclick="editThreshold(this)" style="border:none;background:none;cursor:pointer;color:#cbd5e1;padding:0 2px;font-size:11px;">✎</button>{% endif %}</span></span>{% endif %}</td>
                     {% if slow_alerts_master %}<td style="padding:8px 18px;">{% if s.monitoring_enabled and s.port %}<label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}" title="Alert + count as an incident when this service is slow"><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.slow_alert_enabled %}checked{% endif %} onchange="toggleServiceSlowAlert({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label>{% else %}<span style="color:#cbd5e1;" title="No listening port to time — this service is tracked up/down only">—</span>{% endif %}</td>{% endif %}
                     <td style="padding:8px 18px;text-align:right;"><label class="switch{% if 'manage_monitoring' not in rbac_caps %} rbac-disabled{% endif %}"{% if 'manage_monitoring' not in rbac_caps %} title="You don't have permission to change monitoring"{% endif %}><input type="checkbox" {% if 'manage_monitoring' not in rbac_caps %}disabled {% endif %}{% if s.monitoring_enabled %}checked{% endif %} onchange="toggleServiceMonitoring({{ g.server.id }}, {{ s.id }}, this)"><span class="slider"></span></label></td>
                 </tr>
@@ -208,18 +208,43 @@ function renameService(serverId, serviceId, current, el){
         })
         .catch(()=>{ showToast('Failed to rename', 'error'); });
 }
-function editThreshold(serverId, serviceId, current, el){
-    var val = prompt('Response-time SLO in seconds (e.g. 0.5 = 500 ms). Leave blank to use the global default:', current || '');
-    if(val === null) return;   // cancelled
-    val = val.trim();
-    fetch(`/api/server/${serverId}/service/${serviceId}/threshold/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}, body: JSON.stringify({seconds: val === '' ? null : val})})
-        .then(r=>r.json()).then(d=>{
-            if(d.success){
-                showToast(d.latency_threshold_ms === null ? 'Reset to global default' : 'SLO set to ' + (d.latency_threshold_ms/1000) + 's', 'success');
-                setTimeout(function(){ location.reload(); }, 400);
-            } else { showToast(d.error || 'Failed to set SLO', 'error'); }
-        })
-        .catch(()=>{ showToast('Failed to set SLO', 'error'); });
+var SLO_DEFAULT_S = '{{ default_threshold_disp }}';   // global fallback shown after a reset
+function editThreshold(btn){
+    var wrap = btn.closest('.svc-slo');
+    if(!wrap || wrap.querySelector('.slo-edit')) return;   // already editing
+    var view = wrap.querySelector('.slo-view');
+    var input = document.createElement('input');
+    input.type = 'text'; input.className = 'slo-edit';
+    input.value = wrap.dataset.seconds || '';
+    input.setAttribute('inputmode', 'decimal');
+    input.title = 'Seconds — e.g. 0.5 = 500 ms. Blank = global default. Enter to save, Esc to cancel.';
+    input.style.cssText = 'width:52px;font-size:11px;padding:0 4px;margin-left:4px;border:1px solid #93c5fd;border-radius:4px;font-family:inherit;';
+    view.style.display = 'none';
+    wrap.appendChild(input);
+    input.focus(); input.select();
+    var settled = false;
+    function cancel(){ if(settled) return; settled = true; input.remove(); view.style.display = ''; }
+    function save(){
+        if(settled) return; settled = true;
+        var val = input.value.trim();
+        input.disabled = true;
+        fetch(`/api/server/${wrap.dataset.server}/service/${wrap.dataset.service}/threshold/`, {method:'POST', headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'}, body: JSON.stringify({seconds: val === '' ? null : val})})
+            .then(r=>r.json()).then(d=>{
+                input.remove(); view.style.display = '';
+                if(d.success){
+                    var disp = d.latency_threshold_ms === null ? SLO_DEFAULT_S : String(d.latency_threshold_ms/1000);
+                    wrap.dataset.seconds = disp;
+                    var valEl = view.querySelector('.slo-val'); if(valEl) valEl.textContent = disp;
+                    showToast(d.latency_threshold_ms === null ? 'Reset to global default (' + disp + 's)' : 'SLO set to ' + disp + 's', 'success');
+                } else { showToast(d.error || 'Failed to set SLO', 'error'); }
+            })
+            .catch(()=>{ input.remove(); view.style.display = ''; showToast('Failed to set SLO', 'error'); });
+    }
+    input.addEventListener('keydown', function(e){
+        if(e.key === 'Enter'){ e.preventDefault(); save(); }
+        else if(e.key === 'Escape'){ e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', save);
 }
 // Search across all rows + server names
 (function(){
