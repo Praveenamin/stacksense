@@ -819,35 +819,11 @@ def server_details(request, server_id):
     else:
         monitored_disks = [primary_mount(disk_data) or "/"]
     
-    # Get monitored services for latency display (services with monitoring_enabled=True)
-    monitored_services = all_services.filter(monitoring_enabled=True)
-
-    # Service Status panel: same data + notable/background split as the Services
-    # page (services_overview), but scoped to this one server. Reads the agent-
-    # pushed Service rows straight from the DB — no SSH — so the two pages can
-    # never disagree, and the monitoring toggle hits the same shared endpoint.
-    panel_services = list(all_services)
-    notable_services = [s for s in panel_services if not _is_background_service(s)]
-    background_services = [s for s in panel_services if _is_background_service(s)]
-    services_monitored_count = sum(1 for s in panel_services if s.monitoring_enabled)
-
-    # Containers panel: same data + toggle as the Containers page, this server
-    # only. Reads the agent-pushed Container rows from the DB; shared endpoint.
-    server_containers = list(server.containers.all())
-    containers_monitored_count = sum(1 for c in server_containers if c.monitoring_enabled)
-
     context = {
         "server": server,
         "server_status": server_status,
         "latest_metric": latest_metric,
         "recent_metrics": recent_metrics,
-        "all_services": all_services,
-        "monitored_services": monitored_services,
-        "notable_services": notable_services,
-        "background_services": background_services,
-        "services_monitored_count": services_monitored_count,
-        "server_containers": server_containers,
-        "containers_monitored_count": containers_monitored_count,
         "recent_anomalies": recent_anomalies,
         "active_anomalies": active_anomalies,
         "active_anomaly_count": active_anomaly_count,
