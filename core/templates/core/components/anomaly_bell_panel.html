@@ -10,9 +10,15 @@ unresolved-anomaly feed into the bell badge + this panel. Include once in page c
             <button type="button" class="dash-modal-close" onclick="closeAnomalyPanel()" aria-label="Close">&times;</button>
         </div>
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;">
-                <h3 style="margin:0;font-size:14px;font-weight:600;color:#0f172a;">Anomalies <span id="anomaly-panel-count" style="font-weight:400;color:#94a3b8;font-size:12px;"></span></h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #f1f5f9;">
+                <h3 style="margin:0;font-size:14px;font-weight:600;color:#0f172a;flex-shrink:0;">Anomalies <span id="anomaly-panel-count" style="font-weight:400;color:#94a3b8;font-size:12px;"></span></h3>
                 <button type="button" id="anomaly-clear-all" onclick="clearAllAnomalies()" style="display:none;font-size:13px;font-weight:600;color:#0f62fe;background:#eff6ff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;">Clear all</button>
+                <!-- Inline confirm (replaces the old centred appConfirm modal) -->
+                <div id="anomaly-clear-confirm" style="display:none;align-items:center;gap:8px;min-width:0;">
+                    <span style="font-size:12.5px;color:#475569;white-space:nowrap;">Resolve all? Moves to history.</span>
+                    <button type="button" onclick="cancelClearAnomalies()" style="font-size:12px;font-weight:600;color:#475569;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:5px 10px;cursor:pointer;">Cancel</button>
+                    <button type="button" onclick="confirmClearAnomalies()" style="font-size:12px;font-weight:600;color:#fff;background:#0f62fe;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;">Clear all</button>
+                </div>
             </div>
             <div id="anomaly-list" style="max-height:380px;overflow-y:auto;"></div>
         </div>
@@ -30,8 +36,10 @@ unresolved-anomaly feed into the bell badge + this panel. Include once in page c
     function render(items){
         var list=document.getElementById('anomaly-list');
         var clearBtn=document.getElementById('anomaly-clear-all');
+        var confirmGrp=document.getElementById('anomaly-clear-confirm');
         var pc=document.getElementById('anomaly-panel-count');
         if(!list)return;
+        if(confirmGrp)confirmGrp.style.display='none';   // reset any in-progress confirm on re-render
         if(!items.length){
             list.innerHTML='<div style="padding:28px;text-align:center;color:#94a3b8;font-size:13px;">No anomalies — you\'re all caught up.</div>';
             if(clearBtn)clearBtn.style.display='none';
@@ -59,13 +67,18 @@ unresolved-anomaly feed into the bell badge + this panel. Include once in page c
     }
     function doClear(){
         fetch('/api/anomalies/clear-all/',{method:'POST',headers:{'X-CSRFToken':getCookie('csrftoken'),'Content-Type':'application/json'},credentials:'same-origin'})
-        .then(function(r){return r.json();}).then(function(){load();}).catch(function(){});
+        .then(function(r){return r.json();}).then(function(){load();}).catch(function(){load();});
     }
-    window.clearAllAnomalies=function(){
-        if(typeof appConfirm==='function'){
-            appConfirm({title:'Clear all anomalies',body:'Mark all current anomalies as resolved? They move to history and the badge clears.',confirmText:'Clear all',onConfirm:doClear});
-        } else if(confirm('Clear all anomalies?')){doClear();}
-    };
+    // Confirm inline inside the Anomalies panel (no second centred modal).
+    function setClearConfirm(on){
+        var btn=document.getElementById('anomaly-clear-all');
+        var grp=document.getElementById('anomaly-clear-confirm');
+        if(grp)grp.style.display=on?'flex':'none';
+        if(btn)btn.style.display=on?'none':'inline-block';
+    }
+    window.clearAllAnomalies=function(){ setClearConfirm(true); };
+    window.cancelClearAnomalies=function(){ setClearConfirm(false); };
+    window.confirmClearAnomalies=function(){ setClearConfirm(false); doClear(); };
     // Open the anomalies feed as a centred modal (only one dashboard modal open at a time).
     window.toggleAnomalyPanel=function(btn){
         var ov=document.getElementById('anomaly-overlay');
@@ -73,7 +86,7 @@ unresolved-anomaly feed into the bell badge + this panel. Include once in page c
         var open=!ov.classList.contains('open');
         document.querySelectorAll('.dash-modal-overlay.open').forEach(function(o){ o.classList.remove('open'); });
         document.querySelectorAll('.insight-icon.active').forEach(function(i){ i.classList.remove('active'); });
-        if(open){ ov.classList.add('open'); if(btn&&btn.classList)btn.classList.add('active'); }
+        if(open){ ov.classList.add('open'); if(btn&&btn.classList)btn.classList.add('active'); load(); }
         document.body.style.overflow = open ? 'hidden' : '';
     };
     window.closeAnomalyPanel=function(){
